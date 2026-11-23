@@ -6,18 +6,35 @@ import {
   INTELLIGENCE_ACTION_TYPES,
   PREAPPROVED_INTELLIGENCE_ACTION_TYPES
 } from "./intelligence-capabilities.mjs";
+import { createPatchArtifactRecord } from "./intelligence-patch-artifact.mjs";
 
 const workerSource = await readFile(new URL("../worker.js", import.meta.url), "utf8");
 const indexSource = await readFile(new URL("../index.html", import.meta.url), "utf8");
 const runnerSource = await readFile(new URL("../.github/workflows/mehran-intelligence-runner.yml", import.meta.url), "utf8");
 const musicStudioSource = await readFile(new URL("../music-studio.html", import.meta.url), "utf8");
 const capabilityImport = 'import { INTELLIGENCE_ACTION_TYPES, PREAPPROVED_INTELLIGENCE_ACTION_TYPES } from "./scripts/intelligence-capabilities.mjs";';
-if (!workerSource.startsWith(capabilityImport)) {
-  throw new Error("Worker capability registry import was not found at the module entry point");
+const patchStoreImport = 'import { storePrivatePatchArtifact } from "./scripts/intelligence-private-patch-store.mjs";';
+if (!workerSource.startsWith(capabilityImport) || !workerSource.includes(patchStoreImport)) {
+  throw new Error("Worker capability or patch storage imports were not found");
 }
-const workerSourceForTest = `const INTELLIGENCE_ACTION_TYPES = ${JSON.stringify(INTELLIGENCE_ACTION_TYPES)};
+const policySource = await readFile(new URL("./intelligence-patch-policy.mjs", import.meta.url), "utf8");
+const artifactSource = await readFile(new URL("./intelligence-patch-artifact.mjs", import.meta.url), "utf8");
+const patchStoreSource = await readFile(new URL("./intelligence-private-patch-store.mjs", import.meta.url), "utf8");
+const moduleUrl = source => "data:text/javascript;base64," + Buffer.from(source).toString("base64");
+const policyUrl = moduleUrl(policySource);
+const artifactUrl = moduleUrl(artifactSource.replace(
+  'from "./intelligence-patch-policy.mjs"',
+  `from "${policyUrl}"`
+));
+const patchStoreUrl = moduleUrl(patchStoreSource.replace(
+  'from "./intelligence-patch-artifact.mjs"',
+  `from "${artifactUrl}"`
+));
+const workerRest = workerSource.slice(capabilityImport.length).replace(patchStoreImport, "");
+const workerSourceForTest = `import { storePrivatePatchArtifact } from "${patchStoreUrl}";
+const INTELLIGENCE_ACTION_TYPES = ${JSON.stringify(INTELLIGENCE_ACTION_TYPES)};
 const PREAPPROVED_INTELLIGENCE_ACTION_TYPES = ${JSON.stringify(PREAPPROVED_INTELLIGENCE_ACTION_TYPES)};
-` + workerSource.slice(capabilityImport.length);
+` + workerRest;
 
 const workerModule = await import(
   "data:text/javascript;base64," + Buffer.from(workerSourceForTest).toString("base64")
@@ -246,6 +263,105 @@ test("MEHRAN collaboration task APIs reject unauthenticated access", async () =>
   assert.match(payload.error, /Admin authentication required/);
 });
 
+
+test("authenticated patch proposal route is bound to the dedicated agent token", async () => {
+  const response = await request("/agent/v1/patch-proposals", {
+    method: "POST",
+    headers: { Authorization: "Bearer " + "x".repeat(48) },
+    body: { artifact: {}, artifactSha256: "a".repeat(64) }
+  }, { DB: mockDb(), MEHRAN_AGENT_TOKEN: "s".repeat(48) });
+  assert.equal(response.status, 401);
+  const payload = await response.json();
+  assert.match(payload.error, /Agent authentication required/);
+});
+
+test("authenticated patch proposal route stores only verified metadata and returns no diff", async () => {
+  const targetPath = "scripts/intelligence-capabilities.test.mjs";
+  const diff = [
+    `--- a/${targetPath}`,
+    `+++ b/${targetPath}`,
+    "@@ -1 +1 @@",
+    "-const original = 1;",
+    "+const proposed = 2;",
+    ""
+  ].join("\\n");
+  const created = await createPatchArtifactRecord({
+    proposalId: "123e4567-e89b-42d3-a456-426614174000",
+    createdAt: "2026-11-23T00:00:00.000Z",
+    baseSha: "a".repeat(40),
+    summary: "A verified patch proposal for authenticated route testing",
+    targetPaths: [targetPath],
+    diff
+  });
+  const metadata = new Map();
+  const db = {
+    prepare(sql) {
+      let values = [];
+      return {
+        bind(...args) { values = args; return this; },
+        async run() {
+          if (sql.includes("INSERT OR IGNORE INTO intelligence_patch_proposals")) {
+            metadata.set(values[0], {
+              proposal_id: values[0], base_sha: values[1], target_path: values[2],
+              summary: values[3], artifact_path: values[4], artifact_sha256: values[5],
+              diff_sha256: values[6], status: "stored", created_at: values[7]
+            });
+          }
+          return { success: true, meta: { changes: 1 } };
+        },
+        async first() {
+          if (sql.includes("FROM intelligence_patch_proposals WHERE proposal_id=?")) {
+            return metadata.get(values[0]) || null;
+          }
+          return null;
+        },
+        async all() { return { results: [] }; }
+      };
+    },
+    async batch() { return []; }
+  };
+  const originalFetch = globalThis.fetch;
+  const outbound = [];
+  globalThis.fetch = async (url, options) => {
+    outbound.push({ url: String(url), method: options.method });
+    if (options.method === "GET") return new Response("", { status: 404 });
+    return new Response(JSON.stringify({ content: { path: "patch-proposals/2026/11/123e4567-e89b-42d3-a456-426614174000.json" } }), { status: 201 });
+  };
+  try {
+    const response = await request("/agent/v1/patch-proposals", {
+      method: "POST",
+      headers: { Authorization: "Bearer " + "s".repeat(48) },
+      body: { artifact: created.artifact, artifactSha256: created.artifactSha256 }
+    }, {
+      DB: db,
+      MEHRAN_AGENT_TOKEN: "s".repeat(48),
+      MEHRAN_REPORTS_GITHUB_TOKEN: "r".repeat(48)
+    });
+    assert.equal(response.status, 201);
+    const payload = await response.json();
+    assert.equal(payload.success, true);
+    assert.equal(payload.proposalId, created.artifact.proposalId);
+    assert.equal(payload.artifactSha256, created.artifactSha256);
+    assert.equal("diff" in payload, false);
+    assert.equal(outbound.length, 2);
+    assert.ok(outbound.every(item => item.url.includes("mehran-intelligence-reports")));
+    assert.equal(metadata.size, 1);
+    assert.equal(metadata.get(created.artifact.proposalId).diff_sha256, created.artifact.diffSha256);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("patch proposal API rejects unexpected request fields before storage", () => {
+  const start = workerSource.indexOf('if (path === "/agent/v1/patch-proposals" && method === "POST")');
+  const end = workerSource.indexOf('if (path === "/agent/v1/missions/plan"', start);
+  assert.ok(start >= 0 && end > start);
+  const route = workerSource.slice(start, end);
+  assert.match(route, /Object\.keys\(body\)\.sort\(\)\.join\(","\) !== "artifact,artifactSha256"/);
+  assert.match(route, /ensureIntelligencePatchProposalTable\(env\)/);
+  assert.match(route, /INSERT OR IGNORE INTO intelligence_patch_proposals/);
+  assert.doesNotMatch(route, /diff\s*:/, "API response must not echo patch contents");
+});
 test("MEHRAN Intelligence Agent API is enabled only behind its dedicated bearer secret", () => {
   const start = workerSource.indexOf('if (path.startsWith("/agent/v1/"))');
   const end = workerSource.indexOf('if (path === "/health"', start);
