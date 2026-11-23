@@ -15,6 +15,7 @@ import {
 } from "./intelligence-capabilities.mjs";
 
 const workerSource = readFileSync(new URL("../worker.js", import.meta.url), "utf8");
+const indexSource = readFileSync(new URL("../index.html", import.meta.url), "utf8");
 const runnerSource = readFileSync(new URL("../.github/workflows/mehran-intelligence-runner.yml", import.meta.url), "utf8");
 const scheduledStart = workerSource.indexOf("async scheduled(controller, env, ctx)");
 const scheduledEnd = workerSource.indexOf("async fetch(request, env)", scheduledStart);
