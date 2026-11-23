@@ -1801,13 +1801,13 @@ test("private Intelligence runner inline JavaScript parses as an ES module", () 
   const marker = "node --input-type=module <<'NODE'";
   const markerAt = runnerSource.indexOf(marker);
   assert.ok(markerAt >= 0, "private runner heredoc must exist");
-  const scriptStart = runnerSource.indexOf("\\n", markerAt) + 1;
-  const scriptEnd = runnerSource.indexOf("\\n          NODE", scriptStart);
+  const scriptStart = runnerSource.indexOf("\n", markerAt) + 1;
+  const scriptEnd = runnerSource.indexOf("\n          NODE", scriptStart);
   assert.ok(scriptStart > 0 && scriptEnd > scriptStart, "runner heredoc boundaries must be valid");
   const script = runnerSource.slice(scriptStart, scriptEnd)
-    .split("\\n")
+    .split("\n")
     .map(line => line.startsWith("          ") ? line.slice(10) : line)
-    .join("\\n");
+    .join("\n");
   const syntax = spawnSync(process.execPath, ["--check", "--input-type=module"], {
     input: script,
     encoding: "utf8"
