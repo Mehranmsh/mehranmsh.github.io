@@ -13,7 +13,7 @@ const indexSource = await readFile(new URL("../index.html", import.meta.url), "u
 const runnerSource = await readFile(new URL("../.github/workflows/mehran-intelligence-runner.yml", import.meta.url), "utf8");
 const musicStudioSource = await readFile(new URL("../music-studio.html", import.meta.url), "utf8");
 const capabilityImport = 'import { INTELLIGENCE_ACTION_TYPES, PREAPPROVED_INTELLIGENCE_ACTION_TYPES } from "./scripts/intelligence-capabilities.mjs";';
-const patchStoreImport = 'import { storePrivatePatchArtifact } from "./scripts/intelligence-private-patch-store.mjs";';
+const patchStoreImport = 'import { storePrivatePatchArtifact, verifyPrivatePatchArtifactAtPath, getPrivatePatchArtifactPath } from "./scripts/intelligence-private-patch-store.mjs";';
 const patchGenerationImport = 'import { generatePatchArtifact } from "./scripts/intelligence-patch-generation-service.mjs";';
 if (!workerSource.startsWith(capabilityImport) || !workerSource.includes(patchStoreImport) || !workerSource.includes(patchGenerationImport)) {
   throw new Error("Worker capability or patch storage imports were not found");
@@ -42,7 +42,7 @@ const patchGenerationServiceUrl = moduleUrl(patchGenerationServiceSource
   .replace('from "./intelligence-patch-artifact.mjs"', `from "${artifactUrl}"`)
 );
 const workerRest = workerSource.slice(capabilityImport.length).replace(patchStoreImport, "").replace(patchGenerationImport, "");
-const workerSourceForTest = `import { storePrivatePatchArtifact } from "${patchStoreUrl}";
+const workerSourceForTest = `import { storePrivatePatchArtifact, verifyPrivatePatchArtifactAtPath, getPrivatePatchArtifactPath } from "${patchStoreUrl}";
 import { generatePatchArtifact } from "${patchGenerationServiceUrl}";
 const INTELLIGENCE_ACTION_TYPES = ${JSON.stringify(INTELLIGENCE_ACTION_TYPES)};
 const PREAPPROVED_INTELLIGENCE_ACTION_TYPES = ${JSON.stringify(PREAPPROVED_INTELLIGENCE_ACTION_TYPES)};
@@ -280,7 +280,7 @@ test("AI patch generation endpoint requires the dedicated agent bearer token", a
   const response = await request("/agent/v1/patch-proposals/generate", {
     method: "POST",
     headers: { Authorization: "Bearer " + "x".repeat(48) },
-    body: { baseSha: "a".repeat(40), objective: "Add a bounded regression test" }
+    body: { baseSha: "a".repeat(40), objective: "Add a bounded regression test", requestId: "task-12345678" }
   }, { DB: mockDb(), MEHRAN_AGENT_TOKEN: "s".repeat(48) });
   assert.equal(response.status, 401);
   const payload = await response.json();
@@ -292,13 +292,15 @@ test("AI patch generation endpoint has a strict bounded request and storage-only
   const end = workerSource.indexOf('if (path === "/agent/v1/patch-proposals" && method === "POST")', start);
   assert.ok(start >= 0 && end > start);
   const route = workerSource.slice(start, end);
-  assert.match(route, /Object\.keys\(body\)\.sort\(\)\.join\(","\) !== "baseSha,objective"/);
+  assert.match(route, /Object\.keys\(body\)\.sort\(\)\.join\(","\) !== "baseSha,objective,requestId"/);
   assert.match(route, /checkRateLimit\(env,request,"intelligence-patch-generation",3,86400,86400\)/);
   assert.match(route, /reserveSocialWorkersAIBudget\(env,credits,"intelligence"\)/);
   assert.match(route, /storePrivatePatchArtifact/);
-  assert.match(route, /INSERT OR IGNORE INTO intelligence_patch_proposals/);
+  assert.match(route, /intelligence_patch_generation_requests/);
+  assert.match(route, /verifyPrivatePatchArtifactAtPath/);
+  assert.match(route, /finalizePatchGenerationRequest/);
   assert.doesNotMatch(route, /diff\s*:/);
-  assert.match(route, /generated\.validation\.mode/);
+  assert.match(route, /validationMode:row\.validation_mode/);
 });
 
 test("authenticated patch proposal route is bound to the dedicated agent token", async () => {
@@ -424,7 +426,7 @@ test("MEHRAN Intelligence Agent API is enabled only behind its dedicated bearer 
   assert.ok(route.includes("status IN ('queued','accepted','retry_wait')"), "agent claims must include retry_wait tasks");
   assert.match(route, /status='awaiting_approval' AND requires_approval=0/);
   assert.match(route, /agent_claimed_at=CURRENT_TIMESTAMP/);
-  assert.ok(route.includes("WHERE id=? AND status IN ('queued','accepted','retry_wait') AND requires_approval=0 AND assigned_to IN ('mehran_intelligence','shared') AND action_type IN ('repository_quality_check','service_health_report','source_security_audit','inspect_repository','run_repository_tests')"));
+  assert.ok(route.includes("WHERE id=? AND status IN ('queued','accepted','retry_wait') AND requires_approval=0 AND assigned_to IN ('mehran_intelligence','shared') AND action_type IN ('repository_quality_check','service_health_report','source_security_audit','inspect_repository','run_repository_tests','propose_code_patch')"));
   assert.match(route, /agent_claimed_at IS NOT NULL AND datetime\(agent_claimed_at\) < datetime\('now','-15 minutes'\)/);
   assert.match(route, /agent_claimed_at IS NOT NULL AND datetime\(agent_claimed_at\)>=datetime\('now','-15 minutes'\)/);
   assert.doesNotMatch(route, /work_package_id IS NULL AND agent_claimed_at IS NOT NULL/,
