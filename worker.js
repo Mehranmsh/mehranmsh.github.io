@@ -1,5 +1,5 @@
 import { INTELLIGENCE_ACTION_TYPES, PREAPPROVED_INTELLIGENCE_ACTION_TYPES } from "./scripts/intelligence-capabilities.mjs";
-import { storePrivatePatchArtifact } from "./scripts/intelligence-private-patch-store.mjs";
+import { storePrivatePatchArtifact, verifyPrivatePatchArtifactAtPath, getPrivatePatchArtifactPath } from "./scripts/intelligence-private-patch-store.mjs";
 import { generatePatchArtifact } from "./scripts/intelligence-patch-generation-service.mjs";
 
 const ALLOWED_ORIGIN = "https://mehranmsh.github.io";
@@ -5217,6 +5217,52 @@ async function ensureIntelligenceProtocolTables(env) {
   await env.DB.prepare("CREATE INDEX IF NOT EXISTS idx_intelligence_outbox_delivery ON intelligence_notification_outbox(status,next_attempt_at,created_at)").run();
 }
 
+async function ensureIntelligencePatchGenerationRequestsTable(env) {
+  await env.DB.prepare(`
+    CREATE TABLE IF NOT EXISTS intelligence_patch_generation_requests(
+      request_id TEXT PRIMARY KEY,
+      request_hash TEXT NOT NULL,
+      base_sha TEXT NOT NULL,
+      status TEXT NOT NULL,
+      proposal_id TEXT,
+      target_path TEXT,
+      summary TEXT,
+      artifact_path TEXT,
+      artifact_sha256 TEXT,
+      diff_sha256 TEXT,
+      validation_mode TEXT,
+      failure_code TEXT NOT NULL DEFAULT '',
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )
+  `).run();
+  await env.DB.prepare("CREATE INDEX IF NOT EXISTS idx_intelligence_patch_generation_status ON intelligence_patch_generation_requests(status,updated_at)").run();
+}
+
+async function finalizePatchGenerationRequest(env, row) {
+  if (!row || row.status !== "prepared" || !row.proposal_id || !row.artifact_path ||
+      !/^[a-f0-9]{64}$/.test(row.artifact_sha256 || "") || !/^[a-f0-9]{64}$/.test(row.diff_sha256 || "")) return false;
+  await env.DB.prepare(
+    "INSERT OR IGNORE INTO intelligence_patch_proposals(proposal_id,base_sha,target_path,summary,artifact_path,artifact_sha256,diff_sha256,status,created_at) VALUES(?,?,?,?,?,?,?,'stored',?)"
+  ).bind(
+    row.proposal_id,row.base_sha,row.target_path,row.summary,row.artifact_path,
+    row.artifact_sha256,row.diff_sha256,row.created_at
+  ).run();
+  const proposal = await env.DB.prepare(
+    "SELECT proposal_id,artifact_path,artifact_sha256,diff_sha256,status FROM intelligence_patch_proposals WHERE proposal_id=?"
+  ).bind(row.proposal_id).first();
+  if (!proposal || proposal.artifact_path !== row.artifact_path ||
+      proposal.artifact_sha256 !== row.artifact_sha256 || proposal.diff_sha256 !== row.diff_sha256 ||
+      proposal.status !== "stored") return false;
+  await env.DB.prepare(
+    "UPDATE intelligence_patch_generation_requests SET status='stored',updated_at=CURRENT_TIMESTAMP WHERE request_id=? AND status='prepared' AND artifact_sha256=?"
+  ).bind(row.request_id,row.artifact_sha256).run();
+  const confirmed = await env.DB.prepare(
+    "SELECT status,proposal_id,artifact_path,artifact_sha256,diff_sha256,base_sha,target_path,validation_mode FROM intelligence_patch_generation_requests WHERE request_id=?"
+  ).bind(row.request_id).first();
+  return !!confirmed && confirmed.status === "stored" && confirmed.artifact_sha256 === row.artifact_sha256;
+}
+
 async function ensureIntelligencePatchProposalTable(env) {
   await env.DB.prepare(`
     CREATE TABLE IF NOT EXISTS intelligence_patch_proposals(
@@ -6350,24 +6396,74 @@ export default {
         await ensureIntelligenceProtocolTables(env);
         if (path === "/agent/v1/patch-proposals/generate" && method === "POST") {
           const body = await readBody(request);
-          if (!body || Object.keys(body).sort().join(",") !== "baseSha,objective" ||
+          if (!body || Object.keys(body).sort().join(",") !== "baseSha,objective,requestId" ||
               typeof body.baseSha !== "string" || !/^[a-f0-9]{40}$/.test(body.baseSha) ||
               typeof body.objective !== "string" || body.objective.trim().length < 12 ||
-              body.objective.length > 800) {
-            return error("A current base SHA and bounded generation objective are required.",400);
+              body.objective.length > 800 || typeof body.requestId !== "string" ||
+              !/^[A-Za-z0-9._:-]{8,160}$/.test(body.requestId)) {
+            return error("A current base SHA, bounded objective, and stable request ID are required.",400);
+          }
+          await ensureIntelligencePatchProposalTable(env);
+          await ensureIntelligencePatchGenerationRequestsTable(env);
+          const requestHash = await sha256(body.baseSha + "\\n" + body.objective.trim());
+          const readRequest = () => env.DB.prepare(
+            "SELECT request_id,request_hash,base_sha,status,proposal_id,target_path,summary,artifact_path,artifact_sha256,diff_sha256,validation_mode,failure_code,created_at,updated_at FROM intelligence_patch_generation_requests WHERE request_id=?"
+          ).bind(body.requestId).first();
+          const responseFor = row => json({
+            success:true,requestId:row.request_id,proposalId:row.proposal_id,
+            path:row.artifact_path,artifactSha256:row.artifact_sha256,
+            diffSha256:row.diff_sha256,status:row.status,baseSha:row.base_sha,
+            targetPath:row.target_path,validationMode:row.validation_mode
+          },row.status === "stored" ? 200 : 202);
+          const existing = await readRequest();
+          if (existing) {
+            if (existing.request_hash !== requestHash || existing.base_sha !== body.baseSha) {
+              return error("Request ID was already used with a different generation payload.",409);
+            }
+            if (existing.status === "stored") return responseFor(existing);
+            if (existing.status === "prepared") {
+              const verified = await verifyPrivatePatchArtifactAtPath({
+                token:env.MEHRAN_REPORTS_GITHUB_TOKEN,
+                path:existing.artifact_path,
+                artifactSha256:existing.artifact_sha256
+              });
+              if (!verified.stored) return error("Prepared proposal could not be recovered from private storage; submit a new request ID.",409);
+              if (!await finalizePatchGenerationRequest(env,existing)) return error("Proposal metadata finalization is pending; retry with the same request ID.",503);
+              const recovered = await readRequest();
+              return responseFor(recovered);
+            }
+            if (existing.status === "processing") {
+              await env.DB.prepare(
+                "UPDATE intelligence_patch_generation_requests SET status='failed',failure_code='processing_timeout',updated_at=CURRENT_TIMESTAMP WHERE request_id=? AND status='processing' AND datetime(updated_at)<datetime('now','-10 minutes')"
+              ).bind(body.requestId).run();
+              const current = await readRequest();
+              if (current?.status === "processing") return error("This generation request is already in progress; retry the same request ID later.",409);
+              return error("The previous generation attempt expired; submit a new request ID.",409);
+            }
+            return error("This generation request is terminal; submit a new request ID to retry.",409);
           }
           await ensureSocialTables(env);
           if (!await checkRateLimit(env,request,"intelligence-patch-generation",3,86400,86400)) {
             return error("Patch generation limit reached. Try again tomorrow.",429);
           }
-          await ensureIntelligencePatchProposalTable(env);
+          await env.DB.prepare(
+            "INSERT OR IGNORE INTO intelligence_patch_generation_requests(request_id,request_hash,base_sha,status) VALUES(?,?,?,'processing')"
+          ).bind(body.requestId,requestHash,body.baseSha).run();
+          const reserved = await readRequest();
+          if (!reserved || reserved.request_hash !== requestHash || reserved.base_sha !== body.baseSha) {
+            return error("Generation request reservation failed.",409);
+          }
+          if (reserved.status !== "processing") return error("Generation request was concurrently reserved; retry the same request ID.",409);
           const generated = await generatePatchArtifact({
             env,
             baseSha:body.baseSha,
-            objective:body.objective,
+            objective:body.objective.trim(),
             reserveBudget:credits => reserveSocialWorkersAIBudget(env,credits,"intelligence")
           });
           if (!generated.ok) {
+            await env.DB.prepare(
+              "UPDATE intelligence_patch_generation_requests SET status='failed',failure_code=?,updated_at=CURRENT_TIMESTAMP WHERE request_id=? AND status='processing'"
+            ).bind(String(generated.code || "generation_failed").slice(0,80),body.requestId).run();
             const status = generated.code === "stale_base_sha" ? 409 :
               generated.code === "ai_budget_exhausted" ? 429 :
               ["ai_unavailable","budget_guard_unavailable","ai_budget_guard_failed","main_commit_lookup_failed","source_fetch_failed"].includes(generated.code) ? 503 :
@@ -6375,35 +6471,30 @@ export default {
             return error("Patch generation rejected: " + String(generated.code || "unknown"),status);
           }
           const artifact = generated.artifact;
+          const artifactPath = getPrivatePatchArtifactPath(artifact);
+          await env.DB.prepare(
+            "UPDATE intelligence_patch_generation_requests SET status='prepared',proposal_id=?,target_path=?,summary=?,artifact_path=?,artifact_sha256=?,diff_sha256=?,validation_mode=?,updated_at=CURRENT_TIMESTAMP WHERE request_id=? AND status='processing'"
+          ).bind(
+            artifact.proposalId,artifact.targetPath,artifact.summary,artifactPath,
+            generated.artifactSha256,artifact.diffSha256,generated.validation.mode,body.requestId
+          ).run();
+          const prepared = await readRequest();
+          if (!prepared || prepared.status !== "prepared" || prepared.artifact_sha256 !== generated.artifactSha256) {
+            return error("Generation metadata could not be durably prepared.",503);
+          }
           const stored = await storePrivatePatchArtifact({
             token:env.MEHRAN_REPORTS_GITHUB_TOKEN,
             artifact,
             artifactSha256:generated.artifactSha256
           });
           if (!stored.stored) {
-            const status = stored.code === "artifact_validation_failed" ? 400 :
-              stored.code === "artifact_id_conflict" ? 409 : 503;
-            return error("Private patch artifact storage failed: " + String(stored.code || "unknown"),status);
+            return error("Private patch artifact storage failed: " + String(stored.code || "unknown"),503);
           }
-          await env.DB.prepare(
-            "INSERT OR IGNORE INTO intelligence_patch_proposals(proposal_id,base_sha,target_path,summary,artifact_path,artifact_sha256,diff_sha256,status,created_at) VALUES(?,?,?,?,?,?,?,'stored',?)"
-          ).bind(
-            artifact.proposalId,artifact.baseSha,artifact.targetPath,artifact.summary,
-            stored.path,generated.artifactSha256,artifact.diffSha256,artifact.createdAt
-          ).run();
-          const confirmed = await env.DB.prepare(
-            "SELECT proposal_id,artifact_path,artifact_sha256,diff_sha256,status FROM intelligence_patch_proposals WHERE proposal_id=?"
-          ).bind(artifact.proposalId).first();
-          if (!confirmed || confirmed.artifact_sha256 !== generated.artifactSha256) {
-            return error("Patch proposal metadata conflict; retry after inspection.",409);
+          if (!await finalizePatchGenerationRequest(env,prepared)) {
+            return error("Proposal metadata finalization is pending; retry with the same request ID.",503);
           }
-          return json({
-            success:true,proposalId:confirmed.proposal_id,
-            path:confirmed.artifact_path,artifactSha256:confirmed.artifact_sha256,
-            diffSha256:confirmed.diff_sha256,status:confirmed.status,
-            baseSha:artifact.baseSha,targetPath:artifact.targetPath,
-            validationMode:generated.validation.mode
-          },201);
+          const confirmed = await readRequest();
+          return responseFor(confirmed);
         }
         if (path === "/agent/v1/patch-proposals" && method === "POST") {
           const body = await readBody(request);
