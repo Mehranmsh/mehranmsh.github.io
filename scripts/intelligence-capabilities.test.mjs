@@ -579,6 +579,41 @@ test("Workers AI patch generation validates and envelopes only an append-only di
   assert.equal(PATCH_GENERATION_SERVICE_POLICY.appliesPatch, false);
 });
 
+test("Workers AI patch generation rejects a main-branch race after the model returns", async () => {
+  const baseSha = "f".repeat(40);
+  let mainLookups = 0;
+  let modelCalls = 0;
+  const fetchImpl = async url => {
+    if (String(url).includes("/commits/main")) {
+      mainLookups++;
+      return new Response(JSON.stringify({ sha: mainLookups === 1 ? baseSha : "9".repeat(40) }), { status: 200 });
+    }
+    return new Response("const original = true;\\n", { status: 200 });
+  };
+  const result = await generatePatchArtifact({
+    baseSha,
+    objective: "Add a regression test for the final main SHA race",
+    env: { AI: { async run() {
+      modelCalls++;
+      return { response: JSON.stringify({
+        summary: "Add a regression test for the final main SHA race",
+        diff: [
+          "--- a/scripts/intelligence-capabilities.test.mjs",
+          "+++ b/scripts/intelligence-capabilities.test.mjs",
+          "@@ -1,0 +2,1 @@",
+          "+test(\"race guard\", () => {});",
+          ""
+        ].join("\\n")
+      }) };
+    } } },
+    reserveBudget: async () => ({ allowed: true }),
+    fetchImpl
+  });
+  assert.equal(result.code, "stale_base_sha");
+  assert.equal(mainLookups, 2);
+  assert.equal(modelCalls, 1);
+});
+
 test("Workers AI patch generation fails closed on budget denial and unsafe model output", async () => {
   const baseSha = "e".repeat(40);
   const fetchImpl = async url => String(url).includes("/commits/main")
