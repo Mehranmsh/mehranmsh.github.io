@@ -277,7 +277,7 @@ jobs:
                 if (!/^[a-f0-9]{40}$/.test(baseSha)) throw new Error("GitHub returned an invalid main commit SHA.");
                 const saved = await request(`/agent/v1/tasks/${encodeURIComponent(task.id)}/checkpoint`, {
                   method: "POST",
-                  body: JSON.stringify({ checkpoint: { baseSha } })
+                  body: JSON.stringify({ checkpoint: { baseSha }, claimToken: task.claimToken })
                 });
                 if (!saved.checkpointSaved) throw new Error("Immutable patch base commit could not be checkpointed.");
               }
@@ -628,7 +628,7 @@ jobs:
             recordTiming(`task_execute:${task.actionType}`, executionStartedAt);
             await request(`/agent/v1/tasks/${encodeURIComponent(task.id)}/result`, {
               method: "POST",
-              body: JSON.stringify({ status, result, retryable })
+              body: JSON.stringify({ status, result, retryable, claimToken: task.claimToken })
             });
             console.log(`One bounded task finished with status: ${status}; retryable=${retryable}`);
           }
