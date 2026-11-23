@@ -6446,9 +6446,12 @@ export default {
           if (!await checkRateLimit(env,request,"intelligence-patch-generation",3,86400,86400)) {
             return error("Patch generation limit reached. Try again tomorrow.",429);
           }
-          await env.DB.prepare(
+          const reservation = await env.DB.prepare(
             "INSERT OR IGNORE INTO intelligence_patch_generation_requests(request_id,request_hash,base_sha,status) VALUES(?,?,?,'processing')"
           ).bind(body.requestId,requestHash,body.baseSha).run();
+          if (!Number(reservation?.meta?.changes || 0)) {
+            return error("Generation request was concurrently reserved; retry the same request ID.",409);
+          }
           const reserved = await readRequest();
           if (!reserved || reserved.request_hash !== requestHash || reserved.base_sha !== body.baseSha) {
             return error("Generation request reservation failed.",409);
