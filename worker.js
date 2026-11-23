@@ -5325,7 +5325,7 @@ async function persistIntelligenceNotification(env, row) {
     try {
       const body = await response.json();
       if (body?.encoding !== "base64" || typeof body.content !== "string") throw new Error("Invalid content encoding.");
-      const binary = atob(body.content.replace(/\\s+/g,""));
+      const binary = atob(body.content.replace(/\s+/g,""));
       existingText = new TextDecoder().decode(Uint8Array.from(binary, ch => ch.charCodeAt(0)));
     } catch { throw new Error("Existing private notification could not be verified."); }
     if (await sha256(existingText) !== expectedHash) throw new Error("Existing private notification conflicts with the expected event.");
