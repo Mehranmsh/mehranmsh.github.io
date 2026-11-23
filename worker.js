@@ -5741,7 +5741,7 @@ export function verifyIntelligenceReport(actionType, report) {
     if (report.mode !== "isolated_fixed_repository_test" ||
         report.repository !== "Mehranmsh/mehranmsh.github.io" ||
         typeof report.baseSha !== "string" || !/^[a-f0-9]{40}$/.test(report.baseSha) ||
-        typeof report.workflowRunId !== "string" || !/^\\d{1,20}$/.test(report.workflowRunId) ||
+        typeof report.workflowRunId !== "string" || !/^\d{1,20}$/.test(report.workflowRunId) ||
         !integer(report.workflowAttempt) || report.workflowAttempt < 1 ||
         report.testSuite !== "scripts/intelligence-capabilities.test.mjs" ||
         report.exitCode !== 0 ||
