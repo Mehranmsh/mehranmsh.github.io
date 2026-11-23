@@ -2035,7 +2035,7 @@ test("owner-enabled MCP work-package schema exposes proposal-only tasks with a b
   assert.ok(mcp.includes('"propose_code_patch"'));
   assert.ok(mcp.includes('objective:{type:"string",minLength:20,maxLength:600}'));
   assert.ok(mcp.includes("private append-only test proposal"));
-  assert.ok(mcp.includes("never applies"));
+  assert.ok(mcp.includes("never apply patches"));
 });
 
 test("proposal result verifier accepts private artifact metadata only and rejects source mutation claims", () => {
