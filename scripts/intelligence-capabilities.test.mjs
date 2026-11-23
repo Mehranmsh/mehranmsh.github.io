@@ -774,7 +774,7 @@ test("Intelligence mission planning uses a bounded, more efficient daily reserva
   assert.match(workerSource, /intelligence: \{ column: "intelligence_reserved", cap: WORKERS_AI_INTELLIGENCE_DAILY_RESERVATION_CREDITS \}/);
   assert.match(workerSource, /WORKERS_AI_GLOBAL_DAILY_RESERVATION_CREDITS = 9000/);
   assert.match(workerSource, /reserveSocialWorkersAIBudget\(env, 25, "intelligence"\)/);
-  assert.match(workerSource, /max_tokens: 1000/);
+  assert.match(workerSource, /max_tokens: 1600/);
 });
 
 test("scheduled Intelligence runner serializes ticks and bounds per-tick task execution", () => {
