@@ -1,4 +1,5 @@
 import { INTELLIGENCE_ACTION_TYPES, PREAPPROVED_INTELLIGENCE_ACTION_TYPES } from "./scripts/intelligence-capabilities.mjs";
+import { storePrivatePatchArtifact } from "./scripts/intelligence-private-patch-store.mjs";
 
 const ALLOWED_ORIGIN = "https://mehranmsh.github.io";
 const FIREBASE_WEB_API_KEY = "AIzaSyBNezoCzAUXi1D7vC_stoUnQuN_JHR-rDM";
@@ -5215,6 +5216,23 @@ async function ensureIntelligenceProtocolTables(env) {
   await env.DB.prepare("CREATE INDEX IF NOT EXISTS idx_intelligence_outbox_delivery ON intelligence_notification_outbox(status,next_attempt_at,created_at)").run();
 }
 
+async function ensureIntelligencePatchProposalTable(env) {
+  await env.DB.prepare(`
+    CREATE TABLE IF NOT EXISTS intelligence_patch_proposals(
+      proposal_id TEXT PRIMARY KEY,
+      base_sha TEXT NOT NULL,
+      target_path TEXT NOT NULL,
+      summary TEXT NOT NULL,
+      artifact_path TEXT NOT NULL,
+      artifact_sha256 TEXT NOT NULL,
+      diff_sha256 TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'stored',
+      created_at TEXT NOT NULL
+    )
+  `).run();
+  await env.DB.prepare("CREATE INDEX IF NOT EXISTS idx_intelligence_patch_proposals_created ON intelligence_patch_proposals(created_at DESC)").run();
+}
+
 export async function persistIntelligencePackageReport(env, packageId, snapshot) {
   const token = typeof env.MEHRAN_REPORTS_GITHUB_TOKEN === "string"
     ? env.MEHRAN_REPORTS_GITHUB_TOKEN.trim() : "";
@@ -6329,6 +6347,59 @@ export default {
         if (mismatch !== 0) return error(ownerOrchestrationRoute ? "Owner orchestration authentication required." : "Agent authentication required.", 401);
         await ensureIntelligenceTaskTable(env);
         await ensureIntelligenceProtocolTables(env);
+        if (path === "/agent/v1/patch-proposals" && method === "POST") {
+          const body = await readBody(request);
+          if (!body || Object.keys(body).sort().join(",") !== "artifact,artifactSha256" ||
+              !body.artifact || typeof body.artifact !== "object" || Array.isArray(body.artifact) ||
+              typeof body.artifactSha256 !== "string" || !/^[a-f0-9]{64}$/.test(body.artifactSha256)) {
+            return error("A valid patch artifact envelope and SHA-256 digest are required.",400);
+          }
+          const artifact = body.artifact;
+          const proposalId = typeof artifact.proposalId === "string" ? artifact.proposalId : "";
+          if (!/^[a-f0-9-]{36}$/.test(proposalId)) return error("Invalid patch proposal id.",400);
+
+          await ensureIntelligencePatchProposalTable(env);
+          const prior = await env.DB.prepare(
+            "SELECT proposal_id,artifact_path,artifact_sha256,diff_sha256,status FROM intelligence_patch_proposals WHERE proposal_id=?"
+          ).bind(proposalId).first();
+          if (prior) {
+            if (prior.artifact_sha256 !== body.artifactSha256) return error("Proposal id already exists with a different artifact digest.",409);
+            return json({
+              success:true,alreadyStored:true,proposalId,
+              path:prior.artifact_path,artifactSha256:prior.artifact_sha256,
+              diffSha256:prior.diff_sha256,status:prior.status
+            },200);
+          }
+
+          const stored = await storePrivatePatchArtifact({
+            token: env.MEHRAN_REPORTS_GITHUB_TOKEN,
+            artifact,
+            artifactSha256: body.artifactSha256
+          });
+          if (!stored.stored) {
+            const status = stored.code === "artifact_validation_failed" ? 400 :
+              stored.code === "artifact_id_conflict" ? 409 : 503;
+            return error("Private patch artifact storage failed: " + String(stored.code || "unknown"),status);
+          }
+
+          await env.DB.prepare(
+            "INSERT OR IGNORE INTO intelligence_patch_proposals(proposal_id,base_sha,target_path,summary,artifact_path,artifact_sha256,diff_sha256,status,created_at) VALUES(?,?,?,?,?,?,?,'stored',?)"
+          ).bind(
+            proposalId,artifact.baseSha,artifact.targetPath,artifact.summary,
+            stored.path,body.artifactSha256,artifact.diffSha256,artifact.createdAt
+          ).run();
+          const confirmed = await env.DB.prepare(
+            "SELECT proposal_id,artifact_path,artifact_sha256,diff_sha256,status FROM intelligence_patch_proposals WHERE proposal_id=?"
+          ).bind(proposalId).first();
+          if (!confirmed || confirmed.artifact_sha256 !== body.artifactSha256) {
+            return error("Patch proposal metadata conflict; retry with the original proposal id and digest.",409);
+          }
+          return json({
+            success:true,alreadyStored:!!stored.alreadyExists,proposalId,
+            path:confirmed.artifact_path,artifactSha256:confirmed.artifact_sha256,
+            diffSha256:confirmed.diff_sha256,status:confirmed.status
+          },stored.alreadyExists ? 200 : 201);
+        }
         if (path === "/agent/v1/missions/plan" && method === "POST") {
           const body = await readBody(request);
           if (!body) return error("A valid mission request body is required.", 400);
