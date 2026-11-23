@@ -159,14 +159,18 @@ test("PR creation schema requires a scoped proposal branch and immutable head SH
 
 
 // Autonomous metadata is policy only; planned capabilities remain non-executable until an executor ships.
-test("safe self-improvement work is pre-authorized without activating missing executors", () => {
-  for (const id of ["propose_code_patch", "create_pull_request"]) {
-    const capability = getIntelligenceCapability(id);
-    assert.equal(capability.requiresApproval, false, id);
-    assert.equal(capability.autonomous, true, id);
-    assert.equal(capability.status, "planned", id);
-    assert.equal(validateIntelligenceCapabilityRequest(id, {}).code, "capability_not_implemented", id);
-  }
+test("bounded patch proposals are pre-authorized while PR creation and privileged actions remain gated", () => {
+  const proposal = getIntelligenceCapability("propose_code_patch");
+  assert.equal(proposal.requiresApproval, false);
+  assert.equal(proposal.autonomous, true);
+  assert.equal(proposal.status, "active");
+  assert.equal(proposal.permissionTier, "proposal_only");
+  assert.equal(validateIntelligenceCapabilityRequest("propose_code_patch", {
+    objective: "Add a regression test for a safe parser boundary"
+  }).ok, true);
+  const pullRequest = getIntelligenceCapability("create_pull_request");
+  assert.equal(pullRequest.status, "planned");
+  assert.equal(validateIntelligenceCapabilityRequest("create_pull_request", {}).code, "capability_not_implemented");
   for (const id of ["merge_pull_request", "deploy", "read_secrets", "wallet_operations", "arbitrary_shell"]) {
     assert.equal(getIntelligenceCapability(id).requiresApproval, true, id);
     assert.equal(getIntelligenceCapability(id).autonomous, undefined, id);
