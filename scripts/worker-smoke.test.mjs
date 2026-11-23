@@ -300,6 +300,16 @@ test("Agent API stale-claim recovery includes package-bound allowlisted tasks", 
     "stale recovery must include tasks claimed from durable work packages");
 });
 
+test("owner task hub validates proposal-only payloads before queueing", () => {
+  const start = workerSource.indexOf('if (path === "/intelligence/tasks" && ["GET","POST"].includes(method))');
+  const end = workerSource.indexOf('if (path === "/intelligence/task-events"', start);
+  assert.ok(start >= 0 && end > start);
+  const route = workerSource.slice(start, end);
+  assert.match(route, /actionType==="propose_code_patch"/);
+  assert.match(route, /supplied\.objective\.trim\(\)\.length<12/);
+  assert.match(route, /action_payload/);
+});
+
 test("MEHRAN collaboration task APIs reject unauthenticated access", async () => {
   const db = {
     prepare(sql) {
@@ -344,6 +354,9 @@ test("AI patch generation endpoint has a strict bounded request and storage-only
   assert.match(route, /intelligence_patch_generation_requests/);
   assert.match(route, /verifyPrivatePatchArtifactAtPath/);
   assert.match(route, /finalizePatchGenerationRequest/);
+  assert.match(route, /reservation\?\.meta\?\.changes/);
+  assert.match(route, /existing\.status === "stored"/);
+  assert.match(route, /status='prepared'/);
   assert.doesNotMatch(route, /diff\s*:/);
   assert.match(route, /validationMode:row\.validation_mode/);
 });
