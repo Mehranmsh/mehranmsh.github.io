@@ -6244,7 +6244,7 @@ export default {
           const delay = Math.min(3600,30 * (2 ** Math.max(0,Number(stale.attempts || 1)-1)));
           const nextAt = exhausted ? null : new Date(Date.now()+delay*1000).toISOString();
           const updated = await env.DB.prepare(
-            "UPDATE intelligence_tasks SET status=?,agent_claimed_at=NULL,next_attempt_at=?,last_error_code=?,result_text=?,updated_at=CURRENT_TIMESTAMP WHERE id=? AND status='in_progress' AND agent_claimed_at IS NOT NULL AND datetime(agent_claimed_at)<datetime('now','-15 minutes')"
+            "UPDATE intelligence_tasks SET status=?,agent_claimed_at=NULL,agent_claim_token_hash='',next_attempt_at=?,last_error_code=?,result_text=?,updated_at=CURRENT_TIMESTAMP WHERE id=? AND status='in_progress' AND agent_claimed_at IS NOT NULL AND datetime(agent_claimed_at)<datetime('now','-15 minutes')"
           ).bind(nextStatus,nextAt,exhausted?"claim_expired_max_attempts":"claim_expired_retry",exhausted?"Executor claim expired and retry limit was reached.":"Executor claim expired; task scheduled for retry.",stale.id).run();
           if (Number(updated?.meta?.changes || 0)) {
             await env.DB.prepare("INSERT INTO intelligence_task_events(id,work_package_id,task_id,event_type,from_status,to_status,actor,details_json) VALUES(?,?,?,'claim_expired','in_progress',?,?,?)")
@@ -6264,7 +6264,7 @@ export default {
           ).first();
           if (!candidate) break;
           const claimed = await env.DB.prepare(
-            "UPDATE intelligence_tasks SET status='in_progress',attempts=CASE WHEN work_package_id IS NOT NULL THEN COALESCE(attempts,0)+1 ELSE attempts END,agent_claimed_at=CURRENT_TIMESTAMP,updated_at=CURRENT_TIMESTAMP WHERE id=? AND status=? AND requires_approval=0 AND assigned_to IN ('mehran_intelligence','shared') AND (action_type IN ('project_status_report','social_metrics_report') OR (work_package_id IS NOT NULL AND action_type IN ('service_health_report','repository_quality_check')))"
+            "UPDATE intelligence_tasks SET status='in_progress',attempts=CASE WHEN work_package_id IS NOT NULL THEN COALESCE(attempts,0)+1 ELSE attempts END,agent_claimed_at=CURRENT_TIMESTAMP,agent_claim_token_hash='',updated_at=CURRENT_TIMESTAMP WHERE id=? AND status=? AND requires_approval=0 AND assigned_to IN ('mehran_intelligence','shared') AND (action_type IN ('project_status_report','social_metrics_report') OR (work_package_id IS NOT NULL AND action_type IN ('service_health_report','repository_quality_check')))"
           ).bind(candidate.id,candidate.status).run();
           if (!Number(claimed?.meta?.changes || 0)) continue;
           processed++;
