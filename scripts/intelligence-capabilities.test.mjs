@@ -235,8 +235,8 @@ test("isolated test workflow runs one fixed suite without secrets or network acc
     "node:test",
     "node:assert/strict",
     "node:fs",
-    "./intelligence-capabilities.mjs",
-    "./intelligence-patch-policy.mjs"
+    "./intelligence-patch-policy.mjs",
+    "./intelligence-capabilities.mjs"
   ]);
   for (const forbidden of [
     ["process", ".", "env"].join(""),
@@ -293,6 +293,6 @@ test("patch proposal validator rejects paths, multi-file input, malformed hunks,
   assert.equal(validatePatchProposal({ ...base, baseSha: "not-a-sha" }).code, "invalid_base_sha");
   assert.equal(validatePatchProposal({ ...base, diff: base.diff.replace("+++ b/scripts/", "+++ b/worker.js\n--- a/scripts/") }).code, "patch_path_mismatch");
   assert.equal(validatePatchProposal({ ...base, diff: base.diff.replace("@@ -1 +1 @@", "@@ -2,4 +2,4 @@") }).code, "truncated_hunk");
-  assert.equal(validatePatchProposal({ ...base, diff: base.diff.replace("+new", "GIT binary patch") }).code, "invalid_hunk_line");
+  assert.equal(validatePatchProposal({ ...base, diff: base.diff.replace("+new", "GIT binary patch") }).code, "unsupported_patch_feature");
   assert.equal(validatePatchProposal({ ...base, diff: base.diff + "x".repeat(8200) }).code, "patch_size_invalid");
 });
