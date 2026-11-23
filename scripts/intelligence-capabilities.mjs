@@ -66,6 +66,7 @@ export const INTELLIGENCE_CAPABILITIES = Object.freeze({
     permissionTier: "read_only",
     executors: ["isolated_inspector"],
     requiresApproval: false,
+    autonomous: true,
     description: "Inspect an allowlisted repository path and summarize relevant code.",
     inputSchema: {
       required: ["paths"],
