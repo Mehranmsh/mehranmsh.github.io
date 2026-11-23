@@ -740,9 +740,9 @@ jobs:
             } catch (error) {
               status = "blocked";
               retryable = Number(error?.status) === 503 ||
+                error?.name === "TimeoutError" || error?.name === "AbortError" ||
                 (task.actionType === "propose_code_patch" &&
-                  ((Number(error?.status) === 409 && /already in progress|concurrently reserved/i.test(String(error?.message || ""))) ||
-                   error?.name === "TimeoutError" || error?.name === "AbortError"));
+                  Number(error?.status) === 409 && /already in progress|concurrently reserved/i.test(String(error?.message || "")));
               const diagnostic = String(error?.message || error).slice(0,300);
               console.log(`Bounded task diagnostic (${task.actionType}): ${diagnostic}`);
               result = `Bounded runner failed: ${diagnostic}`;
