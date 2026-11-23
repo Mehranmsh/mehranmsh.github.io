@@ -202,8 +202,8 @@ const isolatedTestWorkflowSource = readFileSync(
 test("isolated test workflow runs one fixed suite without secrets or network access", () => {
   assert.match(isolatedTestWorkflowSource, /workflow_dispatch:/);
   assert.match(isolatedTestWorkflowSource, /pull_request:/);
-  assert.match(isolatedTestWorkflowSource, /github\\.event\\.pull_request\\.head\\.sha/);
-  assert.match(isolatedTestWorkflowSource, /github\\.event\\.pull_request\\.head\\.repo\\.full_name/);
+  assert.match(isolatedTestWorkflowSource, /github\.event\.pull_request\.head\.sha/);
+  assert.match(isolatedTestWorkflowSource, /github\.event\.pull_request\.head\.repo\.full_name/);
   assert.match(isolatedTestWorkflowSource, /uses: actions\/checkout@11d5960a326750d5838078e36cf38b85af677262/);
   assert.match(isolatedTestWorkflowSource, /node:22-alpine@sha256:1314fb30ec37592d5845e5a160d522c0e680972aa534549940b8d73bde88481a/);
   assert.match(isolatedTestWorkflowSource, /permissions:\s*\n\s*contents:\s*read/);
