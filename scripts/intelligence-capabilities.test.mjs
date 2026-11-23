@@ -1044,3 +1044,13 @@ test("Intelligence retains owner-scoped durable memory and recent conversation c
   assert.ok(workerSource.includes("never create a duplicate task just because the conversation session changed"));
 
 });
+
+
+test("private report base64 verification strips actual whitespace before decoding", () => {
+  const start = workerSource.indexOf("export async function persistIntelligencePackageReport");
+  const end = workerSource.indexOf("async function refreshIntelligenceWorkPackageSnapshot", start);
+  assert.ok(start >= 0 && end > start);
+  const persist = workerSource.slice(start, end);
+  assert.ok(persist.includes('existingPayload.content.replace(/\\s+/g, "")'),
+    "GitHub Contents API base64 must remove real whitespace, not literal backslash-s sequences");
+});
