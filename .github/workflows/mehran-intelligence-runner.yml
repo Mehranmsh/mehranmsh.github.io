@@ -141,7 +141,6 @@ jobs:
           // Give MEHRAN INTELLIGENCE its first owner-defined self-improvement mission.
           // The Workers AI planner may decompose it only into server-allowlisted actions.
           // If AI planning is unavailable, fail visibly instead of disguising a fallback as AI work.
-          const packageIds = new Set();
           if (orchestratorToken.length >= 40 && orchestratorToken.length <= 200) {
             try {
               const planned = await request("/agent/v1/missions/plan", {
