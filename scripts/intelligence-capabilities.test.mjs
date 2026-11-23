@@ -1008,5 +1008,9 @@ test("Intelligence retains owner-scoped durable memory and recent conversation c
   assert.match(workerSource, /t\.work_package_id IS NULL AND t\.created_by=\?/);
   assert.ok(workerSource.includes("t.checkpoint_json,t.attempts,t.max_attempts,t.next_attempt_at,t.last_error_code,t.updated_at"));
   assert.ok(workerSource.includes("const activeMissions = (activeTaskResult.results || []).map"));
+  assert.ok(workerSource.includes("wp.title AS package_title,wp.objective AS package_objective,wp.status AS package_status"));
+  assert.ok(workerSource.includes('packageObjective:String(task.package_objective || "").slice(0,900)'));
+  assert.ok(workerSource.includes("If an active mission exists, continue from its recorded objective, status, and checkpoint before suggesting new work"));
+  assert.ok(workerSource.includes("never create a duplicate task just because the conversation session changed"));
 
 });
