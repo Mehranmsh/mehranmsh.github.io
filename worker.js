@@ -5297,19 +5297,34 @@ async function persistIntelligenceNotification(env, row) {
   let payload;
   try { payload = JSON.parse(String(row.payload_json || "")); } catch { throw new Error("Private notification payload is invalid JSON."); }
   if (!payload || typeof payload !== "object" || Array.isArray(payload) || payload.eventId !== row.event_id ||
-      typeof payload.type !== "string" || typeof payload.workPackageId !== "string" ||
-      !["completed","attention_required","in_progress","waiting_retry","queued"].includes(payload.status)) {
+      payload.type !== "work_package_status_changed" || typeof payload.workPackageId !== "string" ||
+      !payload.workPackageId.trim() || payload.workPackageId.length > 160 ||
+      !["completed","attention_required","in_progress","waiting_retry","queued"].includes(payload.status) ||
+      typeof payload.generatedAt !== "string" || payload.generatedAt.length > 40) {
     throw new Error("Private notification payload failed validation.");
   }
-  const generatedAt = typeof payload.generatedAt === "string" ? payload.generatedAt : new Date().toISOString();
-  const date = new Date(generatedAt);
-  if (!Number.isFinite(date.getTime())) throw new Error("Invalid private notification timestamp.");
+  const countKeys = ["total","completed","blocked","failed","awaitingApproval","inProgress","queued","retryWaiting","blockedDependencies"];
+  if (!payload.counts || typeof payload.counts !== "object" || Array.isArray(payload.counts) ||
+      Object.keys(payload.counts).some(key => !countKeys.includes(key))) {
+    throw new Error("Private notification counts failed validation.");
+  }
+  const counts = {};
+  for (const key of countKeys) {
+    const value = payload.counts[key] === undefined ? 0 : payload.counts[key];
+    if (!Number.isSafeInteger(value) || value < 0 || value > 1000000000) {
+      throw new Error("Private notification count is outside the accepted range.");
+    }
+    counts[key] = value;
+  }
+  const date = new Date(payload.generatedAt);
+  if (!Number.isFinite(date.getTime()) || date.toISOString() !== payload.generatedAt) {
+    throw new Error("Invalid private notification timestamp.");
+  }
   const record = {
     schema_version: 1, notification_id: String(row.id || "").slice(0,100), event_id: String(row.event_id),
     channel: "owner_private", created_at: row.created_at || null,
-    notification: { type: payload.type.slice(0,80), work_package_id: payload.workPackageId.slice(0,160),
-      status: payload.status, counts: payload.counts && typeof payload.counts === "object" && !Array.isArray(payload.counts) ? payload.counts : {},
-      generated_at: date.toISOString() }
+    notification: { type: payload.type, work_package_id: payload.workPackageId,
+      status: payload.status, counts, generated_at: date.toISOString() }
   };
   const year = date.toISOString().slice(0,4), month = date.toISOString().slice(5,7);
   const path = "notifications/" + year + "/" + month + "/" + row.event_id + ".json";
