@@ -5226,6 +5226,7 @@ async function ensureIntelligenceProtocolTables(env) {
     )
   `).run();
   try { await env.DB.prepare("ALTER TABLE intelligence_work_packages ADD COLUMN request_hash TEXT NOT NULL DEFAULT ''").run(); } catch {}
+  try { await env.DB.prepare("ALTER TABLE intelligence_work_packages ADD COLUMN owner_uid TEXT").run(); } catch {}
   await env.DB.prepare(`
     CREATE TABLE IF NOT EXISTS intelligence_task_dependencies(
       task_id TEXT NOT NULL,
@@ -5675,8 +5676,8 @@ async function createIntelligenceWorkPackage(env, input) {
   }
   const packageId = crypto.randomUUID();
   const statements = [
-    env.DB.prepare("INSERT INTO intelligence_work_packages(id,idempotency_key,request_hash,title,objective,scope_json,priority,status,created_by) VALUES(?,?,?,?,?,?,?,'queued','mehran_intelligence')")
-      .bind(packageId, idempotencyKey, requestHash, title, objective, scopeJson, priority)
+    env.DB.prepare("INSERT INTO intelligence_work_packages(id,idempotency_key,request_hash,title,objective,scope_json,priority,status,created_by,owner_uid) VALUES(?,?,?,?,?,?,?,'queued','mehran_intelligence',?)")
+      .bind(packageId, idempotencyKey, requestHash, title, objective, scopeJson, priority, typeof input.ownerUid === "string" ? input.ownerUid : null)
   ];
   for (const item of tasks) {
     statements.push(env.DB.prepare("INSERT INTO intelligence_tasks(id,title,description,assigned_to,priority,status,requires_approval,result_text,created_by,action_type,action_payload,work_package_id,max_attempts) VALUES(?,?,?,'mehran_intelligence',?,'queued',0,'','mehran_intelligence',?,?,?,3)")
@@ -5704,7 +5705,7 @@ async function createIntelligenceWorkPackage(env, input) {
   return { success: true, duplicate: false, workPackageId: packageId, status: "queued", taskCount: tasks.length };
 }
 
-async function createIntelligenceFallbackPackage(env, mission, idempotencyKey, reason) {
+async function createIntelligenceFallbackPackage(env, mission, idempotencyKey, reason, ownerUid) {
   const planSummary = "AI planning was unavailable. A fixed, read-only readiness package was created using only the existing allowlisted checks.";
   const scope = {
     mode: "read_only",
@@ -5744,7 +5745,8 @@ async function createIntelligenceFallbackPackage(env, mission, idempotencyKey, r
     objective: "Establish an evidence-based baseline of service health, repository state, and the currently implemented deterministic security controls using only existing read-only capabilities.",
     priority: "normal",
     scope,
-    tasks
+    tasks,
+    ownerUid
   });
   if (!created.success) return created;
   return {
@@ -5762,7 +5764,7 @@ async function planIntelligenceMission(env, input) {
   const idempotencyKey = cleanText(input?.idempotencyKey, 120);
   const fallback = reason => input?.allowDeterministicFallback === false
     ? { success: false, error: `AI planning is unavailable (${cleanText(reason, 80) || "unknown"}); no custom mission package was created.`, code: -32003, plannerUnavailable: true, reason }
-    : createIntelligenceFallbackPackage(env, mission, idempotencyKey, reason);
+    : createIntelligenceFallbackPackage(env, mission, idempotencyKey, reason, input?.ownerUid);
   if (!mission || !idempotencyKey || !/^[A-Za-z0-9._:-]{8,120}$/.test(idempotencyKey)) {
     return { success: false, error: "A mission and valid idempotency key are required.", code: -32602 };
   }
@@ -5901,7 +5903,8 @@ async function planIntelligenceMission(env, input) {
     objective: cleanText(plan.objective, 2000) || mission,
     priority: ["low", "normal", "high"].includes(plan.priority) ? plan.priority : "normal",
     scope,
-    tasks: plan.tasks
+    tasks: plan.tasks,
+    ownerUid: input?.ownerUid
   });
   if (!created.success) {
     if (created.code === -32602) return fallback("ai_plan_validation_failed");
@@ -8100,7 +8103,8 @@ export default {
         const planned = await planIntelligenceMission(env, {
           mission,
           idempotencyKey: "owner-mission-" + crypto.randomUUID(),
-          allowDeterministicFallback: false
+          allowDeterministicFallback: false,
+          ownerUid: admin.uid
         });
         if (!planned.success) return error(planned.error || "Mission planning failed.", planned.code === -32003 ? 503 : 400);
         await writeAdminAudit(env, admin, "intelligence_owner_mission_submitted", "intelligence_work_package", planned.workPackageId, JSON.stringify({ mission: mission.slice(0, 300), taskCount: planned.taskCount || 0, planner: planned.planner?.provider || "unknown" }));
@@ -8226,7 +8230,7 @@ export default {
         const priorTurns = (priorTurnsResult.results || []).reverse();
         const [memoryResult,activeTaskResult] = await Promise.all([
           env.DB.prepare("SELECT memory_key,category,content,importance,updated_at FROM intelligence_memory_items WHERE owner_uid=? ORDER BY updated_at DESC,importance DESC LIMIT 24").bind(admin.uid).all(),
-          env.DB.prepare("SELECT id,title,description,status,action_type,work_package_id,checkpoint_json,attempts,max_attempts,next_attempt_at,last_error_code,updated_at FROM intelligence_tasks WHERE status IN ('queued','accepted','in_progress','retry_wait','blocked','awaiting_approval') ORDER BY CASE status WHEN 'in_progress' THEN 0 WHEN 'retry_wait' THEN 1 WHEN 'accepted' THEN 2 WHEN 'queued' THEN 3 ELSE 4 END,updated_at DESC LIMIT 12").all()
+          env.DB.prepare("SELECT t.id,t.title,t.description,t.status,t.action_type,t.work_package_id,t.checkpoint_json,t.attempts,t.max_attempts,t.next_attempt_at,t.last_error_code,t.updated_at FROM intelligence_tasks t LEFT JOIN intelligence_work_packages wp ON wp.id=t.work_package_id WHERE t.status IN ('queued','accepted','in_progress','retry_wait','blocked','awaiting_approval') AND ((wp.owner_uid=? AND t.work_package_id IS NOT NULL) OR (t.work_package_id IS NULL AND t.created_by=?)) ORDER BY CASE t.status WHEN 'in_progress' THEN 0 WHEN 'retry_wait' THEN 1 WHEN 'accepted' THEN 2 WHEN 'queued' THEN 3 ELSE 4 END,t.updated_at DESC LIMIT 12").bind(admin.uid,admin.username).all()
         ]);
         const persistentMemory = memoryResult.results || [];
         const activeMissions = (activeTaskResult.results || []).map(task => {
