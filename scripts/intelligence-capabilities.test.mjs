@@ -54,6 +54,8 @@ test("fixed repository tests are active only through the isolated GitHub runner"
   assert.equal(validateIntelligenceCapabilityRequest("run_repository_tests", { baseSha: "b".repeat(40), command: "echo unsafe" }).code, "unknown_input_field");
   assert.match(workerSource, /actionType === "run_repository_tests"/);
   assert.match(workerSource, /report\.mode !== "isolated_fixed_repository_test"/);
+  assert.match(workerSource, /before\.action_payload/);
+  assert.match(workerSource, /expectedPayload\.baseSha !== parsedReport\.baseSha/);
   assert.match(runnerSource, /if \(task\.actionType === "run_repository_tests"\)/);
   assert.match(runnerSource, /function runFixedRepositoryTests\(task\)/);
   assert.match(runnerSource, /"--network", "none"/);
@@ -63,6 +65,10 @@ test("fixed repository tests are active only through the isolated GitHub runner"
   assert.match(runnerSource, /"--memory", "768m"/);
   assert.match(runnerSource, /"--cpus", "1"/);
   assert.match(runnerSource, /"--pids-limit", "64"/);
+  const dockerArgsStart = runnerSource.indexOf("const args = [", runnerSource.indexOf("function runFixedRepositoryTests"));
+  const dockerArgsEnd = runnerSource.indexOf('spawnSync("docker", args', dockerArgsStart);
+  assert.ok(dockerArgsStart >= 0 && dockerArgsEnd > dockerArgsStart);
+  assert.doesNotMatch(runnerSource.slice(dockerArgsStart, dockerArgsEnd), /--env|["']-e["']/);
   assert.doesNotMatch(runnerSource, /"--network", "host"/);
 });
 
