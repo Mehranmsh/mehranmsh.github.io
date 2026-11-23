@@ -81,7 +81,7 @@ test("patch generation uses the independent Atom ref after REST API failures", a
 
 
 test("patch prompt supplies the exact append-only hunk header for the source line count", () => {
-  const source = "const first = 1;\\nconst second = 2;\\n";
+  const source = "const first = 1;\nconst second = 2;\n";
   const prompt = buildPatchGenerationPrompt({
     baseSha,
     objective: "Add a focused regression test for a verified edge case",
