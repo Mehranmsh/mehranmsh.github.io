@@ -5437,8 +5437,13 @@ export async function persistIntelligencePackageReport(env, packageId, snapshot)
     "SELECT id,status,action_type,attempts,max_attempts,last_error_code,result_text FROM intelligence_tasks WHERE work_package_id=? ORDER BY created_at ASC,id ASC"
   ).bind(packageId).all();
 
-  const generatedAt = snapshot.generatedAt || new Date().toISOString();
-  const date = new Date(generatedAt);
+  // Anchor report identity to the immutable package creation time. Snapshot
+  // refreshes generate new timestamps, which must not change an idempotent artifact.
+  const createdAt = String(pkg.created_at || "");
+  const stableCreatedAt = createdAt
+    ? (createdAt.includes("T") ? createdAt : createdAt.replace(" ", "T") + "Z")
+    : (snapshot.generatedAt || new Date().toISOString());
+  const date = new Date(stableCreatedAt);
   if (!Number.isFinite(date.getTime())) throw new Error("Invalid report timestamp.");
   const year = date.toISOString().slice(0,4);
   const month = date.toISOString().slice(5,7);
@@ -5534,7 +5539,20 @@ export async function persistIntelligencePackageReport(env, packageId, snapshot)
       throw new Error("Existing private report could not be verified; refusing to mark it stored.");
     }
     if (await sha256(existingReportText) !== expectedReportHash) {
-      throw new Error("Existing private report content does not match the current package snapshot.");
+      // Older finalizers used a volatile snapshot timestamp. Accept migration
+      // only when generated_at is the sole differing field; task evidence and
+      // every other report field must still match exactly.
+      let timestampOnlyMatch = false;
+      try {
+        const priorReport = JSON.parse(existingReportText);
+        if (priorReport && typeof priorReport === "object" && !Array.isArray(priorReport)) {
+          priorReport.generated_at = report.generated_at;
+          timestampOnlyMatch = JSON.stringify(priorReport) === JSON.stringify(report);
+        }
+      } catch {}
+      if (!timestampOnlyMatch) {
+        throw new Error("Existing private report content does not match the current package snapshot.");
+      }
     }
     await env.DB.prepare("UPDATE intelligence_work_packages SET report_stored_at=CURRENT_TIMESTAMP WHERE id=? AND report_stored_at IS NULL").bind(packageId).run();
     return { exists: true };
