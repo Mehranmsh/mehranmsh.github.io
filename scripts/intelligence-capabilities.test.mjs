@@ -458,6 +458,17 @@ test("private patch artifact recovery verifies an exact stored path and digest",
   assert.equal(calls, 1);
 });
 
+test("private patch artifact recovery returns a retryable lookup error on transient network failure", async () => {
+  const created = await makeTestPatchArtifact();
+  const path = getPrivatePatchArtifactPath(created.artifact);
+  const result = await verifyPrivatePatchArtifactAtPath({
+    token: "t".repeat(48), path, artifactSha256: created.artifactSha256,
+    fetchImpl: async () => { throw new Error("temporary network interruption"); }
+  });
+  assert.equal(result.stored, false);
+  assert.equal(result.code, "artifact_lookup_failed");
+});
+
 test("private patch store rejects a conflicting artifact ID and invalid credentials without writing", async () => {
   const created = await makeTestPatchArtifact();
   const altered = { ...created.artifact, summary: "A different proposal with the same ID" };
