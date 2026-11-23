@@ -654,7 +654,7 @@ test("Workers AI patch generation validates and envelopes only an append-only di
   assert.equal(result.artifact.baseSha, baseSha);
   assert.equal(result.artifact.targetPath, "scripts/intelligence-capabilities.test.mjs");
   assert.equal(result.artifactSha256.length, 64);
-  assert.equal(budgetAmount, 250);
+  assert.equal(budgetAmount, 100);
   assert.equal(modelName, PATCH_GENERATION_SERVICE_POLICY.model);
   assert.equal(calls.length, 3);
   assert.equal(result.mode, "generate_validate_only");
