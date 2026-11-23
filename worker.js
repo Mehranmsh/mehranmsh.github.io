@@ -8163,18 +8163,53 @@ export default {
         };
         try {
           let result=await env.AI.run("@cf/meta/llama-3.3-70b-instruct-fp8-fast",{messages,tools,tool_choice:"auto",max_tokens:650});
-          for(let round=0;round<1&&Array.isArray(result?.tool_calls)&&result.tool_calls.length;round++){
-            const calls=result.tool_calls.slice(0,2);
-            messages.push({role:"assistant",content:result.response||"",tool_calls:calls});
-            for(const call of calls){
-              const name=call?.function?.name;
-              let args={};
-              try{args=typeof call?.function?.arguments==="string"?JSON.parse(call.function.arguments):(call?.function?.arguments||{});}catch{args={};}
+          const toolCalls = Array.isArray(result?.tool_calls) ? result.tool_calls.slice(0,2) : [];
+          if (toolCalls.length) {
+            const summaries = [];
+            for (const call of toolCalls) {
+              const name = call?.function?.name;
+              let args = {};
+              try {
+                args = typeof call?.function?.arguments === "string"
+                  ? JSON.parse(call.function.arguments)
+                  : (call?.function?.arguments || {});
+              } catch {
+                args = {};
+              }
               let toolResult;
-              try{toolResult=await executeTool(name,args);}catch(e){toolResult={error:String(e?.message||e).slice(0,240)};}
-              messages.push({role:"tool",tool_call_id:call.id,name,content:JSON.stringify(toolResult)});
+              try {
+                toolResult = await executeTool(name,args);
+              } catch (e) {
+                toolResult = {error:String(e?.message||e).slice(0,240)};
+              }
+              if (toolResult?.error) {
+                summaries.push("ابزار " + String(name || "نامشخص") + " اجرا نشد: " + toolResult.error);
+              } else if (name === "get_project_status") {
+                const projects = Array.isArray(toolResult.projects) ? toolResult.projects : [];
+                summaries.push(projects.length
+                  ? "وضعیت پروژه‌ها:\\n" + projects.map(p => "• " + String(p.name || "بدون نام").slice(0,80) + ": " + String(p.status || "نامشخص").slice(0,40)).join("\\n")
+                  : "پروژه‌ای برای نمایش ثبت نشده است.");
+              } else if (name === "get_social_metrics") {
+                summaries.push([
+                  "آمار فعلی SOCIAL:",
+                  "• کاربران ثبت‌نام‌شده: " + Number(toolResult.registeredUsers || 0),
+                  "• کاربران فعال: " + Number(toolResult.activeUsers || 0),
+                  "• پست‌ها: " + Number(toolResult.posts || 0),
+                  "• گزارش‌های باز: " + Number(toolResult.openReports || 0)
+                ].join("\\n"));
+              } else if (name === "list_collaboration_tasks") {
+                const tasks = Array.isArray(toolResult.tasks) ? toolResult.tasks : [];
+                summaries.push(tasks.length
+                  ? "فهرست مأموریت‌ها:\\n" + tasks.map(task => "• " + String(task.title || "بدون عنوان").slice(0,100) + " [" + String(task.status || "نامشخص") + "]").join("\\n")
+                  : "مأموریتی با این فیلترها پیدا نشد.");
+              } else if (name === "propose_collaboration_task") {
+                const task = toolResult.task || {};
+                summaries.push(String(toolResult.message || "پیشنهاد مأموریت ثبت شد.") + (task.title ? "\\nعنوان: " + String(task.title).slice(0,120) : "") + (task.id ? "\\nشناسه: " + String(task.id).slice(0,80) : ""));
+              } else {
+                summaries.push("ابزار اجرا شد؛ نتیجه: " + JSON.stringify(toolResult).slice(0,1200));
+              }
             }
-            result=await env.AI.run("@cf/meta/llama-3.3-70b-instruct-fp8-fast",{messages,tools,tool_choice:"auto",max_tokens:650});
+            return json({success:true,reply:summaries.join("\\n\\n"),usage:{aiRequests:1,toolCalls:toolCalls.length,reason:"single_inference_tool_execution"}});
           }
           const reply=result?.response||result?.result?.response||"";
           if(typeof reply!=="string"||!reply.trim())return error("AI returned an empty response.",502);
