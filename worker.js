@@ -5487,11 +5487,31 @@ export async function persistIntelligencePackageReport(env, packageId, snapshot)
     "User-Agent": "MEHRAN-INTELLIGENCE-Report-Store"
   };
 
+  async function reportFetch(url, options) {
+    let lastError;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        const response = await fetch(url, { ...options, signal: AbortSignal.timeout(15000) });
+        if (response.status >= 500 && attempt < 2) {
+          try { await response.body?.cancel(); } catch {}
+          console.warn("INTELLIGENCE_REPORT_GITHUB_TRANSIENT_HTTP", response.status, "attempt", attempt + 1);
+          continue;
+        }
+        return response;
+      } catch (error) {
+        lastError = error;
+        if (attempt === 2) throw error;
+        console.warn("INTELLIGENCE_REPORT_GITHUB_TRANSIENT_NETWORK", String(error?.name || "Error"), "attempt", attempt + 1);
+      }
+    }
+    throw lastError || new Error("Private report GitHub request failed after retries.");
+  }
+
   const reportText = JSON.stringify(report, null, 2) + "\n";
   const bytes = new TextEncoder().encode(reportText);
   const expectedReportHash = await sha256(reportText);
   async function verifyExistingReport() {
-    const lookup = await fetch(apiUrl, { method: "GET", headers });
+    const lookup = await reportFetch(apiUrl, { method: "GET", headers });
     if (!lookup.ok) {
       if (lookup.status === 404) return { exists: false };
       throw new Error(`GitHub report lookup failed with status ${lookup.status}.`);
