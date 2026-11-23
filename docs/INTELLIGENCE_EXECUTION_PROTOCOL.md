@@ -157,3 +157,11 @@ This is a runtime foundation, not the complete protocol and not yet production-a
 - End-to-end tests demonstrating restart recovery, independent task progress, transient failure recovery, duplicate delivery, owner approval gates, and final report retrieval.
 
 Do not describe the protocol as active until the acceptance criteria have passed in an end-to-end test. Keep public GitHub intake limited to non-sensitive signals. Do not expand unrelated company modules as part of this work.
+
+## Bounded AI patch proposal generation (unmerged)
+
+The patch-proposal pipeline is being introduced in a separate, unmerged PR chain. The current proposal-generation design adds an authenticated `POST /agent/v1/patch-proposals/generate` route that accepts only an immutable base SHA and a bounded objective. It checks that the SHA is the current `main` commit before reading the allowlisted test file, and checks `main` again after model generation to reject a branch-advance race.
+
+Workers AI receives only the bounded source context and objective. The generation attempt reserves 250 credits from the existing 1,000-credit daily Intelligence allowance and is rate-limited to three attempts per IP per day. The model can propose only one additions-only hunk appended to `scripts/intelligence-capabilities.test.mjs`, with an 8 KiB diff ceiling. The Worker validates the proposal, stores the content-addressed artifact in the private reports repository, and returns metadata and hashes only.
+
+This pipeline does **not** apply patches, write to the source repository, create branches or pull requests, merge changes, deploy code, or grant the task queue the `propose_code_patch` capability. It remains unavailable in production until the complete PR chain is reviewed, merged in order, deployed, and tested end-to-end. Generated artifacts remain proposals requiring a separate review path.
