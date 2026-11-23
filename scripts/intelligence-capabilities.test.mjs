@@ -728,3 +728,13 @@ test("Workers AI patch generation fails closed on budget denial and unsafe model
   });
   assert.equal(unsafe.code, "patch_not_append_only");
 });
+
+
+test("private report storage preserves safe HTTP status diagnostics", () => {
+  const diagnosticStart = workerSource.indexOf("const safeStoreReason");
+  const diagnosticEnd = workerSource.indexOf('console.error("INTELLIGENCE_PRIVATE_REPORT_STORE_FAILURE"', diagnosticStart);
+  assert.ok(diagnosticStart >= 0 && diagnosticEnd > diagnosticStart, "private report storage diagnostic must be locatable");
+  const diagnostic = workerSource.slice(diagnosticStart, diagnosticEnd);
+  assert.ok(diagnostic.includes(String.raw\`status \d{3}\.\`), "HTTP status regex must match a three-digit status code");
+  assert.equal(diagnostic.includes(String.raw\`status \\d{3}\\.\`), false, "regex must not search for a literal backslash-d sequence");
+});
