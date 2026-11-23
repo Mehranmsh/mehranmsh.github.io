@@ -159,15 +159,23 @@ test("PR creation schema requires a scoped proposal branch and immutable head SH
 });
 
 
-// Autonomous metadata is policy only; planned capabilities remain non-executable until an executor ships.
-test("safe self-improvement work is pre-authorized without activating missing executors", () => {
-  for (const id of ["propose_code_patch", "create_pull_request"]) {
-    const capability = getIntelligenceCapability(id);
-    assert.equal(capability.requiresApproval, false, id);
-    assert.equal(capability.autonomous, true, id);
-    assert.equal(capability.status, "planned", id);
-    assert.equal(validateIntelligenceCapabilityRequest(id, {}).code, "capability_not_implemented", id);
-  }
+// Private append-only proposal generation is executable; PR creation remains deliberately planned.
+test("private patch proposals are pre-authorized while PR writing remains unavailable", () => {
+  const proposal = getIntelligenceCapability("propose_code_patch");
+  assert.equal(proposal.status, "active");
+  assert.equal(proposal.permissionTier, "proposal_only");
+  assert.equal(proposal.requiresApproval, false);
+  assert.equal(proposal.autonomous, true);
+  assert.equal(validateIntelligenceCapabilityRequest("propose_code_patch", {
+    objective: "Add one focused regression test for an uncovered parser boundary."
+  }).ok, true);
+  assert.equal(validateIntelligenceCapabilityRequest("propose_code_patch", {}).code, "missing_required_field");
+
+  const pullRequest = getIntelligenceCapability("create_pull_request");
+  assert.equal(pullRequest.requiresApproval, false);
+  assert.equal(pullRequest.autonomous, true);
+  assert.equal(pullRequest.status, "planned");
+  assert.equal(validateIntelligenceCapabilityRequest("create_pull_request", {}).code, "capability_not_implemented");
   for (const id of ["merge_pull_request", "deploy", "read_secrets", "wallet_operations", "arbitrary_shell"]) {
     assert.equal(getIntelligenceCapability(id).requiresApproval, true, id);
     assert.equal(getIntelligenceCapability(id).autonomous, undefined, id);
