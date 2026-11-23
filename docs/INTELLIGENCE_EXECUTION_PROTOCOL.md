@@ -159,6 +159,10 @@ This is a runtime foundation, not the complete protocol and not yet production-a
 
 Do not describe the protocol as active until the acceptance criteria have passed in an end-to-end test. Keep public GitHub intake limited to non-sensitive signals. Do not expand unrelated company modules as part of this work.
 
+### Runner claim fencing
+
+Every task claim now receives a fresh 256-bit random claim token. The runner receives the raw token only in the authenticated claim response; D1 stores only its SHA-256 hash. Checkpoint and result commits must present the token, and the Worker compares its hash against the current claim in both the read and conditional update. When a claim expires, is retried, or reaches a terminal result, the stored hash is cleared. A later runner claim replaces it with a new hash, so an older runner cannot checkpoint or commit a result after ownership has changed. This is a fencing mechanism, not a lease-renewal system: the existing 15-minute claim expiry remains, and long-running work must fail closed if its claim expires.
+
 ## Bounded AI patch proposal generation (unmerged)
 
 The patch-proposal pipeline is being introduced in a separate, unmerged PR chain. The authenticated `POST /agent/v1/patch-proposals/generate` route accepts an immutable base SHA, a bounded objective, and a stable request ID. It checks that the SHA is the current `main` commit before reading the allowlisted test file, and checks `main` again after model generation to reject a branch-advance race.
