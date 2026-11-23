@@ -9,7 +9,7 @@ const RAPIDFILE_API = "https://api.rapidfile.cc/v1";
 
 const SESSION_DAYS = 30;
 const PBKDF2_ITERATIONS = 100000;
-const MAX_BODY_BYTES = 100000;
+const MAX_BODY_BYTES = 100000; // bounded request body
 const MAX_UPLOAD_BYTES = 512 * 1024 * 1024;
 const MAX_POST_MEDIA = 10;
 
