@@ -137,6 +137,18 @@ async function readBoundedText(response, maxBytes) {
  * Generate one bounded proposal from the exact current main commit.
  * The returned artifact is validated but not stored or applied.
  */
+function canonicalizeAppendOnlyHunkHeader(diff, sourceLineCount) {
+  if (typeof diff !== "string" || !Number.isInteger(sourceLineCount) || sourceLineCount < 1) return diff;
+  const lines = diff.endsWith("\n") ? diff.slice(0, -1).split("\n") : diff.split("\n");
+  const target = "--- a/scripts/intelligence-capabilities.test.mjs";
+  const replacement = "+++ b/scripts/intelligence-capabilities.test.mjs";
+  if (lines.length < 4 || lines[0] !== target || lines[1] !== replacement) return diff;
+  const additions = lines.slice(3);
+  if (!additions.length || additions.some(line => !line.startsWith("+") || line.startsWith("+++"))) return diff;
+  lines[2] = `@@ -${sourceLineCount},0 +${sourceLineCount + 1},${additions.length} @@`;
+  return lines.join("\n") + "\n";
+}
+
 export async function generatePatchArtifact({
   env,
   baseSha,
@@ -218,11 +230,14 @@ export async function generatePatchArtifact({
   // Preserve patch content; reject lone carriage returns and malformed no-newline markers.
   const normalizedDiff = normalizeGeneratedDiff(generated.diff);
   if (normalizedDiff === null) return fail("model_diff_encoding_invalid");
+  // Repair only the unified-diff count header when the file path is exact and
+  // every payload line is already an addition. No patch content is changed.
+  const canonicalDiff = canonicalizeAppendOnlyHunkHeader(normalizedDiff, sourceLineCount);
   const validated = validateGeneratedPatch({
     baseSha,
     sourceLineCount,
     summary: generated.summary,
-    diff: normalizedDiff
+    diff: canonicalDiff
   });
   if (!validated.ok) return validated;
 
