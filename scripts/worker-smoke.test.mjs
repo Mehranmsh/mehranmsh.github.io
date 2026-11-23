@@ -198,6 +198,18 @@ test("admin overview rejects requests without a verified admin session", async (
   assert.match(payload.error, /Admin authentication required/);
 });
 
+test("MEHRAN INTELLIGENCE chat skips trivial messages and bounds model/tool calls", () => {
+  const start = workerSource.indexOf('if (path === "/intelligence/chat" && method === "POST")');
+  const end = workerSource.indexOf('if (path === "/admin/overview" && method === "GET")', start);
+  assert.ok(start >= 0 && end > start);
+  const route = workerSource.slice(start, end);
+  assert.ok(route.indexOf("deterministic_short_circuit") < route.indexOf("reserveSocialWorkersAIBudget"));
+  assert.match(route, /round<1&&Array\.isArray\(result\?\.tool_calls\)/);
+  assert.match(route, /tool_calls\.slice\(0,2\)/);
+  assert.equal((route.match(/max_tokens:650/g) || []).length, 2);
+  assert.match(route, /Math\.min\(1,messages\.filter/);
+});
+
 test("security guardrails keep request bodies bounded and CORS restricted", () => {
   assert.match(workerSource, /const MAX_BODY_BYTES = 100000;/);
   assert.match(workerSource, /origin !== ALLOWED_ORIGIN/);
