@@ -987,4 +987,9 @@ test("Intelligence retains owner-scoped durable memory and recent conversation c
   assert.match(workerSource, /seedIntelligenceOwnerMemory\(env,admin\.uid\)/);
   assert.match(workerSource, /path.match\(\/\^\\\/intelligence\\\/memory\\\/\(\[\^\/\]\+\)\$\//);
   assert.match(workerSource, /DELETE FROM intelligence_memory_items WHERE owner_uid=\? AND memory_key=\?/);
+  assert.match(workerSource, /JSON\.stringify\(durableMemoryContext\)/);
+  assert.match(workerSource, /Use the durable owner-confirmed project memory included in the mission context/);
+  assert.match(workerSource, /seedIntelligenceOwnerMemory\(env,"mehran_intelligence"\)/);
+  assert.match(workerSource, /appendIntelligenceChatTurn\(env,admin\.uid,sessionKey,"user",question\)/);
+  assert.match(workerSource, /appendIntelligenceChatTurn\(env,admin\.uid,sessionKey,"assistant"/);
 });
