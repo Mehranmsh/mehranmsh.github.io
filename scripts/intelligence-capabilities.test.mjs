@@ -112,6 +112,21 @@ test("executor metadata matches the actual Worker and GitHub Actions routing", (
   );
 });
 
+test("security audit gathers bounded evidence from fixed official research sources", () => {
+  for (const url of [
+    "https://docs.github.com/en/actions/security-guides/security-hardening-for-github-actions",
+    "https://developers.cloudflare.com/workers-ai/",
+    "https://owasp.org/www-project-top-10-for-large-language-model-applications/"
+  ]) assert.ok(runnerSource.includes(url), `missing official source: ${url}`);
+  assert.match(runnerSource, /redirect: "error"/);
+  assert.match(runnerSource, /AbortSignal\.timeout\(12000\)/);
+  assert.match(runnerSource, /totalBytes > 500000/);
+  assert.match(runnerSource, /contentTreatedAsUntrustedData: true/);
+  assert.match(runnerSource, /Promise\.all\(officialGuidanceSources\.map\(readOfficialGuidance\)\)/);
+  assert.match(runnerSource, /research: \{ sourceCount: researchSources\.length/);
+  assert.match(runnerSource, /fixed official documentation URLs/);
+});
+
 test("pull request creation remains planned and non-executable", () => {
   const capability = getIntelligenceCapability("create_pull_request");
   assert.equal(capability.status, "planned");
