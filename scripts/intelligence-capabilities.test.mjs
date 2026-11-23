@@ -761,7 +761,8 @@ test("Intelligence mission planning uses a bounded, more efficient daily reserva
 });
 
 test("scheduled Intelligence runner serializes ticks and bounds per-tick task execution", () => {
-  assert.ok(runnerSource.includes("group: mehran-intelligence-private-runner-${{ github.run_id }}"));\n  assert.ok(runnerSource.includes("cancel-in-progress: false"));
+  assert.ok(runnerSource.includes("group: mehran-intelligence-private-runner-${{ github.run_id }}"));
+  assert.ok(runnerSource.includes("cancel-in-progress: false"));
   assert.match(runnerSource, /for \(let count = 0; count < 5 && Date\.now\(\) < taskExecutionDeadline; count\+\+\)/);
   assert.match(runnerSource, /const taskExecutionDeadline = tickStartedAt \+ 7 \* 60 \* 1000/);
 });
