@@ -6434,7 +6434,7 @@ export default {
             success:true,requestId:row.request_id,requestHash:row.request_hash,proposalId:row.proposal_id,
             path:row.artifact_path,artifactSha256:row.artifact_sha256,
             diffSha256:row.diff_sha256,status:row.status,baseSha:row.base_sha,
-            targetPath:row.target_path,validationMode:row.validation_mode
+            targetPath:row.target_path,summary:row.summary,validationMode:row.validation_mode
           },row.status === "stored" ? 200 : 202);
           const existing = await readRequest();
           if (existing) {
