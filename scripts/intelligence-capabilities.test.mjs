@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { validatePatchProposal, PATCH_PROPOSAL_POLICY } from "./intelligence-patch-policy.mjs";
+import { createPatchArtifactRecord, verifyPatchArtifactRecord } from "./intelligence-patch-artifact.mjs";
 import {
   INTELLIGENCE_CAPABILITIES,
   INTELLIGENCE_ACTION_TYPES,
@@ -236,6 +237,7 @@ test("isolated test workflow runs one fixed suite without secrets or network acc
     "node:assert/strict",
     "node:fs",
     "./intelligence-patch-policy.mjs",
+    "./intelligence-patch-artifact.mjs",
     "./intelligence-capabilities.mjs"
   ]);
   for (const forbidden of [
@@ -295,4 +297,60 @@ test("patch proposal validator rejects paths, multi-file input, malformed hunks,
   assert.equal(validatePatchProposal({ ...base, diff: base.diff.replace("@@ -1 +1 @@", "@@ -2,4 +2,4 @@") }).code, "truncated_hunk");
   assert.equal(validatePatchProposal({ ...base, diff: base.diff.replace("+new", "GIT binary patch") }).code, "unsupported_patch_feature");
   assert.equal(validatePatchProposal({ ...base, diff: base.diff + "x".repeat(8200) }).code, "patch_size_invalid");
+});
+
+
+test("patch artifact envelope binds exact diff bytes to immutable metadata", async () => {
+  const targetPath = "scripts/intelligence-capabilities.test.mjs";
+  const diff = [
+    `--- a/${targetPath}`,
+    `+++ b/${targetPath}`,
+    "@@ -1 +1 @@",
+    "-const previous = 1;",
+    "+const current = 2;",
+    ""
+  ].join("\\n");
+  const input = {
+    proposalId: "123e4567-e89b-42d3-a456-426614174000",
+    createdAt: "2026-11-23T00:00:00.000Z",
+    baseSha: "e".repeat(40),
+    summary: "Add a deterministic artifact integrity regression test",
+    targetPaths: [targetPath],
+    diff
+  };
+  const created = await createPatchArtifactRecord(input);
+  assert.equal(created.ok, true);
+  assert.equal(created.artifact.schemaVersion, 1);
+  assert.equal(created.artifact.diff, diff);
+  assert.equal(created.artifact.diffSha256.length, 64);
+  assert.equal(created.artifactSha256.length, 64);
+  const verified = await verifyPatchArtifactRecord(created.artifact, created.artifactSha256);
+  assert.equal(verified.ok, true);
+  assert.equal(verified.proposalId, input.proposalId);
+  assert.equal(verified.mode, "verify_only");
+});
+
+test("patch artifact envelope detects altered diffs, metadata, and artifact hashes", async () => {
+  const targetPath = "scripts/intelligence-capabilities.test.mjs";
+  const diff = [
+    `--- a/${targetPath}`,
+    `+++ b/${targetPath}`,
+    "@@ -1 +1 @@",
+    "-const a = 1;",
+    "+const a = 2;",
+    ""
+  ].join("\\n");
+  const created = await createPatchArtifactRecord({
+    proposalId: "123e4567-e89b-42d3-a456-426614174000",
+    createdAt: "2026-11-23T00:00:00.000Z",
+    baseSha: "f".repeat(40),
+    summary: "A valid patch proposal artifact test",
+    targetPaths: [targetPath],
+    diff
+  });
+  assert.equal(created.ok, true);
+  assert.equal((await verifyPatchArtifactRecord({ ...created.artifact, diff: diff.replace("a = 2", "a = 3") }, created.artifactSha256)).code, "diff_digest_mismatch");
+  assert.equal((await verifyPatchArtifactRecord(created.artifact, "0".repeat(64))).code, "artifact_digest_mismatch");
+  assert.equal((await verifyPatchArtifactRecord({ ...created.artifact, summary: "tampered metadata" }, created.artifactSha256)).code, "artifact_digest_mismatch");
+  assert.equal((await verifyPatchArtifactRecord({ ...created.artifact, unexpected: true }, created.artifactSha256)).code, "artifact_schema_mismatch");
 });
