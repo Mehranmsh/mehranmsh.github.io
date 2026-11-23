@@ -1000,6 +1000,12 @@ test("Intelligence retains owner-scoped durable memory and recent conversation c
   assert.ok(workerSource.includes('FROM intelligence_memory_items WHERE owner_uid=? ORDER BY importance DESC,updated_at DESC LIMIT 100").bind(admin.uid).all()'));
   assert.ok(workerSource.includes('FROM intelligence_memory_items WHERE owner_uid=? ORDER BY updated_at DESC,importance DESC LIMIT 24").bind(admin.uid).all()'));
   assert.ok(workerSource.includes("ACTIVE MISSION STATE (authoritative live task records; resume existing work before proposing duplicates)"));
+  assert.ok(workerSource.includes('if (path === "/intelligence/chat/history" && method === "GET")'));
+  assert.ok(workerSource.includes('WHERE owner_uid=? AND session_key=? ORDER BY created_at DESC,rowid DESC LIMIT 30'));
+  assert.ok(workerSource.includes('return json({success:true,turns:'));
+  assert.ok(indexSource.includes('id="intelConversation"'));
+  assert.ok(indexSource.includes('async function loadIntelligenceChatHistory()'));
+  assert.ok(indexSource.includes('api("/intelligence/chat/history")'));
   assert.match(workerSource, /ALTER TABLE intelligence_work_packages ADD COLUMN owner_uid TEXT/);
   assert.match(workerSource, /ownerUid: input\?\.ownerUid/);
   assert.match(workerSource, /ownerUid: admin\.uid/);
