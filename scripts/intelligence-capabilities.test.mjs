@@ -58,6 +58,7 @@ test("fixed repository tests are active only through the isolated GitHub runner"
   assert.match(workerSource, /expectedPayload\.baseSha !== parsedReport\.baseSha/);
   assert.match(runnerSource, /if \(task\.actionType === "run_repository_tests"\)/);
   assert.match(runnerSource, /function runFixedRepositoryTests\(task\)/);
+  assert.match(runnerSource, /node --check worker\.js/);
   assert.match(runnerSource, /"--network", "none"/);
   assert.match(runnerSource, /"--read-only"/);
   assert.match(runnerSource, /"--cap-drop", "ALL"/);
@@ -219,6 +220,7 @@ test("isolated test workflow runs one fixed suite without secrets or network acc
   assert.match(isolatedTestWorkflowSource, /--tmpfs \/tmp:rw,noexec,nosuid,nodev,size=64m/);
   assert.match(isolatedTestWorkflowSource, /dst=\/workspace,readonly/);
   assert.match(isolatedTestWorkflowSource, /node --test scripts\/intelligence-capabilities\.test\.mjs/);
+  assert.match(isolatedTestWorkflowSource, /node --check worker\.js/);
   assert.doesNotMatch(isolatedTestWorkflowSource, /secrets\.|GITHUB_TOKEN|MEHRAN_AGENT_TOKEN|MEHRAN_ORCHESTRATOR_TOKEN|actions:\s*write/);
   assert.doesNotMatch(isolatedTestWorkflowSource, /npm\s+(?:install|run)|pnpm\s+(?:install|run)|yarn\s+(?:install|run)/);
 
