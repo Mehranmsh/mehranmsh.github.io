@@ -52,33 +52,43 @@ async function fetchCurrentMainCommit(fetchImpl) {
     "User-Agent": "MEHRAN-INTELLIGENCE-Patch-Generator"
   };
   for (let attempt = 0; attempt < 3; attempt++) {
-    let response;
     try {
-      response = await fetchImpl(url, {
+      const response = await fetchImpl(url, {
         headers,
         signal: AbortSignal.timeout(8000)
       });
-    } catch {
-      if (attempt === 2) return fail("main_commit_lookup_failed");
-      await new Promise(resolve => setTimeout(resolve, 250 * (attempt + 1)));
-      continue;
-    }
-    if ((response.status >= 500 || response.status === 429) && attempt < 2) {
-      try { await response.body?.cancel(); } catch {}
-      await new Promise(resolve => setTimeout(resolve, 250 * (attempt + 1)));
-      continue;
-    }
-    if (!response.ok) return fail("main_commit_lookup_failed");
-    try {
-      const payload = await response.json();
-      if (typeof payload?.sha !== "string" || !/^[a-f0-9]{40}$/.test(payload.sha)) {
-        return fail("main_commit_lookup_failed");
+      if (response.ok) {
+        const payload = await response.json();
+        if (typeof payload?.sha === "string" && /^[a-f0-9]{40}$/.test(payload.sha)) {
+          return { ok: true, sha: payload.sha };
+        }
+        break;
       }
-      return { ok: true, sha: payload.sha };
+      if (response.status < 500 && response.status !== 429) break;
+      try { await response.body?.cancel(); } catch {}
     } catch {
-      if (attempt === 2) return fail("main_commit_lookup_failed");
-      await new Promise(resolve => setTimeout(resolve, 250 * (attempt + 1)));
+      // Try the bounded alternate public ref source below after the API retries.
     }
+    if (attempt < 2) await new Promise(resolve => setTimeout(resolve, 250 * (attempt + 1)));
+  }
+
+  // GitHub's REST API can intermittently return 502 from Workers even while
+  // the public repository is healthy. The Atom feed is an independent,
+  // read-only source; accept only a syntactically valid commit SHA.
+  try {
+    const feed = await fetchImpl(`https://github.com/${REPOSITORY}/commits/main.atom`, {
+      headers: {
+        "Accept": "application/atom+xml, application/xml, text/xml",
+        "User-Agent": "MEHRAN-INTELLIGENCE-Patch-Generator"
+      },
+      signal: AbortSignal.timeout(8000)
+    });
+    if (!feed.ok) return fail("main_commit_lookup_failed");
+    const body = await feed.text();
+    const match = body.match(/Grit::Commit\/([a-f0-9]{40})/);
+    if (match) return { ok: true, sha: match[1] };
+  } catch {
+    // Fail closed if neither independent source can establish the current ref.
   }
   return fail("main_commit_lookup_failed");
 }
