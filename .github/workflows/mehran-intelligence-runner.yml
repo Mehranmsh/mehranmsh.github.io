@@ -96,51 +96,32 @@ jobs:
             }
           }
 
-          // AI planning is optional for this runner tick. A planner failure must never
-          // prevent deterministic checks or already-queued approved tasks from executing.
-          let packageId = "";
+          // Give MEHRAN INTELLIGENCE its first owner-defined self-improvement mission.
+          // The Workers AI planner may decompose it only into server-allowlisted actions.
+          // If AI planning is unavailable, fail visibly instead of disguising a fallback as AI work.
           const packageIds = new Set();
           if (orchestratorToken.length >= 40 && orchestratorToken.length <= 200) {
             try {
-              const created = await request("/agent/v1/work-packages", {
+              const planned = await request("/agent/v1/missions/plan", {
                 method: "POST",
                 body: JSON.stringify({
-                  idempotencyKey: `mehran-intelligence-repo-inspection-v1-${new Date().toISOString().slice(0,10)}`,
-                  title: "MEHRAN INTELLIGENCE first autonomous repository inspection",
-                  objective: "Perform the first real bounded repository inspection so MEHRAN INTELLIGENCE can establish an evidence-based understanding of its own execution architecture and identify the next safe self-improvement milestone.",
-                  priority: "normal",
-                  scope: {
-                    mode: "read_only",
-                    mission: "Inspect the six explicitly allowlisted core files at one immutable main commit.",
-                    allowedActions: ["inspect_repository"],
-                    forbidden: ["source_changes", "deployment", "secret_access", "wallet_operations", "arbitrary_shell"]
-                  },
-                  tasks: [{
-                    taskId: "inspect-core",
-                    title: "Inspect MEHRAN INTELLIGENCE core repository files",
-                    description: "Read the exact allowlisted source files from one immutable main commit, return bounded file metadata and declaration inventory, and preserve the verified evidence in the private work-package report.",
-                    actionType: "inspect_repository",
-                    dependsOn: [],
-                    paths: [
-                      "worker.js",
-                      "scripts/intelligence-agent.mjs",
-                      "scripts/intelligence-capabilities.mjs",
-                      "scripts/intelligence-capabilities.test.mjs",
-                      ".github/workflows/mehran-intelligence-runner.yml",
-                      "docs/INTELLIGENCE_EXECUTION_PROTOCOL.md"
-                    ]
-                  }]
+                  idempotencyKey: "mehran-intelligence-self-improvement-baseline-v1",
+                  mission: "MEHRAN INTELLIGENCE: perform the first evidence-based self-assessment. Inspect the bounded core execution architecture, verify the existing fixed capability test suite and deterministic security controls, identify the most important gaps between the current executor and a professional autonomous company assistant, and produce a prioritized, staged self-improvement plan. Prefer practical capabilities for mission understanding, research, multi-step execution, durable learning from completed work, and safe self-improvement. Do not claim capabilities that do not exist. Any code change must remain a private proposal for owner review; never modify source, create branches or pull requests, merge, deploy, access secrets, or perform wallet/financial actions.",
+                  allowDeterministicFallback: false
                 })
-              }, ownerHeaders, 30000);
-              packageId = created.workPackageId || "";
-              if (packageId) packageIds.add(packageId);
-              console.log(`Repository inspection package: ${created.status || "unknown"}; duplicate=${Boolean(created.duplicate)}; tasks=${created.taskCount || 0}`);
+              }, ownerHeaders, 45000);
+              const plannedId = planned.workPackageId || "";
+              if (plannedId) packageIds.add(plannedId);
+              console.log(`Self-improvement mission: ${planned.status || "unknown"}; duplicate=${Boolean(planned.duplicate)}; tasks=${planned.taskCount || 0}; planner=${planned.planner?.provider || "unavailable"}`);
+              if (planned.plannerUnavailable) {
+                console.log("Self-improvement mission was not created because AI planning is unavailable; no deterministic result is presented as AI analysis.");
+              }
             } catch (error) {
               const diagnostic = String(error?.message || error).slice(0, 300);
-              console.log(`AI mission planning unavailable for this tick; continuing with eligible queued tasks: ${diagnostic}`);
+              console.log(`Self-improvement mission planning unavailable for this tick; continuing with eligible queued tasks: ${diagnostic}`);
             }
           } else {
-            console.log("AI mission planning skipped: owner token is unavailable. Existing eligible tasks may still run.");
+            console.log("Self-improvement mission skipped: owner orchestration identity is unavailable. Existing eligible tasks may still run.");
           }
 
           // Queue one immutable fixed-suite test mission per main commit. The idempotency key
