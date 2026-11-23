@@ -301,7 +301,7 @@ test("scheduled Intelligence runner is single-flight, secret-backed and restrict
   assert.match(runner, /schedule:/);
   assert.match(runner, /cron: "\*\/5 \* \* \* \*"/);
   assert.match(runner, /concurrency:/);
-  assert.match(runner, /if: \$\{\{ github\.ref == 'refs\/heads\/main' \}\}/);
+  assert.match(runner, /if: github\.ref == 'refs\/heads\/main'/);
   const runnerLines = runner.split(/\r?\n/);
   const runBlockLine = runnerLines.findIndex(line => /^\s*run:\s*\|\s*$/.test(line));
   assert.ok(runBlockLine >= 0, "runner inline script block must exist");
