@@ -793,7 +793,7 @@ test("Intelligence task recovery is claim-token scoped, bounded, and attempt lim
 });
 
 test("Intelligence task result commits require the live claim and apply bounded exponential retry", () => {
-  const start = workerSource.indexOf('const agentResultMatch = path.match(/^\\/agent\\/v1\\/tasks\\/([^/]+)\\/result$/);');
+  const start = workerSource.indexOf('const agentResultMatch = path.match(');
   const end = workerSource.indexOf('return error("Not found",404);', start);
   assert.ok(start >= 0 && end > start);
   const resultRoute = workerSource.slice(start, end);
