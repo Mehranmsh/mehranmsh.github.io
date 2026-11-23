@@ -458,7 +458,7 @@ test("MEHRAN Intelligence Agent API is enabled only behind its dedicated bearer 
   assert.ok(route.includes("status IN ('queued','accepted','retry_wait')"), "agent claims must include retry_wait tasks");
   assert.match(route, /status='awaiting_approval' AND requires_approval=0/);
   assert.match(route, /agent_claimed_at=CURRENT_TIMESTAMP/);
-  assert.ok(route.includes("WHERE id=? AND status IN ('queued','accepted','retry_wait') AND requires_approval=0 AND assigned_to IN ('mehran_intelligence','shared') AND action_type IN ('repository_quality_check','service_health_report','source_security_audit','inspect_repository','run_repository_tests')"));
+  assert.ok(route.includes("WHERE id=? AND status IN ('queued','accepted','retry_wait') AND requires_approval=0 AND assigned_to IN ('mehran_intelligence','shared') AND action_type IN ('repository_quality_check','service_health_report','source_security_audit','inspect_repository','run_repository_tests','propose_code_patch')"));
   assert.match(route, /agent_claimed_at IS NOT NULL AND datetime\(agent_claimed_at\) < datetime\('now','-15 minutes'\)/);
   assert.match(route, /agent_claimed_at IS NOT NULL AND datetime\(agent_claimed_at\)>=datetime\('now','-15 minutes'\)/);
   assert.doesNotMatch(route, /work_package_id IS NULL AND agent_claimed_at IS NOT NULL/,
