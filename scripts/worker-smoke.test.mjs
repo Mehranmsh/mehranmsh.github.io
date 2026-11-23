@@ -1995,6 +1995,82 @@ test("MCP work-package validation rejects arbitrary actions, forward dependencie
   assert.equal(validateIntelligenceWorkPackage({ ...base, idempotencyKey: "short" }).ok, false);
 });
 
+
+test("work-package validation accepts only a bounded objective for private patch proposal tasks", () => {
+  const objective = "Add one focused regression test for an uncovered parser boundary.";
+  const base = {
+    idempotencyKey: "proposal-plan-2026-11-23-a1",
+    title: "Private test proposal",
+    objective: "Propose a narrow improvement to the test suite.",
+    tasks: [{
+      taskId: "proposal",
+      title: "Generate one test-only proposal",
+      actionType: "propose_code_patch",
+      objective
+    }]
+  };
+  const accepted = validateIntelligenceWorkPackage(base);
+  assert.equal(accepted.ok, true);
+  assert.equal(accepted.tasks[0].objective, objective);
+  assert.equal(validateIntelligenceWorkPackage({
+    ...base, tasks: [{ ...base.tasks[0], objective: "too short" }]
+  }).ok, false);
+  assert.equal(validateIntelligenceWorkPackage({
+    ...base, tasks: [{ taskId: "proposal", title: "Proposal", actionType: "propose_code_patch" }]
+  }).ok, false);
+  assert.equal(validateIntelligenceWorkPackage({
+    ...base, tasks: [{ ...base.tasks[0], paths: ["worker.js"] }]
+  }).ok, false);
+});
+
+test("proposal result verifier accepts private artifact metadata only and rejects source mutation claims", () => {
+  const report = {
+    type: "propose_code_patch",
+    generatedAt: "2026-11-23T00:00:00.000Z",
+    repository: "Mehranmsh/mehranmsh.github.io",
+    proposalId: "123e4567-e89b-42d3-a456-426614174000",
+    baseSha: "a".repeat(40),
+    targetPath: "scripts/intelligence-capabilities.test.mjs",
+    summary: "Add a narrow parser regression test to the existing fixed suite.",
+    path: "patch-proposals/2026/11/123e4567-e89b-42d3-a456-426614174000.json",
+    artifactSha256: "b".repeat(64),
+    diffSha256: "c".repeat(64),
+    status: "stored",
+    mode: "append_only_test_proposal",
+    applied: false,
+    branchCreated: false,
+    pullRequestCreated: false,
+    deployed: false,
+    budget: { reservedCredits: 250, product: "intelligence" }
+  };
+  assert.equal(verifyIntelligenceReport("propose_code_patch", report).passed, true);
+  assert.equal(verifyIntelligenceReport("propose_code_patch", { ...report, applied: true }).passed, false);
+  assert.equal(verifyIntelligenceReport("propose_code_patch", { ...report, path: "reports/public.json" }).passed, false);
+  assert.equal(verifyIntelligenceReport("propose_code_patch", { ...report, diff: "must never be returned" }).passed, false);
+});
+
+test("runner executes proposal tasks only through the authenticated private generator API", () => {
+  const start = runnerSource.indexOf('if (task.actionType === "propose_code_patch")');
+  const end = runnerSource.indexOf('if (task.actionType === "service_health_report")', start);
+  assert.ok(start >= 0 && end > start);
+  const executor = runnerSource.slice(start, end);
+  assert.ok(executor.includes('/agent/v1/patch-proposals/generate'));
+  assert.ok(executor.includes('request("/agent/v1/patch-proposals/generate"'));
+  assert.ok(executor.includes('agentHeaders, 90000'));
+  assert.ok(executor.includes('objective: payload.objective'));
+  assert.ok(executor.includes('applied: false'));
+  assert.ok(executor.includes('pullRequestCreated: false'));
+  assert.equal(executor.includes('git '), false);
+});
+
+test("agent task claim, checkpoint, and result allowlists include proposal-only work", () => {
+  assert.ok(workerSource.includes('"propose_code_patch"].includes(actionType)'));
+  assert.ok(workerSource.includes('action_type IN (\\'repository_quality_check\\',\\'service_health_report\\',\\'source_security_audit\\',\\'inspect_repository\\',\\'run_repository_tests\\',\\'propose_code_patch\\')'));
+  assert.ok(workerSource.includes('...(item.objective ? { objective: item.objective } : {})'));
+  assert.ok(workerSource.includes('actionType === "propose_code_patch"'));
+  assert.ok(workerSource.includes('proposal_no_source_mutation'));
+});
+
 test("private Intelligence runner inline JavaScript parses as an ES module", () => {
   const marker = "node --input-type=module <<'NODE'";
   const markerAt = runnerSource.indexOf(marker);
