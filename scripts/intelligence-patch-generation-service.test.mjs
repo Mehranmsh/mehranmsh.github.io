@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { generatePatchArtifact, normalizeGeneratedDiff } from "./intelligence-patch-generation-service.mjs";
+import { buildPatchGenerationPrompt } from "./intelligence-patch-generation.mjs";
 
 const baseSha = "a".repeat(40);
 const currentSha = "b".repeat(40);
@@ -78,6 +79,19 @@ test("patch generation uses the independent Atom ref after REST API failures", a
   assert.deepEqual(result, { ok: false, code: "stale_base_sha" });
 });
 
+
+test("patch prompt supplies the exact append-only hunk header for the source line count", () => {
+  const source = "const first = 1;\\nconst second = 2;\\n";
+  const prompt = buildPatchGenerationPrompt({
+    baseSha,
+    objective: "Add a focused regression test for a verified edge case",
+    source
+  });
+  assert.equal(prompt.ok, true);
+  assert.match(prompt.system, /@@ -2,0 \\+3,1 @@/);
+  assert.match(prompt.system, /no blank line or commentary/);
+  assert.match(prompt.system, /Do not omit ,0 or ,1/);
+});
 
 test("generated patch normalization converts CRLF and adds the required final newline", () => {
   assert.equal(normalizeGeneratedDiff("--- a/file\r\n+++ b/file\r\n@@ -1,0 +2,1 @@\r\n+test"), "--- a/file\n+++ b/file\n@@ -1,0 +2,1 @@\n+test\n");
