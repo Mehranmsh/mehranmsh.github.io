@@ -5,6 +5,7 @@ on:
   push:
     branches:
       - main
+      - "intelligence/**"
     paths:
       - "index.html"
       - "music-studio.html"
