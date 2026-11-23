@@ -5742,7 +5742,7 @@ async function planIntelligenceMission(env, input) {
     planner: { provider: "cloudflare_workers_ai", model },
     planSummary: scope.planSummary,
     taskCount: created.taskCount || plan.tasks.length,
-    safety: "Read-only allowlist enforced server-side; no source writes, deployments, secret access, or external actions."
+    safety: "Read-only and proposal-only allowlists enforced server-side; generated artifacts remain private and no patch is applied, no branch or pull request is created, and no deployment or secret access is permitted."
   };
 }
 
