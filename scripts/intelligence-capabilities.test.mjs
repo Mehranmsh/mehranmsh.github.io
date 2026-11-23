@@ -155,3 +155,33 @@ test("private runner seeds one idempotent, bounded repository inspection task", 
   assert.doesNotMatch(runnerSource, /mehran-intelligence-owner-mission-v1-/);
   assert.match(runnerSource, /Inspection exceeded the 750 KB aggregate source limit\./);
 });
+
+
+const isolatedTestWorkflowSource = readFileSync(
+  new URL("../.github/workflows/mehran-intelligence-tests.yml", import.meta.url),
+  "utf8"
+);
+
+test("isolated test workflow runs one fixed suite without secrets or network access", () => {
+  assert.match(isolatedTestWorkflowSource, /workflow_dispatch:/);
+  assert.match(isolatedTestWorkflowSource, /permissions:\\s*\\n\\s*contents:\\s*read/);
+  assert.match(isolatedTestWorkflowSource, /persist-credentials:\\s*false/);
+  assert.match(isolatedTestWorkflowSource, /git merge-base --is-ancestor/);
+  assert.match(isolatedTestWorkflowSource, /--network none/);
+  assert.match(isolatedTestWorkflowSource, /--read-only/);
+  assert.match(isolatedTestWorkflowSource, /--cap-drop ALL/);
+  assert.match(isolatedTestWorkflowSource, /--security-opt no-new-privileges/);
+  assert.match(isolatedTestWorkflowSource, /--pids-limit 64/);
+  assert.match(isolatedTestWorkflowSource, /--memory 768m/);
+  assert.match(isolatedTestWorkflowSource, /--cpus 1/);
+  assert.match(isolatedTestWorkflowSource, /--tmpfs \/tmp:rw,noexec,nosuid,nodev,size=64m/);
+  assert.match(isolatedTestWorkflowSource, /dst=\/workspace,readonly/);
+  assert.match(isolatedTestWorkflowSource, /node --test scripts\/intelligence-capabilities\\.test\\.mjs/);
+  assert.doesNotMatch(isolatedTestWorkflowSource, /secrets\\.|GITHUB_TOKEN|MEHRAN_AGENT_TOKEN|MEHRAN_ORCHESTRATOR_TOKEN|actions:\\s*write/);
+  assert.doesNotMatch(isolatedTestWorkflowSource, /npm\\s+(?:install|run)|pnpm\\s+(?:install|run)|yarn\\s+(?:install|run)/);
+
+  assert.doesNotMatch(
+    readFileSync(new URL("./intelligence-capabilities.test.mjs", import.meta.url), "utf8"),
+    /node:child_process|node:net|node:http|node:https|node:worker_threads|spawnSync|execFile|process\\.env|fetch\\(/
+  );
+});
