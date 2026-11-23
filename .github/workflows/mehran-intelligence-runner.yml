@@ -13,7 +13,8 @@ permissions:
   contents: read
 
 concurrency:
-  group: mehran-intelligence-private-runner
+  # Isolate each bounded tick so a stale GitHub runner cannot block subsequent ticks.
+  group: mehran-intelligence-private-runner-${{ github.run_id }}
   cancel-in-progress: false
 
 jobs:
@@ -29,6 +30,7 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
       - name: Bootstrap the first bounded read-only work package and execute approved tasks
+        timeout-minutes: 7
         env:
           MEHRAN_AGENT_TOKEN: ${{ secrets.MEHRAN_AGENT_TOKEN }}
           MEHRAN_ORCHESTRATOR_TOKEN: ${{ secrets.MEHRAN_ORCHESTRATOR_TOKEN }}
@@ -859,4 +861,5 @@ jobs:
 
           console.log(`[performance] tick_total: ${Date.now() - tickStartedAt}ms; measured_stages=${timingSamples.length}`);
           NODE
-# Manual validation trigger after Intelligence Worker deployment 2026-11-24
+
+# Per-tick concurrency isolation and step timeout 2026-11-24
