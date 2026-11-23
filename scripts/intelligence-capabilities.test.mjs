@@ -529,7 +529,7 @@ test("Workers AI patch generation rejects stale bases before budget or model use
 });
 
 test("Workers AI patch generation validates and envelopes only an append-only diff", async () => {
-  const source = "const original = true;\\n";
+  const source = "const original = true;\n";
   const baseSha = "d".repeat(40);
   let budgetAmount = 0;
   let modelName = "";
@@ -554,7 +554,7 @@ test("Workers AI patch generation validates and envelopes only an append-only di
             "@@ -1,0 +2,1 @@",
             "+test(\"generated boundary\", () => {});",
             ""
-          ].join("\\n")
+          ].join("\n")
         }) };
       }
     }
@@ -583,7 +583,7 @@ test("Workers AI patch generation fails closed on budget denial and unsafe model
   const baseSha = "e".repeat(40);
   const fetchImpl = async url => String(url).includes("/commits/main")
     ? new Response(JSON.stringify({ sha: baseSha }), { status: 200 })
-    : new Response("const original = true;\\n", { status: 200 });
+    : new Response("const original = true;\n", { status: 200 });
   const base = {
     baseSha,
     objective: "Add a regression test for unsafe model output",
@@ -605,7 +605,7 @@ test("Workers AI patch generation fails closed on budget denial and unsafe model
         "-const original = true;",
         "+const original = false;",
         ""
-      ].join("\\n")
+      ].join("\n")
     }) }; } } },
     reserveBudget: async () => ({ allowed: true })
   });
