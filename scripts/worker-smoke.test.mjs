@@ -2810,7 +2810,7 @@ test("private report persistence writes a minimized JSON report to the dedicated
       return {
         bind(...args) { this.args = args; return this; },
         async first() {
-          if (sql.includes("SELECT id,created_at FROM intelligence_work_packages")) return { id: "package-1", created_at: "2026-11-22T20:00:00.000Z" };
+          if (sql.includes("SELECT id,created_at,report_stored_at FROM intelligence_work_packages")) return { id: "package-1", created_at: "2026-11-22T20:00:00.000Z", report_stored_at: null };
           throw new Error("Unexpected first query: " + sql);
         },
         async all() {
@@ -2853,6 +2853,7 @@ test("private report finalization verifies existing artifact bytes before markin
   let storedContent = "";
   let mode = "missing";
   let markerWrites = 0;
+  let reportStoredAt = null;
   globalThis.fetch = async (_url, init = {}) => {
     if (init.method === "PUT") {
       storedContent = JSON.parse(init.body).content;
@@ -2867,8 +2868,8 @@ test("private report finalization verifies existing artifact bytes before markin
       return {
         bind() { return this; },
         async first() {
-          if (sql.includes("SELECT id,created_at FROM intelligence_work_packages")) {
-            return { id: "package-verify", created_at: "2026-11-22T20:00:00.000Z" };
+          if (sql.includes("SELECT id,created_at,report_stored_at FROM intelligence_work_packages")) {
+            return { id: "package-verify", created_at: "2026-11-22T20:00:00.000Z", report_stored_at: reportStoredAt };
           }
           throw new Error("Unexpected first query: " + sql);
         },
@@ -2879,7 +2880,7 @@ test("private report finalization verifies existing artifact bytes before markin
           }
           throw new Error("Unexpected all query: " + sql);
         },
-        async run() { markerWrites += 1; return { success: true, meta: { changes: 1 } }; }
+        async run() { markerWrites += 1; reportStoredAt = "2026-11-23T00:00:00.000Z"; return { success: true, meta: { changes: 1 } }; }
       };
     }
   };
@@ -2895,14 +2896,15 @@ test("private report finalization verifies existing artifact bytes before markin
     const recovered = await persistIntelligencePackageReport(env, "package-verify", snapshot);
     assert.equal(recovered.stored, true);
     assert.equal(recovered.alreadyExists, true);
-    assert.equal(markerWrites, 2, "verified existing bytes may complete the recovery marker");
+    assert.equal(markerWrites, 1, "a durable marker must prevent redundant report regeneration");
 
+    reportStoredAt = null;
     mode = "tampered";
     await assert.rejects(
       persistIntelligencePackageReport(env, "package-verify", snapshot),
       /does not match the current package snapshot/
     );
-    assert.equal(markerWrites, 2, "a conflicting artifact must never be marked as finalized");
+    assert.equal(markerWrites, 1, "a conflicting artifact must never be marked as finalized");
   } finally {
     globalThis.fetch = originalFetch;
   }
