@@ -41,7 +41,8 @@ function headers(token, json = false) {
 }
 
 async function verifyExisting(response, expectedSha256) {
-  const payload = await response.json();
+  let payload;
+  try { payload = await response.json(); } catch { return fail("existing_artifact_unreadable"); }
   if (payload?.encoding !== "base64" || typeof payload.content !== "string") {
     return fail("existing_artifact_unreadable");
   }
@@ -75,24 +76,37 @@ export async function storePrivatePatchArtifact({
   const path = getPrivatePatchArtifactPath(artifact);
   const url = `${API_ROOT}/repos/${REPORTS_REPOSITORY}/contents/${path}`;
   const requestHeaders = headers(token.trim());
-  const existing = await fetchImpl(url, { method: "GET", headers: requestHeaders });
-  if (existing.ok) return verifyExisting(existing, artifactSha256);
+  let existing;
+  try { existing = await fetchImpl(url, { method: "GET", headers: requestHeaders }); }
+  catch { return fail("artifact_lookup_failed"); }
+  if (existing.ok) {
+    const verifiedExisting = await verifyExisting(existing, artifactSha256);
+    return verifiedExisting.stored && verifiedExisting.path === path ? verifiedExisting : fail("artifact_id_conflict");
+  }
   if (existing.status !== 404) return fail("artifact_lookup_failed");
 
-  const write = await fetchImpl(url, {
-    method: "PUT",
-    headers: headers(token.trim(), true),
-    body: JSON.stringify({
-      message: `Store INTELLIGENCE patch proposal ${artifact.proposalId}`,
-      content: encodeBase64Utf8(serialized)
-    })
-  });
+  let write;
+  try {
+    write = await fetchImpl(url, {
+      method: "PUT",
+      headers: headers(token.trim(), true),
+      body: JSON.stringify({
+        message: `Store INTELLIGENCE patch proposal ${artifact.proposalId}`,
+        content: encodeBase64Utf8(serialized)
+      })
+    });
+  } catch { return fail("artifact_write_failed"); }
   if (write.ok) {
     return { stored: true, alreadyExists: false, path, artifactSha256 };
   }
   if (write.status === 422) {
-    const raced = await fetchImpl(url, { method: "GET", headers: requestHeaders });
-    if (raced.ok) return verifyExisting(raced, artifactSha256);
+    let raced;
+    try { raced = await fetchImpl(url, { method: "GET", headers: requestHeaders }); }
+    catch { return fail("artifact_lookup_failed"); }
+    if (raced.ok) {
+      const verifiedRace = await verifyExisting(raced, artifactSha256);
+      return verifiedRace.stored && verifiedRace.path === path ? verifiedRace : fail("artifact_id_conflict");
+    }
   }
   return fail("artifact_write_failed");
 }
@@ -109,7 +123,9 @@ export async function verifyPrivatePatchArtifactAtPath({
     return fail("invalid_artifact_lookup");
   }
   const url = `${API_ROOT}/repos/${REPORTS_REPOSITORY}/contents/${path}`;
-  const response = await fetchImpl(url, { method: "GET", headers: headers(token.trim()) });
+  let response;
+  try { response = await fetchImpl(url, { method: "GET", headers: headers(token.trim()) }); }
+  catch { return fail("artifact_lookup_failed"); }
   if (response.status === 404) return fail("artifact_not_found");
   if (!response.ok) return fail("artifact_lookup_failed");
   const verified = await verifyExisting(response, artifactSha256);
