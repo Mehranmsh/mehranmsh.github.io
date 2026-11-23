@@ -5653,7 +5653,7 @@ async function planIntelligenceMission(env, input) {
   if (!env.AI || typeof env.AI.run !== "function") {
     return fallback("ai_binding_unavailable");
   }
-  const budget = await reserveSocialWorkersAIBudget(env, 250, "intelligence");
+  const budget = await reserveSocialWorkersAIBudget(env, 150, "intelligence");
   if (!budget.allowed) return fallback("daily_ai_budget_unavailable");
 
   const model = cleanText(env.MEHRAN_INTELLIGENCE_MODEL, 120) || "@cf/meta/llama-3.3-70b-instruct-fp8-fast";
