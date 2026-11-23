@@ -65,8 +65,8 @@ test("merge, deployment, secrets, wallet and arbitrary shell capabilities remain
 
 test("unknown capabilities and malformed inputs fail closed", () => {
   assert.equal(validateIntelligenceCapabilityRequest("unknown", {}).code, "unknown_capability");
-  assert.equal(validateIntelligenceCapabilityRequest("project_status_report", null).code, "invalid_input");
-  assert.equal(validateIntelligenceCapabilityRequest("project_status_report", { command: "echo unsafe" }).code, "unknown_input_field");
+  assert.equal(validateIntelligenceCapabilityRequest("service_health_report", null).code, "invalid_input");
+  assert.equal(validateIntelligenceCapabilityRequest("service_health_report", { command: "echo unsafe" }).code, "unknown_input_field");
 });
 
 test("patch proposals enforce bounded typed inputs without applying changes", () => {
