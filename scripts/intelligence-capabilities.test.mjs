@@ -258,7 +258,7 @@ test("patch proposal validator accepts only a bounded single-file test diff and 
     "-const before = true;",
     "+const after = true;",
     ""
-  ].join("\\n");
+  ].join("\n");
   const result = validatePatchProposal({
     baseSha,
     summary: "Add a regression assertion for a bounded proposal policy",
@@ -286,12 +286,12 @@ test("patch proposal validator rejects paths, multi-file input, malformed hunks,
     baseSha: "d".repeat(40),
     summary: "A sufficiently descriptive patch proposal",
     targetPaths: ["scripts/intelligence-capabilities.test.mjs"],
-    diff: "--- a/scripts/intelligence-capabilities.test.mjs\\n+++ b/scripts/intelligence-capabilities.test.mjs\\n@@ -1 +1 @@\\n-old\\n+new\\n"
+    diff: "--- a/scripts/intelligence-capabilities.test.mjs\n+++ b/scripts/intelligence-capabilities.test.mjs\n@@ -1 +1 @@\n-old\n+new\n"
   };
   assert.equal(validatePatchProposal({ ...base, targetPaths: ["worker.js"] }).code, "path_not_allowed");
   assert.equal(validatePatchProposal({ ...base, targetPaths: [base.targetPaths[0], base.targetPaths[0]] }).code, "invalid_target_count");
   assert.equal(validatePatchProposal({ ...base, baseSha: "not-a-sha" }).code, "invalid_base_sha");
-  assert.equal(validatePatchProposal({ ...base, diff: base.diff.replace("+++ b/scripts/", "+++ b/worker.js\\n--- a/scripts/") }).code, "patch_path_mismatch");
+  assert.equal(validatePatchProposal({ ...base, diff: base.diff.replace("+++ b/scripts/", "+++ b/worker.js\n--- a/scripts/") }).code, "patch_path_mismatch");
   assert.equal(validatePatchProposal({ ...base, diff: base.diff.replace("@@ -1 +1 @@", "@@ -2,4 +2,4 @@") }).code, "truncated_hunk");
   assert.equal(validatePatchProposal({ ...base, diff: base.diff.replace("+new", "GIT binary patch") }).code, "invalid_hunk_line");
   assert.equal(validatePatchProposal({ ...base, diff: base.diff + "x".repeat(8200) }).code, "patch_size_invalid");
