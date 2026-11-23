@@ -16,25 +16,51 @@ const scheduledEnd = workerSource.indexOf("async fetch(request, env)", scheduled
 assert.ok(scheduledStart >= 0 && scheduledEnd > scheduledStart, "Worker scheduled handler must be locatable");
 const workerSchedulerSource = workerSource.slice(scheduledStart, scheduledEnd);
 
-test("all six active read-only capabilities are registered independent of executor type", () => {
+test("all seven active capabilities are registered with their permission tiers", () => {
   const expected = [
     "project_status_report",
     "social_metrics_report",
     "service_health_report",
     "repository_quality_check",
     "source_security_audit",
+    "run_repository_tests",
     "inspect_repository"
   ];
   assert.deepEqual(INTELLIGENCE_ACTION_TYPES, expected);
   assert.deepEqual(PREAPPROVED_INTELLIGENCE_ACTION_TYPES, expected);
   for (const id of expected) {
-    const item = getIntelligenceCapability(id);
-    assert.equal(item.status, "active");
+    const isolated = id === "run_repository_tests";
+    assert.equal(item.permissionTier, isolated ? "isolated_ci" : "read_only");
     assert.equal(item.permissionTier, "read_only");
-    assert.equal(item.requiresApproval, false);
-    assert.ok(Object.isFrozen(item.executors));
-    const input = id === "inspect_repository" ? { paths: ["worker.js"] } : {};
+    const input = id === "inspect_repository"
+      ? { paths: ["worker.js"] }
+      : isolated ? { baseSha: "a".repeat(40) } : {};
     assert.equal(validateIntelligenceCapabilityRequest(id, input).ok, true);
+test("fixed repository tests are active only through the isolated GitHub runner", () => {
+  const capability = getIntelligenceCapability("run_repository_tests");
+  assert.equal(capability.status, "active");
+  assert.equal(capability.permissionTier, "isolated_ci");
+  assert.equal(capability.requiresApproval, false);
+  assert.equal(capability.autonomous, true);
+  assert.deepEqual(capability.executors, ["github_actions_runner"]);
+  assert.equal(validateIntelligenceCapabilityRequest("run_repository_tests", { baseSha: "b".repeat(40) }).ok, true);
+  assert.equal(validateIntelligenceCapabilityRequest("run_repository_tests", { baseSha: "not-a-commit" }).ok, false);
+  assert.equal(validateIntelligenceCapabilityRequest("run_repository_tests", { baseSha: "b".repeat(40), command: "echo unsafe" }).code, "unknown_input_field");
+  assert.match(workerSource, /actionType === "run_repository_tests"/);
+  assert.match(workerSource, /report\\.mode !== "isolated_fixed_repository_test"/);
+  assert.match(runnerSource, /actionType: "run_repository_tests"/);
+  assert.match(runnerSource, /function runFixedRepositoryTests\\(task\\)/);
+  assert.match(runnerSource, /"--network", "none"/);
+  assert.match(runnerSource, /"--read-only"/);
+  assert.match(runnerSource, /"--cap-drop", "ALL"/);
+  assert.match(runnerSource, /"--security-opt", "no-new-privileges"/);
+  assert.match(runnerSource, /"--memory", "768m"/);
+  assert.match(runnerSource, /"--cpus", "1"/);
+  assert.match(runnerSource, /"--pids-limit", "64"/);
+  assert.doesNotMatch(runnerSource, /"--network", "host"/);
+});
+
+
   }
 });
 
@@ -45,6 +71,7 @@ test("executor metadata matches the actual Worker and GitHub Actions routing", (
     service_health_report: ["cloudflare_worker_scheduler", "github_actions_runner"],
     repository_quality_check: ["cloudflare_worker_scheduler", "github_actions_runner"],
     source_security_audit: ["github_actions_runner"],
+    run_repository_tests: ["github_actions_runner"]
     inspect_repository: ["github_actions_runner"]
   };
   for (const [id, executors] of Object.entries(expected)) {
@@ -53,8 +80,10 @@ test("executor metadata matches the actual Worker and GitHub Actions routing", (
 
   assert.match(workerSchedulerSource, /action_type IN \('project_status_report','social_metrics_report'\)/);
   assert.match(workerSchedulerSource, /action_type IN \('service_health_report','repository_quality_check'\)/);
-  assert.doesNotMatch(workerSchedulerSource, /source_security_audit|inspect_repository/);
+  assert.match(workerSource, /action_type IN \\('repository_quality_check','service_health_report','source_security_audit','inspect_repository','run_repository_tests'\\)/);
   assert.match(workerSource, /action_type IN \('repository_quality_check','service_health_report','source_security_audit','inspect_repository'\)/);
+  assert.match(runnerSource, /if \\(task\\.actionType === "run_repository_tests"\\)/);
+  assert.match(runnerSource, /function runFixedRepositoryTests\\(task\\)/);
   assert.match(runnerSource, /if \(task\.actionType === "inspect_repository"\)/);
 
   const runnerActions = runnerSource.match(/const capabilityActions = \[([^\]]+)\]/);
