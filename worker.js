@@ -8051,7 +8051,7 @@ export default {
         const question = cleanText(body.message, 2000);
         if (!question) return error("Write a question first.", 400);
         // Skip inference for greetings and acknowledgements; these do not need an AI model.
-        const lightweightMessage = question.trim().toLocaleLowerCase("fa-IR").replace(/[!؟?.،,\\s]+/gu, "");
+        const lightweightMessage = question.trim().toLocaleLowerCase("fa-IR").replace(/[!؟?.،,\s]+/gu, "");
         if (/^(سلام|درود|خسته نباشید|ممنون|مرسی|سپاس|متشکرم|خوبم|باشه|اوکی|اوکیم|فعلا|خداحافظ)$/u.test(lightweightMessage)) {
           const reply = /^(ممنون|مرسی|سپاس|متشکرم)$/u.test(lightweightMessage)
             ? "خواهش می‌کنم. هر وقت کاری داشتی بگو."
