@@ -245,6 +245,47 @@ jobs:
             throw new Error("Runner refused an action outside its read-only allowlist.");
           }
 
+          function serializeBoundedResult(value, maxChars = 3000) {
+            const full = JSON.stringify(value);
+            if (typeof full !== "string") throw new Error("Task result is not JSON serializable.");
+            if (full.length <= maxChars) return full;
+
+            // Preserve every security-check ID and pass/fail outcome while dropping
+            // verbose descriptions when a report exceeds the Worker API limit.
+            const compact = {
+              type: value?.type || "read_only_report",
+              generatedAt: value?.generatedAt || new Date().toISOString(),
+              mode: value?.mode || "bounded_read_only_result",
+              summary: value?.summary || null,
+              files: value?.files && typeof value.files === "object"
+                ? Object.fromEntries(Object.entries(value.files).map(([name, file]) => [
+                    name, { sha: file?.sha || null, bytes: Number(file?.bytes || 0) }
+                  ]))
+                : undefined,
+              checks: Array.isArray(value?.checks)
+                ? value.checks.map(check => ({ id: String(check?.id || "unnamed_check"), passed: check?.passed === true }))
+                : undefined,
+              limitations: Array.isArray(value?.limitations)
+                ? value.limitations.map(item => String(item).slice(0, 100))
+                : undefined,
+              detailsTruncated: true
+            };
+            let bounded = JSON.stringify(compact);
+            if (bounded.length > maxChars) {
+              bounded = JSON.stringify({
+                type: compact.type,
+                generatedAt: compact.generatedAt,
+                summary: compact.summary,
+                checks: compact.checks,
+                detailsTruncated: true
+              });
+            }
+            if (bounded.length > maxChars) {
+              throw new Error("Task result exceeds the Worker API limit after safe compaction.");
+            }
+            return bounded;
+          }
+
           for (let count = 0; count < 5; count++) {
             const claim = await request("/agent/v1/tasks/next");
             const task = claim.task;
@@ -257,7 +298,7 @@ jobs:
             let result;
             const executionStartedAt = Date.now();
             try {
-              result = JSON.stringify(await execute(task));
+              result = serializeBoundedResult(await execute(task));
             } catch (error) {
               status = "blocked";
               const diagnostic = String(error?.message || error).slice(0,300);
