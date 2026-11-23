@@ -2820,7 +2820,7 @@ test("Agent task claim tokens fence checkpoint and result commits to the current
 // Route-level claim lifecycle test using a deliberately narrow in-memory D1 fake.
 // This exercises the real Worker fetch/auth/claim/checkpoint/result handlers; it is
 // not a Cloudflare D1 integration test.
-function makeClaimLifecycleDb({ synchronizeCandidateReads = false } = {}) {
+function makeClaimLifecycleDb({ synchronizeCandidateReads = false, expireDuringCheckpointCommit = false } = {}) {
   const state = {
     row: {
       id: "claim-lifecycle-task",
@@ -2926,6 +2926,14 @@ function makeClaimLifecycleDb({ synchronizeCandidateReads = false } = {}) {
           }
           if (sql.includes("SET checkpoint_json=?")) {
             const [checkpoint, id, hash] = args;
+            // Model expiry recovery winning after the route's ownership SELECT
+            // but before its conditional checkpoint UPDATE commits.
+            if (expireDuringCheckpointCommit) {
+              state.expired = true;
+              state.row.status = "accepted";
+              state.row.agent_claimed_at = null;
+              state.row.agent_claim_token_hash = "";
+            }
             if (id === state.row.id && state.row.status === "in_progress" &&
                 state.row.agent_claim_token_hash === hash && !state.expired) {
               state.row.checkpoint_json = checkpoint;
@@ -3077,6 +3085,35 @@ test("real Worker task routes fence concurrent, expired, superseded, and replaye
     body: { claimToken: retryClaim.claimToken, status: "blocked", result: "replayed result" }
   }, env);
   assert.equal(replay.status, 409, "terminal claim token must not be replayable");
+});
+
+
+test("real Worker checkpoint route rejects a commit when expiry recovery wins the update race", async () => {
+  const token = "test-agent-token-".padEnd(48, "x");
+  const { db, state } = makeClaimLifecycleDb({ expireDuringCheckpointCommit: true });
+  const env = { DB: db, MEHRAN_AGENT_TOKEN: token };
+  const auth = { Authorization: "Bearer " + token };
+
+  const claimResponse = await request("/agent/v1/tasks/next", {
+    method: "GET", headers: auth
+  }, env);
+  assert.equal(claimResponse.status, 200);
+  const claim = (await claimResponse.json()).task;
+  assert.ok(claim);
+  const originalCheckpoint = JSON.parse(state.row.checkpoint_json);
+
+  const checkpointResponse = await request("/agent/v1/tasks/" + state.row.id + "/checkpoint", {
+    method: "POST", headers: auth,
+    body: { claimToken: claim.claimToken, checkpoint: { mustNotCommit: true } }
+  }, env);
+
+  assert.equal(checkpointResponse.status, 409,
+    "checkpoint UPDATE must fail when ownership expires after the initial SELECT");
+  assert.deepEqual(JSON.parse(state.row.checkpoint_json), originalCheckpoint,
+    "a losing stale checkpoint must not overwrite the durable checkpoint");
+  assert.equal(state.row.status, "accepted");
+  assert.equal(state.row.agent_claimed_at, null);
+  assert.equal(state.row.agent_claim_token_hash, "");
 });
 
 
