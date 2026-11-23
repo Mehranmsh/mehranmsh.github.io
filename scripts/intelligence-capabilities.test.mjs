@@ -926,3 +926,10 @@ test("Runner archives owner notifications only through the authenticated Worker 
   assert.doesNotMatch(delivery, /MEHRAN_REPORTS_GITHUB_TOKEN|secrets\./);
   assert.doesNotMatch(delivery, /payload\.counts|payload\.workPackageId/);
 });
+
+test("Private notification archive strips base64 whitespace before verification", () => {
+  const start = workerSource.indexOf("async function persistIntelligenceNotification");
+  const end = workerSource.indexOf("export async function persistIntelligencePackageReport", start);
+  const helper = workerSource.slice(start, end);
+  assert.match(helper, /body\.content\.replace\(\/\\s\+\/g,""\)/);
+});
