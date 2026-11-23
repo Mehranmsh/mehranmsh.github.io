@@ -242,6 +242,8 @@ test("isolated test workflow runs one fixed suite without secrets or network acc
     "./intelligence-patch-policy.mjs",
     "./intelligence-patch-artifact.mjs",
     "./intelligence-private-patch-store.mjs",
+    "./intelligence-patch-generation.mjs",
+    "./intelligence-patch-generation-service.mjs",
     "./intelligence-capabilities.mjs"
   ]);
   for (const forbidden of [
@@ -510,7 +512,7 @@ test("generated patch validator rejects replacements, non-EOF hunks, and extra f
   const base = { baseSha: "c".repeat(40), sourceLineCount: 100, summary: "Reject unsafe generated patch mutations" };
   assert.equal(validateGeneratedPatch({ ...base, diff: replacement }).code, "patch_not_append_only");
   assert.equal(validateGeneratedPatch({ ...base, diff: nonEof }).code, "patch_not_appended_at_eof");
-  assert.equal(validateGeneratedPatch({ ...base, diff: nonEof.replace(path, "worker.js") }).code, "path_not_allowed");
+  assert.equal(validateGeneratedPatch({ ...base, diff: nonEof.replace(path, "worker.js") }).code, "patch_path_mismatch");
 });
 
 test("Workers AI patch generation rejects stale bases before budget or model use", async () => {
@@ -524,6 +526,25 @@ test("Workers AI patch generation rejects stale bases before budget or model use
     fetchImpl: async () => new Response(JSON.stringify({ sha: "b".repeat(40) }), { status: 200 })
   });
   assert.equal(result.code, "stale_base_sha");
+  assert.equal(budgetCalls, 0);
+  assert.equal(modelCalls, 0);
+});
+
+test("Workers AI patch generation bounds streamed source before budget or model use", async () => {
+  const baseSha = "e".repeat(40);
+  let budgetCalls = 0;
+  let modelCalls = 0;
+  const fetchImpl = async url => String(url).includes("/commits/main")
+    ? new Response(JSON.stringify({ sha: baseSha }), { status: 200 })
+    : new Response("x".repeat(128 * 1024 + 1), { status: 200 });
+  const result = await generatePatchArtifact({
+    env: { AI: { async run() { modelCalls++; return {}; } } },
+    baseSha,
+    objective: "Add a regression test for bounded source loading",
+    reserveBudget: async () => { budgetCalls++; return { allowed: true }; },
+    fetchImpl
+  });
+  assert.equal(result.code, "source_size_invalid");
   assert.equal(budgetCalls, 0);
   assert.equal(modelCalls, 0);
 });
@@ -574,9 +595,44 @@ test("Workers AI patch generation validates and envelopes only an append-only di
   assert.equal(result.artifactSha256.length, 64);
   assert.equal(budgetAmount, 250);
   assert.equal(modelName, PATCH_GENERATION_SERVICE_POLICY.model);
-  assert.equal(calls.length, 2);
+  assert.equal(calls.length, 3);
   assert.equal(result.mode, "generate_validate_only");
   assert.equal(PATCH_GENERATION_SERVICE_POLICY.appliesPatch, false);
+});
+
+test("Workers AI patch generation rejects a main-branch race after the model returns", async () => {
+  const baseSha = "f".repeat(40);
+  let mainLookups = 0;
+  let modelCalls = 0;
+  const fetchImpl = async url => {
+    if (String(url).includes("/commits/main")) {
+      mainLookups++;
+      return new Response(JSON.stringify({ sha: mainLookups === 1 ? baseSha : "9".repeat(40) }), { status: 200 });
+    }
+    return new Response("const original = true;\n", { status: 200 });
+  };
+  const result = await generatePatchArtifact({
+    baseSha,
+    objective: "Add a regression test for the final main SHA race",
+    env: { AI: { async run() {
+      modelCalls++;
+      return { response: JSON.stringify({
+        summary: "Add a regression test for the final main SHA race",
+        diff: [
+          "--- a/scripts/intelligence-capabilities.test.mjs",
+          "+++ b/scripts/intelligence-capabilities.test.mjs",
+          "@@ -1,0 +2,1 @@",
+          "+test(\"race guard\", () => {});",
+          ""
+        ].join("\n")
+      }) };
+    } } },
+    reserveBudget: async () => ({ allowed: true }),
+    fetchImpl
+  });
+  assert.equal(result.code, "stale_base_sha");
+  assert.equal(mainLookups, 2);
+  assert.equal(modelCalls, 1);
 });
 
 test("Workers AI patch generation fails closed on budget denial and unsafe model output", async () => {

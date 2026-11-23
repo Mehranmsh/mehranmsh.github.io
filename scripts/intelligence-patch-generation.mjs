@@ -69,6 +69,7 @@ export function validateGeneratedPatch({ baseSha, sourceLineCount, summary, diff
     baseSha: checked.baseSha,
     targetPath: TARGET_PATH,
     additions: checked.additions,
+    deletions: checked.deletions,
     bytes: checked.bytes,
     hunkCount: 1,
     mode: "append_only_validate_only"

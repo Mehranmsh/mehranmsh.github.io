@@ -14,12 +14,15 @@ const runnerSource = await readFile(new URL("../.github/workflows/mehran-intelli
 const musicStudioSource = await readFile(new URL("../music-studio.html", import.meta.url), "utf8");
 const capabilityImport = 'import { INTELLIGENCE_ACTION_TYPES, PREAPPROVED_INTELLIGENCE_ACTION_TYPES } from "./scripts/intelligence-capabilities.mjs";';
 const patchStoreImport = 'import { storePrivatePatchArtifact } from "./scripts/intelligence-private-patch-store.mjs";';
-if (!workerSource.startsWith(capabilityImport) || !workerSource.includes(patchStoreImport)) {
+const patchGenerationImport = 'import { generatePatchArtifact } from "./scripts/intelligence-patch-generation-service.mjs";';
+if (!workerSource.startsWith(capabilityImport) || !workerSource.includes(patchStoreImport) || !workerSource.includes(patchGenerationImport)) {
   throw new Error("Worker capability or patch storage imports were not found");
 }
 const policySource = await readFile(new URL("./intelligence-patch-policy.mjs", import.meta.url), "utf8");
 const artifactSource = await readFile(new URL("./intelligence-patch-artifact.mjs", import.meta.url), "utf8");
 const patchStoreSource = await readFile(new URL("./intelligence-private-patch-store.mjs", import.meta.url), "utf8");
+const patchGenerationPromptSource = await readFile(new URL("./intelligence-patch-generation.mjs", import.meta.url), "utf8");
+const patchGenerationServiceSource = await readFile(new URL("./intelligence-patch-generation-service.mjs", import.meta.url), "utf8");
 const moduleUrl = source => "data:text/javascript;base64," + Buffer.from(source).toString("base64");
 const policyUrl = moduleUrl(policySource);
 const artifactUrl = moduleUrl(artifactSource.replace(
@@ -30,8 +33,17 @@ const patchStoreUrl = moduleUrl(patchStoreSource.replace(
   'from "./intelligence-patch-artifact.mjs"',
   `from "${artifactUrl}"`
 ));
-const workerRest = workerSource.slice(capabilityImport.length).replace(patchStoreImport, "");
+const patchGenerationPromptUrl = moduleUrl(patchGenerationPromptSource.replace(
+  'from "./intelligence-patch-policy.mjs"',
+  `from "${policyUrl}"`
+));
+const patchGenerationServiceUrl = moduleUrl(patchGenerationServiceSource
+  .replace('from "./intelligence-patch-generation.mjs"', `from "${patchGenerationPromptUrl}"`)
+  .replace('from "./intelligence-patch-artifact.mjs"', `from "${artifactUrl}"`)
+);
+const workerRest = workerSource.slice(capabilityImport.length).replace(patchStoreImport, "").replace(patchGenerationImport, "");
 const workerSourceForTest = `import { storePrivatePatchArtifact } from "${patchStoreUrl}";
+import { generatePatchArtifact } from "${patchGenerationServiceUrl}";
 const INTELLIGENCE_ACTION_TYPES = ${JSON.stringify(INTELLIGENCE_ACTION_TYPES)};
 const PREAPPROVED_INTELLIGENCE_ACTION_TYPES = ${JSON.stringify(PREAPPROVED_INTELLIGENCE_ACTION_TYPES)};
 ` + workerRest;
@@ -263,6 +275,31 @@ test("MEHRAN collaboration task APIs reject unauthenticated access", async () =>
   assert.match(payload.error, /Admin authentication required/);
 });
 
+
+test("AI patch generation endpoint requires the dedicated agent bearer token", async () => {
+  const response = await request("/agent/v1/patch-proposals/generate", {
+    method: "POST",
+    headers: { Authorization: "Bearer " + "x".repeat(48) },
+    body: { baseSha: "a".repeat(40), objective: "Add a bounded regression test" }
+  }, { DB: mockDb(), MEHRAN_AGENT_TOKEN: "s".repeat(48) });
+  assert.equal(response.status, 401);
+  const payload = await response.json();
+  assert.match(payload.error, /Agent authentication required/);
+});
+
+test("AI patch generation endpoint has a strict bounded request and storage-only response", () => {
+  const start = workerSource.indexOf('if (path === "/agent/v1/patch-proposals/generate" && method === "POST")');
+  const end = workerSource.indexOf('if (path === "/agent/v1/patch-proposals" && method === "POST")', start);
+  assert.ok(start >= 0 && end > start);
+  const route = workerSource.slice(start, end);
+  assert.match(route, /Object\.keys\(body\)\.sort\(\)\.join\(","\) !== "baseSha,objective"/);
+  assert.match(route, /checkRateLimit\(env,request,"intelligence-patch-generation",3,86400,86400\)/);
+  assert.match(route, /reserveSocialWorkersAIBudget\(env,credits,"intelligence"\)/);
+  assert.match(route, /storePrivatePatchArtifact/);
+  assert.match(route, /INSERT OR IGNORE INTO intelligence_patch_proposals/);
+  assert.doesNotMatch(route, /diff\s*:/);
+  assert.match(route, /generated\.validation\.mode/);
+});
 
 test("authenticated patch proposal route is bound to the dedicated agent token", async () => {
   const response = await request("/agent/v1/patch-proposals", {

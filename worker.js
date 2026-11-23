@@ -1,5 +1,6 @@
 import { INTELLIGENCE_ACTION_TYPES, PREAPPROVED_INTELLIGENCE_ACTION_TYPES } from "./scripts/intelligence-capabilities.mjs";
 import { storePrivatePatchArtifact } from "./scripts/intelligence-private-patch-store.mjs";
+import { generatePatchArtifact } from "./scripts/intelligence-patch-generation-service.mjs";
 
 const ALLOWED_ORIGIN = "https://mehranmsh.github.io";
 const FIREBASE_WEB_API_KEY = "AIzaSyBNezoCzAUXi1D7vC_stoUnQuN_JHR-rDM";
@@ -6347,6 +6348,63 @@ export default {
         if (mismatch !== 0) return error(ownerOrchestrationRoute ? "Owner orchestration authentication required." : "Agent authentication required.", 401);
         await ensureIntelligenceTaskTable(env);
         await ensureIntelligenceProtocolTables(env);
+        if (path === "/agent/v1/patch-proposals/generate" && method === "POST") {
+          const body = await readBody(request);
+          if (!body || Object.keys(body).sort().join(",") !== "baseSha,objective" ||
+              typeof body.baseSha !== "string" || !/^[a-f0-9]{40}$/.test(body.baseSha) ||
+              typeof body.objective !== "string" || body.objective.trim().length < 12 ||
+              body.objective.length > 800) {
+            return error("A current base SHA and bounded generation objective are required.",400);
+          }
+          await ensureSocialTables(env);
+          if (!await checkRateLimit(env,request,"intelligence-patch-generation",3,86400,86400)) {
+            return error("Patch generation limit reached. Try again tomorrow.",429);
+          }
+          await ensureIntelligencePatchProposalTable(env);
+          const generated = await generatePatchArtifact({
+            env,
+            baseSha:body.baseSha,
+            objective:body.objective,
+            reserveBudget:credits => reserveSocialWorkersAIBudget(env,credits,"intelligence")
+          });
+          if (!generated.ok) {
+            const status = generated.code === "stale_base_sha" ? 409 :
+              generated.code === "ai_budget_exhausted" ? 429 :
+              ["ai_unavailable","budget_guard_unavailable","ai_budget_guard_failed","main_commit_lookup_failed","source_fetch_failed"].includes(generated.code) ? 503 :
+              ["model_request_failed","model_returned_error","model_output_not_json","model_output_invalid"].includes(generated.code) ? 502 : 400;
+            return error("Patch generation rejected: " + String(generated.code || "unknown"),status);
+          }
+          const artifact = generated.artifact;
+          const stored = await storePrivatePatchArtifact({
+            token:env.MEHRAN_REPORTS_GITHUB_TOKEN,
+            artifact,
+            artifactSha256:generated.artifactSha256
+          });
+          if (!stored.stored) {
+            const status = stored.code === "artifact_validation_failed" ? 400 :
+              stored.code === "artifact_id_conflict" ? 409 : 503;
+            return error("Private patch artifact storage failed: " + String(stored.code || "unknown"),status);
+          }
+          await env.DB.prepare(
+            "INSERT OR IGNORE INTO intelligence_patch_proposals(proposal_id,base_sha,target_path,summary,artifact_path,artifact_sha256,diff_sha256,status,created_at) VALUES(?,?,?,?,?,?,?,'stored',?)"
+          ).bind(
+            artifact.proposalId,artifact.baseSha,artifact.targetPath,artifact.summary,
+            stored.path,generated.artifactSha256,artifact.diffSha256,artifact.createdAt
+          ).run();
+          const confirmed = await env.DB.prepare(
+            "SELECT proposal_id,artifact_path,artifact_sha256,diff_sha256,status FROM intelligence_patch_proposals WHERE proposal_id=?"
+          ).bind(artifact.proposalId).first();
+          if (!confirmed || confirmed.artifact_sha256 !== generated.artifactSha256) {
+            return error("Patch proposal metadata conflict; retry after inspection.",409);
+          }
+          return json({
+            success:true,proposalId:confirmed.proposal_id,
+            path:confirmed.artifact_path,artifactSha256:confirmed.artifact_sha256,
+            diffSha256:confirmed.diff_sha256,status:confirmed.status,
+            baseSha:artifact.baseSha,targetPath:artifact.targetPath,
+            validationMode:generated.validation.mode
+          },201);
+        }
         if (path === "/agent/v1/patch-proposals" && method === "POST") {
           const body = await readBody(request);
           if (!body || Object.keys(body).sort().join(",") !== "artifact,artifactSha256" ||

@@ -16,6 +16,40 @@ function extractModelText(result) {
   return "";
 }
 
+async function readBoundedText(response, maxBytes) {
+  const declaredLength = Number(response.headers.get("Content-Length") || 0);
+  if (Number.isFinite(declaredLength) && declaredLength > maxBytes) {
+    try { await response.body?.cancel(); } catch {}
+    return null;
+  }
+  if (!response.body) return null;
+  const reader = response.body.getReader();
+  const chunks = [];
+  let total = 0;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      total += value.byteLength;
+      if (total > maxBytes) {
+        await reader.cancel();
+        return null;
+      }
+      chunks.push(value);
+    }
+    const bytes = new Uint8Array(total);
+    let offset = 0;
+    for (const chunk of chunks) {
+      bytes.set(chunk, offset);
+      offset += chunk.byteLength;
+    }
+    return new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+  } catch {
+    try { await reader.cancel(); } catch {}
+    return null;
+  }
+}
+
 /**
  * Generate one bounded proposal from the exact current main commit.
  * The returned artifact is validated but not stored or applied.
@@ -57,10 +91,8 @@ export async function generatePatchArtifact({
     return fail("source_fetch_failed");
   }
   if (!sourceResponse.ok) return fail("source_fetch_failed");
-  const source = await sourceResponse.text();
-  if (!source.trim() || new TextEncoder().encode(source).byteLength > MAX_SOURCE_BYTES) {
-    return fail("source_size_invalid");
-  }
+  const source = await readBoundedText(sourceResponse, MAX_SOURCE_BYTES);
+  if (source === null || !source.trim()) return fail("source_size_invalid");
 
   const prompt = buildPatchGenerationPrompt({ baseSha, objective, source });
   if (!prompt.ok) return prompt;
@@ -103,6 +135,16 @@ export async function generatePatchArtifact({
       typeof generated.summary !== "string" || typeof generated.diff !== "string") {
     return fail("model_output_schema_invalid");
   }
+
+  let finalMainResponse;
+  try {
+    finalMainResponse = await fetchImpl(`https://api.github.com/repos/${REPOSITORY}/commits/main`, { headers });
+  } catch {
+    return fail("main_commit_recheck_failed");
+  }
+  if (!finalMainResponse.ok) return fail("main_commit_recheck_failed");
+  const finalMainCommit = await finalMainResponse.json();
+  if (finalMainCommit?.sha !== baseSha) return fail("stale_base_sha");
 
   const sourceLineCount = source.endsWith("\n") ? source.split("\n").length - 1 : source.split("\n").length;
   const validated = validateGeneratedPatch({
