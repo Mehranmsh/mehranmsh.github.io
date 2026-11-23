@@ -6448,7 +6448,10 @@ export default {
                 path:existing.artifact_path,
                 artifactSha256:existing.artifact_sha256
               });
-              if (!verified.stored) return error("Prepared proposal could not be recovered from private storage; submit a new request ID.",409);
+              if (!verified.stored) {
+                const status = verified.code === "artifact_not_found" || verified.code === "artifact_id_conflict" || verified.code === "invalid_artifact_lookup" ? 409 : 503;
+                return error("Prepared proposal recovery failed: " + String(verified.code || "unknown"),status);
+              }
               if (!await finalizePatchGenerationRequest(env,existing)) return error("Proposal metadata finalization is pending; retry with the same request ID.",503);
               const recovered = await readRequest();
               return responseFor(recovered);
