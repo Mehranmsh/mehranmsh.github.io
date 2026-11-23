@@ -999,4 +999,9 @@ test("Intelligence retains owner-scoped durable memory and recent conversation c
   assert.ok(chatHandler.includes(".bind(crypto.randomUUID(),admin.uid,key,category,content,importance)"));
   assert.ok(workerSource.includes('FROM intelligence_memory_items WHERE owner_uid=? ORDER BY importance DESC,updated_at DESC LIMIT 100").bind(admin.uid).all()'));
   assert.ok(workerSource.includes('FROM intelligence_memory_items WHERE owner_uid=? ORDER BY updated_at DESC,importance DESC LIMIT 24").bind(admin.uid).all()'));
+  assert.ok(workerSource.includes("ACTIVE MISSION STATE (authoritative live task records; resume existing work before proposing duplicates)"));
+  assert.ok(workerSource.includes("FROM intelligence_tasks WHERE status IN ('queued','accepted','in_progress','retry_wait','blocked','awaiting_approval')"));
+  assert.ok(workerSource.includes("checkpoint_json,attempts,max_attempts,next_attempt_at,last_error_code,updated_at"));
+  assert.ok(workerSource.includes("const activeMissions = (activeTaskResult.results || []).map"));
+
 });
