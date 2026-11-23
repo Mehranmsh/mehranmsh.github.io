@@ -1106,6 +1106,14 @@ test("scheduled Intelligence runner is single-flight, secret-backed and restrict
   assert.match(runner, /schedule:/);
   assert.match(runner, /cron: "\*\/5 \* \* \* \*"/);
   assert.match(runner, /concurrency:/);
+  assert.match(runner, /cancel-in-progress:\s*false/,
+    "an active runner must not be cancelled by a later scheduled tick");
+  const timeoutMatch = runner.match(/timeout-minutes:\s*(\d+)/);
+  assert.ok(timeoutMatch, "runner job must have an explicit maximum runtime");
+  assert.ok(Number(timeoutMatch[1]) < 15,
+    "runner maximum runtime must remain below the 15-minute claim-expiry window");
+  assert.match(workerSource, /datetime\(agent_claimed_at\) < datetime\('now','-15 minutes'\)/,
+    "claim recovery must use the documented 15-minute ownership window");
   assert.match(runner, /if: github\.ref == 'refs\/heads\/main'/);
   const runnerLines = runner.split(/\r?\n/);
   const runBlockLine = runnerLines.findIndex(line => /^\s*run:\s*\|\s*$/.test(line));
