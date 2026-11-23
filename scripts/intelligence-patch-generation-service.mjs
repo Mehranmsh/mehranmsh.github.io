@@ -18,7 +18,7 @@ function extractModelText(result) {
 
 function extractJsonObject(raw) {
   if (typeof raw !== "string") return "";
-  const text = raw.trim().replace(/^\`\`\`(?:json)?\\s*/i, "").replace(/\\s*\`\`\`$/, "").trim();
+  const text = raw.trim().replace(/^\`\`\`(?:json)?\s*/i, "").replace(/\s*\`\`\`$/, "").trim();
   if (!text) return "";
   if (text.startsWith("{") && text.endsWith("}")) return text;
   let start = -1;
@@ -29,7 +29,7 @@ function extractJsonObject(raw) {
     const character = text[index];
     if (inString) {
       if (escaped) escaped = false;
-      else if (character === "\\\\") escaped = true;
+      else if (character === "\\") escaped = true;
       else if (character === '"') inString = false;
       continue;
     }
