@@ -409,7 +409,7 @@ test("private patch store creates an immutable artifact only in the reports repo
   });
   assert.equal(result.stored, true);
   assert.equal(result.alreadyExists, false);
-  assert.equal(calls.length, 2);
+  assert.equal(calls.length, 3);
   assert.match(calls[0].url, /repos\/Mehranmsh\/mehran-intelligence-reports\/contents\/patch-proposals\/2026\/11\//);
   assert.equal(calls[0].options.method, "GET");
   assert.equal(calls[1].options.method, "PUT");
