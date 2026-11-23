@@ -23,7 +23,7 @@ function decodeBase64Utf8(value) {
   return new TextDecoder("utf-8", { fatal: true }).decode(bytes);
 }
 
-function artifactPath(record) {
+export function getPrivatePatchArtifactPath(record) {
   const date = new Date(record.createdAt);
   const year = date.toISOString().slice(0, 4);
   const month = date.toISOString().slice(5, 7);
@@ -40,8 +40,9 @@ function headers(token, json = false) {
   };
 }
 
-async function verifyExisting(response, expectedSha256) {
-  const payload = await response.json();
+async function verifyExisting(response, expectedSha256, expectedPath = null) {
+  let payload;
+  try { payload = await response.json(); } catch { return fail("existing_artifact_unreadable"); }
   if (payload?.encoding !== "base64" || typeof payload.content !== "string") {
     return fail("existing_artifact_unreadable");
   }
@@ -50,6 +51,12 @@ async function verifyExisting(response, expectedSha256) {
     existing = JSON.parse(decodeBase64Utf8(payload.content));
   } catch {
     return fail("existing_artifact_invalid_json");
+  }
+  if (expectedPath) {
+    let canonicalPath;
+    try { canonicalPath = getPrivatePatchArtifactPath(existing); }
+    catch { return fail("existing_artifact_invalid_json"); }
+    if (canonicalPath !== expectedPath) return fail("artifact_path_mismatch");
   }
   const verified = await verifyPatchArtifactRecord(existing, expectedSha256);
   if (!verified.ok) return fail("artifact_id_conflict");
@@ -72,29 +79,64 @@ export async function storePrivatePatchArtifact({
   const serialized = JSON.stringify(artifact, null, 2) + "\n";
   if (new TextEncoder().encode(serialized).byteLength > MAX_ARTIFACT_BYTES) return fail("artifact_size_exceeded");
 
-  const path = artifactPath(artifact);
+  const path = getPrivatePatchArtifactPath(artifact);
   const url = `${API_ROOT}/repos/${REPORTS_REPOSITORY}/contents/${path}`;
   const requestHeaders = headers(token.trim());
-  const existing = await fetchImpl(url, { method: "GET", headers: requestHeaders });
-  if (existing.ok) return verifyExisting(existing, artifactSha256);
+  let existing;
+  try { existing = await fetchImpl(url, { method: "GET", headers: requestHeaders }); }
+  catch { return fail("artifact_lookup_failed"); }
+  if (existing.ok) {
+    const verifiedExisting = await verifyExisting(existing, artifactSha256, path);
+    return verifiedExisting.stored && verifiedExisting.path === path ? verifiedExisting : fail("artifact_id_conflict");
+  }
   if (existing.status !== 404) return fail("artifact_lookup_failed");
 
-  const write = await fetchImpl(url, {
-    method: "PUT",
-    headers: headers(token.trim(), true),
-    body: JSON.stringify({
-      message: `Store INTELLIGENCE patch proposal ${artifact.proposalId}`,
-      content: encodeBase64Utf8(serialized)
-    })
-  });
+  let write;
+  try {
+    write = await fetchImpl(url, {
+      method: "PUT",
+      headers: headers(token.trim(), true),
+      body: JSON.stringify({
+        message: `Store INTELLIGENCE patch proposal ${artifact.proposalId}`,
+        content: encodeBase64Utf8(serialized)
+      })
+    });
+  } catch { return fail("artifact_write_failed"); }
   if (write.ok) {
     return { stored: true, alreadyExists: false, path, artifactSha256 };
   }
   if (write.status === 422) {
-    const raced = await fetchImpl(url, { method: "GET", headers: requestHeaders });
-    if (raced.ok) return verifyExisting(raced, artifactSha256);
+    let raced;
+    try { raced = await fetchImpl(url, { method: "GET", headers: requestHeaders }); }
+    catch { return fail("artifact_lookup_failed"); }
+    if (raced.ok) {
+      const verifiedRace = await verifyExisting(raced, artifactSha256, path);
+      return verifiedRace.stored && verifiedRace.path === path ? verifiedRace : fail("artifact_id_conflict");
+    }
   }
   return fail("artifact_write_failed");
+}
+
+export async function verifyPrivatePatchArtifactAtPath({
+  token,
+  path,
+  artifactSha256,
+  fetchImpl = fetch
+} = {}) {
+  if (typeof token !== "string" || token.trim().length < 40 ||
+      typeof path !== "string" || !/^patch-proposals\/\d{4}\/\d{2}\/[a-f0-9-]{36}\.json$/.test(path) ||
+      typeof artifactSha256 !== "string" || !/^[a-f0-9]{64}$/.test(artifactSha256)) {
+    return fail("invalid_artifact_lookup");
+  }
+  const url = `${API_ROOT}/repos/${REPORTS_REPOSITORY}/contents/${path}`;
+  let response;
+  try { response = await fetchImpl(url, { method: "GET", headers: headers(token.trim()) }); }
+  catch { return fail("artifact_lookup_failed"); }
+  if (response.status === 404) return fail("artifact_not_found");
+  if (!response.ok) return fail("artifact_lookup_failed");
+  const verified = await verifyExisting(response, artifactSha256, path);
+  if (!verified.stored || verified.path !== path) return fail("artifact_id_conflict");
+  return verified;
 }
 
 export const PRIVATE_PATCH_ARTIFACT_STORE_POLICY = Object.freeze({

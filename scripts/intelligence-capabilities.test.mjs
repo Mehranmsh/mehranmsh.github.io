@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { validatePatchProposal, PATCH_PROPOSAL_POLICY } from "./intelligence-patch-policy.mjs";
 import { createPatchArtifactRecord, verifyPatchArtifactRecord } from "./intelligence-patch-artifact.mjs";
-import { storePrivatePatchArtifact, PRIVATE_PATCH_ARTIFACT_STORE_POLICY } from "./intelligence-private-patch-store.mjs";
+import { storePrivatePatchArtifact, verifyPrivatePatchArtifactAtPath, getPrivatePatchArtifactPath, PRIVATE_PATCH_ARTIFACT_STORE_POLICY } from "./intelligence-private-patch-store.mjs";
 import { buildPatchGenerationPrompt, validateGeneratedPatch, PATCH_GENERATION_POLICY } from "./intelligence-patch-generation.mjs";
 import { generatePatchArtifact, PATCH_GENERATION_SERVICE_POLICY } from "./intelligence-patch-generation-service.mjs";
 import {
@@ -21,7 +21,7 @@ const scheduledEnd = workerSource.indexOf("async fetch(request, env)", scheduled
 assert.ok(scheduledStart >= 0 && scheduledEnd > scheduledStart, "Worker scheduled handler must be locatable");
 const workerSchedulerSource = workerSource.slice(scheduledStart, scheduledEnd);
 
-test("all seven active capabilities are registered with their permission tiers", () => {
+test("all eight active capabilities are registered with their permission tiers", () => {
   const expected = [
     "project_status_report",
     "social_metrics_report",
@@ -29,20 +29,23 @@ test("all seven active capabilities are registered with their permission tiers",
     "repository_quality_check",
     "source_security_audit",
     "inspect_repository",
-    "run_repository_tests"
+    "run_repository_tests",
+    "propose_code_patch"
   ];
   assert.deepEqual(INTELLIGENCE_ACTION_TYPES, expected);
   assert.deepEqual(PREAPPROVED_INTELLIGENCE_ACTION_TYPES, expected);
   for (const id of expected) {
     const item = getIntelligenceCapability(id);
     const isolated = id === "run_repository_tests";
+    const proposal = id === "propose_code_patch";
     assert.equal(item.status, "active");
-    assert.equal(item.permissionTier, isolated ? "isolated_ci" : "read_only");
+    assert.equal(item.permissionTier, proposal ? "proposal_only" : isolated ? "isolated_ci" : "read_only");
     assert.equal(item.requiresApproval, false);
     assert.ok(Object.isFrozen(item.executors));
     const input = id === "inspect_repository"
       ? { paths: ["worker.js"] }
-      : isolated ? { baseSha: "a".repeat(40) } : {};
+      : isolated ? { baseSha: "a".repeat(40) }
+      : proposal ? { objective: "Add a regression test for a safe parser boundary" } : {};
     assert.equal(validateIntelligenceCapabilityRequest(id, input).ok, true);
   }
 });
@@ -86,7 +89,8 @@ test("executor metadata matches the actual Worker and GitHub Actions routing", (
     repository_quality_check: ["cloudflare_worker_scheduler", "github_actions_runner"],
     source_security_audit: ["github_actions_runner"],
     inspect_repository: ["github_actions_runner"],
-    run_repository_tests: ["github_actions_runner"]
+    run_repository_tests: ["github_actions_runner"],
+    propose_code_patch: ["github_actions_runner"]
   };
   for (const [id, executors] of Object.entries(expected)) {
     assert.deepEqual(getIntelligenceCapability(id).executors, executors, id);
@@ -94,8 +98,8 @@ test("executor metadata matches the actual Worker and GitHub Actions routing", (
 
   assert.match(workerSchedulerSource, /action_type IN \('project_status_report','social_metrics_report'\)/);
   assert.match(workerSchedulerSource, /action_type IN \('service_health_report','repository_quality_check'\)/);
-  assert.doesNotMatch(workerSchedulerSource, /source_security_audit|inspect_repository/);
-  assert.match(workerSource, /action_type IN \('repository_quality_check','service_health_report','source_security_audit','inspect_repository','run_repository_tests'\)/);
+  assert.doesNotMatch(workerSchedulerSource, /source_security_audit|inspect_repository|propose_code_patch/);
+  assert.match(workerSource, /action_type IN \('repository_quality_check','service_health_report','source_security_audit','inspect_repository','run_repository_tests','propose_code_patch'\)/);
   assert.match(runnerSource, /if \(task\.actionType === "inspect_repository"\)/);
   assert.match(runnerSource, /if \(task\.actionType === "run_repository_tests"\)/);
   assert.match(runnerSource, /function runFixedRepositoryTests\(task\)/);
@@ -104,17 +108,41 @@ test("executor metadata matches the actual Worker and GitHub Actions routing", (
   assert.ok(runnerActions, "GitHub runner must declare its action allowlist");
   assert.deepEqual(
     [...runnerActions[1].matchAll(/"([a-z_]+)"/g)].map(match => match[1]),
-    ["service_health_report", "repository_quality_check", "source_security_audit", "inspect_repository"]
+    ["service_health_report", "repository_quality_check", "source_security_audit", "inspect_repository", "propose_code_patch"]
   );
 });
 
-test("future self-improvement capabilities remain planned and non-executable", () => {
-  for (const id of ["propose_code_patch", "create_pull_request"]) {
-    assert.equal(getIntelligenceCapability(id).status, "planned");
-    assert.equal(validateIntelligenceCapabilityRequest(id, {}).ok, false);
-    assert.equal(validateIntelligenceCapabilityRequest(id, {}).code, "capability_not_implemented");
-    assert.ok(getIntelligenceCapability(id).executors.length > 0);
-  }
+test("security audit gathers bounded evidence from fixed official research sources", () => {
+  for (const url of [
+    "https://docs.github.com/en/actions/security-guides/security-hardening-for-github-actions",
+    "https://developers.cloudflare.com/workers-ai/",
+    "https://owasp.org/www-project-top-10-for-large-language-model-applications/"
+  ]) assert.ok(runnerSource.includes(url), `missing official source: ${url}`);
+  assert.match(runnerSource, /redirect: "error"/);
+  assert.match(runnerSource, /AbortSignal\.timeout\(12000\)/);
+  assert.match(runnerSource, /totalBytes > 500000/);
+  assert.match(runnerSource, /contentTreatedAsUntrustedData: true/);
+  assert.match(runnerSource, /Promise\.all\(officialGuidanceSources\.map\(readOfficialGuidance\)\)/);
+  assert.match(runnerSource, /research: \{ sourceCount: researchSources\.length/);
+  assert.match(runnerSource, /fixed official documentation URLs/);
+});
+
+test("completed self-assessment creates one idempotent evidence-driven terminal follow-up", () => {
+  assert.match(runnerSource, /workPackageId === selfImprovementPackageId && finalState\.workPackage\?\.status === "completed" && finalState\.reportStorage\?\.stored === true/);
+  assert.match(runnerSource, /\.slice\(0, 6\)[\s\S]*?result_text[\s\S]*?\.slice\(0, 420\)/);
+  assert.match(runnerSource, /JSON\.stringify\([\s\S]*?tasks: taskEvidence[\s\S]*?\.slice\(0, 1150\)/);
+  assert.match(runnerSource, /idempotencyKey: "mehran-intelligence-self-improvement-evidence-review-v1"/);
+  assert.match(runnerSource, /allowDeterministicFallback: false/);
+  assert.match(runnerSource, /CYCLE 2 \(FINAL, NON-RECURSIVE\)/);
+  assert.match(runnerSource, /Do not create another self-improvement mission or recursive follow-up/);
+});
+
+test("pull request creation remains planned and non-executable", () => {
+  const capability = getIntelligenceCapability("create_pull_request");
+  assert.equal(capability.status, "planned");
+  assert.equal(validateIntelligenceCapabilityRequest("create_pull_request", {}).ok, false);
+  assert.equal(validateIntelligenceCapabilityRequest("create_pull_request", {}).code, "capability_not_implemented");
+  assert.deepEqual(capability.executors, ["github_actions_runner"]);
 });
 
 test("merge, deployment, secrets, wallet and arbitrary shell capabilities remain blocked", () => {
@@ -132,20 +160,18 @@ test("unknown capabilities and malformed inputs fail closed", () => {
   assert.equal(validateIntelligenceCapabilityRequest("project_status_report", { command: "echo unsafe" }).code, "unknown_input_field");
 });
 
-test("patch proposals enforce bounded typed inputs without applying changes", () => {
-  const good = {
-    summary: "Add a bounded validation helper for repository metadata",
-    targetPaths: ["scripts/intelligence/example.mjs"],
-    diff: "--- a/example\n+++ b/example\n@@ -1 +1 @@\n-old\n+new"
-  };
-  const schema = getIntelligenceCapability("propose_code_patch").inputSchema;
-  assert.equal(schema.properties.summary.maxLength, 500);
-  assert.equal(schema.properties.targetPaths.maxItems, 10);
-  assert.equal(schema.properties.diff.maxLength, 20000);
-  assert.equal(getIntelligenceCapability("propose_code_patch").requiresApproval, false);
-  assert.equal(getIntelligenceCapability("propose_code_patch").autonomous, true);
-  assert.equal(validateIntelligenceCapabilityRequest("propose_code_patch", good).code, "capability_not_implemented");
-  assert.deepEqual(getIntelligenceCapability("propose_code_patch").executors, ["proposal_store"]);
+test("patch proposal capability is active only for bounded private proposal generation", () => {
+  const good = { objective: "Add a regression test for a safe parser boundary" };
+  const capability = getIntelligenceCapability("propose_code_patch");
+  assert.equal(capability.status, "active");
+  assert.equal(capability.permissionTier, "proposal_only");
+  assert.equal(capability.inputSchema.properties.objective.minLength, 12);
+  assert.equal(capability.inputSchema.properties.objective.maxLength, 800);
+  assert.equal(capability.requiresApproval, false);
+  assert.equal(capability.autonomous, true);
+  assert.equal(validateIntelligenceCapabilityRequest("propose_code_patch", good).ok, true);
+  assert.equal(validateIntelligenceCapabilityRequest("propose_code_patch", { ...good, command: "unsafe" }).code, "unknown_input_field");
+  assert.deepEqual(capability.executors, ["github_actions_runner"]);
 });
 
 test("PR creation schema requires a scoped proposal branch and immutable head SHA", () => {
@@ -158,14 +184,18 @@ test("PR creation schema requires a scoped proposal branch and immutable head SH
 
 
 // Autonomous metadata is policy only; planned capabilities remain non-executable until an executor ships.
-test("safe self-improvement work is pre-authorized without activating missing executors", () => {
-  for (const id of ["propose_code_patch", "create_pull_request"]) {
-    const capability = getIntelligenceCapability(id);
-    assert.equal(capability.requiresApproval, false, id);
-    assert.equal(capability.autonomous, true, id);
-    assert.equal(capability.status, "planned", id);
-    assert.equal(validateIntelligenceCapabilityRequest(id, {}).code, "capability_not_implemented", id);
-  }
+test("bounded patch proposals are pre-authorized while PR creation and privileged actions remain gated", () => {
+  const proposal = getIntelligenceCapability("propose_code_patch");
+  assert.equal(proposal.requiresApproval, false);
+  assert.equal(proposal.autonomous, true);
+  assert.equal(proposal.status, "active");
+  assert.equal(proposal.permissionTier, "proposal_only");
+  assert.equal(validateIntelligenceCapabilityRequest("propose_code_patch", {
+    objective: "Add a regression test for a safe parser boundary"
+  }).ok, true);
+  const pullRequest = getIntelligenceCapability("create_pull_request");
+  assert.equal(pullRequest.status, "planned");
+  assert.equal(validateIntelligenceCapabilityRequest("create_pull_request", {}).code, "capability_not_implemented");
   for (const id of ["merge_pull_request", "deploy", "read_secrets", "wallet_operations", "arbitrary_shell"]) {
     assert.equal(getIntelligenceCapability(id).requiresApproval, true, id);
     assert.equal(getIntelligenceCapability(id).autonomous, undefined, id);
@@ -435,6 +465,37 @@ test("private patch store treats an identical existing artifact as idempotent", 
   assert.equal(result.stored, true);
   assert.equal(result.alreadyExists, true);
   assert.equal(calls, 1);
+});
+
+test("private patch artifact recovery verifies an exact stored path and digest", async () => {
+  const created = await makeTestPatchArtifact();
+  const path = getPrivatePatchArtifactPath(created.artifact);
+  assert.match(path, /^patch-proposals\/\d{4}\/\d{2}\/[a-f0-9-]{36}\.json$/);
+  let calls = 0;
+  const verified = await verifyPrivatePatchArtifactAtPath({
+    token: "t".repeat(48), path, artifactSha256: created.artifactSha256,
+    fetchImpl: async () => { calls++; return githubContentResponse(created.artifact, path); }
+  });
+  assert.equal(verified.stored, true);
+  assert.equal(verified.path, path);
+  assert.equal(calls, 1);
+  const invalid = await verifyPrivatePatchArtifactAtPath({
+    token: "t".repeat(48), path: "../public.json", artifactSha256: created.artifactSha256,
+    fetchImpl: async () => { calls++; throw new Error("invalid path must not fetch"); }
+  });
+  assert.equal(invalid.code, "invalid_artifact_lookup");
+  assert.equal(calls, 1);
+});
+
+test("private patch artifact recovery returns a retryable lookup error on transient network failure", async () => {
+  const created = await makeTestPatchArtifact();
+  const path = getPrivatePatchArtifactPath(created.artifact);
+  const result = await verifyPrivatePatchArtifactAtPath({
+    token: "t".repeat(48), path, artifactSha256: created.artifactSha256,
+    fetchImpl: async () => { throw new Error("temporary network interruption"); }
+  });
+  assert.equal(result.stored, false);
+  assert.equal(result.code, "artifact_lookup_failed");
 });
 
 test("private patch store rejects a conflicting artifact ID and invalid credentials without writing", async () => {

@@ -13,7 +13,7 @@ const indexSource = await readFile(new URL("../index.html", import.meta.url), "u
 const runnerSource = await readFile(new URL("../.github/workflows/mehran-intelligence-runner.yml", import.meta.url), "utf8");
 const musicStudioSource = await readFile(new URL("../music-studio.html", import.meta.url), "utf8");
 const capabilityImport = 'import { INTELLIGENCE_ACTION_TYPES, PREAPPROVED_INTELLIGENCE_ACTION_TYPES } from "./scripts/intelligence-capabilities.mjs";';
-const patchStoreImport = 'import { storePrivatePatchArtifact } from "./scripts/intelligence-private-patch-store.mjs";';
+const patchStoreImport = 'import { storePrivatePatchArtifact, verifyPrivatePatchArtifactAtPath, getPrivatePatchArtifactPath } from "./scripts/intelligence-private-patch-store.mjs";';
 const patchGenerationImport = 'import { generatePatchArtifact } from "./scripts/intelligence-patch-generation-service.mjs";';
 if (!workerSource.startsWith(capabilityImport) || !workerSource.includes(patchStoreImport) || !workerSource.includes(patchGenerationImport)) {
   throw new Error("Worker capability or patch storage imports were not found");
@@ -41,9 +41,30 @@ const patchGenerationServiceUrl = moduleUrl(patchGenerationServiceSource
   .replace('from "./intelligence-patch-generation.mjs"', `from "${patchGenerationPromptUrl}"`)
   .replace('from "./intelligence-patch-artifact.mjs"', `from "${artifactUrl}"`)
 );
+const patchStoreTestUrl = moduleUrl(`
+import { getPrivatePatchArtifactPath } from "${patchStoreUrl}";
+export { getPrivatePatchArtifactPath };
+export async function storePrivatePatchArtifact(args) {
+  const hook = globalThis.__MEHRAN_PATCH_TEST_HOOKS?.store;
+  if (typeof hook !== "function") throw new Error("Patch storage test hook is not configured.");
+  return hook(args);
+}
+export async function verifyPrivatePatchArtifactAtPath(args) {
+  const hook = globalThis.__MEHRAN_PATCH_TEST_HOOKS?.verify;
+  if (typeof hook !== "function") throw new Error("Patch verification test hook is not configured.");
+  return hook(args);
+}
+`);
+const patchGenerationTestUrl = moduleUrl(`
+export async function generatePatchArtifact(args) {
+  const hook = globalThis.__MEHRAN_PATCH_TEST_HOOKS?.generate;
+  if (typeof hook !== "function") return { ok: false, code: "test_generation_hook_missing" };
+  return hook(args);
+}
+`);
 const workerRest = workerSource.slice(capabilityImport.length).replace(patchStoreImport, "").replace(patchGenerationImport, "");
-const workerSourceForTest = `import { storePrivatePatchArtifact } from "${patchStoreUrl}";
-import { generatePatchArtifact } from "${patchGenerationServiceUrl}";
+const workerSourceForTest = `import { storePrivatePatchArtifact, verifyPrivatePatchArtifactAtPath, getPrivatePatchArtifactPath } from "${patchStoreTestUrl}";
+import { generatePatchArtifact } from "${patchGenerationTestUrl}";
 const INTELLIGENCE_ACTION_TYPES = ${JSON.stringify(INTELLIGENCE_ACTION_TYPES)};
 const PREAPPROVED_INTELLIGENCE_ACTION_TYPES = ${JSON.stringify(PREAPPROVED_INTELLIGENCE_ACTION_TYPES)};
 ` + workerRest;
@@ -51,6 +72,7 @@ const PREAPPROVED_INTELLIGENCE_ACTION_TYPES = ${JSON.stringify(PREAPPROVED_INTEL
 const workerModule = await import(
   "data:text/javascript;base64," + Buffer.from(workerSourceForTest).toString("base64")
 );
+const patchStoreModule = await import(patchStoreUrl);
 const worker = workerModule.default;
 const { verifyIntelligenceReport, validateIntelligenceWorkPackage, persistIntelligencePackageReport } = workerModule;
 
@@ -242,6 +264,53 @@ test("Intelligence task listing repairs only stale approval labels on explicitly
   assert.ok(route.indexOf("UPDATE intelligence_tasks") < route.indexOf("SELECT * FROM intelligence_tasks"));
 });
 
+test("proposal-only work-package tasks require a bounded objective", () => {
+  const base = {
+    idempotencyKey: "patch-proposal-queue-001",
+    title: "Prepare a bounded test proposal",
+    objective: "Generate one private regression-test proposal",
+    priority: "normal",
+    scope: { modules: ["intelligence"], private: true },
+    tasks: [{
+      taskId: "patch", title: "Propose a regression test", description: "Create a narrow test-only proposal",
+      actionType: "propose_code_patch", dependsOn: [], objective: "Add regression coverage for an identified validation edge case"
+    }]
+  };
+  const valid = validateIntelligenceWorkPackage(base);
+  assert.equal(valid.ok, true);
+  assert.equal(valid.tasks[0].objective, base.tasks[0].objective);
+  assert.equal(validateIntelligenceWorkPackage({ ...base, tasks: [{ ...base.tasks[0], objective: "short" }] }).ok, false);
+  assert.equal(validateIntelligenceWorkPackage({ ...base, tasks: [{ ...base.tasks[0], objective: undefined }] }).ok, false);
+  assert.equal(validateIntelligenceWorkPackage({ ...base, tasks: [{ ...base.tasks[0], actionType: "service_health_report" }] }).ok, false);
+});
+
+test("patch proposal task reports are independently verified and bound to private artifact metadata", () => {
+  const proposalId = "123e4567-e89b-42d3-a456-426614174000";
+  const report = {
+    type: "propose_code_patch", generatedAt: "2026-11-23T12:00:00.000Z",
+    requestId: "package-id:patch", requestHash: "A".repeat(43), proposalId,
+    path: `patch-proposals/2026/11/${proposalId}.json`,
+    artifactSha256: "a".repeat(64), diffSha256: "b".repeat(64), status: "stored",
+    baseSha: "c".repeat(40), targetPath: "scripts/intelligence-capabilities.test.mjs",
+    validationMode: "append_only_validate_only", summary: "Add a bounded regression test for a validation edge case"
+  };
+  assert.equal(verifyIntelligenceReport("propose_code_patch", report).passed, true);
+  assert.equal(verifyIntelligenceReport("propose_code_patch", { ...report, path: "patch-proposals/2026/11/other.json" }).passed, false);
+  assert.equal(verifyIntelligenceReport("propose_code_patch", { ...report, validationMode: "apply_patch" }).passed, false);
+});
+
+test("Agent patch proposal runner checkpoints an immutable base and submits a stable task request ID", () => {
+  assert.match(runnerSource, /if \(task\.actionType === "propose_code_patch"\)/);
+  assert.match(runnerSource, /\/agent\/v1\/patch-proposals\/generate/);
+  assert.match(runnerSource, /requestId: task\.id/);
+  assert.match(runnerSource, /checkpoint: \{ baseSha \}/);
+  assert.match(runnerSource, /retryable = Number\(error\?\.status\) === 503/);
+  assert.match(runnerSource, /JSON\.stringify\(\{ status, result, retryable, claimToken: task\.claimToken \}\)/);
+  assert.match(workerSource, /parsedReport\.requestId !== id/);
+  assert.match(workerSource, /checkpoint\.baseSha !== parsedReport\.baseSha/);
+  assert.match(workerSource, /parsedReport\.requestHash !== expectedHash/);
+});
+
 test("Agent API stale-claim recovery includes package-bound allowlisted tasks", () => {
   const start = workerSource.indexOf('if (path === "/agent/v1/tasks/next" && method === "GET")');
   const end = workerSource.indexOf("const checkpointMatch", start);
@@ -250,9 +319,19 @@ test("Agent API stale-claim recovery includes package-bound allowlisted tasks", 
   assert.equal((route.match(/UPDATE intelligence_tasks SET status='blocked'/g) || []).length, 1);
   assert.equal((route.match(/UPDATE intelligence_tasks SET status='accepted'/g) || []).length, 1);
   assert.match(route, /datetime\(agent_claimed_at\) < datetime\('now','-15 minutes'\)/);
-  assert.match(route, /action_type IN \('repository_quality_check','service_health_report','source_security_audit','inspect_repository','run_repository_tests'\)/);
+  assert.match(route, /action_type IN \('repository_quality_check','service_health_report','source_security_audit','inspect_repository','run_repository_tests','propose_code_patch'\)/);
   assert.doesNotMatch(route, /work_package_id IS NULL/,
     "stale recovery must include tasks claimed from durable work packages");
+});
+
+test("owner task hub validates proposal-only payloads before queueing", () => {
+  const start = workerSource.indexOf('if (path === "/intelligence/tasks" && ["GET","POST"].includes(method))');
+  const end = workerSource.indexOf("const intelligenceTaskMatch=path.match", start);
+  assert.ok(start >= 0 && end > start);
+  const route = workerSource.slice(start, end);
+  assert.match(route, /actionType==="propose_code_patch"/);
+  assert.match(route, /supplied\.objective\.trim\(\)\.length<12/);
+  assert.match(route, /action_payload/);
 });
 
 test("MEHRAN collaboration task APIs reject unauthenticated access", async () => {
@@ -280,7 +359,7 @@ test("AI patch generation endpoint requires the dedicated agent bearer token", a
   const response = await request("/agent/v1/patch-proposals/generate", {
     method: "POST",
     headers: { Authorization: "Bearer " + "x".repeat(48) },
-    body: { baseSha: "a".repeat(40), objective: "Add a bounded regression test" }
+    body: { baseSha: "a".repeat(40), objective: "Add a bounded regression test", requestId: "task-12345678" }
   }, { DB: mockDb(), MEHRAN_AGENT_TOKEN: "s".repeat(48) });
   assert.equal(response.status, 401);
   const payload = await response.json();
@@ -292,13 +371,581 @@ test("AI patch generation endpoint has a strict bounded request and storage-only
   const end = workerSource.indexOf('if (path === "/agent/v1/patch-proposals" && method === "POST")', start);
   assert.ok(start >= 0 && end > start);
   const route = workerSource.slice(start, end);
-  assert.match(route, /Object\.keys\(body\)\.sort\(\)\.join\(","\) !== "baseSha,objective"/);
+  assert.match(route, /Object\.keys\(body\)\.sort\(\)\.join\(","\) !== "baseSha,objective,requestId"/);
   assert.match(route, /checkRateLimit\(env,request,"intelligence-patch-generation",3,86400,86400\)/);
   assert.match(route, /reserveSocialWorkersAIBudget\(env,credits,"intelligence"\)/);
   assert.match(route, /storePrivatePatchArtifact/);
-  assert.match(route, /INSERT OR IGNORE INTO intelligence_patch_proposals/);
+  assert.match(route, /intelligence_patch_generation_requests/);
+  assert.match(route, /verifyPrivatePatchArtifactAtPath/);
+  assert.match(route, /finalizePatchGenerationRequest/);
+  assert.match(route, /reservation\?\.meta\?\.changes/);
+  assert.ok(route.indexOf("await ensureSocialTables(env)") <
+    route.indexOf("INSERT OR IGNORE INTO intelligence_patch_generation_requests"),
+    "rate-limit storage initialization must finish before the request enters processing");
+  assert.ok(route.indexOf("INSERT OR IGNORE INTO intelligence_patch_generation_requests") <
+    route.indexOf('checkRateLimit(env,request,"intelligence-patch-generation",3,86400,86400)'),
+    "only the atomic single-winner reservation may consume an IP rate-limit slot");
+  assert.match(route, /failure_code='rate_limited'/);
+  assert.ok(route.indexOf('checkRateLimit(env,request,"intelligence-patch-generation",3,86400,86400)') <
+    route.indexOf("const generated = await generatePatchArtifact"),
+    "rate limiting must still happen before any AI generation or budget reservation");
+  assert.match(route, /existing\.status === "stored"/);
+  assert.match(route, /status='prepared'/);
   assert.doesNotMatch(route, /diff\s*:/);
-  assert.match(route, /generated\.validation\.mode/);
+  assert.match(route, /validationMode:row\.validation_mode/);
+  const generationFailure = route.slice(route.indexOf("if (!generated.ok)"), route.indexOf("const artifact = generated.artifact"));
+  assert.match(generationFailure, /source_fetch_failed.*502/);
+  assert.doesNotMatch(generationFailure, /\? 503/,
+    "HTTP 503 is reserved for prepared-artifact recovery paths that are safe to retry with the same request ID");
+});
+
+test("stale processing patch requests fail closed without regenerating under the same idempotency key", () => {
+  const start = workerSource.indexOf('if (path === "/agent/v1/patch-proposals/generate" && method === "POST")');
+  const end = workerSource.indexOf('if (path === "/agent/v1/patch-proposals" && method === "POST")', start);
+  const route = workerSource.slice(start, end);
+  assert.match(route, /existing\.status === "processing"/);
+  assert.match(route, /status='failed',failure_code='processing_timeout'/);
+  assert.match(route, /datetime\(updated_at\)<datetime\('now','-10 minutes'\)/);
+  assert.match(route, /previous generation attempt expired; submit a new request ID/);
+  const processingBranch = route.slice(route.indexOf('if (existing.status === "processing")'), route.indexOf('return error("This generation request is terminal;'));
+  assert.doesNotMatch(processingBranch, /generatePatchArtifact/,
+    "an uncertain prior AI attempt must never be silently regenerated with the same request ID");
+  assert.match(runnerSource, /already in progress\|concurrently reserved/);
+  assert.match(runnerSource, /Number\(error\?\.status\) === 409/);
+  assert.match(runnerSource, /agentHeaders, 90000/,
+    "the runner's patch-generation request must stay within its explicit 90-second timeout");
+  assert.match(route, /datetime\(updated_at\)<datetime\('now','-10 minutes'\)/,
+    "the Worker must fail closed only after the bounded processing window expires");
+});
+
+test("simultaneous first delivery uses the atomic request reservation as the single-winner gate", async () => {
+  const requestId = "simultaneous-first-delivery-0001";
+  const baseSha = "f".repeat(40);
+  const objective = "Verify the atomic reservation protects concurrent first delivery";
+  const created = await createPatchArtifactRecord({
+    proposalId: "123e4567-e89b-42d3-a456-426614174005",
+    createdAt: "2026-11-23T00:00:00.000Z",
+    baseSha,
+    summary: "Atomic reservation fixture",
+    targetPaths: ["scripts/intelligence-capabilities.test.mjs"],
+    diff: [
+      "--- a/scripts/intelligence-capabilities.test.mjs",
+      "+++ b/scripts/intelligence-capabilities.test.mjs",
+      "@@ -0,0 +1 @@",
+      "+// atomic reservation fixture",
+      ""
+    ].join("\n")
+  });
+  assert.equal(created.ok, true);
+  const artifactPath = patchStoreModule.getPrivatePatchArtifactPath(created.artifact);
+  const state = { request: null, proposal: null, initialReads: 0, generationCalls: 0, budgetReservations: 0, stores: 0 };
+  let releaseInitialReads;
+  const bothInitialReads = new Promise(resolve => { releaseInitialReads = resolve; });
+  const db = {
+    prepare(sql) {
+      let values = [];
+      return {
+        bind(...args) { values = args; return this; },
+        async all() { return { results: [] }; },
+        async first() {
+          if (sql.includes("FROM intelligence_patch_generation_requests WHERE request_id=?")) {
+            if (state.initialReads < 2) {
+              state.initialReads += 1;
+              if (state.initialReads === 2) releaseInitialReads();
+              await bothInitialReads;
+              return null;
+            }
+            return state.request ? { ...state.request } : null;
+          }
+          if (sql.includes("FROM intelligence_patch_proposals WHERE proposal_id=?")) {
+            return state.proposal ? { ...state.proposal } : null;
+          }
+          if (sql.includes("RETURNING attempts,blocked_until")) return { attempts: 1, blocked_until: null };
+          if (sql.includes("RETURNING intelligence_reserved")) {
+            state.budgetReservations += 1;
+            return { product_reserved: 250, total_reserved: 250, request_count: state.budgetReservations };
+          }
+          return null;
+        },
+        async run() {
+          if (sql.includes("INSERT OR IGNORE INTO intelligence_patch_generation_requests")) {
+            if (state.request) return { meta: { changes: 0 } };
+            state.request = {
+              request_id: values[0], request_hash: values[1], base_sha: values[2],
+              status: "processing", proposal_id: null, target_path: null, summary: null,
+              artifact_path: null, artifact_sha256: null, diff_sha256: null,
+              validation_mode: null, failure_code: "", created_at: "2026-11-23T00:00:00.000Z"
+            };
+            return { meta: { changes: 1 } };
+          }
+          if (sql.includes("UPDATE intelligence_patch_generation_requests SET status='prepared'")) {
+            const [proposalId,targetPath,summary,path,artifactSha,diffSha,validationMode,id] = values;
+            if (state.request?.request_id === id && state.request.status === "processing") {
+              Object.assign(state.request,{status:"prepared",proposal_id:proposalId,target_path:targetPath,
+                summary,artifact_path:path,artifact_sha256:artifactSha,diff_sha256:diffSha,
+                validation_mode:validationMode});
+            }
+            return { meta: { changes: 1 } };
+          }
+          if (sql.includes("INSERT OR IGNORE INTO intelligence_patch_proposals")) {
+            const [proposalId,baseShaValue,targetPath,summary,path,artifactSha,diffSha,createdAt] = values;
+            if (!state.proposal) state.proposal = {
+              proposal_id:proposalId,base_sha:baseShaValue,target_path:targetPath,summary,
+              artifact_path:path,artifact_sha256:artifactSha,diff_sha256:diffSha,status:"stored",created_at:createdAt
+            };
+            return { meta: { changes: 1 } };
+          }
+          if (sql.includes("UPDATE intelligence_patch_generation_requests SET status='stored'")) {
+            const [id,artifactSha] = values;
+            if (state.request?.request_id === id && state.request.status === "prepared" &&
+                state.request.artifact_sha256 === artifactSha) state.request.status = "stored";
+            return { meta: { changes: 1 } };
+          }
+          return { meta: { changes: 1 } };
+        }
+      };
+    }
+  };
+  globalThis.__MEHRAN_PATCH_TEST_HOOKS = {
+    async generate(args) {
+      state.generationCalls += 1;
+      const budget = await args.reserveBudget(250);
+      assert.equal(budget.allowed, true);
+      return { ok: true, artifact: created.artifact, artifactSha256: created.artifactSha256,
+        validation: { mode: "bounded_static" } };
+    },
+    async store(args) {
+      state.stores += 1;
+      assert.equal(args.artifactSha256, created.artifactSha256);
+      return { stored: true, path: artifactPath, artifactSha256: created.artifactSha256 };
+    },
+    async verify() {
+      return { stored: true, alreadyExists: true, path: artifactPath, artifactSha256: created.artifactSha256 };
+    }
+  };
+  try {
+    const env = { DB: db, MEHRAN_AGENT_TOKEN: "s".repeat(48), MEHRAN_REPORTS_GITHUB_TOKEN: "r".repeat(48) };
+    const payload = { baseSha, objective, requestId };
+    const headers = { Authorization: "Bearer " + "s".repeat(48) };
+    const responses = await Promise.all([
+      request("/agent/v1/patch-proposals/generate", { method: "POST", headers, body: payload }, env),
+      request("/agent/v1/patch-proposals/generate", { method: "POST", headers, body: payload }, env)
+    ]);
+    const statuses = responses.map(response => response.status).sort((a,b) => a-b);
+    assert.deepEqual(statuses, [200,409]);
+    assert.equal(state.initialReads, 2, "both callers must observe the initially absent request before racing to reserve it");
+    assert.equal(state.generationCalls, 1, "the atomic primary-key reservation must elect exactly one generator");
+    assert.equal(state.budgetReservations, 1, "only the reservation winner may spend the AI budget");
+    assert.equal(state.stores, 1, "only one private artifact write is permitted");
+    assert.equal(state.proposal.proposal_id, created.artifact.proposalId);
+    assert.equal(state.request.status, "stored");
+  } finally {
+    delete globalThis.__MEHRAN_PATCH_TEST_HOOKS;
+  }
+});
+
+test("concurrent duplicate delivery cannot regenerate or reserve AI budget twice", async () => {
+  const requestId = "concurrent-duplicate-0001";
+  const baseSha = "e".repeat(40);
+  const objective = "Add a concurrency-safe duplicate delivery regression test";
+  const created = await createPatchArtifactRecord({
+    proposalId: "123e4567-e89b-42d3-a456-426614174004",
+    createdAt: "2026-11-23T00:00:00.000Z",
+    baseSha,
+    summary: "Concurrent delivery fixture",
+    targetPaths: ["scripts/intelligence-capabilities.test.mjs"],
+    diff: [
+      "--- a/scripts/intelligence-capabilities.test.mjs",
+      "+++ b/scripts/intelligence-capabilities.test.mjs",
+      "@@ -0,0 +1 @@",
+      "+// concurrent duplicate fixture",
+      ""
+    ].join("\n")
+  });
+  assert.equal(created.ok, true);
+  const artifactPath = patchStoreModule.getPrivatePatchArtifactPath(created.artifact);
+  const state = { request: null, proposal: null, generated: 0, budgetReservations: 0, stores: 0 };
+  let releaseGeneration;
+  let generationStarted;
+  const started = new Promise(resolve => { generationStarted = resolve; });
+  const generationGate = new Promise(resolve => { releaseGeneration = resolve; });
+  const db = {
+    prepare(sql) {
+      let values = [];
+      return {
+        bind(...args) { values = args; return this; },
+        async all() { return { results: [] }; },
+        async first() {
+          if (sql.includes("FROM intelligence_patch_generation_requests WHERE request_id=?")) {
+            return state.request ? { ...state.request } : null;
+          }
+          if (sql.includes("FROM intelligence_patch_proposals WHERE proposal_id=?")) {
+            return state.proposal ? { ...state.proposal } : null;
+          }
+          if (sql.includes("RETURNING attempts,blocked_until")) return { attempts: 1, blocked_until: null };
+          if (sql.includes("RETURNING intelligence_reserved")) {
+            state.budgetReservations += 1;
+            return { product_reserved: 250, total_reserved: 250, request_count: state.budgetReservations };
+          }
+          return null;
+        },
+        async run() {
+          if (sql.includes("INSERT OR IGNORE INTO intelligence_patch_generation_requests")) {
+            if (state.request) return { meta: { changes: 0 } };
+            state.request = {
+              request_id: values[0], request_hash: values[1], base_sha: values[2],
+              status: "processing", proposal_id: null, target_path: null, summary: null,
+              artifact_path: null, artifact_sha256: null, diff_sha256: null,
+              validation_mode: null, failure_code: "", created_at: "2026-11-23T00:00:00.000Z"
+            };
+            return { meta: { changes: 1 } };
+          }
+          if (sql.includes("UPDATE intelligence_patch_generation_requests SET status='prepared'")) {
+            const [proposalId,targetPath,summary,path,artifactSha,diffSha,validationMode,id] = values;
+            if (state.request?.request_id === id && state.request.status === "processing") {
+              Object.assign(state.request,{status:"prepared",proposal_id:proposalId,target_path:targetPath,
+                summary,artifact_path:path,artifact_sha256:artifactSha,diff_sha256:diffSha,
+                validation_mode:validationMode});
+            }
+            return { meta: { changes: 1 } };
+          }
+          if (sql.includes("INSERT OR IGNORE INTO intelligence_patch_proposals")) {
+            const [proposalId,baseShaValue,targetPath,summary,path,artifactSha,diffSha,createdAt] = values;
+            if (!state.proposal) state.proposal = {
+              proposal_id:proposalId,base_sha:baseShaValue,target_path:targetPath,summary,
+              artifact_path:path,artifact_sha256:artifactSha,diff_sha256:diffSha,status:"stored",created_at:createdAt
+            };
+            return { meta: { changes: 1 } };
+          }
+          if (sql.includes("UPDATE intelligence_patch_generation_requests SET status='stored'")) {
+            const [id,artifactSha] = values;
+            if (state.request?.request_id === id && state.request.status === "prepared" &&
+                state.request.artifact_sha256 === artifactSha) state.request.status = "stored";
+            return { meta: { changes: 1 } };
+          }
+          return { meta: { changes: 1 } };
+        }
+      };
+    }
+  };
+  globalThis.__MEHRAN_PATCH_TEST_HOOKS = {
+    async generate(args) {
+      state.generated += 1;
+      generationStarted();
+      await generationGate;
+      const budget = await args.reserveBudget(250);
+      assert.equal(budget.allowed, true);
+      return { ok: true, artifact: created.artifact, artifactSha256: created.artifactSha256,
+        validation: { mode: "bounded_static" } };
+    },
+    async store(args) {
+      state.stores += 1;
+      assert.equal(args.artifactSha256, created.artifactSha256);
+      return { stored: true, path: artifactPath, artifactSha256: created.artifactSha256 };
+    },
+    async verify() {
+      return { stored: true, alreadyExists: true, path: artifactPath, artifactSha256: created.artifactSha256 };
+    }
+  };
+  try {
+    const env = { DB: db, MEHRAN_AGENT_TOKEN: "s".repeat(48), MEHRAN_REPORTS_GITHUB_TOKEN: "r".repeat(48) };
+    const payload = { baseSha, objective, requestId };
+    const headers = { Authorization: "Bearer " + "s".repeat(48) };
+    const firstPromise = request("/agent/v1/patch-proposals/generate", {
+      method: "POST", headers, body: payload
+    }, env);
+    await started;
+    const duplicate = await request("/agent/v1/patch-proposals/generate", {
+      method: "POST", headers, body: payload
+    }, env);
+    assert.equal(duplicate.status, 409);
+    assert.match((await duplicate.json()).error, /already in progress/);
+    assert.equal(state.generated, 1, "the duplicate must not start a second AI generation");
+    assert.equal(state.budgetReservations, 0, "the duplicate must not reserve AI budget while the first generation is active");
+    assert.equal(state.stores, 0);
+    releaseGeneration();
+    const first = await firstPromise;
+    assert.equal(first.status, 200);
+    const result = await first.json();
+    assert.equal(result.status, "stored");
+    assert.equal(result.proposalId, created.artifact.proposalId);
+    assert.equal(state.generated, 1);
+    assert.equal(state.budgetReservations, 1);
+    assert.equal(state.stores, 1);
+    assert.equal(state.proposal.proposal_id, created.artifact.proposalId);
+    assert.equal(state.request.status, "stored");
+  } finally {
+    releaseGeneration();
+    delete globalThis.__MEHRAN_PATCH_TEST_HOOKS;
+  }
+});
+
+test("prepared request recovers across storage response loss and partial D1 finalization without regenerating", async () => {
+  const requestId = "recovery-crash-0001";
+  const baseSha = "d".repeat(40);
+  const objective = "Add a deterministic recovery regression test";
+  const created = await createPatchArtifactRecord({
+    proposalId: "123e4567-e89b-42d3-a456-426614174003",
+    createdAt: "2026-11-23T00:00:00.000Z",
+    baseSha,
+    summary: "Crash recovery fixture",
+    targetPaths: ["scripts/intelligence-capabilities.test.mjs"],
+    diff: [
+      "--- a/scripts/intelligence-capabilities.test.mjs",
+      "+++ b/scripts/intelligence-capabilities.test.mjs",
+      "@@ -0,0 +1 @@",
+      "+// recovered exactly once",
+      ""
+    ].join("\n")
+  });
+  assert.equal(created.ok, true);
+  const artifactPath = patchStoreModule.getPrivatePatchArtifactPath(created.artifact);
+  const persisted = new Map();
+  const state = {
+    request: null,
+    proposal: null,
+    generated: 0,
+    store: 0,
+    verify: 0,
+    proposalInsertAttempts: 0,
+    failNextFinalizeUpdate: true
+  };
+  const db = {
+    prepare(sql) {
+      let values = [];
+      return {
+        bind(...args) { values = args; return this; },
+        async all() { return { results: [] }; },
+        async first() {
+          if (sql.includes("FROM intelligence_patch_generation_requests WHERE request_id=?")) {
+            return state.request ? { ...state.request } : null;
+          }
+          if (sql.includes("FROM intelligence_patch_proposals WHERE proposal_id=?")) {
+            return state.proposal ? { ...state.proposal } : null;
+          }
+          if (sql.includes("RETURNING attempts,blocked_until")) return { attempts: 1, blocked_until: null };
+          if (sql.includes("RETURNING intelligence_reserved")) {
+            return { product_reserved: 250, total_reserved: 250, request_count: 1 };
+          }
+          return null;
+        },
+        async run() {
+          if (sql.includes("INSERT OR IGNORE INTO intelligence_patch_generation_requests")) {
+            if (state.request) return { meta: { changes: 0 } };
+            state.request = {
+              request_id: values[0], request_hash: values[1], base_sha: values[2],
+              status: "processing", proposal_id: null, target_path: null, summary: null,
+              artifact_path: null, artifact_sha256: null, diff_sha256: null,
+              validation_mode: null, failure_code: "", created_at: "2026-11-23T00:00:00.000Z"
+            };
+            return { meta: { changes: 1 } };
+          }
+          if (sql.includes("UPDATE intelligence_patch_generation_requests SET status='prepared'")) {
+            const [proposalId,targetPath,summary,path,artifactSha,diffSha,validationMode,id] = values;
+            if (state.request?.request_id === id && state.request.status === "processing") {
+              Object.assign(state.request,{status:"prepared",proposal_id:proposalId,target_path:targetPath,
+                summary,artifact_path:path,artifact_sha256:artifactSha,diff_sha256:diffSha,
+                validation_mode:validationMode});
+            }
+            return { meta: { changes: 1 } };
+          }
+          if (sql.includes("INSERT OR IGNORE INTO intelligence_patch_proposals")) {
+            state.proposalInsertAttempts += 1;
+            const [proposalId,baseShaValue,targetPath,summary,path,artifactSha,diffSha,createdAt] = values;
+            if (!state.proposal) state.proposal = {
+              proposal_id:proposalId,base_sha:baseShaValue,target_path:targetPath,summary,
+              artifact_path:path,artifact_sha256:artifactSha,diff_sha256:diffSha,status:"stored",created_at:createdAt
+            };
+            return { meta: { changes: 1 } };
+          }
+          if (sql.includes("UPDATE intelligence_patch_generation_requests SET status='stored'")) {
+            const [id,artifactSha] = values;
+            if (state.failNextFinalizeUpdate) {
+              state.failNextFinalizeUpdate = false;
+              return { meta: { changes: 0 } };
+            }
+            if (state.request?.request_id === id && state.request.status === "prepared" &&
+                state.request.artifact_sha256 === artifactSha) state.request.status = "stored";
+            return { meta: { changes: 1 } };
+          }
+          return { meta: { changes: 1 } };
+        }
+      };
+    }
+  };
+  globalThis.__MEHRAN_PATCH_TEST_HOOKS = {
+    async generate(args) {
+      state.generated += 1;
+      const budget = await args.reserveBudget(250);
+      assert.equal(budget.allowed, true);
+      return { ok: true, artifact: created.artifact, artifactSha256: created.artifactSha256,
+        validation: { mode: "bounded_static" } };
+    },
+    async store(args) {
+      state.store += 1;
+      assert.equal(args.artifactSha256, created.artifactSha256);
+      // Simulate the remote private file being committed, followed by a lost response.
+      persisted.set(artifactPath, { artifact: created.artifact, digest: created.artifactSha256 });
+      return { stored: false, code: "artifact_write_failed" };
+    },
+    async verify(args) {
+      state.verify += 1;
+      const saved = persisted.get(args.path);
+      return saved && saved.digest === args.artifactSha256
+        ? { stored: true, alreadyExists: true, path: args.path, artifactSha256: saved.digest }
+        : { stored: false, code: "artifact_not_found" };
+    }
+  };
+  try {
+    const env = { DB: db, MEHRAN_AGENT_TOKEN: "s".repeat(48), MEHRAN_REPORTS_GITHUB_TOKEN: "r".repeat(48) };
+    const payload = { baseSha, objective, requestId };
+    const first = await request("/agent/v1/patch-proposals/generate", {
+      method: "POST", headers: { Authorization: "Bearer " + "s".repeat(48) }, body: payload
+    }, env);
+    assert.equal(first.status, 503);
+    assert.equal((await first.json()).success, false);
+    assert.equal(state.request.status, "prepared");
+    assert.equal(state.proposal, null);
+    assert.equal(state.generated, 1);
+    assert.equal(state.store, 1);
+    assert.equal(state.verify, 0);
+
+    const finalizeInterrupted = await request("/agent/v1/patch-proposals/generate", {
+      method: "POST", headers: { Authorization: "Bearer " + "s".repeat(48) }, body: payload
+    }, env);
+    assert.equal(finalizeInterrupted.status, 503);
+    assert.equal(state.request.status, "prepared");
+    assert.equal(state.proposal.proposal_id, created.artifact.proposalId);
+    assert.equal(state.proposalInsertAttempts, 1);
+    assert.equal(state.generated, 1);
+    assert.equal(state.store, 1);
+    assert.equal(state.verify, 1);
+
+    const retry = await request("/agent/v1/patch-proposals/generate", {
+      method: "POST", headers: { Authorization: "Bearer " + "s".repeat(48) }, body: payload
+    }, env);
+    assert.equal(retry.status, 200);
+    const recovered = await retry.json();
+    assert.equal(recovered.status, "stored");
+    assert.equal(recovered.proposalId, created.artifact.proposalId);
+    assert.equal(recovered.path, artifactPath);
+    assert.equal(state.generated, 1, "recovery must not invoke AI generation a second time");
+    assert.equal(state.store, 1, "recovery must not attempt another private artifact write");
+    assert.equal(state.verify, 2, "each recovery must verify the already-persisted private artifact");
+    assert.equal(state.proposalInsertAttempts, 2, "proposal insert must be safely repeatable");
+    assert.equal(state.proposal.proposal_id, created.artifact.proposalId);
+    assert.equal(state.request.status, "stored");
+  } finally {
+    delete globalThis.__MEHRAN_PATCH_TEST_HOOKS;
+  }
+});
+
+test("prepared private patch artifact recovery verifies the exact path and full artifact digest", async () => {
+  const targetPath = "scripts/intelligence-capabilities.test.mjs";
+  const diff = [
+    `--- a/${targetPath}`,
+    `+++ b/${targetPath}`,
+    "@@ -1 +1 @@",
+    "-const original = 1;",
+    "+const proposed = 2;",
+    ""
+  ].join("\n");
+  const created = await createPatchArtifactRecord({
+    proposalId: "123e4567-e89b-42d3-a456-426614174001",
+    createdAt: "2026-11-23T00:00:00.000Z",
+    baseSha: "b".repeat(40),
+    summary: "Recovery verification fixture",
+    targetPaths: [targetPath],
+    diff
+  });
+  const path = "patch-proposals/2026/11/123e4567-e89b-42d3-a456-426614174001.json";
+  const fetchImpl = async () => new Response(JSON.stringify({
+    path,
+    encoding: "base64",
+    content: Buffer.from(JSON.stringify(created.artifact), "utf8").toString("base64")
+  }), { status: 200 });
+  {
+    const verified = await patchStoreModule.verifyPrivatePatchArtifactAtPath({
+      token: "r".repeat(48), path, artifactSha256: created.artifactSha256, fetchImpl
+    });
+    assert.equal(verified.stored, true);
+    assert.equal(verified.alreadyExists, true);
+    assert.equal(verified.path, path);
+
+    const wrongDigest = await patchStoreModule.verifyPrivatePatchArtifactAtPath({
+      token: "r".repeat(48), path, artifactSha256: "f".repeat(64), fetchImpl
+    });
+    assert.equal(wrongDigest.stored, false);
+    assert.equal(wrongDigest.code, "artifact_id_conflict");
+
+    const unsafePath = await patchStoreModule.verifyPrivatePatchArtifactAtPath({
+      token: "r".repeat(48), path: "../outside.json", artifactSha256: created.artifactSha256, fetchImpl
+    });
+    assert.equal(unsafePath.stored, false);
+    assert.equal(unsafePath.code, "invalid_artifact_lookup");
+    const mismatchedPath = "patch-proposals/2026/11/123e4567-e89b-42d3-a456-426614174099.json";
+    const mismatched = await patchStoreModule.verifyPrivatePatchArtifactAtPath({
+      token: "r".repeat(48), path: mismatchedPath,
+      artifactSha256: created.artifactSha256,
+      fetchImpl: async () => new Response(JSON.stringify({
+        path: mismatchedPath,
+        encoding: "base64",
+        content: Buffer.from(JSON.stringify(created.artifact), "utf8").toString("base64")
+      }), { status: 200 })
+    });
+    assert.equal(mismatched.stored, false);
+    assert.equal(mismatched.code, "artifact_id_conflict");
+    const malformedArtifact = { ...created.artifact, createdAt: "not-a-date" };
+    const malformed = await patchStoreModule.verifyPrivatePatchArtifactAtPath({
+      token: "r".repeat(48), path,
+      artifactSha256: created.artifactSha256,
+      fetchImpl: async () => new Response(JSON.stringify({
+        path,
+        encoding: "base64",
+        content: Buffer.from(JSON.stringify(malformedArtifact), "utf8").toString("base64")
+      }), { status: 200 })
+    });
+    assert.equal(malformed.stored, false);
+    assert.equal(malformed.code, "artifact_id_conflict");
+  }
+});
+
+test("private patch artifact storage treats a matching existing artifact as idempotent", async () => {
+  const targetPath = "scripts/intelligence-capabilities.test.mjs";
+  const diff = [
+    `--- a/${targetPath}`,
+    `+++ b/${targetPath}`,
+    "@@ -0,0 +1 @@",
+    "+// deterministic recovery fixture",
+    ""
+  ].join("\n");
+  const created = await createPatchArtifactRecord({
+    proposalId: "123e4567-e89b-42d3-a456-426614174002",
+    createdAt: "2026-11-23T00:00:00.000Z",
+    baseSha: "c".repeat(40),
+    summary: "Idempotent storage fixture",
+    targetPaths: [targetPath],
+    diff
+  });
+  const path = "patch-proposals/2026/11/123e4567-e89b-42d3-a456-426614174002.json";
+  let calls = 0;
+  const fetchImpl = async (_url, options) => {
+    calls += 1;
+    assert.equal(options.method, "GET", "matching artifact recovery must not issue a PUT");
+    return new Response(JSON.stringify({
+      path,
+      encoding: "base64",
+      content: Buffer.from(JSON.stringify(created.artifact), "utf8").toString("base64")
+    }), { status: 200 });
+  };
+  const stored = await patchStoreModule.storePrivatePatchArtifact({
+    token: "r".repeat(48), artifact: created.artifact,
+    artifactSha256: created.artifactSha256, fetchImpl
+  });
+  assert.equal(stored.stored, true);
+  assert.equal(stored.alreadyExists, true);
+  assert.equal(stored.path, path);
+  assert.equal(calls, 1);
 });
 
 test("authenticated patch proposal route is bound to the dedicated agent token", async () => {
@@ -364,6 +1011,10 @@ test("authenticated patch proposal route stores only verified metadata and retur
     if (options.method === "GET") return new Response("", { status: 404 });
     return new Response(JSON.stringify({ content: { path: "patch-proposals/2026/11/123e4567-e89b-42d3-a456-426614174000.json" } }), { status: 201 });
   };
+  globalThis.__MEHRAN_PATCH_TEST_HOOKS = {
+    store: args => patchStoreModule.storePrivatePatchArtifact(args),
+    verify: args => patchStoreModule.verifyPrivatePatchArtifactAtPath(args)
+  };
   try {
     const response = await request("/agent/v1/patch-proposals", {
       method: "POST",
@@ -386,6 +1037,7 @@ test("authenticated patch proposal route stores only verified metadata and retur
     assert.equal(metadata.get(created.artifact.proposalId).diff_sha256, created.artifact.diffSha256);
   } finally {
     globalThis.fetch = originalFetch;
+    delete globalThis.__MEHRAN_PATCH_TEST_HOOKS;
   }
 });
 
@@ -399,6 +1051,30 @@ test("patch proposal API rejects unexpected request fields before storage", () =
   assert.match(route, /INSERT OR IGNORE INTO intelligence_patch_proposals/);
   assert.doesNotMatch(route, /diff\s*:/, "API response must not echo patch contents");
 });
+test("private report finalization recovery is owner-authenticated and re-discovers terminal packages", () => {
+  const agentStart = workerSource.indexOf('if (path.startsWith("/agent/v1/"))');
+  const agentEnd = workerSource.indexOf('if (path === "/health"', agentStart);
+  const agentRoute = workerSource.slice(agentStart, agentEnd);
+  assert.match(agentRoute, /path === "\/agent\/v1\/work-packages\/pending-finalization" && method === "GET"/);
+  assert.match(agentRoute, /MEHRAN_ORCHESTRATOR_TOKEN/);
+  assert.match(agentRoute, /status IN \('completed','attention_required'\).*report_stored_at IS NULL.*LIMIT 20/);
+  assert.match(workerSource, /ALTER TABLE intelligence_work_packages ADD COLUMN report_stored_at TEXT/);
+  const persistenceStart = workerSource.indexOf("export async function persistIntelligencePackageReport");
+  const persistenceEnd = workerSource.indexOf("\n}\n\nasync function refreshIntelligenceWorkPackageSnapshot", persistenceStart);
+  const persistence = workerSource.slice(persistenceStart, persistenceEnd);
+  assert.match(persistence, /Another Runner may have won the create race/);
+  assert.match(persistence, /if \(\[409, 422\]\.includes\(response\.status\)\)/);
+  assert.match(persistence, /const raced = await verifyExistingReport\(\)/);
+  assert.match(persistence, /Existing private report could not be verified/);
+  assert.match(persistence, /Existing private report content does not match/);
+
+  assert.match(workerSource, /if \(!\/duplicate column name\/i\.test\(String\(migrationError\?\.message \|\| migrationError\)\)\) \{\s*throw migrationError;/);
+  assert.equal((workerSource.match(/SET report_stored_at=CURRENT_TIMESTAMP WHERE id=\?/g) || []).length, 2);
+  assert.match(runnerSource, /pending-finalization/);
+  assert.match(runnerSource, /for \(const id of \(Array\.isArray\(pending\.workPackageIds\)/);
+  assert.match(runnerSource, /Re-discover terminal packages on every tick/);
+});
+
 test("MEHRAN Intelligence Agent API is enabled only behind its dedicated bearer secret", () => {
   const start = workerSource.indexOf('if (path.startsWith("/agent/v1/"))');
   const end = workerSource.indexOf('if (path === "/health"', start);
@@ -420,16 +1096,16 @@ test("MEHRAN Intelligence Agent API is enabled only behind its dedicated bearer 
   assert.match(route, /Agent service identity is not configured/);
   assert.match(route, /requires_approval=0/);
   assert.match(route, /assigned_to IN \('mehran_intelligence','shared'\)/);
-  assert.match(route, /action_type IN \('repository_quality_check','service_health_report','source_security_audit','inspect_repository','run_repository_tests'\)/);
+  assert.match(route, /action_type IN \('repository_quality_check','service_health_report','source_security_audit','inspect_repository','run_repository_tests','propose_code_patch'\)/);
   assert.ok(route.includes("status IN ('queued','accepted','retry_wait')"), "agent claims must include retry_wait tasks");
   assert.match(route, /status='awaiting_approval' AND requires_approval=0/);
   assert.match(route, /agent_claimed_at=CURRENT_TIMESTAMP/);
-  assert.ok(route.includes("WHERE id=? AND status IN ('queued','accepted','retry_wait') AND requires_approval=0 AND assigned_to IN ('mehran_intelligence','shared') AND action_type IN ('repository_quality_check','service_health_report','source_security_audit','inspect_repository','run_repository_tests')"));
+  assert.ok(route.includes("WHERE id=? AND status IN ('queued','accepted','retry_wait') AND requires_approval=0 AND assigned_to IN ('mehran_intelligence','shared') AND action_type IN ('repository_quality_check','service_health_report','source_security_audit','inspect_repository','run_repository_tests','propose_code_patch')"));
   assert.match(route, /agent_claimed_at IS NOT NULL AND datetime\(agent_claimed_at\) < datetime\('now','-15 minutes'\)/);
   assert.match(route, /agent_claimed_at IS NOT NULL AND datetime\(agent_claimed_at\)>=datetime\('now','-15 minutes'\)/);
   assert.doesNotMatch(route, /work_package_id IS NULL AND agent_claimed_at IS NOT NULL/,
     "agent API recovery must also release expired claims from durable work packages");
-  assert.match(route, /datetime\(agent_claimed_at\)>=datetime\('now','-15 minutes'\) AND requires_approval=0 AND assigned_to IN \('mehran_intelligence','shared'\) AND action_type IN \('repository_quality_check','service_health_report','source_security_audit','inspect_repository','run_repository_tests'\)/);
+  assert.match(route, /datetime\(agent_claimed_at\)>=datetime\('now','-15 minutes'\) AND requires_approval=0 AND assigned_to IN \('mehran_intelligence','shared'\) AND action_type IN \('repository_quality_check','service_health_report','source_security_audit','inspect_repository','run_repository_tests','propose_code_patch'\)/);
   assert.match(route, /agent_claimed_at=NULL/);
   assert.match(route, /\["completed","blocked"\]/);
 });
@@ -454,6 +1130,14 @@ test("scheduled Intelligence runner is single-flight, secret-backed and restrict
   assert.match(runner, /schedule:/);
   assert.match(runner, /cron: "\*\/5 \* \* \* \*"/);
   assert.match(runner, /concurrency:/);
+  assert.match(runner, /cancel-in-progress:\s*false/,
+    "an active runner must not be cancelled by a later scheduled tick");
+  const timeoutMatch = runner.match(/timeout-minutes:\s*(\d+)/);
+  assert.ok(timeoutMatch, "runner job must have an explicit maximum runtime");
+  assert.ok(Number(timeoutMatch[1]) < 15,
+    "runner maximum runtime must remain below the 15-minute claim-expiry window");
+  assert.match(workerSource, /datetime\(agent_claimed_at\) < datetime\('now','-15 minutes'\)/,
+    "claim recovery must use the documented 15-minute ownership window");
   assert.match(runner, /if: github\.ref == 'refs\/heads\/main'/);
   const runnerLines = runner.split(/\r?\n/);
   const runBlockLine = runnerLines.findIndex(line => /^\s*run:\s*\|\s*$/.test(line));
@@ -488,7 +1172,7 @@ test("Intelligence source audit cross-checks capability allowlists and owner saf
   ]) {
     assert.ok(runnerSource.includes('id: "' + checkId + '"'), "source audit must emit " + checkId);
   }
-  assert.match(runnerSource, /const capabilityActions = \["service_health_report", "repository_quality_check", "source_security_audit", "inspect_repository"\]/);
+  assert.match(runnerSource, /const capabilityActions = \["service_health_report", "repository_quality_check", "source_security_audit", "inspect_repository", "propose_code_patch"\]/);
   assert.match(runnerSource, /capabilitySections\.every\(section/);
   assert.match(runnerSource, /docs\/INTELLIGENCE_EXECUTION_PROTOCOL\.md/);
 });
@@ -1631,7 +2315,7 @@ test("Production Intelligence scheduler runs only approved read-only reports and
   const agentClaimStart = workerSource.indexOf('if (path === "/agent/v1/tasks/next" && method === "GET")');
   const agentClaimEnd = workerSource.indexOf("const checkpointMatch", agentClaimStart);
   const agentClaimRoute = workerSource.slice(agentClaimStart, agentClaimEnd);
-  assert.match(agentClaimRoute, /action_type IN \('repository_quality_check','service_health_report','source_security_audit','inspect_repository','run_repository_tests'\)/);
+  assert.match(agentClaimRoute, /action_type IN \('repository_quality_check','service_health_report','source_security_audit','inspect_repository','run_repository_tests','propose_code_patch'\)/);
   assert.doesNotMatch(scheduledBody, /inspect_repository/, "Worker scheduled executor must not claim the GitHub-only inspection capability.");
   assert.match(workerSource, /INSERT OR IGNORE INTO intelligence_tasks/);
   assert.match(workerSource, /'github-inbox',\?,'\{\}'/);
@@ -1681,16 +2365,16 @@ test("Intelligence scheduler history endpoint rejects unauthenticated requests",
 });
 
 
-test("Task Hub can create and label only owner-approved allowlisted scheduled reports", () => {
+test("Task Hub can create and label only owner-approved allowlisted actions", () => {
   const html = indexSource;
   const worker = workerSource;
   for (const action of ["project_status_report", "social_metrics_report", "service_health_report", "repository_quality_check"]) {
     assert.ok(html.includes(action), `Task Hub exposes ${action}`);
     assert.ok(worker.includes(`"${action}"`), `Worker allowlists ${action}`);
   }
-  assert.match(worker, /const autoApproved=preapprovedReadOnlyActions\.includes\(actionType\)&&\["mehran_intelligence","shared"\]\.includes\(assignedTo\)&&body\.requiresApproval!==true/);
+  assert.match(worker, /const autoApproved=preapprovedActions\.includes\(actionType\)&&\["mehran_intelligence","shared"\]\.includes\(assignedTo\)&&body\.requiresApproval!==true/);
   assert.match(worker, /const requiresApproval=Boolean\(body\.requiresApproval\|\|\s*\(actionType&&!autoApproved\)\)/);
-  assert.match(worker, /action_type\) VALUES\(\?,\?,\?,\?,\?,\?,\?,\?,\?\)/);
+  assert.match(worker, /action_type,action_payload\) VALUES\(\?,\?,\?,\?,\?,\?,\?,\?,\?,\?\)/);
   assert.match(html, /actionTypes\[task\.actionType\]/);
 });
 
@@ -1718,12 +2402,12 @@ test("automated Intelligence task transitions are owner-approval-only and execut
 
 
 
-test("MEHRAN Intelligence auto-approves only pre-authorized read-only tasks", () => {
+test("MEHRAN Intelligence auto-approves only pre-authorized bounded tasks", () => {
   assert.ok(workerSource.includes('import { INTELLIGENCE_ACTION_TYPES, PREAPPROVED_INTELLIGENCE_ACTION_TYPES } from "./scripts/intelligence-capabilities.mjs";'));
   assert.ok(workerSource.includes("const allowedActionTypes=INTELLIGENCE_ACTION_TYPES"));
-  const start = workerSource.indexOf('const preapprovedReadOnlyActions=PREAPPROVED_INTELLIGENCE_ACTION_TYPES;');
+  const start = workerSource.indexOf('const preapprovedActions=PREAPPROVED_INTELLIGENCE_ACTION_TYPES;');
   const end = workerSource.indexOf('const id=crypto.randomUUID()', start);
-  assert.ok(start >= 0 && end > start, "task creation must use the canonical read-only pre-approval policy");
+  assert.ok(start >= 0 && end > start, "task creation must use the canonical pre-approval policy");
   const policy = workerSource.slice(start, end);
   assert.ok(policy.includes('["mehran_intelligence","shared"].includes(assignedTo)'));
   assert.ok(policy.includes("body.requiresApproval!==true"));
@@ -2044,7 +2728,7 @@ test("MCP work-package tools are exposed only to the bridge when owner orchestra
   assert.ok(mcp.includes('name:"create_intelligence_work_package"'));
   assert.ok(mcp.includes('name:"get_intelligence_work_package"'));
   assert.ok(mcp.includes('if (!packageIntakeEnabled) return rpcError(-32003'));
-  assert.ok(mcp.includes('["service_health_report","repository_quality_check","source_security_audit","inspect_repository"]'));
+  assert.ok(mcp.includes('["service_health_report","repository_quality_check","source_security_audit","inspect_repository","run_repository_tests","propose_code_patch"]'));
 });
 
 
@@ -2085,7 +2769,8 @@ test("private report persistence writes a minimized JSON report to the dedicated
             results: [{ id: "task-1", status: "completed", action_type: "service_health_report", attempts: 1, max_attempts: 3, last_error_code: "" }]
           };
           throw new Error("Unexpected all query: " + sql);
-        }
+        },
+        async run() { return { success: true, meta: { changes: 1 } }; }
       };
     }
   };
@@ -2114,6 +2799,66 @@ test("private report persistence writes a minimized JSON report to the dedicated
   }
 });
 
+test("private report finalization verifies existing artifact bytes before marking them stored", async () => {
+  const originalFetch = globalThis.fetch;
+  let storedContent = "";
+  let mode = "missing";
+  let markerWrites = 0;
+  globalThis.fetch = async (_url, init = {}) => {
+    if (init.method === "PUT") {
+      storedContent = JSON.parse(init.body).content;
+      return new Response(JSON.stringify({ content: { path: "reports/2026/11/package-verify.json" } }), { status: 201 });
+    }
+    if (mode === "missing") return new Response("Not Found", { status: 404 });
+    const content = mode === "matching" ? storedContent : btoa("tampered report");
+    return new Response(JSON.stringify({ encoding: "base64", content }), { status: 200 });
+  };
+  const db = {
+    prepare(sql) {
+      return {
+        bind() { return this; },
+        async first() {
+          if (sql.includes("SELECT id,created_at FROM intelligence_work_packages")) {
+            return { id: "package-verify", created_at: "2026-11-22T20:00:00.000Z" };
+          }
+          throw new Error("Unexpected first query: " + sql);
+        },
+        async all() {
+          if (sql.includes("FROM intelligence_tasks WHERE work_package_id")) {
+            return { results: [{ id: "task-verify", status: "completed", action_type: "service_health_report",
+              attempts: 1, max_attempts: 3, last_error_code: "", result_text: "{}" }] };
+          }
+          throw new Error("Unexpected all query: " + sql);
+        },
+        async run() { markerWrites += 1; return { success: true, meta: { changes: 1 } }; }
+      };
+    }
+  };
+  const env = { DB: db, MEHRAN_REPORTS_GITHUB_TOKEN: "x".repeat(48) };
+  const snapshot = { status: "completed", generatedAt: "2026-11-22T20:00:00.000Z", counts: { total: 1, completed: 1 } };
+  try {
+    const first = await persistIntelligencePackageReport(env, "package-verify", snapshot);
+    assert.equal(first.stored, true);
+    assert.equal(first.alreadyExists, false);
+    assert.equal(markerWrites, 1);
+
+    mode = "matching";
+    const recovered = await persistIntelligencePackageReport(env, "package-verify", snapshot);
+    assert.equal(recovered.stored, true);
+    assert.equal(recovered.alreadyExists, true);
+    assert.equal(markerWrites, 2, "verified existing bytes may complete the recovery marker");
+
+    mode = "tampered";
+    await assert.rejects(
+      persistIntelligencePackageReport(env, "package-verify", snapshot),
+      /does not match the current package snapshot/
+    );
+    assert.equal(markerWrites, 2, "a conflicting artifact must never be marked as finalized");
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
 test("private report persistence is a no-op until its dedicated Worker secret is configured", async () => {
   const result = await persistIntelligencePackageReport(
     { DB: {} },
@@ -2121,4 +2866,511 @@ test("private report persistence is a no-op until its dedicated Worker secret is
     { status: "completed", generatedAt: "2026-11-22T20:00:00.000Z", counts: {} }
   );
   assert.deepEqual(result, { stored: false, reason: "not_configured_or_not_final" });
+});
+
+
+test("Agent task claim tokens fence checkpoint and result commits to the current runner", () => {
+  assert.match(workerSource, /agent_claim_token_hash TEXT NOT NULL DEFAULT ''/);
+  assert.ok(workerSource.includes('const claimTokenHash = claimToken ? await sha256(claimToken) : "";'));
+  const claimStart = workerSource.indexOf('if (path === "/agent/v1/tasks/next" && method === "GET")');
+  const checkpointStart = workerSource.indexOf('const checkpointMatch', claimStart);
+  const claimRoute = workerSource.slice(claimStart, checkpointStart);
+  assert.match(claimRoute, /UPDATE intelligence_tasks SET status='in_progress'.*agent_claim_token_hash=\?/s);
+  assert.match(claimRoute, /WHERE id=\? AND status IN \('queued','accepted','retry_wait'\)/);
+  assert.match(claimRoute, /if \(!Number\(claimed\?\.meta\?\.changes \|\| 0\)\) return json\(\{success:true,task:null,retry:true\}\)/);
+  assert.match(claimRoute, /formatIntelligenceTask\(row\),claimToken/);
+  const resultStart = workerSource.indexOf('const agentResultMatch', checkpointStart);
+  const resultEnd = workerSource.indexOf('return error("Not found",404);', resultStart);
+  const checkpointRoute = workerSource.slice(checkpointStart, resultStart);
+  const resultRoute = workerSource.slice(resultStart, resultEnd);
+  assert.match(checkpointRoute, /agent_claim_token_hash=\?/);
+  assert.match(checkpointRoute, /if \(!Number\(update\?\.meta\?\.changes \|\| 0\)\)/);
+  assert.match(resultRoute, /agent_claim_token_hash=\?/);
+  assert.match(resultRoute, /agent_claim_token_hash='',next_attempt_at/);
+  assert.match(resultRoute, /if \(!Number\(update\?\.meta\?\.changes \|\| 0\)\)/);
+  assert.match(workerSource, /Task claim not found, superseded, or expired/);
+  assert.match(workerSource, /agent_claim_token_hash='',last_error_code='claim_expired_max_attempts'/);
+  assert.match(workerSource, /agent_claim_token_hash='',last_error_code='claim_expired_retry'/);
+  const schedulerRecoveryStart = workerSource.indexOf('const staleClaims = await env.DB.prepare(');
+  const schedulerRecoveryEnd = workerSource.indexOf('// Repair only stale approval labels', schedulerRecoveryStart);
+  const schedulerRecovery = workerSource.slice(schedulerRecoveryStart, schedulerRecoveryEnd);
+  assert.match(schedulerRecovery, /SET status=\?,agent_claimed_at=NULL,agent_claim_token_hash=''/);
+  assert.match(schedulerRecovery, /WHERE id=\? AND status='in_progress' AND agent_claimed_at IS NOT NULL AND datetime\(agent_claimed_at\)<datetime\('now','-15 minutes'\)/,
+    "scheduler recovery must re-check stale ownership atomically before revoking a claim");
+  assert.match(claimRoute, /agent_claim_token_hash='',last_error_code='claim_expired_max_attempts'/);
+  assert.match(claimRoute, /agent_claim_token_hash='',last_error_code='claim_expired_retry'/);
+  const schedulerClaimStart = workerSource.indexOf('const claimed = await env.DB.prepare(', schedulerRecoveryEnd);
+  const schedulerClaimEnd = workerSource.indexOf('if (!Number(claimed?.meta?.changes || 0)) continue;', schedulerClaimStart);
+  assert.match(workerSource.slice(schedulerClaimStart, schedulerClaimEnd), /agent_claim_token_hash=''/);
+  assert.match(runnerSource, /claimToken: task\.claimToken/);
+  const runnerLogLines = runnerSource.split("\n").filter(line => /console\.(?:log|error|warn)\(/.test(line));
+  assert.ok(runnerLogLines.length > 0, "runner should retain bounded operational diagnostics");
+  assert.doesNotMatch(runnerLogLines.join("\n"), /claimToken|agentHeaders|ownerHeaders|Authorization|Bearer/,
+    "runner logs must not expose claim credentials or authorization headers");
+});
+
+
+// Route-level claim lifecycle test using a deliberately narrow in-memory D1 fake.
+// This exercises the real Worker fetch/auth/claim/checkpoint/result handlers; it is
+// not a Cloudflare D1 integration test.
+function makeClaimLifecycleDb({ synchronizeCandidateReads = false, expireDuringCheckpointCommit = false, expireDuringResultCommit = false } = {}) {
+  const state = {
+    row: {
+      id: "claim-lifecycle-task",
+      status: "queued",
+      assigned_to: "mehran_intelligence",
+      action_type: "repository_quality_check",
+      action_payload: "{}",
+      checkpoint_json: "{}",
+      attempts: 0,
+      max_attempts: 3,
+      requires_approval: 0,
+      work_package_id: null,
+      agent_claim_token_hash: "",
+      agent_claimed_at: null,
+      next_attempt_at: null,
+      priority: "normal",
+      created_at: "2026-11-23T00:00:00.000Z"
+    },
+    expired: false,
+    candidateReads: 0,
+    releaseCandidates: null
+  };
+  if (synchronizeCandidateReads) {
+    state.releaseCandidates = (() => {
+      let release;
+      const gate = new Promise(resolve => { release = resolve; });
+      return { gate, release };
+    })();
+  }
+  const db = {
+    prepare(sql) {
+      let args = [];
+      return {
+        bind(...values) { args = values; return this; },
+        async first() {
+          if (sql.includes("SELECT t.id,t.status FROM intelligence_tasks t")) {
+            if (state.releaseCandidates) {
+              state.candidateReads++;
+              if (state.candidateReads === 2) state.releaseCandidates.release();
+              await state.releaseCandidates.gate;
+            }
+            const r = state.row;
+            const retryIsDue = r.status !== "retry_wait" ||
+              !r.next_attempt_at || Date.parse(r.next_attempt_at) <= Date.now();
+            if (["queued", "accepted", "retry_wait"].includes(r.status) && retryIsDue &&
+                Number(r.attempts) < Number(r.max_attempts)) return { id: r.id, status: r.status };
+            return null;
+          }
+          if (sql.includes("SELECT * FROM intelligence_tasks WHERE id=?")) {
+            return args[0] === state.row.id ? { ...state.row } : null;
+          }
+          if (sql.includes("SELECT id,work_package_id,status,attempts,max_attempts")) {
+            const r = state.row;
+            return args[0] === r.id && r.status === "in_progress" &&
+              r.agent_claim_token_hash === args[1] && !state.expired
+              ? { ...r } : null;
+          }
+          if (sql.includes("SELECT id,work_package_id FROM intelligence_tasks")) {
+            const r = state.row;
+            return args[0] === r.id && r.status === "in_progress" &&
+              r.agent_claim_token_hash === args[1] && !state.expired
+              ? { id: r.id, work_package_id: r.work_package_id } : null;
+          }
+          throw new Error("Unexpected claim lifecycle first(): " + sql);
+        },
+        async run() {
+          // Schema setup is intentionally a no-op in this in-memory fake.
+          if (/^\s*(CREATE TABLE|CREATE INDEX|ALTER TABLE)/i.test(sql)) return { meta: { changes: 0 } };
+          if (sql.includes("claim_expired_max_attempts")) {
+            if (state.expired && state.row.status === "in_progress" &&
+                Number(state.row.attempts) >= Number(state.row.max_attempts)) {
+              state.row.status = "blocked";
+              state.row.agent_claimed_at = null;
+              state.row.agent_claim_token_hash = "";
+              state.row.last_error_code = "claim_expired_max_attempts";
+              state.expired = false;
+              return { meta: { changes: 1 } };
+            }
+            return { meta: { changes: 0 } };
+          }
+          if (sql.includes("claim_expired_retry")) {
+            if (state.expired && state.row.status === "in_progress") {
+              state.row.status = "accepted";
+              state.row.agent_claimed_at = null;
+              state.row.agent_claim_token_hash = "";
+              state.expired = false;
+              return { meta: { changes: 1 } };
+            }
+            return { meta: { changes: 0 } };
+          }
+          if (sql.includes("UPDATE intelligence_tasks SET status='queued'")) return { meta: { changes: 0 } };
+          if (sql.includes("SET status='in_progress'") && sql.includes("agent_claim_token_hash=?")) {
+            const [hash, id] = args;
+            if (id === state.row.id && ["queued", "accepted", "retry_wait"].includes(state.row.status)) {
+              state.row.status = "in_progress";
+              state.row.attempts++;
+              state.row.agent_claimed_at = new Date().toISOString();
+              state.row.agent_claim_token_hash = hash;
+              state.expired = false;
+              return { meta: { changes: 1 } };
+            }
+            return { meta: { changes: 0 } };
+          }
+          if (sql.includes("SET checkpoint_json=?")) {
+            const [checkpoint, id, hash] = args;
+            // Model expiry recovery winning after the route's ownership SELECT
+            // but before its conditional checkpoint UPDATE commits.
+            if (expireDuringCheckpointCommit) {
+              state.expired = true;
+              state.row.status = "accepted";
+              state.row.agent_claimed_at = null;
+              state.row.agent_claim_token_hash = "";
+            }
+            if (id === state.row.id && state.row.status === "in_progress" &&
+                state.row.agent_claim_token_hash === hash && !state.expired) {
+              state.row.checkpoint_json = checkpoint;
+              return { meta: { changes: 1 } };
+            }
+            return { meta: { changes: 0 } };
+          }
+          if (sql.includes("SET status=?,result_text=?")) {
+            const [status, resultText, nextAttemptAt, , id, hash] = args;
+            // Model expiry recovery winning after result validation but before its conditional UPDATE.
+            if (expireDuringResultCommit) {
+              state.expired = true;
+              state.row.status = "accepted";
+              state.row.agent_claimed_at = null;
+              state.row.agent_claim_token_hash = "";
+            }
+            if (id === state.row.id && state.row.status === "in_progress" &&
+                state.row.agent_claim_token_hash === hash && !state.expired) {
+              state.row.status = status;
+              state.row.result_text = resultText;
+              state.row.next_attempt_at = nextAttemptAt;
+              state.row.agent_claimed_at = null;
+              state.row.agent_claim_token_hash = "";
+              return { meta: { changes: 1 } };
+            }
+            return { meta: { changes: 0 } };
+          }
+          if (sql.includes("INSERT INTO intelligence_task_events")) return { meta: { changes: 1 } };
+          throw new Error("Unexpected claim lifecycle run(): " + sql);
+        }
+      };
+    }
+  };
+  return { db, state };
+}
+
+test("real Worker task route blocks an expired claim after the retry budget is exhausted", async () => {
+  const token = "test-agent-token-".padEnd(48, "x");
+  const { db, state } = makeClaimLifecycleDb();
+  state.row.status = "in_progress";
+  state.row.attempts = state.row.max_attempts;
+  state.row.agent_claimed_at = "2000-01-01T00:00:00.000Z";
+  state.row.agent_claim_token_hash = "a".repeat(43);
+  state.expired = true;
+
+  const response = await request("/agent/v1/tasks/next", {
+    method: "GET", headers: { Authorization: "Bearer " + token }
+  }, { DB: db, MEHRAN_AGENT_TOKEN: token });
+
+  assert.equal(response.status, 200);
+  assert.equal((await response.json()).task, null);
+  assert.equal(state.row.status, "blocked", "an expired final attempt must become terminally blocked");
+  assert.equal(state.row.agent_claimed_at, null);
+  assert.equal(state.row.agent_claim_token_hash, "", "expired final claims must be revoked");
+  assert.equal(state.row.last_error_code, "claim_expired_max_attempts");
+  assert.equal(state.row.attempts, state.row.max_attempts, "expiry recovery must not exceed the attempt budget");
+});
+
+test("real Worker task routes fence concurrent, expired, superseded, and replayed runner claims", async () => {
+  const token = "test-agent-token-".padEnd(48, "x");
+  const { db, state } = makeClaimLifecycleDb({ synchronizeCandidateReads: true });
+  const env = { DB: db, MEHRAN_AGENT_TOKEN: token };
+  const auth = { Authorization: "Bearer " + token };
+
+  const [firstResponse, secondResponse] = await Promise.all([
+    request("/agent/v1/tasks/next", { method: "GET", headers: auth }, env),
+    request("/agent/v1/tasks/next", { method: "GET", headers: auth }, env)
+  ]);
+  assert.equal(firstResponse.status, 200);
+  assert.equal(secondResponse.status, 200);
+  const firstPayload = await firstResponse.json();
+  const secondPayload = await secondResponse.json();
+  const winners = [firstPayload.task, secondPayload.task].filter(Boolean);
+  assert.equal(winners.length, 1, "only one concurrent claimant may receive the task");
+  const oldToken = winners[0].claimToken;
+  assert.match(oldToken, /^[A-Za-z0-9_-]{43}$/);
+  assert.match(state.row.agent_claim_token_hash, /^[A-Za-z0-9_-]{43}$/);
+
+  // Simulate passage beyond the 15-minute claim window, then let the real route
+  // recover and issue a fresh claim to the next runner.
+  state.expired = true;
+  const replacementResponse = await request("/agent/v1/tasks/next", {
+    method: "GET", headers: auth
+  }, env);
+  assert.equal(replacementResponse.status, 200);
+  const replacement = (await replacementResponse.json()).task;
+  assert.ok(replacement);
+  assert.notEqual(replacement.claimToken, oldToken);
+
+  const staleCheckpoint = await request("/agent/v1/tasks/" + state.row.id + "/checkpoint", {
+    method: "POST", headers: auth,
+    body: { claimToken: oldToken, checkpoint: { stale: true } }
+  }, env);
+  assert.equal(staleCheckpoint.status, 409, "expired runner must not checkpoint after ownership changes");
+
+  const currentCheckpoint = await request("/agent/v1/tasks/" + state.row.id + "/checkpoint", {
+    method: "POST", headers: auth,
+    body: { claimToken: replacement.claimToken, checkpoint: { baseSha: "a".repeat(40) } }
+  }, env);
+  assert.equal(currentCheckpoint.status, 200);
+
+  const staleResult = await request("/agent/v1/tasks/" + state.row.id + "/result", {
+    method: "POST", headers: auth,
+    body: { claimToken: oldToken, status: "blocked", result: "stale runner result" }
+  }, env);
+  assert.equal(staleResult.status, 409, "expired runner must not commit a result");
+
+  const retryResult = await request("/agent/v1/tasks/" + state.row.id + "/result", {
+    method: "POST", headers: auth,
+    body: { claimToken: replacement.claimToken, status: "blocked", retryable: true, result: "transient runner interruption" }
+  }, env);
+  assert.equal(retryResult.status, 200);
+  assert.equal(state.row.status, "retry_wait", "recoverable failures must enter bounded retry wait");
+  assert.equal(state.row.agent_claim_token_hash, "", "retry scheduling must revoke the previous claim");
+  assert.equal(state.row.agent_claimed_at, null);
+  const scheduledRetryAt = Date.parse(state.row.next_attempt_at);
+  assert.ok(Number.isFinite(scheduledRetryAt), "retry must persist a valid next-attempt timestamp");
+  assert.ok(scheduledRetryAt > Date.now(), "retry must not be claimable before its backoff expires");
+  const expectedRetryDelaySeconds = Math.min(3600, 30 * (2 ** Math.max(0, Number(state.row.attempts || 1) - 1)));
+  assert.ok(scheduledRetryAt <= Date.now() + (expectedRetryDelaySeconds + 2) * 1000,
+    "retry must respect the exponential backoff derived from the consumed attempt count");
+  assert.ok(scheduledRetryAt >= Date.now() + (expectedRetryDelaySeconds - 2) * 1000,
+    "retry must not shorten the configured exponential backoff");
+
+  // Simulate the bounded backoff window elapsing before the next runner claims.
+  state.row.next_attempt_at = "2000-01-01T00:00:00.000Z";
+  const retryClaimResponse = await request("/agent/v1/tasks/next", {
+    method: "GET", headers: auth
+  }, env);
+  assert.equal(retryClaimResponse.status, 200);
+  const retryClaim = (await retryClaimResponse.json()).task;
+  assert.ok(retryClaim);
+  assert.notEqual(retryClaim.claimToken, replacement.claimToken);
+  assert.equal(state.row.attempts, 3, "the final permitted attempt must consume the configured attempt budget");
+  assert.equal(state.row.max_attempts, 3);
+  assert.match(state.row.agent_claim_token_hash, /^[A-Za-z0-9_-]{43}$/);
+
+  const supersededCheckpoint = await request("/agent/v1/tasks/" + state.row.id + "/checkpoint", {
+    method: "POST", headers: auth,
+    body: { claimToken: replacement.claimToken, checkpoint: { staleAfterRetry: true } }
+  }, env);
+  assert.equal(supersededCheckpoint.status, 409, "pre-retry runner must not checkpoint after a fresh claim");
+
+  const terminalResult = await request("/agent/v1/tasks/" + state.row.id + "/result", {
+    method: "POST", headers: auth,
+    body: { claimToken: retryClaim.claimToken, status: "blocked", retryable: true, result: "controlled lifecycle test complete" }
+  }, env);
+  assert.equal(terminalResult.status, 200);
+  assert.equal(state.row.status, "blocked", "retryable=true must not schedule an attempt beyond max_attempts");
+  assert.equal(state.row.next_attempt_at, null, "exhausted tasks must not retain a future retry time");
+  assert.equal(state.row.attempts, state.row.max_attempts, "attempt count must never exceed its configured cap");
+  assert.equal(state.row.agent_claim_token_hash, "", "terminal result must revoke the claim token");
+
+  const replay = await request("/agent/v1/tasks/" + state.row.id + "/result", {
+    method: "POST", headers: auth,
+    body: { claimToken: retryClaim.claimToken, status: "blocked", result: "replayed result" }
+  }, env);
+  assert.equal(replay.status, 409, "terminal claim token must not be replayable");
+});
+
+
+test("real Worker checkpoint route rejects a commit when expiry recovery wins the update race", async () => {
+  const token = "test-agent-token-".padEnd(48, "x");
+  const { db, state } = makeClaimLifecycleDb({ expireDuringCheckpointCommit: true });
+  const env = { DB: db, MEHRAN_AGENT_TOKEN: token };
+  const auth = { Authorization: "Bearer " + token };
+
+  const claimResponse = await request("/agent/v1/tasks/next", {
+    method: "GET", headers: auth
+  }, env);
+  assert.equal(claimResponse.status, 200);
+  const claim = (await claimResponse.json()).task;
+  assert.ok(claim);
+  const originalCheckpoint = JSON.parse(state.row.checkpoint_json);
+
+  const checkpointResponse = await request("/agent/v1/tasks/" + state.row.id + "/checkpoint", {
+    method: "POST", headers: auth,
+    body: { claimToken: claim.claimToken, checkpoint: { mustNotCommit: true } }
+  }, env);
+
+  assert.equal(checkpointResponse.status, 409,
+    "checkpoint UPDATE must fail when ownership expires after the initial SELECT");
+  assert.deepEqual(JSON.parse(state.row.checkpoint_json), originalCheckpoint,
+    "a losing stale checkpoint must not overwrite the durable checkpoint");
+  assert.equal(state.row.status, "accepted");
+  assert.equal(state.row.agent_claimed_at, null);
+  assert.equal(state.row.agent_claim_token_hash, "");
+});
+
+
+test("real Worker result route rejects a terminal commit when expiry recovery wins the update race", async () => {
+  const token = "test-agent-token-".padEnd(48, "x");
+  const { db, state } = makeClaimLifecycleDb({ expireDuringResultCommit: true });
+  const env = { DB: db, MEHRAN_AGENT_TOKEN: token };
+  const auth = { Authorization: "Bearer " + token };
+
+  const claimResponse = await request("/agent/v1/tasks/next", {
+    method: "GET", headers: auth
+  }, env);
+  assert.equal(claimResponse.status, 200);
+  const claim = (await claimResponse.json()).task;
+  assert.ok(claim);
+  const oldResult = state.row.result_text || "";
+
+  const resultResponse = await request("/agent/v1/tasks/" + state.row.id + "/result", {
+    method: "POST", headers: auth,
+    body: { claimToken: claim.claimToken, status: "blocked", retryable: false, result: "must not commit after claim expiry" }
+  }, env);
+
+  assert.equal(resultResponse.status, 409,
+    "terminal result UPDATE must fail when claim expiry wins after the initial ownership SELECT");
+  assert.equal(state.row.status, "accepted");
+  assert.equal(state.row.result_text || "", oldResult,
+    "a losing stale result must not overwrite the durable task result");
+  assert.equal(state.row.agent_claimed_at, null);
+  assert.equal(state.row.agent_claim_token_hash, "");
+});
+
+
+test("real Worker result route accepts only one concurrent terminal commit for a claim", async () => {
+  const token = "test-agent-token-".padEnd(48, "x");
+  const { db, state } = makeClaimLifecycleDb();
+  const env = { DB: db, MEHRAN_AGENT_TOKEN: token };
+  const auth = { Authorization: "Bearer " + token };
+
+  const claimResponse = await request("/agent/v1/tasks/next", {
+    method: "GET", headers: auth
+  }, env);
+  assert.equal(claimResponse.status, 200);
+  const claim = (await claimResponse.json()).task;
+  assert.ok(claim);
+
+  const submit = result => request("/agent/v1/tasks/" + state.row.id + "/result", {
+    method: "POST", headers: auth,
+    body: { claimToken: claim.claimToken, status: "blocked", retryable: false, result }
+  }, env);
+  const responses = await Promise.all([
+    submit("first terminal result"),
+    submit("competing terminal result")
+  ]);
+
+  assert.deepEqual(responses.map(response => response.status).sort(), [200, 409],
+    "only one concurrent terminal result may consume the active claim");
+  assert.ok(
+    ["first terminal result", "competing terminal result"].includes(state.row.result_text),
+    "the accepted result must be one of the two submitted values"
+  );
+  assert.equal(state.row.agent_claimed_at, null);
+  assert.equal(state.row.agent_claim_token_hash, "",
+    "the winning terminal result must revoke the shared claim token");
+});
+
+
+test("real Worker task recovery preserves durable checkpoints and fences the crashed runner", async () => {
+  const token = "test-agent-token-".padEnd(48, "x");
+  const { db, state } = makeClaimLifecycleDb();
+  const env = { DB: db, MEHRAN_AGENT_TOKEN: token };
+  const auth = { Authorization: "Bearer " + token };
+
+  const firstClaimResponse = await request("/agent/v1/tasks/next", {
+    method: "GET", headers: auth
+  }, env);
+  assert.equal(firstClaimResponse.status, 200);
+  const firstClaim = (await firstClaimResponse.json()).task;
+  assert.ok(firstClaim);
+  const firstToken = firstClaim.claimToken;
+
+  const durableCheckpoint = {
+    baseSha: "b".repeat(40),
+    phase: "proposal_generation_pending",
+    durableMarker: "preserve-on-reclaim"
+  };
+  const checkpointResponse = await request("/agent/v1/tasks/" + state.row.id + "/checkpoint", {
+    method: "POST", headers: auth,
+    body: { claimToken: firstToken, checkpoint: durableCheckpoint }
+  }, env);
+  assert.equal(checkpointResponse.status, 200);
+  assert.deepEqual(JSON.parse(state.row.checkpoint_json), durableCheckpoint);
+
+  // Simulate a runner crash and expiry. Recovery must revoke ownership but
+  // leave the last durable checkpoint untouched for the replacement runner.
+  state.expired = true;
+  const replacementResponse = await request("/agent/v1/tasks/next", {
+    method: "GET", headers: auth
+  }, env);
+  assert.equal(replacementResponse.status, 200);
+  const replacement = (await replacementResponse.json()).task;
+  assert.ok(replacement);
+  assert.notEqual(replacement.claimToken, firstToken);
+  assert.equal(replacement.checkpoint, JSON.stringify(durableCheckpoint));
+  assert.deepEqual(JSON.parse(state.row.checkpoint_json), durableCheckpoint);
+  assert.equal(state.row.status, "in_progress");
+  assert.match(state.row.agent_claim_token_hash, /^[A-Za-z0-9_-]{43}$/);
+
+  const staleCheckpoint = await request("/agent/v1/tasks/" + state.row.id + "/checkpoint", {
+    method: "POST", headers: auth,
+    body: { claimToken: firstToken, checkpoint: { corruptedByOldRunner: true } }
+  }, env);
+  assert.equal(staleCheckpoint.status, 409);
+  assert.deepEqual(JSON.parse(state.row.checkpoint_json), durableCheckpoint);
+
+  const staleResult = await request("/agent/v1/tasks/" + state.row.id + "/result", {
+    method: "POST", headers: auth,
+    body: { claimToken: firstToken, status: "blocked", result: "stale runner must not finish task" }
+  }, env);
+  assert.equal(staleResult.status, 409);
+  assert.equal(state.row.status, "in_progress");
+
+  const resumedCheckpoint = {
+    ...durableCheckpoint,
+    phase: "proposal_generation_resumed"
+  };
+  const resumed = await request("/agent/v1/tasks/" + state.row.id + "/checkpoint", {
+    method: "POST", headers: auth,
+    body: { claimToken: replacement.claimToken, checkpoint: resumedCheckpoint }
+  }, env);
+  assert.equal(resumed.status, 200);
+  assert.deepEqual(JSON.parse(state.row.checkpoint_json), resumedCheckpoint);
+
+  const replacementResult = await request("/agent/v1/tasks/" + state.row.id + "/result", {
+    method: "POST", headers: auth,
+    body: {
+      claimToken: replacement.claimToken,
+      status: "blocked",
+      retryable: false,
+      result: "replacement runner completed its bounded recovery check"
+    }
+  }, env);
+  assert.equal(replacementResult.status, 200);
+  assert.equal(state.row.status, "blocked");
+  assert.equal(state.row.agent_claimed_at, null);
+  assert.equal(state.row.agent_claim_token_hash, "", "replacement terminal result must revoke its claim");
+  assert.deepEqual(JSON.parse(state.row.checkpoint_json), resumedCheckpoint,
+    "terminal result must not discard the latest durable checkpoint");
+
+  const lateCheckpoint = await request("/agent/v1/tasks/" + state.row.id + "/checkpoint", {
+    method: "POST", headers: auth,
+    body: {
+      claimToken: replacement.claimToken,
+      checkpoint: { corruptedAfterTerminalCommit: true }
+    }
+  }, env);
+  assert.equal(lateCheckpoint.status, 409,
+    "a checkpoint arriving after terminal result commit must be rejected");
+  assert.deepEqual(JSON.parse(state.row.checkpoint_json), resumedCheckpoint,
+    "a late checkpoint must not mutate terminal task state");
 });
