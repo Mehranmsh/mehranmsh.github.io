@@ -22,6 +22,18 @@ const scheduledEnd = workerSource.indexOf("async fetch(request, env)", scheduled
 assert.ok(scheduledStart >= 0 && scheduledEnd > scheduledStart, "Worker scheduled handler must be locatable");
 const workerSchedulerSource = workerSource.slice(scheduledStart, scheduledEnd);
 
+test("runner resumes a durable completed result checkpoint without repeating execution", () => {
+  assert.ok(runnerSource.includes('savedCheckpoint.phase === "result_ready"'));
+  assert.ok(runnerSource.includes('savedCheckpoint.actionType === task.actionType'));
+  assert.ok(runnerSource.includes('savedCheckpoint.result.length <= 3000'));
+  assert.ok(runnerSource.includes('resumedFromCheckpoint = true'));
+  assert.ok(runnerSource.includes('task will not be repeated') || runnerSource.includes('execution will not be repeated'));
+  assert.ok(runnerSource.includes('phase: "result_ready"'));
+  assert.ok(runnerSource.includes('resultSha256: createHash("sha256").update(result).digest("hex")'));
+  assert.ok(runnerSource.includes('saved.checkpointSaved !== true'));
+  assert.ok(workerSource.includes('checkpointJson.length > 4000'));
+});
+
 test("all eight active capabilities are registered with their permission tiers", () => {
   const expected = [
     "project_status_report",
