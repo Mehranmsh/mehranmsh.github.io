@@ -2820,7 +2820,7 @@ test("Agent task claim tokens fence checkpoint and result commits to the current
 // Route-level claim lifecycle test using a deliberately narrow in-memory D1 fake.
 // This exercises the real Worker fetch/auth/claim/checkpoint/result handlers; it is
 // not a Cloudflare D1 integration test.
-function makeClaimLifecycleDb({ synchronizeCandidateReads = false, expireDuringCheckpointCommit = false } = {}) {
+function makeClaimLifecycleDb({ synchronizeCandidateReads = false, expireDuringCheckpointCommit = false, expireDuringResultCommit = false } = {}) {
   const state = {
     row: {
       id: "claim-lifecycle-task",
@@ -2943,6 +2943,13 @@ function makeClaimLifecycleDb({ synchronizeCandidateReads = false, expireDuringC
           }
           if (sql.includes("SET status=?,result_text=?")) {
             const [status, resultText, nextAttemptAt, , id, hash] = args;
+            // Model expiry recovery winning after result validation but before its conditional UPDATE.
+            if (expireDuringResultCommit) {
+              state.expired = true;
+              state.row.status = "accepted";
+              state.row.agent_claimed_at = null;
+              state.row.agent_claim_token_hash = "";
+            }
             if (id === state.row.id && state.row.status === "in_progress" &&
                 state.row.agent_claim_token_hash === hash && !state.expired) {
               state.row.status = status;
@@ -3112,6 +3119,35 @@ test("real Worker checkpoint route rejects a commit when expiry recovery wins th
   assert.deepEqual(JSON.parse(state.row.checkpoint_json), originalCheckpoint,
     "a losing stale checkpoint must not overwrite the durable checkpoint");
   assert.equal(state.row.status, "accepted");
+  assert.equal(state.row.agent_claimed_at, null);
+  assert.equal(state.row.agent_claim_token_hash, "");
+});
+
+
+test("real Worker result route rejects a terminal commit when expiry recovery wins the update race", async () => {
+  const token = "test-agent-token-".padEnd(48, "x");
+  const { db, state } = makeClaimLifecycleDb({ expireDuringResultCommit: true });
+  const env = { DB: db, MEHRAN_AGENT_TOKEN: token };
+  const auth = { Authorization: "Bearer " + token };
+
+  const claimResponse = await request("/agent/v1/tasks/next", {
+    method: "GET", headers: auth
+  }, env);
+  assert.equal(claimResponse.status, 200);
+  const claim = (await claimResponse.json()).task;
+  assert.ok(claim);
+  const oldResult = state.row.result_text || "";
+
+  const resultResponse = await request("/agent/v1/tasks/" + state.row.id + "/result", {
+    method: "POST", headers: auth,
+    body: { claimToken: claim.claimToken, status: "blocked", retryable: false, result: "must not commit after claim expiry" }
+  }, env);
+
+  assert.equal(resultResponse.status, 409,
+    "terminal result UPDATE must fail when claim expiry wins after the initial ownership SELECT");
+  assert.equal(state.row.status, "accepted");
+  assert.equal(state.row.result_text || "", oldResult,
+    "a losing stale result must not overwrite the durable task result");
   assert.equal(state.row.agent_claimed_at, null);
   assert.equal(state.row.agent_claim_token_hash, "");
 });
