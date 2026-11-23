@@ -211,6 +211,7 @@ test("MEHRAN INTELLIGENCE serves exact project and SOCIAL status queries without
   assert.match(route, /SELECT COUNT\(\*\) AS total FROM social_users/);
   assert.match(route, /aiRequests:0,reason:"deterministic_project_status"/);
   assert.match(route, /aiRequests:0,reason:"deterministic_social_metrics"/);
+  assert.ok(workerSource.includes(String.raw`replace(/[!؟?.،,\s\u200c]+/gu, "")`));
 });
 
 test("MEHRAN INTELLIGENCE chat skips trivial messages and bounds model/tool calls", () => {
