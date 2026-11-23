@@ -860,3 +860,32 @@ test("Terminal work packages with unstored reports are rediscovered for later fi
   assert.match(recovery, /work-packages\/pending-finalization/);
   assert.match(recovery, /packageIds\.add\(id\)/);
 });
+
+test("Work-package audit events and notification outbox rows share one stable event identity", () => {
+  const start = workerSource.indexOf("async function refreshIntelligenceWorkPackageSnapshot");
+  const end = workerSource.indexOf("async function ensureIntelligenceSchedulerRunsTable", start);
+  assert.ok(start >= 0 && end > start);
+  const refresh = workerSource.slice(start, end);
+  assert.match(refresh, /const eventId = crypto\.randomUUID\(\)/);
+  assert.match(refresh, /INSERT INTO intelligence_task_events\(id,work_package_id,task_id,event_type,from_status,to_status,actor,details_json\)[\s\S]*?\.bind\(eventId,packageId/);
+  assert.match(refresh, /INSERT OR IGNORE INTO intelligence_notification_outbox\(id,event_id,channel,payload_json,status\)[\s\S]*?\.bind\(crypto\.randomUUID\(\),eventId/);
+  assert.match(refresh, /UNIQUE\(event_id,channel\)/);
+});
+
+test("Notification delivery leases are bounded, acknowledged with the lease token, and stop after five attempts", () => {
+  const routeStart = workerSource.indexOf('if (path === "/agent/v1/notifications/next" && method === "GET")');
+  const routeEnd = workerSource.indexOf('const notificationMatch', routeStart);
+  assert.ok(routeStart >= 0 && routeEnd > routeStart);
+  const claim = workerSource.slice(routeStart, routeEnd);
+  assert.match(claim, /attempts>=5 THEN 'failed' ELSE 'retry_wait'/);
+  assert.match(claim, /attempts=attempts\+1/);
+  assert.match(claim, /leaseToken/);
+  assert.match(claim, /5\*60\*1000/);
+
+  const ackStart = routeEnd;
+  const ackEnd = workerSource.indexOf('if (path === "/agent/v1/work-packages/pending-finalization"', ackStart);
+  const ack = workerSource.slice(ackStart, ackEnd);
+  assert.match(ack, /WHERE id=\? AND status='processing' AND lease_token=\?/);
+  assert.match(ack, /outcome === "retry" && Number\(row\.attempts\|\|0\) < 5/);
+  assert.match(ack, /"delivered","retry","failed"/);
+});
