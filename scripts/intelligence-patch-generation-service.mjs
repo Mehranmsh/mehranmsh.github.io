@@ -137,7 +137,7 @@ async function readBoundedText(response, maxBytes) {
  * Generate one bounded proposal from the exact current main commit.
  * The returned artifact is validated but not stored or applied.
  */
-function canonicalizeAppendOnlyHunkHeader(diff, sourceLineCount) {
+export function canonicalizeAppendOnlyHunkHeader(diff, sourceLineCount) {
   if (typeof diff !== "string" || !Number.isInteger(sourceLineCount) || sourceLineCount < 1) return diff;
   const lines = diff.endsWith("\n") ? diff.slice(0, -1).split("\n") : diff.split("\n");
   const target = "--- a/scripts/intelligence-capabilities.test.mjs";
