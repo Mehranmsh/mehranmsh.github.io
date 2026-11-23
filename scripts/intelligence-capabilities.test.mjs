@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { validatePatchProposal, PATCH_PROPOSAL_POLICY } from "./intelligence-patch-policy.mjs";
 import { createPatchArtifactRecord, verifyPatchArtifactRecord } from "./intelligence-patch-artifact.mjs";
-import { storePrivatePatchArtifact, PRIVATE_PATCH_ARTIFACT_STORE_POLICY } from "./intelligence-private-patch-store.mjs";
+import { storePrivatePatchArtifact, verifyPrivatePatchArtifactAtPath, getPrivatePatchArtifactPath, PRIVATE_PATCH_ARTIFACT_STORE_POLICY } from "./intelligence-private-patch-store.mjs";
 import { buildPatchGenerationPrompt, validateGeneratedPatch, PATCH_GENERATION_POLICY } from "./intelligence-patch-generation.mjs";
 import { generatePatchArtifact, PATCH_GENERATION_SERVICE_POLICY } from "./intelligence-patch-generation-service.mjs";
 import {
@@ -435,6 +435,26 @@ test("private patch store treats an identical existing artifact as idempotent", 
   });
   assert.equal(result.stored, true);
   assert.equal(result.alreadyExists, true);
+  assert.equal(calls, 1);
+});
+
+test("private patch artifact recovery verifies an exact stored path and digest", async () => {
+  const created = await makeTestPatchArtifact();
+  const path = getPrivatePatchArtifactPath(created.artifact);
+  assert.match(path, /^patch-proposals\\/\\d{4}\\/\\d{2}\\/[a-f0-9-]{36}\\.json$/);
+  let calls = 0;
+  const verified = await verifyPrivatePatchArtifactAtPath({
+    token: "t".repeat(48), path, artifactSha256: created.artifactSha256,
+    fetchImpl: async () => { calls++; return githubContentResponse(created.artifact, path); }
+  });
+  assert.equal(verified.stored, true);
+  assert.equal(verified.path, path);
+  assert.equal(calls, 1);
+  const invalid = await verifyPrivatePatchArtifactAtPath({
+    token: "t".repeat(48), path: "../public.json", artifactSha256: created.artifactSha256,
+    fetchImpl: async () => { calls++; throw new Error("invalid path must not fetch"); }
+  });
+  assert.equal(invalid.code, "invalid_artifact_lookup");
   assert.equal(calls, 1);
 });
 
