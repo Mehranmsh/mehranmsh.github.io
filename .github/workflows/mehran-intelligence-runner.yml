@@ -166,7 +166,7 @@ jobs:
               const planned = await request("/agent/v1/missions/plan", {
                 method: "POST",
                 body: JSON.stringify({
-                  idempotencyKey: "mehran-intelligence-self-improvement-baseline-v1",
+                  idempotencyKey: "mehran-intelligence-self-improvement-baseline-v2",
                   mission: "MEHRAN INTELLIGENCE: perform the first evidence-based self-assessment. Inspect the bounded core execution architecture, verify the existing fixed capability test suite and deterministic security controls, identify the most important gaps between the current executor and a professional autonomous company assistant, and produce a prioritized, staged self-improvement plan. Prefer practical capabilities for mission understanding, research, multi-step execution, durable learning from completed work, and safe self-improvement. Do not claim capabilities that do not exist. Any code change must remain a private proposal for owner review; never modify source, create branches or pull requests, merge, deploy, access secrets, or perform wallet/financial actions.",
                   allowDeterministicFallback: false
                 })
