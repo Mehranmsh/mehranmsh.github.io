@@ -208,11 +208,16 @@ export async function generatePatchArtifact({
   if (finalMainCommit.sha !== baseSha) return fail("stale_base_sha");
 
   const sourceLineCount = source.endsWith("\n") ? source.split("\n").length - 1 : source.split("\n").length;
+  // Canonicalize harmless transport formatting from model output before strict validation.
+  // Preserve patch content; reject lone carriage returns and malformed no-newline markers.
+  if (/\r(?!\n)/.test(generated.diff)) return fail("model_diff_encoding_invalid");
+  const canonicalDiff = generated.diff.replace(/\r\n/g, "\n");
+  const normalizedDiff = canonicalDiff.endsWith("\n") ? canonicalDiff : canonicalDiff + "\n";
   const validated = validateGeneratedPatch({
     baseSha,
     sourceLineCount,
     summary: generated.summary,
-    diff: generated.diff
+    diff: normalizedDiff
   });
   if (!validated.ok) return validated;
 
@@ -224,7 +229,7 @@ export async function generatePatchArtifact({
       baseSha,
       targetPaths: [TARGET_PATH],
       summary: generated.summary,
-      diff: generated.diff
+      diff: normalizedDiff
     });
   } catch {
     return fail("artifact_creation_failed");
