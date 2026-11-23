@@ -5744,7 +5744,7 @@ export function verifyIntelligenceReport(actionType, report) {
         typeof report.workflowRunId !== "string" || !/^\d{1,20}$/.test(report.workflowRunId) ||
         !integer(report.workflowAttempt) || report.workflowAttempt < 1 ||
         report.testSuite !== "scripts/intelligence-capabilities.test.mjs" ||
-        report.exitCode !== 0 ||
+        report.exitCode !== 0 || report.passed !== true ||
         !integer(tests.total) || tests.total < 1 ||
         tests.passed !== tests.total || tests.failed !== 0 ||
         container.network !== "none" || container.readOnly !== true ||
