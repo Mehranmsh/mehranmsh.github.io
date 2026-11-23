@@ -5484,7 +5484,7 @@ export function validateIntelligenceWorkPackage(input) {
     const validPatchObjective = actionType !== "propose_code_patch" || (typeof patchObjective === "string" && patchObjective.trim().length >= 12 && patchObjective.length <= 800);
     if (!taskId || !/^[A-Za-z0-9._:-]{1,80}$/.test(taskId) || known.has(taskId) || !taskTitle ||
         !["service_health_report", "repository_quality_check", "source_security_audit", "inspect_repository", "run_repository_tests", "propose_code_patch"].includes(actionType) || !validInspectPaths || !validTestBaseSha || !validPatchObjective || (actionType !== "inspect_repository" && Object.hasOwn(item || {}, "paths")) || (actionType !== "run_repository_tests" && Object.hasOwn(item || {}, "baseSha")) || (actionType !== "propose_code_patch" && Object.hasOwn(item || {}, "objective")) || dependencies.length > 10) {
-      return fail("Invalid task definition or action outside the read-only allowlist.");
+      return fail("Invalid task definition or action outside the bounded capability allowlist.");
     }
     if (new Set(dependencies).size !== dependencies.length ||
         dependencies.some(dep => typeof dep !== "string" || !known.has(dep))) {
@@ -5622,7 +5622,7 @@ async function planIntelligenceMission(env, input) {
     "Only create tasks using exactly these action types: service_health_report, repository_quality_check, source_security_audit, inspect_repository, propose_code_patch.",
     "propose_code_patch is proposal-only: it may generate and privately store one additions-only regression-test proposal for scripts/intelligence-capabilities.test.mjs; it cannot apply patches, write source files, create branches or pull requests, merge, or deploy.",
     "Never request secrets, credentials, wallet keys, or personal data.",
-    "Never propose source writes, deployments, account changes, financial actions, or external user actions.",
+    "Never execute or request direct source writes, patch application, branch or pull-request creation, deployment, account changes, financial actions, or external user actions.",
     "Use dependencies only on earlier task IDs. Return valid JSON only, without markdown fences."
   ].join(" ");
   const userPrompt = [
@@ -6744,7 +6744,7 @@ export default {
           await env.DB.prepare(
             "UPDATE intelligence_tasks SET status='accepted',agent_claimed_at=NULL,last_error_code='claim_expired_retry',updated_at=CURRENT_TIMESTAMP WHERE status='in_progress' AND agent_claimed_at IS NOT NULL AND datetime(agent_claimed_at) < datetime('now','-15 minutes') AND requires_approval=0 AND assigned_to IN ('mehran_intelligence','shared') AND action_type IN ('repository_quality_check','service_health_report','source_security_audit','inspect_repository','run_repository_tests','propose_code_patch') AND COALESCE(attempts,0)<COALESCE(max_attempts,3)"
           ).run();
-          // Repair only stale approval labels on pre-authorized read-only tasks before claiming them.
+          // Repair only stale approval labels on pre-authorized bounded tasks before claiming them.
           await env.DB.prepare(
             "UPDATE intelligence_tasks SET status='queued',updated_at=CURRENT_TIMESTAMP WHERE status='awaiting_approval' AND requires_approval=0 AND assigned_to IN ('mehran_intelligence','shared') AND action_type IN ('repository_quality_check','service_health_report','source_security_audit','inspect_repository','run_repository_tests','propose_code_patch')"
           ).run();
@@ -7915,8 +7915,8 @@ export default {
         if(!title||title.length<4||typeof body.description!=="string"||body.description.length>3000)return error("A task title and description are required.");
         if(!["mehran_intelligence","chatgpt","shared"].includes(assignedTo)||!["low","normal","high"].includes(priority)|| (body.requiresApproval!==undefined&&typeof body.requiresApproval!=="boolean")||typeof actionType!=="string"||!["",...allowedActionTypes].includes(actionType))return error("Invalid task assignment, priority, approval flag or action type.");
         if(actionType&&assignedTo==="chatgpt")return error("Allowlisted report actions must be assigned to mehran_intelligence or shared so the execution service can claim them.");
-        const preapprovedReadOnlyActions=PREAPPROVED_INTELLIGENCE_ACTION_TYPES;
-        const autoApproved=preapprovedReadOnlyActions.includes(actionType)&&["mehran_intelligence","shared"].includes(assignedTo)&&body.requiresApproval!==true;
+        const preapprovedActions=PREAPPROVED_INTELLIGENCE_ACTION_TYPES;
+        const autoApproved=preapprovedActions.includes(actionType)&&["mehran_intelligence","shared"].includes(assignedTo)&&body.requiresApproval!==true;
         const requiresApproval=Boolean(body.requiresApproval|| (actionType&&!autoApproved));
         const id=crypto.randomUUID();
         await env.DB.prepare("INSERT INTO intelligence_tasks(id,title,description,assigned_to,priority,status,requires_approval,created_by,action_type) VALUES(?,?,?,?,?,?,?,?,?)").bind(id,title,description,assignedTo,priority,requiresApproval?'awaiting_approval':'queued',requiresApproval?1:0,admin.username,actionType).run();
