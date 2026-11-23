@@ -753,3 +753,41 @@ test("mission planner checks its idempotency key before any Workers AI budget re
   assert.ok(existingCheck >= 0 && budgetReservation > existingCheck && inference > budgetReservation);
   assert.match(planner, /if \(existing\) return \{ success: true, duplicate: true/);
 });
+
+test("Intelligence runner retries only explicitly safe patch-generation interruptions", () => {
+  const retryStart = runnerSource.indexOf("retryable = Number(error?.status) === 503;");
+  const retryEnd = runnerSource.indexOf("const diagnostic =", retryStart);
+  assert.ok(retryStart >= 0 && retryEnd > retryStart);
+  const retryPolicy = runnerSource.slice(retryStart, retryEnd);
+  assert.match(retryPolicy, /Number\(error\?\.status\) === 503/);
+  assert.match(retryPolicy, /Number\(error\?\.status\) === 409 && \/already in progress\|concurrently reserved\//);
+  assert.match(retryPolicy, /error\?\.name === "TimeoutError" \|\| error\?\.name === "AbortError"/);
+  assert.doesNotMatch(retryPolicy, /Number\(error\?\.status\) === 409\s*\|\|/);
+  assert.doesNotMatch(retryPolicy, /Number\(error\?\.status\) === 502/);
+});
+
+test("Patch generation timeout and model failures remain terminal instead of triggering duplicate inference", () => {
+  const start = workerSource.indexOf('if (path === "/agent/v1/patch-proposals/generate" && method === "POST")');
+  const end = workerSource.indexOf('if (path === "/agent/v1/patch-proposals" && method === "POST")', start);
+  assert.ok(start >= 0 && end > start);
+  const generationRoute = workerSource.slice(start, end);
+  assert.match(generationRoute, /status='failed',failure_code='processing_timeout'/);
+  assert.match(generationRoute, /The previous generation attempt expired; submit a new request ID/);
+  assert.match(generationRoute, /model_request_failed/);
+  assert.match(generationRoute, /includes\(generated\.code\) \? 502/);
+  assert.match(generationRoute, /Generation failures are persisted as terminal "failed" requests/);
+  assert.match(generationRoute, /HTTP 503 is reserved for prepared-artifact recovery\/storage interruptions/);
+});
+
+test("Intelligence task recovery is claim-token scoped, bounded, and attempt limited", () => {
+  const start = workerSource.indexOf('if (path === "/agent/v1/tasks/next" && method === "GET")');
+  const end = workerSource.indexOf('const checkpointMatch = path.match', start);
+  assert.ok(start >= 0 && end > start);
+  const claimRoute = workerSource.slice(start, end);
+  assert.match(claimRoute, /datetime\(agent_claimed_at\) < datetime\('now','-15 minutes'\)/);
+  assert.match(claimRoute, /COALESCE\(attempts,0\)>=COALESCE\(max_attempts,3\)/);
+  assert.match(claimRoute, /COALESCE\(attempts,0\)<COALESCE\(max_attempts,3\)/);
+  assert.match(claimRoute, /attempts=COALESCE\(attempts,0\)\+1/);
+  assert.match(claimRoute, /agent_claim_token_hash=\?/);
+  assert.match(claimRoute, /WHERE id=\? AND status IN \('queued','accepted','retry_wait'\)/);
+});
