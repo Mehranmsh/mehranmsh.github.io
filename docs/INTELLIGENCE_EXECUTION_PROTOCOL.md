@@ -83,6 +83,8 @@ Run autonomously without per-step owner prompts once the corresponding executor 
 
 The owner authorizes the mission scope once. That authorization covers all eligible steps inside the scope; it does not need to be renewed at each task boundary.
 
+Autonomous metadata is not an execution switch: a capability marked `planned` remains unavailable until its executor, validator, result verification, recovery behavior, and regression tests are implemented and allowlisted.
+
 Must pause for explicit owner approval:
 - merging any pull request into a protected or default branch
 - production deployments or rollbacks
