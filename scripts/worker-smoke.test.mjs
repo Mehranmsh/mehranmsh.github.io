@@ -302,6 +302,17 @@ test("scheduled Intelligence runner is single-flight, secret-backed and restrict
   assert.match(runner, /cron: "\*\/5 \* \* \* \*"/);
   assert.match(runner, /concurrency:/);
   assert.match(runner, /if: \$\{\{ github\.ref == 'refs\/heads\/main' \}\}/);
+  const runnerLines = runner.split(/\\r?\\n/);
+  const runBlockLine = runnerLines.findIndex(line => /^\\s*run:\\s*\\|\\s*$/.test(line));
+  assert.ok(runBlockLine >= 0, "runner inline script block must exist");
+  const blockIndent = runnerLines[runBlockLine + 1].match(/^\\s*/)[0].length;
+  const heredocEnd = runnerLines.findIndex((line, index) => index > runBlockLine && line.trim() === "NODE");
+  assert.ok(heredocEnd > runBlockLine, "runner heredoc terminator must exist");
+  for (let index = runBlockLine + 1; index <= heredocEnd; index += 1) {
+    if (runnerLines[index].trim()) {
+      assert.ok(runnerLines[index].match(/^\\s*/)[0].length >= blockIndent, `runner run block line ${index + 1} escapes YAML block indentation`);
+    }
+  }
   assert.match(runner, /task\.requiresApproval !== false/);
   assert.match(runner, /task\.status !== "in_progress"/);
   assert.match(runner, /task\.assignedTo/);
