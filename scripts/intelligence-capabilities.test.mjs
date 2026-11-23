@@ -990,8 +990,8 @@ test("Intelligence retains owner-scoped durable memory and recent conversation c
   assert.match(workerSource, /CREATE TABLE IF NOT EXISTS intelligence_memory_items/);
   assert.match(workerSource, /UNIQUE\(owner_uid,memory_key\)/);
   assert.match(workerSource, /CREATE TABLE IF NOT EXISTS intelligence_chat_turns/);
-  assert.match(workerSource, /LIMIT 30\)"/);
-  assert.match(workerSource, /ORDER BY created_at DESC,rowid DESC LIMIT 12/);
+  assert.match(workerSource, /LIMIT 100\)"/);
+  assert.match(workerSource, /ORDER BY created_at DESC,rowid DESC LIMIT 16/);
   assert.match(workerSource, /PERSISTENT PROJECT MEMORY/);
   assert.match(workerSource, /RECENT CONVERSATION/);
   assert.match(workerSource, /name:"remember_context"/);
@@ -1014,7 +1014,7 @@ test("Intelligence retains owner-scoped durable memory and recent conversation c
   assert.ok(workerSource.includes('FROM intelligence_memory_items WHERE owner_uid=? ORDER BY updated_at DESC,importance DESC LIMIT 24").bind(admin.uid).all()'));
   assert.ok(workerSource.includes("ACTIVE MISSION STATE (authoritative live task records; resume existing work before proposing duplicates)"));
   assert.ok(workerSource.includes('if (path === "/intelligence/chat/history" && method === "GET")'));
-  assert.ok(workerSource.includes('WHERE owner_uid=? AND session_key=? ORDER BY created_at DESC,rowid DESC LIMIT 30'));
+  assert.ok(workerSource.includes('WHERE owner_uid=? AND session_key=? ORDER BY created_at DESC,rowid DESC LIMIT 100'));
   assert.ok(workerSource.includes('return json({success:true,turns:'));
   assert.ok(indexSource.includes('id="intelConversation"'));
   assert.ok(indexSource.includes('async function loadIntelligenceChatHistory()'));
