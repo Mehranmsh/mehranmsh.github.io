@@ -5901,13 +5901,25 @@ async function planIntelligenceMission(env, input) {
     allowedActions: ["service_health_report", "repository_quality_check", "source_security_audit", "inspect_repository", "propose_code_patch"],
     forbidden: ["source_changes", "patch_application", "branch_creation", "pull_request_creation", "merge", "deployment", "secret_changes", "account_mutations", "financial_actions", "external_user_actions"]
   };
+  // Workers AI JSON-schema output may include optional properties declared by the
+  // schema even when they do not apply to the selected action. The package
+  // validator intentionally rejects those cross-action fields, so normalize
+  // them at this trust boundary before independent validation.
+  const normalizedTasks = plan.tasks.map(item => {
+    const normalized = { ...item };
+    if (normalized.actionType !== "inspect_repository") delete normalized.paths;
+    if (normalized.actionType !== "run_repository_tests") delete normalized.baseSha;
+    if (normalized.actionType !== "propose_code_patch") delete normalized.objective;
+    if (!Array.isArray(normalized.dependsOn)) normalized.dependsOn = [];
+    return normalized;
+  });
   const created = await createIntelligenceWorkPackage(env, {
     idempotencyKey,
     title: cleanText(plan.title, 160) || "MEHRAN INTELLIGENCE owner mission",
     objective: cleanText(plan.objective, 2000) || mission,
     priority: ["low", "normal", "high"].includes(plan.priority) ? plan.priority : "normal",
     scope,
-    tasks: plan.tasks,
+    tasks: normalizedTasks,
     ownerUid: input?.ownerUid
   });
   if (!created.success) {
