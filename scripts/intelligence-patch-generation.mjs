@@ -56,7 +56,7 @@ export function validateGeneratedPatch({ baseSha, sourceLineCount, summary, diff
   if (!checked.ok) return checked;
   if (checked.deletions !== 0 || checked.hunkCount !== 1) return fail("patch_not_append_only");
   const lines = diff.slice(0, -1).split("\n");
-  const header = /^@@ -(\\d+),0 \\+(\\d+),(\\d+) @@$/.exec(lines[2]);
+  const header = /^@@ -(\d+),0 \+(\d+),(\d+) @@$/.exec(lines[2]);
   if (!header || Number(header[1]) !== sourceLineCount ||
       Number(header[2]) !== sourceLineCount + 1) {
     return fail("patch_not_appended_at_eof");
