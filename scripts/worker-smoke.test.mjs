@@ -1206,6 +1206,7 @@ test("MEHRAN Intelligence tool calling is limited to safe reads and owner-approv
   assert.doesNotMatch(chat, /deploy_worker|transfer_pi|delete_social_user/);
 });
 
+// Intelligence has its own bounded reservation cap within the shared global ceiling.
 test("Workers AI has separate Music, SOCIAL and MEHRAN INTELLIGENCE budgets under one fail-closed ceiling", () => {
   assert.match(workerSource, /WORKERS_AI_GLOBAL_DAILY_RESERVATION_CREDITS = 9000/);
   assert.match(workerSource, /WORKERS_AI_MUSIC_DAILY_RESERVATION_CREDITS = 6000/);
