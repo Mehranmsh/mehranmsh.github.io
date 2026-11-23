@@ -1,5 +1,7 @@
 import { INTELLIGENCE_ACTION_TYPES, PREAPPROVED_INTELLIGENCE_ACTION_TYPES } from "./scripts/intelligence-capabilities.mjs";
 import { storePrivatePatchArtifact } from "./scripts/intelligence-private-patch-store.mjs";
+import { createPatchArtifactRecord } from "./scripts/intelligence-patch-artifact.mjs";
+import { buildPatchGenerationMessages, validateAppendOnlyPatchGeneration } from "./scripts/intelligence-patch-generator.mjs";
 
 const ALLOWED_ORIGIN = "https://mehranmsh.github.io";
 const FIREBASE_WEB_API_KEY = "AIzaSyBNezoCzAUXi1D7vC_stoUnQuN_JHR-rDM";
@@ -6347,6 +6349,128 @@ export default {
         if (mismatch !== 0) return error(ownerOrchestrationRoute ? "Owner orchestration authentication required." : "Agent authentication required.", 401);
         await ensureIntelligenceTaskTable(env);
         await ensureIntelligenceProtocolTables(env);
+        if (path === "/agent/v1/patch-proposals/generate" && method === "POST") {
+          const body = await readBody(request);
+          if (!body || Object.keys(body).join(",") !== "objective" ||
+              typeof body.objective !== "string" || body.objective.trim().length < 20 ||
+              body.objective.length > 600) {
+            return error("A single test-improvement objective between 20 and 600 characters is required.",400);
+          }
+          if (!env.AI || typeof env.AI.run !== "function") {
+            return error("Workers AI is unavailable; no patch proposal was generated.",503);
+          }
+
+          const mainResponse = await fetch("https://api.github.com/repos/Mehranmsh/mehranmsh.github.io/commits/main", {
+            headers: { "Accept":"application/vnd.github+json", "X-GitHub-Api-Version":"2022-11-28", "User-Agent":"MEHRAN-INTELLIGENCE-Patch-Generator" }
+          });
+          if (!mainResponse.ok) return error("Could not verify the current repository main commit.",503);
+          const mainCommit = await mainResponse.json();
+          const baseSha = typeof mainCommit?.sha === "string" ? mainCommit.sha : "";
+          if (!/^[a-f0-9]{40}$/.test(baseSha)) return error("Repository main commit metadata is invalid.",503);
+
+          const targetPath = "scripts/intelligence-capabilities.test.mjs";
+          const sourceResponse = await fetch("https://raw.githubusercontent.com/Mehranmsh/mehranmsh.github.io/" + baseSha + "/" + targetPath);
+          if (!sourceResponse.ok) return error("Could not read the allowlisted test file at the verified main commit.",503);
+          const sourceBytes = await sourceResponse.arrayBuffer();
+          if (!sourceBytes.byteLength || sourceBytes.byteLength > 100000) {
+            return error("The allowlisted source file is empty or exceeds the generation limit.",413);
+          }
+          const source = new TextDecoder("utf-8", { fatal:true }).decode(sourceBytes);
+          const prompt = buildPatchGenerationMessages({ baseSha, objective:body.objective, source });
+          if (!prompt.ok) return error("Patch generation input failed validation.",400);
+
+          const budget = await reserveSocialWorkersAIBudget(env,250,"intelligence");
+          if (!budget.allowed) return error("The daily MEHRAN INTELLIGENCE AI reservation limit has been reached.",429);
+          const model = cleanText(env.MEHRAN_INTELLIGENCE_MODEL,120) || "@cf/meta/llama-3.3-70b-instruct-fp8-fast";
+          let inference;
+          try {
+            inference = await env.AI.run(model,{
+              messages:[
+                { role:"system",content:prompt.system },
+                { role:"user",content:prompt.user }
+              ],
+              response_format:{
+                type:"json_schema",
+                json_schema:{
+                  type:"object",
+                  properties:{ summary:{type:"string"},diff:{type:"string"} },
+                  required:["summary","diff"],
+                  additionalProperties:false
+                }
+              },
+              temperature:0,
+              max_tokens:1400
+            });
+          } catch (err) {
+            console.error("INTELLIGENCE_PATCH_GENERATION_FAILURE",String(err?.message||err).slice(0,180));
+            return error("AI patch generation failed; no proposal was stored.",503);
+          }
+
+          const raw = inference?.response ?? inference?.result?.response ?? "";
+          let proposal;
+          if (raw && typeof raw === "object" && !Array.isArray(raw)) {
+            proposal = raw;
+          } else if (typeof raw === "string" && raw.length > 0 && raw.length <= 12000) {
+            try {
+              const cleaned = raw.trim().replace(/^\`\`\`(?:json)?\\s*/i,"").replace(/\\s*\`\`\`$/i,"");
+              const start = cleaned.indexOf("{");
+              const end = cleaned.lastIndexOf("}");
+              if (start < 0 || end <= start) throw new Error("JSON object not found");
+              proposal = JSON.parse(cleaned.slice(start,end+1));
+            } catch {
+              return error("AI returned an invalid patch proposal envelope.",502);
+            }
+          } else {
+            return error("AI returned an empty or oversized patch proposal.",502);
+          }
+          if (!proposal || Object.keys(proposal).sort().join(",") !== "diff,summary") {
+            return error("AI patch proposal has an unexpected schema.",502);
+          }
+
+          const checked = validateAppendOnlyPatchGeneration({
+            baseSha,objective:body.objective,source,
+            summary:proposal.summary,diff:proposal.diff
+          });
+          if (!checked.ok) return error("AI patch proposal rejected by the append-only validator: " + checked.code,422);
+
+          const createdAt = new Date().toISOString();
+          const created = await createPatchArtifactRecord({
+            proposalId:crypto.randomUUID(),createdAt,baseSha,
+            summary:checked.summary,targetPaths:[targetPath],diff:proposal.diff
+          });
+          if (!created.ok) return error("Validated patch artifact could not be created.",422);
+
+          await ensureIntelligencePatchProposalTable(env);
+          const stored = await storePrivatePatchArtifact({
+            token:env.MEHRAN_REPORTS_GITHUB_TOKEN,
+            artifact:created.artifact,
+            artifactSha256:created.artifactSha256
+          });
+          if (!stored.stored) {
+            const status = stored.code === "artifact_validation_failed" ? 422 : 503;
+            return error("Private patch artifact storage failed: " + String(stored.code||"unknown"),status);
+          }
+          await env.DB.prepare(
+            "INSERT OR IGNORE INTO intelligence_patch_proposals(proposal_id,base_sha,target_path,summary,artifact_path,artifact_sha256,diff_sha256,status,created_at) VALUES(?,?,?,?,?,?,?,'stored',?)"
+          ).bind(
+            created.artifact.proposalId,baseSha,targetPath,checked.summary,
+            stored.path,created.artifactSha256,created.artifact.diffSha256,createdAt
+          ).run();
+          const confirmed = await env.DB.prepare(
+            "SELECT proposal_id,artifact_path,artifact_sha256,diff_sha256,status FROM intelligence_patch_proposals WHERE proposal_id=?"
+          ).bind(created.artifact.proposalId).first();
+          if (!confirmed || confirmed.artifact_sha256 !== created.artifactSha256) {
+            return error("Patch proposal metadata could not be confirmed.",409);
+          }
+          return json({
+            success:true,proposalId:confirmed.proposal_id,baseSha,
+            targetPath,summary:checked.summary,path:confirmed.artifact_path,
+            artifactSha256:confirmed.artifact_sha256,diffSha256:confirmed.diff_sha256,
+            status:confirmed.status,mode:"append_only_test_proposal",
+            applied:false,branchCreated:false,pullRequestCreated:false,deployed:false,
+            budget:{reservedCredits:250,product:"intelligence"}
+          },201);
+        }
         if (path === "/agent/v1/patch-proposals" && method === "POST") {
           const body = await readBody(request);
           if (!body || Object.keys(body).sort().join(",") !== "artifact,artifactSha256" ||
