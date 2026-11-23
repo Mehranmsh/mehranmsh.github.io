@@ -697,11 +697,46 @@ jobs:
             let status = "completed";
             let result;
             let retryable = false;
+            let resumedFromCheckpoint = false;
+            let savedCheckpoint = {};
+            try {
+              savedCheckpoint = typeof task.checkpoint === "string" ? JSON.parse(task.checkpoint || "{}") : (task.checkpoint || {});
+            } catch {
+              throw new Error("Stored task checkpoint is not valid JSON; refusing to silently restart the task.");
+            }
+            if (savedCheckpoint.phase === "result_ready" &&
+                savedCheckpoint.actionType === task.actionType &&
+                typeof savedCheckpoint.result === "string" &&
+                savedCheckpoint.result.length > 0 && savedCheckpoint.result.length <= 3000 &&
+                ["completed","blocked"].includes(savedCheckpoint.status)) {
+              result = savedCheckpoint.result;
+              status = savedCheckpoint.status;
+              resumedFromCheckpoint = true;
+              console.log("Resuming task " + task.id + " from its durable result checkpoint; execution will not be repeated.");
+            }
             const executionStartedAt = Date.now();
             try {
-              const executionResult = await execute(task);
-              if (task.actionType === "run_repository_tests" && executionResult?.passed !== true) status = "blocked";
-              result = serializeBoundedResult(executionResult);
+              if (!resumedFromCheckpoint) {
+                const executionResult = await execute(task);
+                if (task.actionType === "run_repository_tests" && executionResult?.passed !== true) status = "blocked";
+                result = serializeBoundedResult(executionResult);
+                if (status === "completed") {
+                  const checkpoint = {
+                    phase: "result_ready",
+                    actionType: task.actionType,
+                    status,
+                    result,
+                    resultSha256: createHash("sha256").update(result).digest("hex"),
+                    preparedAt: new Date().toISOString()
+                  };
+                  const saved = await request(`/agent/v1/tasks/${encodeURIComponent(task.id)}/checkpoint`, {
+                    method: "POST",
+                    body: JSON.stringify({ checkpoint, claimToken: task.claimToken })
+                  });
+                  if (saved.checkpointSaved !== true) throw new Error("Completed task result could not be durably checkpointed.");
+                  console.log("Durable result checkpoint saved for task " + task.id + ".");
+                }
+              }
             } catch (error) {
               status = "blocked";
               retryable = Number(error?.status) === 503 ||
@@ -717,7 +752,7 @@ jobs:
               method: "POST",
               body: JSON.stringify({ status, result, retryable, claimToken: task.claimToken })
             });
-            console.log(`Bounded task ${count + 1} finished with status: ${status}; retryable=${retryable}`);
+            console.log(`Bounded task ${count + 1} finished with status: ${status}; retryable=${retryable}; resumedFromCheckpoint=${resumedFromCheckpoint}`);
           }
 
           if (Date.now() >= taskExecutionDeadline) {
