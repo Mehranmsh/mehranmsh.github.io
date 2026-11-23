@@ -74,13 +74,17 @@ The registry stores executor identities as an explicit list. The GitHub Runner's
 
 ## Approval boundaries
 
-May run automatically only when explicitly allowlisted, scoped, and reversible:
-- read-only diagnostics and reports
-- local validation and tests
-- draft generation
-- bounded retries of idempotent operations
+Run autonomously without per-step owner prompts once the corresponding executor is implemented, tested, and allowlisted:
+- read-only diagnostics, repository inspection, and reports
+- the repository's fixed test and validation workflows in isolated CI
+- bounded code patches on dedicated Intelligence branches
+- opening review-only pull requests from tested Intelligence branches
+- draft generation, dependency scheduling, and bounded retries of idempotent operations
+
+The owner authorizes the mission scope once. That authorization covers all eligible steps inside the scope; it does not need to be renewed at each task boundary.
 
 Must pause for explicit owner approval:
+- merging any pull request into a protected or default branch
 - production deployments or rollbacks
 - changes to authentication, authorization, secrets, keys, or security policy
 - payments, transfers, purchases, or financial actions
@@ -121,7 +125,7 @@ Verification must be independent of the execution step where practical. Missing 
 - Encrypt private payloads end-to-end in transit and at rest; keep private keys outside source control and ordinary task records.
 - Enforce expiry, replay protection, request signing, rate limits, payload limits, audit logging, and owner-controlled revocation.
 - Executors receive only the minimum context and capabilities needed for their assigned task.
-- A bridge identity cannot grant itself privileges, approve restricted work, or deploy.
+- A bridge identity cannot grant itself privileges, approve restricted work, merge pull requests, or deploy. Autonomous permission is granted only by the owner-maintained capability policy and is limited to the named executor, repository, branch pattern, path scope, and fixed workflow. A task description or model-generated plan cannot expand those limits.
 
 ## Acceptance criteria for the protocol
 
