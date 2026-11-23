@@ -971,3 +971,20 @@ test("private report storage preserves safe HTTP status diagnostics", () => {
   assert.ok(diagnostic.includes("status \\d{3}\\."), "HTTP status regex must match a three-digit status code");
   assert.equal(diagnostic.includes("status \\\\d{3}\\\\."), false, "regex must not search for a literal backslash-d sequence");
 });
+
+
+test("Intelligence retains owner-scoped durable memory and recent conversation context across requests", () => {
+  assert.match(workerSource, /CREATE TABLE IF NOT EXISTS intelligence_memory_items/);
+  assert.match(workerSource, /UNIQUE\(owner_uid,memory_key\)/);
+  assert.match(workerSource, /CREATE TABLE IF NOT EXISTS intelligence_chat_turns/);
+  assert.match(workerSource, /LIMIT 30\)"/);
+  assert.match(workerSource, /ORDER BY created_at DESC,rowid DESC LIMIT 12/);
+  assert.match(workerSource, /PERSISTENT PROJECT MEMORY/);
+  assert.match(workerSource, /RECENT CONVERSATION/);
+  assert.match(workerSource, /name:"remember_context"/);
+  assert.match(workerSource, /ON CONFLICT\(owner_uid,memory_key\) DO UPDATE/);
+  assert.match(workerSource, /Credentials and wallet secrets cannot be stored in memory/);
+  assert.match(workerSource, /seedIntelligenceOwnerMemory\(env,admin\.uid\)/);
+  assert.match(workerSource, /path.match\(\/\^\\\/intelligence\\\/memory\\\/\(\[\^\/\]\+\)\$\//);
+  assert.match(workerSource, /DELETE FROM intelligence_memory_items WHERE owner_uid=\? AND memory_key=\?/);
+});
