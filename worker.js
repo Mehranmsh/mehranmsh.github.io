@@ -6412,11 +6412,11 @@ export default {
             proposal = raw;
           } else if (typeof raw === "string" && raw.length > 0 && raw.length <= 12000) {
             try {
-              const cleaned = raw.trim().replace(/^\`\`\`(?:json)?\\s*/i,"").replace(/\\s*\`\`\`$/i,"");
-              const start = cleaned.indexOf("{");
-              const end = cleaned.lastIndexOf("}");
+              const text = raw.trim();
+              const start = text.indexOf("{");
+              const end = text.lastIndexOf("}");
               if (start < 0 || end <= start) throw new Error("JSON object not found");
-              proposal = JSON.parse(cleaned.slice(start,end+1));
+              proposal = JSON.parse(text.slice(start,end+1));
             } catch {
               return error("AI returned an invalid patch proposal envelope.",502);
             }
