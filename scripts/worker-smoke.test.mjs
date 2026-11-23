@@ -284,7 +284,7 @@ test("authenticated patch proposal route stores only verified metadata and retur
     "-const original = 1;",
     "+const proposed = 2;",
     ""
-  ].join("\\n");
+  ].join("\n");
   const created = await createPatchArtifactRecord({
     proposalId: "123e4567-e89b-42d3-a456-426614174000",
     createdAt: "2026-11-23T00:00:00.000Z",
