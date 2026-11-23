@@ -2802,9 +2802,16 @@ test("Agent task claim tokens fence checkpoint and result commits to the current
   const schedulerRecoveryEnd = workerSource.indexOf('// Repair only stale approval labels', schedulerRecoveryStart);
   const schedulerRecovery = workerSource.slice(schedulerRecoveryStart, schedulerRecoveryEnd);
   assert.match(schedulerRecovery, /SET status=\?,agent_claimed_at=NULL,agent_claim_token_hash=''/);
+  assert.match(schedulerRecovery, /WHERE id=\? AND status='in_progress' AND agent_claimed_at IS NOT NULL AND datetime\(agent_claimed_at\)<datetime\('now','-15 minutes'\)/,
+    "scheduler recovery must re-check stale ownership atomically before revoking a claim");
+  assert.match(claimRoute, /agent_claim_token_hash='',last_error_code='claim_expired_max_attempts'/);
+  assert.match(claimRoute, /agent_claim_token_hash='',last_error_code='claim_expired_retry'/);
   const schedulerClaimStart = workerSource.indexOf('const claimed = await env.DB.prepare(', schedulerRecoveryEnd);
   const schedulerClaimEnd = workerSource.indexOf('if (!Number(claimed?.meta?.changes || 0)) continue;', schedulerClaimStart);
   assert.match(workerSource.slice(schedulerClaimStart, schedulerClaimEnd), /agent_claim_token_hash=''/);
   assert.match(runnerSource, /claimToken: task\.claimToken/);
-  assert.doesNotMatch(runnerSource, /console\.log\([^\n]*claimToken/);
+  const runnerLogLines = runnerSource.split("\n").filter(line => /console\.(?:log|error|warn)\(/.test(line));
+  assert.ok(runnerLogLines.length > 0, "runner should retain bounded operational diagnostics");
+  assert.doesNotMatch(runnerLogLines.join("\n"), /claimToken|agentHeaders|ownerHeaders|Authorization|Bearer/,
+    "runner logs must not expose claim credentials or authorization headers");
 });
