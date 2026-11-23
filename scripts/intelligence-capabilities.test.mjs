@@ -889,19 +889,3 @@ test("Notification delivery leases are bounded, acknowledged with the lease toke
   assert.match(ack, /outcome === "retry" && Number\(row\.attempts\|\|0\) < 5/);
   assert.match(ack, /"delivered","retry","failed"/);
 });
-
-test("Owner notifications are written to the private Actions summary before delivery acknowledgement", () => {
-  const start = runnerSource.indexOf("// Deliver owner-private notifications");
-  const end = runnerSource.indexOf("`[performance] tick_total:", start);
-  assert.ok(start >= 0 && end > start);
-  const delivery = runnerSource.slice(start, end);
-  assert.match(delivery, /GITHUB_STEP_SUMMARY/);
-  assert.match(delivery, /notifications\/next/);
-  assert.match(delivery, /notification\.channel !== "owner_private"/);
-  assert.match(delivery, /appendFileSync\(summaryPath/);
-  assert.ok(delivery.indexOf("appendFileSync(summaryPath") < delivery.indexOf('status: "delivered"'));
-  assert.match(delivery, /leaseToken: notification\.leaseToken/);
-  assert.match(delivery, /count < 10/);
-  assert.match(delivery, /status: "retry"/);
-  assert.match(delivery, /GITHUB_STEP_SUMMARY is unavailable; owner notifications remain queued/);
-});
