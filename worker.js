@@ -8040,12 +8040,6 @@ export default {
       if (path === "/intelligence/chat" && method === "POST") {
         const admin = await verifyAdmin(request, env);
         if (!admin) return error("Admin authentication required", 403);
-        if (!env.AI || typeof env.AI.run !== "function") {
-          return error("Cloudflare AI binding is not available.", 503);
-        }
-        if (!await checkRateLimit(env, request, "intelligence-ai-chat", 3, 3600, 3600, admin.uid)) {
-          return error("Hourly MEHRAN INTELLIGENCE limit reached. Try again later.", 429);
-        }
         const body = await readBody(request);
         if (!body) return error("Invalid request body");
         const question = cleanText(body.message, 2000);
@@ -8059,6 +8053,39 @@ export default {
               ? "فعلاً. هر زمان برگشتی ادامه می‌دهیم."
               : "سلام. آماده‌ام؛ درخواست یا مسئله‌ات را بگو.";
           return json({success:true,reply,usage:{aiRequests:0,reason:"deterministic_short_circuit"}});
+        }
+
+        // Exact, low-ambiguity operational queries use D1 directly instead of Workers AI.
+        if (/^(وضعیتپروژهها|وضعیتپروژه|projectstatus|projectsstatus)$/u.test(lightweightMessage)) {
+          const rows = await env.DB.prepare("SELECT name,status FROM projects ORDER BY created_at DESC LIMIT 30").all();
+          const projects = rows.results || [];
+          const reply = projects.length
+            ? "وضعیت پروژه‌ها:\n" + projects.map(p => "• " + String(p.name || "بدون نام").slice(0,80) + ": " + String(p.status || "نامشخص").slice(0,40)).join("\n")
+            : "در حال حاضر پروژه‌ای برای نمایش ثبت نشده است.";
+          return json({success:true,reply,usage:{aiRequests:0,reason:"deterministic_project_status"}});
+        }
+        if (/^(آمارسوشال|وضعیتسوشال|socialmetrics|socialstats)$/u.test(lightweightMessage)) {
+          const rows = await Promise.all([
+            env.DB.prepare("SELECT COUNT(*) AS total FROM social_users").first(),
+            env.DB.prepare("SELECT COUNT(*) AS total FROM social_users WHERE is_active=1").first(),
+            env.DB.prepare("SELECT COUNT(*) AS total FROM social_posts").first(),
+            env.DB.prepare("SELECT COUNT(*) AS total FROM social_reports WHERE status='open'").first()
+          ]);
+          const reply = [
+            "آمار فعلی SOCIAL:",
+            "• کاربران ثبت‌نام‌شده: " + Number(rows[0]?.total || 0),
+            "• کاربران فعال: " + Number(rows[1]?.total || 0),
+            "• پست‌ها: " + Number(rows[2]?.total || 0),
+            "• گزارش‌های باز: " + Number(rows[3]?.total || 0)
+          ].join("\n");
+          return json({success:true,reply,usage:{aiRequests:0,reason:"deterministic_social_metrics"}});
+        }
+
+        if (!env.AI || typeof env.AI.run !== "function") {
+          return error("Cloudflare AI binding is not available.", 503);
+        }
+        if (!await checkRateLimit(env, request, "intelligence-ai-chat", 3, 3600, 3600, admin.uid)) {
+          return error("Hourly MEHRAN INTELLIGENCE limit reached. Try again later.", 429);
         }
         const budget = await reserveSocialWorkersAIBudget(env, 300, "intelligence");
         if (!budget.allowed) return error("Daily MEHRAN INTELLIGENCE or shared Workers AI allowance reached.", 429);
