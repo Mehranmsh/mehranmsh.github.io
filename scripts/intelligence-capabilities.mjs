@@ -105,18 +105,16 @@ export const INTELLIGENCE_CAPABILITIES = Object.freeze({
   }),
   propose_code_patch: freezeCapability({
     id: "propose_code_patch",
-    status: "planned",
+    status: "active",
     permissionTier: "proposal_only",
     executors: ["proposal_store"],
     requiresApproval: false,
     autonomous: true,
-    description: "Prepare and store bounded patch proposals on an isolated Intelligence branch; no direct writes to protected branches.",
+    description: "Generate and store an append-only test-only patch proposal in the private reports repository; never apply source changes.",
     inputSchema: {
-      required: ["summary", "targetPaths", "diff"],
+      required: ["objective"],
       properties: {
-        summary: { type: "string", minLength: 12, maxLength: 500 },
-        targetPaths: { type: "array", maxItems: 10, itemType: "string", maxItemLength: 240 },
-        diff: { type: "string", minLength: 20, maxLength: 20000 }
+        objective: { type: "string", minLength: 20, maxLength: 600 }
       }
     }
   }),
@@ -186,13 +184,13 @@ export const INTELLIGENCE_CAPABILITIES = Object.freeze({
 
 export const INTELLIGENCE_ACTION_TYPES = Object.freeze(
   Object.values(INTELLIGENCE_CAPABILITIES)
-    .filter((item) => item.status === "active" && ["read_only", "isolated_ci"].includes(item.permissionTier) && item.executors.length > 0)
+    .filter((item) => item.status === "active" && ["read_only", "isolated_ci", "proposal_only"].includes(item.permissionTier) && item.executors.length > 0)
     .map((item) => item.id)
 );
 
 export const PREAPPROVED_INTELLIGENCE_ACTION_TYPES = Object.freeze(
   Object.values(INTELLIGENCE_CAPABILITIES)
-    .filter((item) => item.status === "active" && item.requiresApproval === false && ["read_only", "isolated_ci"].includes(item.permissionTier))
+    .filter((item) => item.status === "active" && item.requiresApproval === false && ["read_only", "isolated_ci", "proposal_only"].includes(item.permissionTier))
     .map((item) => item.id)
 );
 
@@ -226,7 +224,7 @@ function validateValue(value, rule) {
 export function validateIntelligenceCapabilityRequest(capabilityId, input) {
   const capability = getIntelligenceCapability(capabilityId);
   if (!capability) return { ok: false, code: "unknown_capability" };
-  if (capability.status !== "active" || !["read_only", "isolated_ci"].includes(capability.permissionTier) || capability.executors.length === 0) {
+  if (capability.status !== "active" || !["read_only", "isolated_ci", "proposal_only"].includes(capability.permissionTier) || capability.executors.length === 0) {
     return { ok: false, code: capability.status === "blocked" ? "capability_blocked" : "capability_not_implemented" };
   }
   if (!input || typeof input !== "object" || Array.isArray(input)) {
