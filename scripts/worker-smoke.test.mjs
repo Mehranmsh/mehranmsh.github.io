@@ -43,6 +43,7 @@ const patchGenerationServiceUrl = moduleUrl(patchGenerationServiceSource
 );
 const workerRest = workerSource.slice(capabilityImport.length).replace(patchStoreImport, "").replace(patchGenerationImport, "");
 const workerSourceForTest = `import { storePrivatePatchArtifact } from "${patchStoreUrl}";
+import { generatePatchArtifact } from "${patchGenerationServiceUrl}";
 const INTELLIGENCE_ACTION_TYPES = ${JSON.stringify(INTELLIGENCE_ACTION_TYPES)};
 const PREAPPROVED_INTELLIGENCE_ACTION_TYPES = ${JSON.stringify(PREAPPROVED_INTELLIGENCE_ACTION_TYPES)};
 ` + workerRest;
