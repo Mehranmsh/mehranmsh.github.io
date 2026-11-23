@@ -2065,7 +2065,7 @@ test("runner executes proposal tasks only through the authenticated private gene
 
 test("agent task claim, checkpoint, and result allowlists include proposal-only work", () => {
   assert.ok(workerSource.includes('"propose_code_patch"].includes(actionType)'));
-  assert.ok(workerSource.includes('action_type IN (\\'repository_quality_check\\',\\'service_health_report\\',\\'source_security_audit\\',\\'inspect_repository\\',\\'run_repository_tests\\',\\'propose_code_patch\\')'));
+  assert.ok(workerSource.includes(`action_type IN ('repository_quality_check','service_health_report','source_security_audit','inspect_repository','run_repository_tests','propose_code_patch')`));
   assert.ok(workerSource.includes('...(item.objective ? { objective: item.objective } : {})'));
   assert.ok(workerSource.includes('actionType === "propose_code_patch"'));
   assert.ok(workerSource.includes('proposal_no_source_mutation'));
