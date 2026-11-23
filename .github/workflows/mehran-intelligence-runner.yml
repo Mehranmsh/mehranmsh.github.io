@@ -720,10 +720,24 @@ jobs:
             } catch {
               throw new Error("Stored task checkpoint is not valid JSON; refusing to silently restart the task.");
             }
+            let checkpointMatchesCurrentSchema = true;
+            if (savedCheckpoint.phase === "result_ready" && task.actionType === "source_security_audit") {
+              try {
+                const checkpointReport = JSON.parse(savedCheckpoint.result || "null");
+                checkpointMatchesCurrentSchema = checkpointReport?.type === "source_security_audit" &&
+                  checkpointReport?.mode === "deterministic_read_only_static_audit";
+              } catch {
+                checkpointMatchesCurrentSchema = false;
+              }
+              if (!checkpointMatchesCurrentSchema) {
+                console.log("Ignoring stale source-security-audit checkpoint; current Worker schema requires deterministic_read_only_static_audit.");
+              }
+            }
             if (savedCheckpoint.phase === "result_ready" &&
                 savedCheckpoint.actionType === task.actionType &&
                 typeof savedCheckpoint.result === "string" &&
                 savedCheckpoint.result.length > 0 && savedCheckpoint.result.length <= 3000 &&
+                checkpointMatchesCurrentSchema &&
                 ["completed","blocked"].includes(savedCheckpoint.status)) {
               result = savedCheckpoint.result;
               status = savedCheckpoint.status;
