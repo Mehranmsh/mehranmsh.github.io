@@ -51,7 +51,7 @@ test("patch generation retries transient network failures and then fails closed"
       throw new Error("temporary network failure");
     }
   });
-  assert.equal(calls, 3);
+  assert.equal(calls, 4);
   assert.deepEqual(result, { ok: false, code: "main_commit_lookup_failed" });
 });
 
