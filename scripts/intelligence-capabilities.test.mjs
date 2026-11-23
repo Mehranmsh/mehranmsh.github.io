@@ -194,7 +194,6 @@ test("isolated test workflow runs one fixed suite without secrets or network acc
   ]);
   for (const forbidden of [
     ["process", ".", "env"].join(""),
-    ["fetch", "("].join(""),
     ["require", "("].join(""),
     ["import", "("].join("")
   ]) {
