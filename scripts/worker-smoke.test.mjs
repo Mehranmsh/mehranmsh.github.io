@@ -252,7 +252,7 @@ test("Agent API stale-claim recovery includes package-bound allowlisted tasks", 
   assert.equal((route.match(/UPDATE intelligence_tasks SET status='blocked'/g) || []).length, 1);
   assert.equal((route.match(/UPDATE intelligence_tasks SET status='accepted'/g) || []).length, 1);
   assert.match(route, /datetime\(agent_claimed_at\) < datetime\('now','-15 minutes'\)/);
-  assert.match(route, /action_type IN \('repository_quality_check','service_health_report','source_security_audit','inspect_repository','run_repository_tests'\)/);
+  assert.match(route, /action_type IN \('repository_quality_check','service_health_report','source_security_audit','inspect_repository','run_repository_tests','propose_code_patch'\)/);
   assert.doesNotMatch(route, /work_package_id IS NULL/,
     "stale recovery must include tasks claimed from durable work packages");
 });
@@ -454,16 +454,16 @@ test("MEHRAN Intelligence Agent API is enabled only behind its dedicated bearer 
   assert.match(route, /Agent service identity is not configured/);
   assert.match(route, /requires_approval=0/);
   assert.match(route, /assigned_to IN \('mehran_intelligence','shared'\)/);
-  assert.match(route, /action_type IN \('repository_quality_check','service_health_report','source_security_audit','inspect_repository','run_repository_tests'\)/);
+  assert.match(route, /action_type IN \('repository_quality_check','service_health_report','source_security_audit','inspect_repository','run_repository_tests','propose_code_patch'\)/);
   assert.ok(route.includes("status IN ('queued','accepted','retry_wait')"), "agent claims must include retry_wait tasks");
   assert.match(route, /status='awaiting_approval' AND requires_approval=0/);
   assert.match(route, /agent_claimed_at=CURRENT_TIMESTAMP/);
-  assert.ok(route.includes("WHERE id=? AND status IN ('queued','accepted','retry_wait') AND requires_approval=0 AND assigned_to IN ('mehran_intelligence','shared') AND action_type IN ('repository_quality_check','service_health_report','source_security_audit','inspect_repository','run_repository_tests')"));
+  assert.ok(route.includes("WHERE id=? AND status IN ('queued','accepted','retry_wait') AND requires_approval=0 AND assigned_to IN ('mehran_intelligence','shared') AND action_type IN ('repository_quality_check','service_health_report','source_security_audit','inspect_repository','run_repository_tests','propose_code_patch')"));
   assert.match(route, /agent_claimed_at IS NOT NULL AND datetime\(agent_claimed_at\) < datetime\('now','-15 minutes'\)/);
   assert.match(route, /agent_claimed_at IS NOT NULL AND datetime\(agent_claimed_at\)>=datetime\('now','-15 minutes'\)/);
   assert.doesNotMatch(route, /work_package_id IS NULL AND agent_claimed_at IS NOT NULL/,
     "agent API recovery must also release expired claims from durable work packages");
-  assert.match(route, /datetime\(agent_claimed_at\)>=datetime\('now','-15 minutes'\) AND requires_approval=0 AND assigned_to IN \('mehran_intelligence','shared'\) AND action_type IN \('repository_quality_check','service_health_report','source_security_audit','inspect_repository','run_repository_tests'\)/);
+  assert.match(route, /datetime\(agent_claimed_at\)>=datetime\('now','-15 minutes'\) AND requires_approval=0 AND assigned_to IN \('mehran_intelligence','shared'\) AND action_type IN \('repository_quality_check','service_health_report','source_security_audit','inspect_repository','run_repository_tests','propose_code_patch'\)/);
   assert.match(route, /agent_claimed_at=NULL/);
   assert.match(route, /\["completed","blocked"\]/);
 });
@@ -522,7 +522,7 @@ test("Intelligence source audit cross-checks capability allowlists and owner saf
   ]) {
     assert.ok(runnerSource.includes('id: "' + checkId + '"'), "source audit must emit " + checkId);
   }
-  assert.match(runnerSource, /const capabilityActions = \["service_health_report", "repository_quality_check", "source_security_audit", "inspect_repository"\]/);
+  assert.match(runnerSource, /const capabilityActions = \["service_health_report", "repository_quality_check", "source_security_audit", "inspect_repository", "propose_code_patch"\]/);
   assert.match(runnerSource, /capabilitySections\.every\(section/);
   assert.match(runnerSource, /docs\/INTELLIGENCE_EXECUTION_PROTOCOL\.md/);
 });
@@ -1665,7 +1665,7 @@ test("Production Intelligence scheduler runs only approved read-only reports and
   const agentClaimStart = workerSource.indexOf('if (path === "/agent/v1/tasks/next" && method === "GET")');
   const agentClaimEnd = workerSource.indexOf("const checkpointMatch", agentClaimStart);
   const agentClaimRoute = workerSource.slice(agentClaimStart, agentClaimEnd);
-  assert.match(agentClaimRoute, /action_type IN \('repository_quality_check','service_health_report','source_security_audit','inspect_repository','run_repository_tests'\)/);
+  assert.match(agentClaimRoute, /action_type IN \('repository_quality_check','service_health_report','source_security_audit','inspect_repository','run_repository_tests','propose_code_patch'\)/);
   assert.doesNotMatch(scheduledBody, /inspect_repository/, "Worker scheduled executor must not claim the GitHub-only inspection capability.");
   assert.match(workerSource, /INSERT OR IGNORE INTO intelligence_tasks/);
   assert.match(workerSource, /'github-inbox',\?,'\{\}'/);
@@ -1995,6 +1995,97 @@ test("MCP work-package validation rejects arbitrary actions, forward dependencie
   assert.equal(validateIntelligenceWorkPackage({ ...base, idempotencyKey: "short" }).ok, false);
 });
 
+
+test("work-package validation accepts only a bounded objective for private patch proposal tasks", () => {
+  const objective = "Add one focused regression test for an uncovered parser boundary.";
+  const base = {
+    idempotencyKey: "proposal-plan-2026-11-23-a1",
+    title: "Private test proposal",
+    objective: "Propose a narrow improvement to the test suite.",
+    tasks: [{
+      taskId: "proposal",
+      title: "Generate one test-only proposal",
+      actionType: "propose_code_patch",
+      objective
+    }]
+  };
+  const accepted = validateIntelligenceWorkPackage(base);
+  assert.equal(accepted.ok, true);
+  assert.equal(accepted.tasks[0].objective, objective);
+  assert.equal(validateIntelligenceWorkPackage({
+    ...base, tasks: [{ ...base.tasks[0], objective: "too short" }]
+  }).ok, false);
+  assert.equal(validateIntelligenceWorkPackage({
+    ...base, tasks: [{ taskId: "proposal", title: "Proposal", actionType: "propose_code_patch" }]
+  }).ok, false);
+  assert.equal(validateIntelligenceWorkPackage({
+    ...base, tasks: [{ ...base.tasks[0], paths: ["worker.js"] }]
+  }).ok, false);
+  assert.equal(validateIntelligenceWorkPackage({
+    ...base, tasks: [{ ...base.tasks[0], diff: "untrusted caller-supplied diff" }]
+  }).ok, false);
+});
+
+
+test("owner-enabled MCP work-package schema exposes proposal-only tasks with a bounded objective", () => {
+  const start = workerSource.indexOf('if (path === "/mcp" && method === "POST")');
+  const end = workerSource.indexOf("const publicBridgeResultMatch", start);
+  assert.ok(start >= 0 && end > start);
+  const mcp = workerSource.slice(start, end);
+  assert.ok(mcp.includes('"propose_code_patch"'));
+  assert.ok(mcp.includes('objective:{type:"string",minLength:20,maxLength:600}'));
+  assert.ok(mcp.includes("private append-only test proposal"));
+  assert.ok(mcp.includes("never apply patches"));
+});
+
+test("proposal result verifier accepts private artifact metadata only and rejects source mutation claims", () => {
+  const report = {
+    type: "propose_code_patch",
+    generatedAt: "2026-11-23T00:00:00.000Z",
+    repository: "Mehranmsh/mehranmsh.github.io",
+    proposalId: "123e4567-e89b-42d3-a456-426614174000",
+    baseSha: "a".repeat(40),
+    targetPath: "scripts/intelligence-capabilities.test.mjs",
+    summary: "Add a narrow parser regression test to the existing fixed suite.",
+    path: "patch-proposals/2026/11/123e4567-e89b-42d3-a456-426614174000.json",
+    artifactSha256: "b".repeat(64),
+    diffSha256: "c".repeat(64),
+    status: "stored",
+    mode: "append_only_test_proposal",
+    applied: false,
+    branchCreated: false,
+    pullRequestCreated: false,
+    deployed: false,
+    budget: { reservedCredits: 250, product: "intelligence" }
+  };
+  assert.equal(verifyIntelligenceReport("propose_code_patch", report).passed, true);
+  assert.equal(verifyIntelligenceReport("propose_code_patch", { ...report, applied: true }).passed, false);
+  assert.equal(verifyIntelligenceReport("propose_code_patch", { ...report, path: "reports/public.json" }).passed, false);
+  assert.equal(verifyIntelligenceReport("propose_code_patch", { ...report, diff: "must never be returned" }).passed, false);
+});
+
+test("runner executes proposal tasks only through the authenticated private generator API", () => {
+  const start = runnerSource.indexOf('if (task.actionType === "propose_code_patch")');
+  const end = runnerSource.indexOf('if (task.actionType === "service_health_report")', start);
+  assert.ok(start >= 0 && end > start);
+  const executor = runnerSource.slice(start, end);
+  assert.ok(executor.includes('/agent/v1/patch-proposals/generate'));
+  assert.ok(executor.includes('request("/agent/v1/patch-proposals/generate"'));
+  assert.ok(executor.includes('agentHeaders, 90000'));
+  assert.ok(executor.includes('objective: payload.objective'));
+  assert.ok(executor.includes('applied: false'));
+  assert.ok(executor.includes('pullRequestCreated: false'));
+  assert.equal(executor.includes('git '), false);
+});
+
+test("agent task claim, checkpoint, and result allowlists include proposal-only work", () => {
+  assert.ok(workerSource.includes('"propose_code_patch"].includes(actionType)'));
+  assert.ok(workerSource.includes(`action_type IN ('repository_quality_check','service_health_report','source_security_audit','inspect_repository','run_repository_tests','propose_code_patch')`));
+  assert.ok(workerSource.includes('...(item.objective ? { objective: item.objective } : {})'));
+  assert.ok(workerSource.includes('actionType === "propose_code_patch"'));
+  assert.ok(workerSource.includes('proposal_no_source_mutation'));
+});
+
 test("private Intelligence runner inline JavaScript parses as an ES module", () => {
   const marker = "node --input-type=module <<'NODE'";
   const markerAt = runnerSource.indexOf(marker);
@@ -2078,7 +2169,7 @@ test("MCP work-package tools are exposed only to the bridge when owner orchestra
   assert.ok(mcp.includes('name:"create_intelligence_work_package"'));
   assert.ok(mcp.includes('name:"get_intelligence_work_package"'));
   assert.ok(mcp.includes('if (!packageIntakeEnabled) return rpcError(-32003'));
-  assert.ok(mcp.includes('["service_health_report","repository_quality_check","source_security_audit","inspect_repository"]'));
+  assert.ok(mcp.includes('["service_health_report","repository_quality_check","source_security_audit","inspect_repository","propose_code_patch"]'));
 });
 
 

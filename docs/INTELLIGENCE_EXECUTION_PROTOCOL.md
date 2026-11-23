@@ -156,4 +156,16 @@ This is a runtime foundation, not the complete protocol and not yet production-a
 - Automatic push notification delivery is not required for the core protocol. Package status transitions use compare-and-set updates so concurrent report requests cannot enqueue duplicate transition notifications. PR #162 provides an owner-token-protected outbox status, claim, and acknowledgement API; atomic status/audit/outbox writes; unique event IDs per package status transition; five-minute delivery leases with a per-claim random lease token required for acknowledgement; stale-acknowledgement rejection; bounded exponential retry capped at five delivery attempts, including abandoned leases; and at-least-once delivery semantics with receiver-side event-ID deduplication. ChatGPT should retrieve package status and the final report through MCP when the owner returns. Telegram/email/push receivers remain optional and are not part of the core path.
 - End-to-end tests demonstrating restart recovery, independent task progress, transient failure recovery, duplicate delivery, owner approval gates, and final report retrieval.
 
+
+## Proposal-only self-improvement execution
+
+- `propose_code_patch` is a pre-authorized, proposal-only task. The planner may select it only when the owner's mission explicitly requests a self-improvement or regression-test proposal.
+- The task payload contains one bounded `objective` string (20-600 characters). The runner forwards only that objective to the authenticated `/agent/v1/patch-proposals/generate` endpoint.
+- The generator reads the current public `main` commit and exactly one allowlisted test file, `scripts/intelligence-capabilities.test.mjs`. Source reads are streamed with a 100 KB ceiling and strict UTF-8 decoding.
+- Workers AI must return a single append-only unified diff that adds tests at the exact end of that file. The validator enforces the current base SHA, exact path, one EOF hunk, zero deletions, and the existing 8 KB patch limit.
+- A verified content-addressed artifact is stored create-only in the private reports repository. D1 stores only proposal metadata and hashes. The task result verifier rejects a returned diff or any claim that a patch was applied, a branch/PR was created, or a deployment occurred.
+- Each generation reserves 250 credits from the existing Intelligence daily Workers AI budget. Budget exhaustion blocks generation without bypassing the reservation guard.
+- This action does not apply a patch, write to the application repository, create a branch, create a pull request, merge, or deploy. `create_pull_request` remains planned and non-executable; merge and deploy remain owner-controlled.
+- A successful task means only that a validated private proposal artifact was stored. It does not mean the proposed tests passed or that the codebase changed.
+
 Do not describe the protocol as active until the acceptance criteria have passed in an end-to-end test. Keep public GitHub intake limited to non-sensitive signals. Do not expand unrelated company modules as part of this work.

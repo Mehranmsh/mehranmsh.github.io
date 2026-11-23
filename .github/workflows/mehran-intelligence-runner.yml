@@ -244,6 +244,53 @@ jobs:
             if (task.actionType === "run_repository_tests") {
               return runFixedRepositoryTests(task);
             }
+            if (task.actionType === "propose_code_patch") {
+              let payload = {};
+              try {
+                payload = typeof task.actionPayload === "string" ? JSON.parse(task.actionPayload) : (task.actionPayload || {});
+              } catch {
+                throw new Error("Patch proposal task payload is not valid JSON.");
+              }
+              if (!payload || Object.keys(payload).sort().join(",") !== "objective,sourceTaskId" ||
+                  typeof payload.objective !== "string" || payload.objective.trim().length < 20 ||
+                  payload.objective.length > 600) {
+                throw new Error("Patch proposal task payload is outside the exact objective-only schema.");
+              }
+              const proposal = await request("/agent/v1/patch-proposals/generate", {
+                method: "POST",
+                body: JSON.stringify({ objective: payload.objective })
+              }, agentHeaders, 90000);
+              if (!proposal.success || proposal.repository !== "Mehranmsh/mehranmsh.github.io" ||
+                  proposal.mode !== "append_only_test_proposal" || proposal.status !== "stored" ||
+                  proposal.applied !== false || proposal.branchCreated !== false ||
+                  proposal.pullRequestCreated !== false || proposal.deployed !== false ||
+                  proposal.targetPath !== "scripts/intelligence-capabilities.test.mjs" ||
+                  typeof proposal.proposalId !== "string" || typeof proposal.baseSha !== "string" ||
+                  typeof proposal.artifactSha256 !== "string" || typeof proposal.diffSha256 !== "string" ||
+                  !proposal.budget || proposal.budget.product !== "intelligence" ||
+                  proposal.budget.reservedCredits !== 250) {
+                throw new Error("Patch proposal service returned an invalid or unsafe result envelope.");
+              }
+              return {
+                type: task.actionType,
+                generatedAt: new Date().toISOString(),
+                repository: proposal.repository,
+                proposalId: proposal.proposalId,
+                baseSha: proposal.baseSha,
+                targetPath: proposal.targetPath,
+                summary: String(proposal.summary || "").slice(0,500),
+                path: String(proposal.path || "").slice(0,240),
+                artifactSha256: proposal.artifactSha256,
+                diffSha256: proposal.diffSha256,
+                status: proposal.status,
+                mode: proposal.mode,
+                applied: false,
+                branchCreated: false,
+                pullRequestCreated: false,
+                deployed: false,
+                budget: proposal.budget
+              };
+            }
             if (task.actionType === "service_health_report") {
               const health = await request("/health", {}, { "Accept": "application/json" });
               if (health.status !== "online" || health.database !== true) {
@@ -405,7 +452,7 @@ jobs:
               const validationSource = validationStart >= 0 && validationEnd > validationStart ? workerSource.text.slice(validationStart, validationEnd) : "";
               const agentSource = agentStart >= 0 && agentEnd > agentStart ? workerSource.text.slice(agentStart, agentEnd) : "";
               const mcpSource = mcpStart >= 0 && mcpEnd > mcpStart ? workerSource.text.slice(mcpStart, mcpEnd) : "";
-              const capabilityActions = ["service_health_report", "repository_quality_check", "source_security_audit", "inspect_repository"];
+              const capabilityActions = ["service_health_report", "repository_quality_check", "source_security_audit", "inspect_repository", "propose_code_patch"];
               const capabilitySections = [plannerSource, validationSource, agentSource, mcpSource, runnerSource.text];
               const capabilityAllowlistAligned = capabilitySections.every(section =>
                 section.length > 0 && capabilityActions.every(action => section.includes(action))
