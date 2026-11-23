@@ -109,6 +109,7 @@ test("PR creation schema requires a scoped proposal branch and immutable head SH
 });
 
 
+// Autonomous metadata is policy only; planned capabilities remain non-executable until an executor ships.
 test("safe self-improvement work is pre-authorized without activating missing executors", () => {
   for (const id of ["inspect_repository", "run_repository_tests", "propose_code_patch", "create_pull_request"]) {
     const capability = getIntelligenceCapability(id);
