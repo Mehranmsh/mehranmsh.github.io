@@ -3078,3 +3078,71 @@ test("real Worker task routes fence concurrent, expired, superseded, and replaye
   }, env);
   assert.equal(replay.status, 409, "terminal claim token must not be replayable");
 });
+
+
+test("real Worker task recovery preserves durable checkpoints and fences the crashed runner", async () => {
+  const token = "test-agent-token-".padEnd(48, "x");
+  const { db, state } = makeClaimLifecycleDb();
+  const env = { DB: db, MEHRAN_AGENT_TOKEN: token };
+  const auth = { Authorization: "Bearer " + token };
+
+  const firstClaimResponse = await request("/agent/v1/tasks/next", {
+    method: "GET", headers: auth
+  }, env);
+  assert.equal(firstClaimResponse.status, 200);
+  const firstClaim = (await firstClaimResponse.json()).task;
+  assert.ok(firstClaim);
+  const firstToken = firstClaim.claimToken;
+
+  const durableCheckpoint = {
+    baseSha: "b".repeat(40),
+    phase: "proposal_generation_pending",
+    durableMarker: "preserve-on-reclaim"
+  };
+  const checkpointResponse = await request("/agent/v1/tasks/" + state.row.id + "/checkpoint", {
+    method: "POST", headers: auth,
+    body: { claimToken: firstToken, checkpoint: durableCheckpoint }
+  }, env);
+  assert.equal(checkpointResponse.status, 200);
+  assert.deepEqual(JSON.parse(state.row.checkpoint_json), durableCheckpoint);
+
+  // Simulate a runner crash and expiry. Recovery must revoke ownership but
+  // leave the last durable checkpoint untouched for the replacement runner.
+  state.expired = true;
+  const replacementResponse = await request("/agent/v1/tasks/next", {
+    method: "GET", headers: auth
+  }, env);
+  assert.equal(replacementResponse.status, 200);
+  const replacement = (await replacementResponse.json()).task;
+  assert.ok(replacement);
+  assert.notEqual(replacement.claimToken, firstToken);
+  assert.equal(replacement.checkpoint, JSON.stringify(durableCheckpoint));
+  assert.deepEqual(JSON.parse(state.row.checkpoint_json), durableCheckpoint);
+  assert.equal(state.row.status, "in_progress");
+  assert.match(state.row.agent_claim_token_hash, /^[A-Za-z0-9_-]{43}$/);
+
+  const staleCheckpoint = await request("/agent/v1/tasks/" + state.row.id + "/checkpoint", {
+    method: "POST", headers: auth,
+    body: { claimToken: firstToken, checkpoint: { corruptedByOldRunner: true } }
+  }, env);
+  assert.equal(staleCheckpoint.status, 409);
+  assert.deepEqual(JSON.parse(state.row.checkpoint_json), durableCheckpoint);
+
+  const staleResult = await request("/agent/v1/tasks/" + state.row.id + "/result", {
+    method: "POST", headers: auth,
+    body: { claimToken: firstToken, status: "blocked", result: "stale runner must not finish task" }
+  }, env);
+  assert.equal(staleResult.status, 409);
+  assert.equal(state.row.status, "in_progress");
+
+  const resumedCheckpoint = {
+    ...durableCheckpoint,
+    phase: "proposal_generation_resumed"
+  };
+  const resumed = await request("/agent/v1/tasks/" + state.row.id + "/checkpoint", {
+    method: "POST", headers: auth,
+    body: { claimToken: replacement.claimToken, checkpoint: resumedCheckpoint }
+  }, env);
+  assert.equal(resumed.status, 200);
+  assert.deepEqual(JSON.parse(state.row.checkpoint_json), resumedCheckpoint);
+});
