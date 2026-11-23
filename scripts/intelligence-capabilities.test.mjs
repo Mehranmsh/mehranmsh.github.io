@@ -242,6 +242,8 @@ test("isolated test workflow runs one fixed suite without secrets or network acc
     "./intelligence-patch-policy.mjs",
     "./intelligence-patch-artifact.mjs",
     "./intelligence-private-patch-store.mjs",
+    "./intelligence-patch-generation.mjs",
+    "./intelligence-patch-generation-service.mjs",
     "./intelligence-capabilities.mjs"
   ]);
   for (const forbidden of [
@@ -409,7 +411,7 @@ test("private patch store creates an immutable artifact only in the reports repo
   });
   assert.equal(result.stored, true);
   assert.equal(result.alreadyExists, false);
-  assert.equal(calls.length, 3);
+  assert.equal(calls.length, 2);
   assert.match(calls[0].url, /repos\/Mehranmsh\/mehran-intelligence-reports\/contents\/patch-proposals\/2026\/11\//);
   assert.equal(calls[0].options.method, "GET");
   assert.equal(calls[1].options.method, "PUT");
@@ -510,7 +512,7 @@ test("generated patch validator rejects replacements, non-EOF hunks, and extra f
   const base = { baseSha: "c".repeat(40), sourceLineCount: 100, summary: "Reject unsafe generated patch mutations" };
   assert.equal(validateGeneratedPatch({ ...base, diff: replacement }).code, "patch_not_append_only");
   assert.equal(validateGeneratedPatch({ ...base, diff: nonEof }).code, "patch_not_appended_at_eof");
-  assert.equal(validateGeneratedPatch({ ...base, diff: nonEof.replace(path, "worker.js") }).code, "path_not_allowed");
+  assert.equal(validateGeneratedPatch({ ...base, diff: nonEof.replace(path, "worker.js") }).code, "patch_path_mismatch");
 });
 
 test("Workers AI patch generation rejects stale bases before budget or model use", async () => {
