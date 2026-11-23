@@ -1051,6 +1051,18 @@ test("patch proposal API rejects unexpected request fields before storage", () =
   assert.match(route, /INSERT OR IGNORE INTO intelligence_patch_proposals/);
   assert.doesNotMatch(route, /diff\s*:/, "API response must not echo patch contents");
 });
+test("private report finalization recovery is owner-authenticated and re-discovers terminal packages", () => {
+  const agentStart = workerSource.indexOf('if (path.startsWith("/agent/v1/"))');
+  const agentEnd = workerSource.indexOf('if (path === "/health"', agentStart);
+  const agentRoute = workerSource.slice(agentStart, agentEnd);
+  assert.match(agentRoute, /path === "\/agent\/v1\/work-packages\/pending-finalization" && method === "GET"/);
+  assert.match(agentRoute, /MEHRAN_ORCHESTRATOR_TOKEN/);
+  assert.match(agentRoute, /status IN \('completed','attention_required'\).*LIMIT 20/);
+  assert.match(runnerSource, /pending-finalization/);
+  assert.match(runnerSource, /for \(const id of \(Array\.isArray\(pending\.workPackageIds\)/);
+  assert.match(runnerSource, /Re-discover terminal packages on every tick/);
+});
+
 test("MEHRAN Intelligence Agent API is enabled only behind its dedicated bearer secret", () => {
   const start = workerSource.indexOf('if (path.startsWith("/agent/v1/"))');
   const end = workerSource.indexOf('if (path === "/health"', start);
