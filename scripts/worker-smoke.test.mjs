@@ -387,34 +387,69 @@ test("prepared private patch artifact recovery verifies the exact path and full 
     diff
   });
   const path = "patch-proposals/2026/11/123e4567-e89b-42d3-a456-426614174001.json";
-  const originalFetch = globalThis.fetch;
-  globalThis.fetch = async () => new Response(JSON.stringify({
+  const fetchImpl = async () => new Response(JSON.stringify({
     path,
     encoding: "base64",
     content: Buffer.from(JSON.stringify(created.artifact), "utf8").toString("base64")
   }), { status: 200 });
-  try {
+  {
     const verified = await patchStoreModule.verifyPrivatePatchArtifactAtPath({
-      token: "r".repeat(48), path, artifactSha256: created.artifactSha256
+      token: "r".repeat(48), path, artifactSha256: created.artifactSha256, fetchImpl
     });
     assert.equal(verified.stored, true);
     assert.equal(verified.alreadyExists, true);
     assert.equal(verified.path, path);
 
     const wrongDigest = await patchStoreModule.verifyPrivatePatchArtifactAtPath({
-      token: "r".repeat(48), path, artifactSha256: "f".repeat(64)
+      token: "r".repeat(48), path, artifactSha256: "f".repeat(64), fetchImpl
     });
     assert.equal(wrongDigest.stored, false);
     assert.equal(wrongDigest.code, "artifact_id_conflict");
 
     const unsafePath = await patchStoreModule.verifyPrivatePatchArtifactAtPath({
-      token: "r".repeat(48), path: "../outside.json", artifactSha256: created.artifactSha256
+      token: "r".repeat(48), path: "../outside.json", artifactSha256: created.artifactSha256, fetchImpl
     });
     assert.equal(unsafePath.stored, false);
     assert.equal(unsafePath.code, "invalid_artifact_lookup");
-  } finally {
-    globalThis.fetch = originalFetch;
   }
+});
+
+test("private patch artifact storage treats a matching existing artifact as idempotent", async () => {
+  const targetPath = "scripts/intelligence-capabilities.test.mjs";
+  const diff = [
+    `--- a/${targetPath}`,
+    `+++ b/${targetPath}`,
+    "@@ -1 +1 @@",
+    "+// deterministic recovery fixture",
+    ""
+  ].join("\\n");
+  const created = await createPatchArtifactRecord({
+    proposalId: "123e4567-e89b-42d3-a456-426614174002",
+    createdAt: "2026-11-23T00:00:00.000Z",
+    baseSha: "c".repeat(40),
+    summary: "Idempotent storage fixture",
+    targetPaths: [targetPath],
+    diff
+  });
+  const path = "patch-proposals/2026/11/123e4567-e89b-42d3-a456-426614174002.json";
+  let calls = 0;
+  const fetchImpl = async (_url, options) => {
+    calls += 1;
+    assert.equal(options.method, "GET", "matching artifact recovery must not issue a PUT");
+    return new Response(JSON.stringify({
+      path,
+      encoding: "base64",
+      content: Buffer.from(JSON.stringify(created.artifact), "utf8").toString("base64")
+    }), { status: 200 });
+  };
+  const stored = await patchStoreModule.storePrivatePatchArtifact({
+    token: "r".repeat(48), artifact: created.artifact,
+    artifactSha256: created.artifactSha256, fetchImpl
+  });
+  assert.equal(stored.stored, true);
+  assert.equal(stored.alreadyExists, true);
+  assert.equal(stored.path, path);
+  assert.equal(calls, 1);
 });
 
 test("authenticated patch proposal route is bound to the dedicated agent token", async () => {
