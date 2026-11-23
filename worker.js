@@ -5449,7 +5449,7 @@ async function refreshIntelligenceWorkPackageSnapshot(env, packageId) {
     await env.DB.batch([
       env.DB.prepare("UPDATE intelligence_work_packages SET status=?,report_json=?,updated_at=CURRENT_TIMESTAMP WHERE id=?").bind(status,JSON.stringify(report),packageId),
       env.DB.prepare("INSERT INTO intelligence_task_events(id,work_package_id,task_id,event_type,from_status,to_status,actor,details_json) VALUES(?,?,?,'work_package_status_changed',?,?, 'scheduled_runner',?)")
-        .bind(crypto.randomUUID(),packageId,"package:"+packageId,pkg.status || "queued",status,details),
+        .bind(eventId,packageId,"package:"+packageId,pkg.status || "queued",status,details),
       env.DB.prepare("INSERT OR IGNORE INTO intelligence_notification_outbox(id,event_id,channel,payload_json,status) VALUES(?,?, 'owner_private',?,'pending')")
         .bind(crypto.randomUUID(),eventId,JSON.stringify({eventId,type:"work_package_status_changed",workPackageId:packageId,status,counts,generatedAt:report.generatedAt}))
     ]);
