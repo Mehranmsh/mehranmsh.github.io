@@ -805,3 +805,26 @@ test("Intelligence task result commits require the live claim and apply bounded 
   assert.match(resultRoute, /agent_claim_token_hash='',next_attempt_at=\?/);
   assert.match(resultRoute, /Task claim expired or changed before result commit/);
 });
+
+test("Patch generation replay is idempotent across stored, prepared, processing, and terminal states", () => {
+  const start = workerSource.indexOf('if (path === "/agent/v1/patch-proposals/generate" && method === "POST")');
+  const end = workerSource.indexOf('if (path === "/agent/v1/patch-proposals" && method === "POST")', start);
+  assert.ok(start >= 0 && end > start);
+  const route = workerSource.slice(start, end);
+  const storedReplay = route.indexOf('if (existing.status === "stored") return responseFor(existing)');
+  const preparedRecovery = route.indexOf('if (existing.status === "prepared")');
+  const processingGuard = route.indexOf('if (existing.status === "processing")');
+  const terminalGuard = route.indexOf('return error("This generation request is terminal; submit a new request ID to retry.",409)');
+  const freshReservation = route.indexOf("INSERT OR IGNORE INTO intelligence_patch_generation_requests");
+  const inference = route.indexOf("const generated = await generatePatchArtifact");
+  assert.ok(storedReplay >= 0 && preparedRecovery > storedReplay);
+  assert.ok(processingGuard > preparedRecovery && terminalGuard > processingGuard);
+  assert.ok(freshReservation > terminalGuard && inference > freshReservation);
+  assert.match(route, /if \(existing\.status === "stored"\) return responseFor\(existing\)/);
+  assert.match(route, /if \(existing\.status === "prepared"\)[\s\S]*?verifyPrivatePatchArtifactAtPath/);
+  assert.match(route, /if \(current\?\.status === "processing"\) return error\("This generation request is already in progress; retry the same request ID later\.",409\)/);
+  assert.match(route, /status='failed',failure_code='processing_timeout'/);
+  assert.match(route, /The previous generation attempt expired; submit a new request ID/);
+  assert.match(route, /if \(existing\.status === "processing"\)[\s\S]*?return error\("The previous generation attempt expired; submit a new request ID\.",409\)/);
+  assert.match(route, /if \(existing\.status === "prepared"\)[\s\S]*?finalizePatchGenerationRequest/);
+});
