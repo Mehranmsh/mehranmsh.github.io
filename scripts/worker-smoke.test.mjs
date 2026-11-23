@@ -247,6 +247,8 @@ test("proposal-only work-package tasks require a bounded objective", () => {
     idempotencyKey: "patch-proposal-queue-001",
     title: "Prepare a bounded test proposal",
     objective: "Generate one private regression-test proposal",
+    priority: "normal",
+    scope: { modules: ["intelligence"], private: true },
     tasks: [{
       taskId: "patch", title: "Propose a regression test", description: "Create a narrow test-only proposal",
       actionType: "propose_code_patch", dependsOn: [], objective: "Add regression coverage for an identified validation edge case"
