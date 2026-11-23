@@ -44,6 +44,15 @@ Additional terminal or holding states:
 
 A task is never `completed` merely because a command returned exit code zero. It reaches `completed` only after its acceptance checks pass and evidence is stored.
 
+## Executor routing contract
+
+The capability registry is the canonical routing map:
+- `project_status_report` and `social_metrics_report`: Worker Cron scheduler only.
+- `service_health_report` and `repository_quality_check`: Worker Cron scheduler and GitHub Actions Runner are both eligible executors. Atomic task claiming ensures only one executor claims a task at a time.
+- `source_security_audit`: GitHub Actions Runner only.
+
+The GitHub Runner action allowlist is derived from registry entries that include the GitHub Actions executor. The Worker Cron scheduler retains its own bounded action selection. A capability being active does not imply that every executor can run it. Any routing change must update registry metadata, action derivation, and regression tests together.
+
 ## Planning and dependency rules
 
 1. Convert each owner request into a work package and a dependency graph.
