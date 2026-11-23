@@ -379,6 +379,13 @@ test("AI patch generation endpoint has a strict bounded request and storage-only
   assert.match(route, /verifyPrivatePatchArtifactAtPath/);
   assert.match(route, /finalizePatchGenerationRequest/);
   assert.match(route, /reservation\?\.meta\?\.changes/);
+  assert.ok(route.indexOf("INSERT OR IGNORE INTO intelligence_patch_generation_requests") <
+    route.indexOf('checkRateLimit(env,request,"intelligence-patch-generation",3,86400,86400)'),
+    "only the atomic single-winner reservation may consume an IP rate-limit slot");
+  assert.match(route, /failure_code='rate_limited'/);
+  assert.ok(route.indexOf('checkRateLimit(env,request,"intelligence-patch-generation",3,86400,86400)') <
+    route.indexOf("const generated = await generatePatchArtifact"),
+    "rate limiting must still happen before any AI generation or budget reservation");
   assert.match(route, /existing\.status === "stored"/);
   assert.match(route, /status='prepared'/);
   assert.doesNotMatch(route, /diff\s*:/);
