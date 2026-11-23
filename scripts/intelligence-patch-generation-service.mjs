@@ -45,6 +45,44 @@ function extractJsonObject(raw) {
   return "";
 }
 
+async function fetchCurrentMainCommit(fetchImpl) {
+  const url = `https://api.github.com/repos/${REPOSITORY}/commits/main`;
+  const headers = {
+    "Accept": "application/vnd.github+json",
+    "User-Agent": "MEHRAN-INTELLIGENCE-Patch-Generator"
+  };
+  for (let attempt = 0; attempt < 3; attempt++) {
+    let response;
+    try {
+      response = await fetchImpl(url, {
+        headers,
+        signal: AbortSignal.timeout(8000)
+      });
+    } catch {
+      if (attempt === 2) return fail("main_commit_lookup_failed");
+      await new Promise(resolve => setTimeout(resolve, 250 * (attempt + 1)));
+      continue;
+    }
+    if ((response.status >= 500 || response.status === 429) && attempt < 2) {
+      try { await response.body?.cancel(); } catch {}
+      await new Promise(resolve => setTimeout(resolve, 250 * (attempt + 1)));
+      continue;
+    }
+    if (!response.ok) return fail("main_commit_lookup_failed");
+    try {
+      const payload = await response.json();
+      if (typeof payload?.sha !== "string" || !/^[a-f0-9]{40}$/.test(payload.sha)) {
+        return fail("main_commit_lookup_failed");
+      }
+      return { ok: true, sha: payload.sha };
+    } catch {
+      if (attempt === 2) return fail("main_commit_lookup_failed");
+      await new Promise(resolve => setTimeout(resolve, 250 * (attempt + 1)));
+    }
+  }
+  return fail("main_commit_lookup_failed");
+}
+
 async function readBoundedText(response, maxBytes) {
   const declaredLength = Number(response.headers.get("Content-Length") || 0);
   if (Number.isFinite(declaredLength) && declaredLength > maxBytes) {
@@ -96,19 +134,9 @@ export async function generatePatchArtifact({
   if (typeof reserveBudget !== "function") return fail("budget_guard_unavailable");
   if (typeof baseSha !== "string" || !/^[a-f0-9]{40}$/.test(baseSha)) return fail("invalid_base_sha");
 
-  const headers = {
-    "Accept": "application/vnd.github+json",
-    "User-Agent": "MEHRAN-INTELLIGENCE-Patch-Generator"
-  };
-  let mainResponse;
-  try {
-    mainResponse = await fetchImpl(`https://api.github.com/repos/${REPOSITORY}/commits/main`, { headers });
-  } catch {
-    return fail("main_commit_lookup_failed");
-  }
-  if (!mainResponse.ok) return fail("main_commit_lookup_failed");
-  const mainCommit = await mainResponse.json();
-  if (mainCommit?.sha !== baseSha) return fail("stale_base_sha");
+  const mainCommit = await fetchCurrentMainCommit(fetchImpl);
+  if (!mainCommit.ok) return mainCommit;
+  if (mainCommit.sha !== baseSha) return fail("stale_base_sha");
 
   let sourceResponse;
   try {
@@ -165,15 +193,9 @@ export async function generatePatchArtifact({
     return fail("model_output_schema_invalid");
   }
 
-  let finalMainResponse;
-  try {
-    finalMainResponse = await fetchImpl(`https://api.github.com/repos/${REPOSITORY}/commits/main`, { headers });
-  } catch {
-    return fail("main_commit_recheck_failed");
-  }
-  if (!finalMainResponse.ok) return fail("main_commit_recheck_failed");
-  const finalMainCommit = await finalMainResponse.json();
-  if (finalMainCommit?.sha !== baseSha) return fail("stale_base_sha");
+  const finalMainCommit = await fetchCurrentMainCommit(fetchImpl);
+  if (!finalMainCommit.ok) return fail("main_commit_recheck_failed");
+  if (finalMainCommit.sha !== baseSha) return fail("stale_base_sha");
 
   const sourceLineCount = source.endsWith("\n") ? source.split("\n").length - 1 : source.split("\n").length;
   const validated = validateGeneratedPatch({
