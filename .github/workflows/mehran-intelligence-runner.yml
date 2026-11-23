@@ -740,7 +740,7 @@ jobs:
               // One bounded evidence-driven follow-up is created only from the original
               // self-assessment package. Its fixed idempotency key prevents duplicates,
               // and it is deliberately terminal: follow-up packages cannot recursively spawn missions.
-              if (workPackageId === selfImprovementPackageId && finalState.workPackage?.status === "completed") {
+              if (workPackageId === selfImprovementPackageId && finalState.workPackage?.status === "completed" && finalState.reportStorage?.stored === true) {
                 const taskEvidence = (Array.isArray(finalState.tasks) ? finalState.tasks : [])
                   .slice(0, 6)
                   .map(item => ({
