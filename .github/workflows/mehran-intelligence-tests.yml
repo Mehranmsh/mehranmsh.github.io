@@ -85,4 +85,4 @@ jobs:
             --mount "type=bind,src=${GITHUB_WORKSPACE},dst=/workspace,readonly" \
             --workdir /workspace \
             node:22-alpine@sha256:1314fb30ec37592d5845e5a160d522c0e680972aa534549940b8d73bde88481a \
-            node --test scripts/intelligence-capabilities.test.mjs
+            sh -c 'node --check worker.js && node --check scripts/intelligence-capabilities.mjs && node --test scripts/intelligence-capabilities.test.mjs'
