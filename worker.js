@@ -8187,7 +8187,7 @@ export default {
               } else if (name === "get_project_status") {
                 const projects = Array.isArray(toolResult.projects) ? toolResult.projects : [];
                 summaries.push(projects.length
-                  ? "وضعیت پروژه‌ها:\\n" + projects.map(p => "• " + String(p.name || "بدون نام").slice(0,80) + ": " + String(p.status || "نامشخص").slice(0,40)).join("\\n")
+                  ? "وضعیت پروژه‌ها:\n" + projects.map(p => "• " + String(p.name || "بدون نام").slice(0,80) + ": " + String(p.status || "نامشخص").slice(0,40)).join("\n")
                   : "پروژه‌ای برای نمایش ثبت نشده است.");
               } else if (name === "get_social_metrics") {
                 summaries.push([
@@ -8196,20 +8196,20 @@ export default {
                   "• کاربران فعال: " + Number(toolResult.activeUsers || 0),
                   "• پست‌ها: " + Number(toolResult.posts || 0),
                   "• گزارش‌های باز: " + Number(toolResult.openReports || 0)
-                ].join("\\n"));
+                ].join("\n"));
               } else if (name === "list_collaboration_tasks") {
                 const tasks = Array.isArray(toolResult.tasks) ? toolResult.tasks : [];
                 summaries.push(tasks.length
-                  ? "فهرست مأموریت‌ها:\\n" + tasks.map(task => "• " + String(task.title || "بدون عنوان").slice(0,100) + " [" + String(task.status || "نامشخص") + "]").join("\\n")
+                  ? "فهرست مأموریت‌ها:\n" + tasks.map(task => "• " + String(task.title || "بدون عنوان").slice(0,100) + " [" + String(task.status || "نامشخص") + "]").join("\n")
                   : "مأموریتی با این فیلترها پیدا نشد.");
               } else if (name === "propose_collaboration_task") {
                 const task = toolResult.task || {};
-                summaries.push(String(toolResult.message || "پیشنهاد مأموریت ثبت شد.") + (task.title ? "\\nعنوان: " + String(task.title).slice(0,120) : "") + (task.id ? "\\nشناسه: " + String(task.id).slice(0,80) : ""));
+                summaries.push(String(toolResult.message || "پیشنهاد مأموریت ثبت شد.") + (task.title ? "\nعنوان: " + String(task.title).slice(0,120) : "") + (task.id ? "\nشناسه: " + String(task.id).slice(0,80) : ""));
               } else {
                 summaries.push("ابزار اجرا شد؛ نتیجه: " + JSON.stringify(toolResult).slice(0,1200));
               }
             }
-            return json({success:true,reply:summaries.join("\\n\\n"),usage:{aiRequests:1,toolCalls:toolCalls.length,reason:"single_inference_tool_execution"}});
+            return json({success:true,reply:summaries.join("\n\n"),usage:{aiRequests:1,toolCalls:toolCalls.length,reason:"single_inference_tool_execution"}});
           }
           const reply=result?.response||result?.result?.response||"";
           if(typeof reply!=="string"||!reply.trim())return error("AI returned an empty response.",502);
