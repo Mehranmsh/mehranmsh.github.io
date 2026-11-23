@@ -302,7 +302,7 @@ test("Agent API stale-claim recovery includes package-bound allowlisted tasks", 
 
 test("owner task hub validates proposal-only payloads before queueing", () => {
   const start = workerSource.indexOf('if (path === "/intelligence/tasks" && ["GET","POST"].includes(method))');
-  const end = workerSource.indexOf('if (path === "/intelligence/task-events"', start);
+  const end = workerSource.indexOf("const intelligenceTaskMatch=path.match", start);
   assert.ok(start >= 0 && end > start);
   const route = workerSource.slice(start, end);
   assert.match(route, /actionType==="propose_code_patch"/);
@@ -480,7 +480,7 @@ test("MEHRAN Intelligence Agent API is enabled only behind its dedicated bearer 
   assert.match(route, /Agent service identity is not configured/);
   assert.match(route, /requires_approval=0/);
   assert.match(route, /assigned_to IN \('mehran_intelligence','shared'\)/);
-  assert.match(route, /action_type IN \('repository_quality_check','service_health_report','source_security_audit','inspect_repository','run_repository_tests'\)/);
+  assert.match(route, /action_type IN \('repository_quality_check','service_health_report','source_security_audit','inspect_repository','run_repository_tests','propose_code_patch'\)/);
   assert.ok(route.includes("status IN ('queued','accepted','retry_wait')"), "agent claims must include retry_wait tasks");
   assert.match(route, /status='awaiting_approval' AND requires_approval=0/);
   assert.match(route, /agent_claimed_at=CURRENT_TIMESTAMP/);
@@ -548,7 +548,7 @@ test("Intelligence source audit cross-checks capability allowlists and owner saf
   ]) {
     assert.ok(runnerSource.includes('id: "' + checkId + '"'), "source audit must emit " + checkId);
   }
-  assert.match(runnerSource, /const capabilityActions = \["service_health_report", "repository_quality_check", "source_security_audit", "inspect_repository"\]/);
+  assert.match(runnerSource, /const capabilityActions = \["service_health_report", "repository_quality_check", "source_security_audit", "inspect_repository", "propose_code_patch"\]/);
   assert.match(runnerSource, /capabilitySections\.every\(section/);
   assert.match(runnerSource, /docs\/INTELLIGENCE_EXECUTION_PROTOCOL\.md/);
 });
@@ -1691,7 +1691,7 @@ test("Production Intelligence scheduler runs only approved read-only reports and
   const agentClaimStart = workerSource.indexOf('if (path === "/agent/v1/tasks/next" && method === "GET")');
   const agentClaimEnd = workerSource.indexOf("const checkpointMatch", agentClaimStart);
   const agentClaimRoute = workerSource.slice(agentClaimStart, agentClaimEnd);
-  assert.match(agentClaimRoute, /action_type IN \('repository_quality_check','service_health_report','source_security_audit','inspect_repository','run_repository_tests'\)/);
+  assert.match(agentClaimRoute, /action_type IN \('repository_quality_check','service_health_report','source_security_audit','inspect_repository','run_repository_tests','propose_code_patch'\)/);
   assert.doesNotMatch(scheduledBody, /inspect_repository/, "Worker scheduled executor must not claim the GitHub-only inspection capability.");
   assert.match(workerSource, /INSERT OR IGNORE INTO intelligence_tasks/);
   assert.match(workerSource, /'github-inbox',\?,'\{\}'/);
@@ -1741,16 +1741,16 @@ test("Intelligence scheduler history endpoint rejects unauthenticated requests",
 });
 
 
-test("Task Hub can create and label only owner-approved allowlisted scheduled reports", () => {
+test("Task Hub can create and label only owner-approved allowlisted actions", () => {
   const html = indexSource;
   const worker = workerSource;
   for (const action of ["project_status_report", "social_metrics_report", "service_health_report", "repository_quality_check"]) {
     assert.ok(html.includes(action), `Task Hub exposes ${action}`);
     assert.ok(worker.includes(`"${action}"`), `Worker allowlists ${action}`);
   }
-  assert.match(worker, /const autoApproved=preapprovedReadOnlyActions\.includes\(actionType\)&&\["mehran_intelligence","shared"\]\.includes\(assignedTo\)&&body\.requiresApproval!==true/);
+  assert.match(worker, /const autoApproved=preapprovedActions\.includes\(actionType\)&&\["mehran_intelligence","shared"\]\.includes\(assignedTo\)&&body\.requiresApproval!==true/);
   assert.match(worker, /const requiresApproval=Boolean\(body\.requiresApproval\|\|\s*\(actionType&&!autoApproved\)\)/);
-  assert.match(worker, /action_type\) VALUES\(\?,\?,\?,\?,\?,\?,\?,\?,\?\)/);
+  assert.match(worker, /action_type,action_payload\) VALUES\(\?,\?,\?,\?,\?,\?,\?,\?,\?,\?\)/);
   assert.match(html, /actionTypes\[task\.actionType\]/);
 });
 
@@ -1778,12 +1778,12 @@ test("automated Intelligence task transitions are owner-approval-only and execut
 
 
 
-test("MEHRAN Intelligence auto-approves only pre-authorized read-only tasks", () => {
+test("MEHRAN Intelligence auto-approves only pre-authorized bounded tasks", () => {
   assert.ok(workerSource.includes('import { INTELLIGENCE_ACTION_TYPES, PREAPPROVED_INTELLIGENCE_ACTION_TYPES } from "./scripts/intelligence-capabilities.mjs";'));
   assert.ok(workerSource.includes("const allowedActionTypes=INTELLIGENCE_ACTION_TYPES"));
-  const start = workerSource.indexOf('const preapprovedReadOnlyActions=PREAPPROVED_INTELLIGENCE_ACTION_TYPES;');
+  const start = workerSource.indexOf('const preapprovedActions=PREAPPROVED_INTELLIGENCE_ACTION_TYPES;');
   const end = workerSource.indexOf('const id=crypto.randomUUID()', start);
-  assert.ok(start >= 0 && end > start, "task creation must use the canonical read-only pre-approval policy");
+  assert.ok(start >= 0 && end > start, "task creation must use the canonical pre-approval policy");
   const policy = workerSource.slice(start, end);
   assert.ok(policy.includes('["mehran_intelligence","shared"].includes(assignedTo)'));
   assert.ok(policy.includes("body.requiresApproval!==true"));
@@ -2104,7 +2104,7 @@ test("MCP work-package tools are exposed only to the bridge when owner orchestra
   assert.ok(mcp.includes('name:"create_intelligence_work_package"'));
   assert.ok(mcp.includes('name:"get_intelligence_work_package"'));
   assert.ok(mcp.includes('if (!packageIntakeEnabled) return rpcError(-32003'));
-  assert.ok(mcp.includes('["service_health_report","repository_quality_check","source_security_audit","inspect_repository"]'));
+  assert.ok(mcp.includes('["service_health_report","repository_quality_check","source_security_audit","inspect_repository","run_repository_tests","propose_code_patch"]'));
 });
 
 
