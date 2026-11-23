@@ -1,13 +1,25 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
+import {
+  INTELLIGENCE_ACTION_TYPES,
+  PREAPPROVED_INTELLIGENCE_ACTION_TYPES
+} from "./intelligence-capabilities.mjs";
 
 const workerSource = await readFile(new URL("../worker.js", import.meta.url), "utf8");
 const indexSource = await readFile(new URL("../index.html", import.meta.url), "utf8");
 const runnerSource = await readFile(new URL("../.github/workflows/mehran-intelligence-runner.yml", import.meta.url), "utf8");
 const musicStudioSource = await readFile(new URL("../music-studio.html", import.meta.url), "utf8");
+const capabilityImport = 'import { INTELLIGENCE_ACTION_TYPES, PREAPPROVED_INTELLIGENCE_ACTION_TYPES } from "./scripts/intelligence-capabilities.mjs";';
+if (!workerSource.startsWith(capabilityImport)) {
+  throw new Error("Worker capability registry import was not found at the module entry point");
+}
+const workerSourceForTest = `const INTELLIGENCE_ACTION_TYPES = ${JSON.stringify(INTELLIGENCE_ACTION_TYPES)};
+const PREAPPROVED_INTELLIGENCE_ACTION_TYPES = ${JSON.stringify(PREAPPROVED_INTELLIGENCE_ACTION_TYPES)};
+` + workerSource.slice(capabilityImport.length);
+
 const workerModule = await import(
-  "data:text/javascript;base64," + Buffer.from(workerSource).toString("base64")
+  "data:text/javascript;base64," + Buffer.from(workerSourceForTest).toString("base64")
 );
 const worker = workerModule.default;
 const { verifyIntelligenceReport, validateIntelligenceWorkPackage, persistIntelligencePackageReport } = workerModule;
@@ -1525,15 +1537,16 @@ test("automated Intelligence task transitions are owner-approval-only and execut
 
 
 test("MEHRAN Intelligence auto-approves only pre-authorized read-only tasks", () => {
-  const start = workerSource.indexOf('const preapprovedReadOnlyActions=');
+  assert.ok(workerSource.includes('import { INTELLIGENCE_ACTION_TYPES, PREAPPROVED_INTELLIGENCE_ACTION_TYPES } from "./scripts/intelligence-capabilities.mjs";'));
+  assert.ok(workerSource.includes("const allowedActionTypes=INTELLIGENCE_ACTION_TYPES"));
+  const start = workerSource.indexOf('const preapprovedReadOnlyActions=PREAPPROVED_INTELLIGENCE_ACTION_TYPES;');
   const end = workerSource.indexOf('const id=crypto.randomUUID()', start);
-  assert.ok(start >= 0 && end > start, "task creation must define the read-only pre-approval policy");
+  assert.ok(start >= 0 && end > start, "task creation must use the canonical read-only pre-approval policy");
   const policy = workerSource.slice(start, end);
-  assert.match(policy, /project_status_report.*social_metrics_report.*service_health_report.*repository_quality_check/);
-  assert.match(policy, /\["mehran_intelligence","shared"\]\.includes\(assignedTo\)/);
-  assert.match(policy, /body\.requiresApproval!==true/);
-  assert.match(policy, /Boolean\(body\.requiresApproval\|\|\s*\(actionType&&!autoApproved\)\)/);
-  assert.match(workerSource, /Automated task execution status is controlled by MEHRAN INTELLIGENCE/);
+  assert.ok(policy.includes('["mehran_intelligence","shared"].includes(assignedTo)'));
+  assert.ok(policy.includes("body.requiresApproval!==true"));
+  assert.ok(policy.includes("Boolean(body.requiresApproval|| (actionType&&!autoApproved))"));
+  assert.ok(workerSource.includes("Automated task execution status is controlled by MEHRAN INTELLIGENCE"));
 });
 
 
