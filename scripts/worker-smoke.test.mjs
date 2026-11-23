@@ -1467,7 +1467,7 @@ test("Production Intelligence scheduler runs only approved read-only reports and
   const agentClaimStart = workerSource.indexOf('if (path === "/agent/v1/tasks/next" && method === "GET")');
   const agentClaimEnd = workerSource.indexOf("const checkpointMatch", agentClaimStart);
   const agentClaimRoute = workerSource.slice(agentClaimStart, agentClaimEnd);
-  assert.match(route, /action_type IN \('repository_quality_check','service_health_report','source_security_audit','inspect_repository','run_repository_tests'\)/);
+  assert.match(agentClaimRoute, /action_type IN \('repository_quality_check','service_health_report','source_security_audit','inspect_repository','run_repository_tests'\)/);
   assert.doesNotMatch(scheduledBody, /inspect_repository/, "Worker scheduled executor must not claim the GitHub-only inspection capability.");
   assert.match(workerSource, /INSERT OR IGNORE INTO intelligence_tasks/);
   assert.match(workerSource, /'github-inbox',\?,'\{\}'/);
