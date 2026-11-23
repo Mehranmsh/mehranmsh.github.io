@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { validatePatchProposal, PATCH_PROPOSAL_POLICY } from "./intelligence-patch-policy.mjs";
 import { createPatchArtifactRecord, verifyPatchArtifactRecord } from "./intelligence-patch-artifact.mjs";
+import { storePrivatePatchArtifact, PRIVATE_PATCH_ARTIFACT_STORE_POLICY } from "./intelligence-private-patch-store.mjs";
 import {
   INTELLIGENCE_CAPABILITIES,
   INTELLIGENCE_ACTION_TYPES,
@@ -238,6 +239,7 @@ test("isolated test workflow runs one fixed suite without secrets or network acc
     "node:fs",
     "./intelligence-patch-policy.mjs",
     "./intelligence-patch-artifact.mjs",
+    "./intelligence-private-patch-store.mjs",
     "./intelligence-capabilities.mjs"
   ]);
   for (const forbidden of [
@@ -353,4 +355,102 @@ test("patch artifact envelope detects altered diffs, metadata, and artifact hash
   assert.equal((await verifyPatchArtifactRecord(created.artifact, "0".repeat(64))).code, "artifact_digest_mismatch");
   assert.equal((await verifyPatchArtifactRecord({ ...created.artifact, summary: "tampered metadata" }, created.artifactSha256)).code, "artifact_digest_mismatch");
   assert.equal((await verifyPatchArtifactRecord({ ...created.artifact, unexpected: true }, created.artifactSha256)).code, "artifact_schema_mismatch");
+});
+
+
+async function makeTestPatchArtifact(proposalId = "123e4567-e89b-42d3-a456-426614174000") {
+  const targetPath = "scripts/intelligence-capabilities.test.mjs";
+  const diff = [
+    `--- a/${targetPath}`,
+    `+++ b/${targetPath}`,
+    "@@ -1 +1 @@",
+    "-const original = 1;",
+    "+const proposed = 2;",
+    ""
+  ].join("\n");
+  return createPatchArtifactRecord({
+    proposalId,
+    createdAt: "2026-11-23T00:00:00.000Z",
+    baseSha: "a".repeat(40),
+    summary: "A deterministic private patch storage test artifact",
+    targetPaths: [targetPath],
+    diff
+  });
+}
+
+function githubContentResponse(artifact, path) {
+  const bytes = new TextEncoder().encode(JSON.stringify(artifact, null, 2) + "\n");
+  let binary = "";
+  for (let offset = 0; offset < bytes.length; offset += 0x8000) {
+    binary += String.fromCharCode(...bytes.subarray(offset, offset + 0x8000));
+  }
+  return new Response(JSON.stringify({
+    path,
+    encoding: "base64",
+    content: btoa(binary)
+  }), { status: 200, headers: { "Content-Type": "application/json" } });
+}
+
+test("private patch store creates an immutable artifact only in the reports repository", async () => {
+  const created = await makeTestPatchArtifact();
+  const calls = [];
+  const fetchImpl = async (url, options) => {
+    calls.push({ url, options });
+    if (options.method === "GET") return new Response("", { status: 404 });
+    return new Response(JSON.stringify({ content: { path: "patch-proposals/2026/11/123e4567-e89b-42d3-a456-426614174000.json" } }), { status: 201 });
+  };
+  const result = await storePrivatePatchArtifact({
+    token: "t".repeat(48),
+    artifact: created.artifact,
+    artifactSha256: created.artifactSha256,
+    fetchImpl
+  });
+  assert.equal(result.stored, true);
+  assert.equal(result.alreadyExists, false);
+  assert.equal(calls.length, 2);
+  assert.match(calls[0].url, /repos\/Mehranmsh\/mehran-intelligence-reports\/contents\/patch-proposals\/2026\/11\//);
+  assert.equal(calls[0].options.method, "GET");
+  assert.equal(calls[1].options.method, "PUT");
+  assert.equal(calls[1].options.headers.Authorization, `Bearer ${"t".repeat(48)}`);
+  const payload = JSON.parse(calls[1].options.body);
+  assert.match(payload.message, /Store INTELLIGENCE patch proposal/);
+  assert.equal(PRIVATE_PATCH_ARTIFACT_STORE_POLICY.createOnly, true);
+  assert.equal(PRIVATE_PATCH_ARTIFACT_STORE_POLICY.overwritesExisting, false);
+});
+
+test("private patch store treats an identical existing artifact as idempotent", async () => {
+  const created = await makeTestPatchArtifact();
+  const path = "patch-proposals/2026/11/123e4567-e89b-42d3-a456-426614174000.json";
+  let calls = 0;
+  const result = await storePrivatePatchArtifact({
+    token: "t".repeat(48),
+    artifact: created.artifact,
+    artifactSha256: created.artifactSha256,
+    fetchImpl: async () => { calls++; return githubContentResponse(created.artifact, path); }
+  });
+  assert.equal(result.stored, true);
+  assert.equal(result.alreadyExists, true);
+  assert.equal(calls, 1);
+});
+
+test("private patch store rejects a conflicting artifact ID and invalid credentials without writing", async () => {
+  const created = await makeTestPatchArtifact();
+  const altered = { ...created.artifact, summary: "A different proposal with the same ID" };
+  let calls = 0;
+  const conflict = await storePrivatePatchArtifact({
+    token: "t".repeat(48),
+    artifact: created.artifact,
+    artifactSha256: created.artifactSha256,
+    fetchImpl: async () => { calls++; return githubContentResponse(altered, "patch-proposals/2026/11/conflict.json"); }
+  });
+  assert.equal(conflict.code, "artifact_id_conflict");
+  const before = calls;
+  const invalid = await storePrivatePatchArtifact({
+    token: "short",
+    artifact: created.artifact,
+    artifactSha256: created.artifactSha256,
+    fetchImpl: async () => { calls++; throw new Error("must not fetch"); }
+  });
+  assert.equal(invalid.code, "store_not_configured");
+  assert.equal(calls, before);
 });
