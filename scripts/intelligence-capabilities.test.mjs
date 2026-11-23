@@ -992,4 +992,11 @@ test("Intelligence retains owner-scoped durable memory and recent conversation c
   assert.match(workerSource, /seedIntelligenceOwnerMemory\(env,"mehran_intelligence"\)/);
   assert.match(workerSource, /appendIntelligenceChatTurn\(env,admin\.uid,sessionKey,"user",question\)/);
   assert.match(workerSource, /appendIntelligenceChatTurn\(env,admin\.uid,sessionKey,"assistant"/);
+  const chatHandlerStart = workerSource.indexOf("const executeTool = async (name,args) =>", workerSource.indexOf('if (path === "/intelligence/chat" && method === "POST")'));
+  const chatHandlerEnd = workerSource.indexOf('if (name === "get_project_status")', chatHandlerStart);
+  const chatHandler = workerSource.slice(chatHandlerStart, chatHandlerEnd);
+  assert.ok(chatHandler.includes('if (name === "remember_context")'));
+  assert.ok(chatHandler.includes(".bind(crypto.randomUUID(),admin.uid,key,category,content,importance)"));
+  assert.ok(workerSource.includes('FROM intelligence_memory_items WHERE owner_uid=? ORDER BY importance DESC,updated_at DESC LIMIT 100").bind(admin.uid).all()'));
+  assert.ok(workerSource.includes('FROM intelligence_memory_items WHERE owner_uid=? ORDER BY importance DESC,updated_at DESC LIMIT 18").bind(admin.uid).all()'));
 });
