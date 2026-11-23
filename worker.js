@@ -5720,7 +5720,7 @@ export function verifyIntelligenceReport(actionType, report) {
       if (!file || typeof file.path !== "string" || !INTELLIGENCE_INSPECT_ALLOWED_PATHS.includes(file.path) || seen.has(file.path) ||
           typeof file.blobSha !== "string" || !/^[a-f0-9]{40}$/i.test(file.blobSha) ||
           !integer(file.bytes) || file.bytes > 500000 || !integer(file.lineCount) || file.lineCount > 20000 ||
-          !Array.isArray(file.symbols) || file.symbols.length > 4 || file.symbols.some(symbol => typeof symbol !== "string" || symbol.length > 100)) return false;
+          !Array.isArray(file.symbols) || file.symbols.length > 2 || file.symbols.some(symbol => typeof symbol !== "string" || symbol.length > 60)) return false;
       seen.add(file.path);
       totalBytes += file.bytes;
       return true;
