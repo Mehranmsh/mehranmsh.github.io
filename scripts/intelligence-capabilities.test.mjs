@@ -441,7 +441,7 @@ test("private patch store treats an identical existing artifact as idempotent", 
 test("private patch artifact recovery verifies an exact stored path and digest", async () => {
   const created = await makeTestPatchArtifact();
   const path = getPrivatePatchArtifactPath(created.artifact);
-  assert.match(path, /^patch-proposals\\/\\d{4}\\/\\d{2}\\/[a-f0-9-]{36}\\.json$/);
+  assert.match(path, /^patch-proposals\/\d{4}\/\d{2}\/[a-f0-9-]{36}\.json$/);
   let calls = 0;
   const verified = await verifyPrivatePatchArtifactAtPath({
     token: "t".repeat(48), path, artifactSha256: created.artifactSha256,
