@@ -242,6 +242,49 @@ test("Intelligence task listing repairs only stale approval labels on explicitly
   assert.ok(route.indexOf("UPDATE intelligence_tasks") < route.indexOf("SELECT * FROM intelligence_tasks"));
 });
 
+test("proposal-only work-package tasks require a bounded objective", () => {
+  const base = {
+    idempotencyKey: "patch-proposal-queue-001",
+    title: "Prepare a bounded test proposal",
+    objective: "Generate one private regression-test proposal",
+    tasks: [{
+      taskId: "patch", title: "Propose a regression test", description: "Create a narrow test-only proposal",
+      actionType: "propose_code_patch", dependsOn: [], objective: "Add regression coverage for an identified validation edge case"
+    }]
+  };
+  const valid = validateIntelligenceWorkPackage(base);
+  assert.equal(valid.ok, true);
+  assert.equal(valid.tasks[0].objective, base.tasks[0].objective);
+  assert.equal(validateIntelligenceWorkPackage({ ...base, tasks: [{ ...base.tasks[0], objective: "short" }] }).ok, false);
+  assert.equal(validateIntelligenceWorkPackage({ ...base, tasks: [{ ...base.tasks[0], objective: undefined }] }).ok, false);
+  assert.equal(validateIntelligenceWorkPackage({ ...base, tasks: [{ ...base.tasks[0], actionType: "service_health_report" }] }).ok, false);
+});
+
+test("patch proposal task reports are independently verified and bound to private artifact metadata", () => {
+  const proposalId = "123e4567-e89b-42d3-a456-426614174000";
+  const report = {
+    type: "propose_code_patch", generatedAt: "2026-11-23T12:00:00.000Z",
+    requestId: "package-id:patch", requestHash: "A".repeat(43), proposalId,
+    path: `patch-proposals/2026/11/${proposalId}.json`,
+    artifactSha256: "a".repeat(64), diffSha256: "b".repeat(64), status: "stored",
+    baseSha: "c".repeat(40), targetPath: "scripts/intelligence-capabilities.test.mjs",
+    validationMode: "append_only_validate_only", summary: "Add a bounded regression test for a validation edge case"
+  };
+  assert.equal(verifyIntelligenceReport("propose_code_patch", report).passed, true);
+  assert.equal(verifyIntelligenceReport("propose_code_patch", { ...report, path: "patch-proposals/2026/11/other.json" }).passed, false);
+  assert.equal(verifyIntelligenceReport("propose_code_patch", { ...report, validationMode: "apply_patch" }).passed, false);
+});
+
+test("Agent patch proposal runner checkpoints an immutable base and submits a stable task request ID", () => {
+  assert.match(runnerSource, /if \(task\.actionType === "propose_code_patch"\)/);
+  assert.match(runnerSource, /\/agent\/v1\/patch-proposals\/generate/);
+  assert.match(runnerSource, /requestId: task\.id/);
+  assert.match(runnerSource, /checkpoint: \{ baseSha \}/);
+  assert.match(workerSource, /parsedReport\.requestId !== id/);
+  assert.match(workerSource, /checkpoint\.baseSha !== parsedReport\.baseSha/);
+  assert.match(workerSource, /parsedReport\.requestHash !== expectedHash/);
+});
+
 test("Agent API stale-claim recovery includes package-bound allowlisted tasks", () => {
   const start = workerSource.indexOf('if (path === "/agent/v1/tasks/next" && method === "GET")');
   const end = workerSource.indexOf("const checkpointMatch", start);
@@ -250,7 +293,7 @@ test("Agent API stale-claim recovery includes package-bound allowlisted tasks", 
   assert.equal((route.match(/UPDATE intelligence_tasks SET status='blocked'/g) || []).length, 1);
   assert.equal((route.match(/UPDATE intelligence_tasks SET status='accepted'/g) || []).length, 1);
   assert.match(route, /datetime\(agent_claimed_at\) < datetime\('now','-15 minutes'\)/);
-  assert.match(route, /action_type IN \('repository_quality_check','service_health_report','source_security_audit','inspect_repository','run_repository_tests'\)/);
+  assert.match(route, /action_type IN \('repository_quality_check','service_health_report','source_security_audit','inspect_repository','run_repository_tests','propose_code_patch'\)/);
   assert.doesNotMatch(route, /work_package_id IS NULL/,
     "stale recovery must include tasks claimed from durable work packages");
 });
