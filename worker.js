@@ -5502,7 +5502,7 @@ export async function persistIntelligencePackageReport(env, packageId, snapshot)
       if (existingPayload?.encoding !== "base64" || typeof existingPayload.content !== "string") {
         throw new Error("Existing report response did not include base64 content.");
       }
-      const existingBinary = atob(existingPayload.content.replace(/\\s+/g, ""));
+      const existingBinary = atob(existingPayload.content.replace(/\s+/g, ""));
       const existingBytes = Uint8Array.from(existingBinary, character => character.charCodeAt(0));
       existingReportText = new TextDecoder().decode(existingBytes);
     } catch {
