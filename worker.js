@@ -6869,7 +6869,7 @@ export default {
               reportStorage = await persistIntelligencePackageReport(env, packageId, report);
             } catch (err) {
               const storeError = String(err?.message || err);
-              const safeStoreReason = /^GitHub report (?:lookup|write) failed with status \\d{3}\\.$/.test(storeError)
+              const safeStoreReason = /^GitHub report (?:lookup|write) failed with status \d{3}\.$/.test(storeError)
                 ? storeError.slice(0,100)
                 : "internal_store_error";
               console.error("INTELLIGENCE_PRIVATE_REPORT_STORE_FAILURE", safeStoreReason);
