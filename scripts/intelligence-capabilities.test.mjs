@@ -1341,7 +1341,7 @@ test("patch application is in-memory only and rejects stale or non-append-only p
 
 
 test("patch generation uses the approved provider router without a second budget reservation", async () => {
-  const source = "const original = true;\\n";
+  const source = "const original = true;\n";
   const baseSha = "c".repeat(40);
   let routedCalls = 0;
   let legacyBudgetCalls = 0;
@@ -1379,7 +1379,7 @@ test("patch generation uses the approved provider router without a second budget
             "@@ -1,0 +2,1 @@",
             '+test("provider router path", () => {});',
             ""
-          ].join("\\n")
+          ].join("\n")
         })
       };
     },
