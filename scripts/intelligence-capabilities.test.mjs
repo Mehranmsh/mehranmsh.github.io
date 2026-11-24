@@ -1160,6 +1160,16 @@ test("package report snapshots wait until runnable sibling tasks are quiescent",
   assert.match(snapshot, /includes\(status\) && reportIsQuiescent/);
 });
 
+test("Workers AI inference failures retain safe actionable diagnostics without exposing request content", () => {
+  assert.ok(workerSource.includes("function safeWorkersAIErrorDetails(err)"));
+  assert.ok(workerSource.includes("err?.code ?? cause?.code"));
+  assert.ok(workerSource.includes("err?.status ?? cause?.status"));
+  assert.ok(workerSource.includes("Bearer\\s+"));
+  assert.ok(workerSource.includes("INTELLIGENCE_MISSION_PLANNER_FAILURE"));
+  assert.ok(workerSource.includes("INTELLIGENCE_CODE_ANALYSIS_FAILURE"));
+  assert.ok(workerSource.includes("JSON.stringify(safeWorkersAIErrorDetails(err))"));
+});;
+
 test("repository inspection performs bounded evidence-backed Workers AI semantic analysis", () => {
   assert.match(workerSource, /path === "\/agent\/v1\/repository\/analyze"/);
   assert.match(workerSource, /ownerOrchestrationRoute = .*repository\/analyze/);
