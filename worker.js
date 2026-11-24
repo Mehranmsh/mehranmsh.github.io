@@ -5560,21 +5560,30 @@ export async function persistIntelligencePackageReport(env, packageId, snapshot)
     } catch {
       throw new Error("Existing private report could not be verified; refusing to mark it stored.");
     }
+    let priorReport;
+    try { priorReport = JSON.parse(existingReportText); }
+    catch { throw new Error("Existing private report could not be verified; refusing to mark it stored."); }
+    const priorDate = typeof priorReport?.generated_at === "string" ? new Date(priorReport.generated_at) : null;
+    const validPriorIdentity = priorReport && typeof priorReport === "object" && !Array.isArray(priorReport) &&
+      priorReport.schema_version === 1 &&
+      priorReport.report_id === packageId &&
+      priorReport.source === "mehran_intelligence" &&
+      priorReport.report_type === "work_package_summary" &&
+      ["success", "warning"].includes(priorReport.status) &&
+      priorDate && Number.isFinite(priorDate.getTime()) && priorDate.toISOString() === priorReport.generated_at &&
+      priorReport.data && typeof priorReport.data === "object" &&
+      priorReport.data.work_package_id === packageId &&
+      ["completed", "attention_required"].includes(priorReport.data.status) &&
+      priorReport.data.counts && typeof priorReport.data.counts === "object" &&
+      Array.isArray(priorReport.data.tasks);
+    if (!validPriorIdentity) {
+      throw new Error("Existing private report identity or schema does not match this work package.");
+    }
+    // A package may be finalized more than once while retries or recovery settle.
+    // Its private report path is create-only: preserve the first valid snapshot
+    // for this immutable package ID instead of comparing it with mutable task rows.
     if (await sha256(existingReportText) !== expectedReportHash) {
-      // Older finalizers used a volatile snapshot timestamp. Accept migration
-      // only when generated_at is the sole differing field; task evidence and
-      // every other report field must still match exactly.
-      let timestampOnlyMatch = false;
-      try {
-        const priorReport = JSON.parse(existingReportText);
-        if (priorReport && typeof priorReport === "object" && !Array.isArray(priorReport)) {
-          priorReport.generated_at = report.generated_at;
-          timestampOnlyMatch = JSON.stringify(priorReport) === JSON.stringify(report);
-        }
-      } catch {}
-      if (!timestampOnlyMatch) {
-        throw new Error("Existing private report content does not match the current package snapshot.");
-      }
+      console.warn("INTELLIGENCE_PRIVATE_REPORT_EXISTING_SNAPSHOT_PRESERVED", packageId);
     }
     await reportStage("marker_write", () => env.DB.prepare("UPDATE intelligence_work_packages SET report_stored_at=CURRENT_TIMESTAMP WHERE id=? AND report_stored_at IS NULL").bind(packageId).run());
     return { exists: true };
