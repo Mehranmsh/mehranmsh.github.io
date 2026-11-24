@@ -664,7 +664,7 @@ test("Workers AI patch generation validates and envelopes only an append-only di
         : Response.json({ sha: baseSha });
     }
     if (value.endsWith("/commits/main.atom")) {
-      return new Response(\`<feed><entry><id>tag:github.com,2008:Grit::Commit/\${baseSha}</id></entry></feed>\`, { status: 200 });
+      return new Response("<feed><entry><id>tag:github.com,2008:Grit::Commit/" + baseSha + "</id></entry></feed>", { status: 200 });
     }
     return new Response(source, { status: 200 });
   };
@@ -673,16 +673,16 @@ test("Workers AI patch generation validates and envelopes only an append-only di
       async run(model, input) {
         modelName = model;
         assert.equal(input.max_tokens, 2200);
-        return { response: "\`\`\`json\\n" + JSON.stringify({
+        return { response: String.fromCharCode(96).repeat(3) + "json\n" + JSON.stringify({
           summary: "Add a regression test for the generation boundary",
           diff: [
             "--- a/scripts/intelligence-capabilities.test.mjs",
             "+++ b/scripts/intelligence-capabilities.test.mjs",
             "@@ -1,0 +2,1 @@",
-            "+test(\"generated boundary\", () => {});",
+            '+test("generated boundary", () => {});',
             ""
           ].join("\n")
-        }) + "\n\`\`\`" };
+        }) + "\n" + String.fromCharCode(96).repeat(3) };
       }
     }
   };
@@ -717,7 +717,7 @@ test("Workers AI patch generation rejects a main-branch race after the model ret
       const sha = mainRefCalls <= 3 ? baseSha : "9".repeat(40);
       if (value.endsWith("/git/ref/heads/main")) return Response.json({ object: { sha } });
       if (value.endsWith("/commits/main.atom")) {
-        return new Response(\`<feed><entry><id>tag:github.com,2008:Grit::Commit/\${sha}</id></entry></feed>\`, { status: 200 });
+        return new Response("<feed><entry><id>tag:github.com,2008:Grit::Commit/" + sha + "</id></entry></feed>", { status: 200 });
       }
       return Response.json({ sha });
     }
@@ -734,7 +734,7 @@ test("Workers AI patch generation rejects a main-branch race after the model ret
           "--- a/scripts/intelligence-capabilities.test.mjs",
           "+++ b/scripts/intelligence-capabilities.test.mjs",
           "@@ -1,0 +2,1 @@",
-          "+test(\"race guard\", () => {});",
+          '+test("race guard", () => {});',
           ""
         ].join("\n")
       }) };
@@ -746,7 +746,6 @@ test("Workers AI patch generation rejects a main-branch race after the model ret
   assert.equal(mainRefCalls, 6);
   assert.equal(modelCalls, 1);
 });
-
 test("Workers AI patch generation fails closed on budget denial and unsafe model output", async () => {
   const baseSha = "e".repeat(40);
   const fetchImpl = async url => String(url).includes("/commits/main")
