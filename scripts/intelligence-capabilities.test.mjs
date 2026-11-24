@@ -1233,6 +1233,9 @@ test("Intelligence Runner correlates API requests with bounded trace IDs and rec
 
 test("Intelligence AI router fails over across free providers and blocks paid OpenRouter models", () => {
   assert.match(workerSource, /INTELLIGENCE_AI_PROVIDER_ORDER = Object\.freeze\(\["cloudflare", "groq", "gemini", "openrouter"\]\)/);
+  assert.match(workerSource, /MEHRAN_AI_FREE_PROVIDERS/);
+  assert.match(workerSource, /\|\| "openrouter"/);
+  assert.match(workerSource, /allowedProviders\.includes\(item\)/);
   assert.match(workerSource, /GROQ_API_KEY/);
   assert.match(workerSource, /GEMINI_API_KEY/);
   assert.match(workerSource, /OPENROUTER_API_KEY/);
