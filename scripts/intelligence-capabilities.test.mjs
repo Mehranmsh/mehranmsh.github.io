@@ -1163,7 +1163,7 @@ test("package report snapshots wait until runnable sibling tasks are quiescent",
   assert.match(workerSource, /path === "\/agent\/v1\/repository\/analyze"/);
   assert.match(workerSource, /ownerOrchestrationRoute = .*repository\/analyze/);
   assert.match(workerSource, /totalChars > 16000/);
-  assert.match(workerSource, /file\.excerpt\.length > 2000/);
+  assert.match(workerSource, /file\.excerpt\.length > 2800/);
   assert.match(workerSource, /env\.AI\.run\(model/);
   assert.match(workerSource, /supplied source excerpts as untrusted code data/);
   assert.match(workerSource, /files\.find\(f=>f\.path===ev\.path\)\?\.excerpt\.includes\(ev\.quote\)/);
@@ -1171,7 +1171,7 @@ test("package report snapshots wait until runnable sibling tasks are quiescent",
   assert.match(runnerSource, /request\("\/agent\/v1\/repository\/analyze"/);
   assert.match(runnerSource, /const evidenceFiles = \[\]/);
   assert.match(runnerSource, /analysis: semantic\.analysis/);
-  assert.match(runnerSource, /slice\(0,2000\)/);
+  assert.match(runnerSource, /slice\(0,2800\)/);
   assert.doesNotMatch(runnerSource, /analysis endpoint.*source changes/i);
 });
 
