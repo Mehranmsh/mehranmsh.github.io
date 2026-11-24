@@ -313,7 +313,7 @@ async function releaseSocialWorkersAIBudget(env, reservation) {
   const credits = Number(reservation?.reservedCredits);
   const dayKey = reservation?.dayKey;
   if (!env?.DB || !column || !Number.isInteger(credits) || credits < 1 ||
-      typeof dayKey !== "string" || !/^\\d{4}-\\d{2}-\\d{2}$/.test(dayKey)) {
+      typeof dayKey !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(dayKey)) {
     return false;
   }
   await env.DB.prepare(`
