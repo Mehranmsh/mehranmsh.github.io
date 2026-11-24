@@ -1421,8 +1421,8 @@ test("Cloudflare AI diagnostics distinguish budget reservation failures from inf
   assert.match(cloudflare, /await env\.AI\.run\(model/);
   assert.match(workerSource, /stage: provider === "cloudflare" \? "inference" : "provider_request"/);
   assert.match(cloudflare, /reason:"daily_quota_circuit_open"/);
-  assert.match(cloudflare, /isWorkersAIDailyQuotaCircuitOpen\\(exhausted\\?\\.attempted_at\\)/);
-  assert.doesNotMatch(cloudflare, /24 \\* 60 \\* 60 \\* 1000/);
+  assert.match(cloudflare, /isWorkersAIDailyQuotaCircuitOpen\(exhausted\?\.attempted_at\)/);
+  assert.doesNotMatch(cloudflare, /24 \* 60 \* 60 \* 1000/);
   assert.match(workerSource, /used up your daily free allocation of 10,000 neurons/);
   assert.match(workerSource, /daily_quota_circuit_open/);
   assert.match(workerSource, /quotaRelevantAttempts/);
