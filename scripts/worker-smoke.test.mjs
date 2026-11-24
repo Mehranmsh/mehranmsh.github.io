@@ -15,15 +15,19 @@ const musicStudioSource = await readFile(new URL("../music-studio.html", import.
 const capabilityImport = 'import { INTELLIGENCE_ACTION_TYPES, PREAPPROVED_INTELLIGENCE_ACTION_TYPES } from "./scripts/intelligence-capabilities.mjs";';
 const patchStoreImport = 'import { storePrivatePatchArtifact, verifyPrivatePatchArtifactAtPath, getPrivatePatchArtifactPath } from "./scripts/intelligence-private-patch-store.mjs";';
 const patchGenerationImport = 'import { generatePatchArtifact } from "./scripts/intelligence-patch-generation-service.mjs";';
-if (!workerSource.startsWith(capabilityImport) || !workerSource.includes(patchStoreImport) || !workerSource.includes(patchGenerationImport)) {
-  throw new Error("Worker capability or patch storage imports were not found");
+const inboxSchemaImport = 'import { validatePrivateIntelligenceMission } from "./scripts/intelligence-inbox-schema.mjs";';
+if (!workerSource.startsWith(capabilityImport) || !workerSource.includes(patchStoreImport) ||
+    !workerSource.includes(patchGenerationImport) || !workerSource.includes(inboxSchemaImport)) {
+  throw new Error("Worker capability, patch storage, or private inbox schema imports were not found");
 }
 const policySource = await readFile(new URL("./intelligence-patch-policy.mjs", import.meta.url), "utf8");
 const artifactSource = await readFile(new URL("./intelligence-patch-artifact.mjs", import.meta.url), "utf8");
 const patchStoreSource = await readFile(new URL("./intelligence-private-patch-store.mjs", import.meta.url), "utf8");
 const patchGenerationPromptSource = await readFile(new URL("./intelligence-patch-generation.mjs", import.meta.url), "utf8");
 const patchGenerationServiceSource = await readFile(new URL("./intelligence-patch-generation-service.mjs", import.meta.url), "utf8");
+const inboxSchemaSource = await readFile(new URL("./intelligence-inbox-schema.mjs", import.meta.url), "utf8");
 const moduleUrl = source => "data:text/javascript;base64," + Buffer.from(source).toString("base64");
+const inboxSchemaUrl = moduleUrl(inboxSchemaSource);
 const policyUrl = moduleUrl(policySource);
 const artifactUrl = moduleUrl(artifactSource.replace(
   'from "./intelligence-patch-policy.mjs"',
@@ -62,9 +66,13 @@ export async function generatePatchArtifact(args) {
   return hook(args);
 }
 `);
-const workerRest = workerSource.slice(capabilityImport.length).replace(patchStoreImport, "").replace(patchGenerationImport, "");
+const workerRest = workerSource.slice(capabilityImport.length)
+  .replace(patchStoreImport, "")
+  .replace(patchGenerationImport, "")
+  .replace(inboxSchemaImport, "");
 const workerSourceForTest = `import { storePrivatePatchArtifact, verifyPrivatePatchArtifactAtPath, getPrivatePatchArtifactPath } from "${patchStoreTestUrl}";
 import { generatePatchArtifact } from "${patchGenerationTestUrl}";
+import { validatePrivateIntelligenceMission } from "${inboxSchemaUrl}";
 const INTELLIGENCE_ACTION_TYPES = ${JSON.stringify(INTELLIGENCE_ACTION_TYPES)};
 const PREAPPROVED_INTELLIGENCE_ACTION_TYPES = ${JSON.stringify(PREAPPROVED_INTELLIGENCE_ACTION_TYPES)};
 ` + workerRest;
@@ -136,6 +144,50 @@ test("health endpoint exposes only a safe scheduler heartbeat summary", async ()
     lastStatus: "completed", processed: 2, completed: 2, blocked: 0
   });
   assert.equal("error" in payload.scheduler, false);
+});
+
+
+test("health endpoint exposes only bounded private inbox diagnostics", async () => {
+  const db = {
+    prepare(sql) {
+      return {
+        async first() {
+          if (sql.includes("SELECT 1 AS test")) return { test: 1 };
+          if (sql.includes("FROM intelligence_scheduler_runs")) return null;
+          if (sql.includes("FROM intelligence_inbox_diagnostics")) return {
+            last_checked_at: "2026-11-24T17:00:00.000Z",
+            last_status: "rejected",
+            scanned_count: 3,
+            imported_count: 0,
+            rejected_count: 1,
+            last_rejection_code: "status_mismatch",
+            last_error_code: ""
+          };
+          throw new Error("Unexpected SQL: " + sql);
+        }
+      };
+    }
+  };
+  const response = await request("/health", {}, { DB: db });
+  const payload = await response.json();
+  assert.deepEqual(payload.privateInbox, {
+    lastCheckedAt: "2026-11-24T17:00:00.000Z",
+    lastStatus: "rejected",
+    scanned: 3,
+    imported: 0,
+    rejected: 1,
+    lastRejectionCode: "status_mismatch",
+    lastErrorCode: null
+  });
+  assert.equal(JSON.stringify(payload.privateInbox).includes("mission_id"), false);
+});
+
+test("private inbox uses the shared schema validator and fair round-robin scanning", () => {
+  assert.match(workerSource, /validatePrivateIntelligenceMission\(mission\)/);
+  assert.match(workerSource, /INTELLIGENCE_PRIVATE_INBOX_REJECTED/);
+  assert.match(workerSource, /orderedCandidates\.slice\(0, 20\)/);
+  assert.match(workerSource, /last_entry_name/);
+  assert.match(workerSource, /mission\?\.status === "ingested"/);
 });
 
 test("health endpoint remains diagnostic when database binding is absent", async () => {
