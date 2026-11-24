@@ -5504,6 +5504,8 @@ export async function persistIntelligencePackageReport(env, packageId, snapshot)
     } catch (error) {
       const message = String(error?.message || "");
       if (/^report_[a-z0-9_]{1,64}$/.test(message)) throw error;
+      // Preserve deterministic integrity failures; only infrastructure failures get stage codes.
+      if (message === "Existing private report content does not match the current package snapshot.") throw error;
       throw new Error("report_" + name + "_failed");
     }
   }
