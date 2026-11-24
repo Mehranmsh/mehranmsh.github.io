@@ -155,6 +155,37 @@ export function canonicalizeAppendOnlyHunkHeader(diff, sourceLineCount) {
   return lines.join("\n") + "\n";
 }
 
+export function inspectGeneratedDiffShape(diff) {
+  if (typeof diff !== "string") return { reason: "not_string" };
+  const lines = diff.replace(/\r\n/g, "\n").replace(/\n$/, "").split("\n");
+  const exactPath = lines[0] === "--- a/scripts/intelligence-capabilities.test.mjs" &&
+    lines[1] === "+++ b/scripts/intelligence-capabilities.test.mjs";
+  const payload = lines.slice(3);
+  const additions = payload.filter(line => line.startsWith("+") && !line.startsWith("+++")).length;
+  const deletions = payload.filter(line => line.startsWith("-") && !line.startsWith("---")).length;
+  const contexts = payload.filter(line => line.startsWith(" ")).length;
+  const blank = payload.filter(line => line.length === 0).length;
+  const metadata = payload.filter(line => /^(?:diff --git |index |\\\\ No newline)/.test(line)).length;
+  let reason = "eligible_for_header_repair";
+  if (!exactPath) reason = "path_mismatch";
+  else if (lines.length < 4) reason = "missing_hunk_or_payload";
+  else if (payload.some(line => line.startsWith("+++"))) reason = "extra_file_header";
+  else if (deletions || contexts || blank || metadata || payload.some(line => !line.startsWith("+"))) {
+    reason = "contains_non_addition";
+  }
+  return {
+    reason,
+    lineCount: lines.length,
+    exactPath,
+    thirdLineLooksLikeHunk: /^@@ /.test(lines[2] || ""),
+    additions,
+    deletions,
+    contexts,
+    blankPayloadLines: blank,
+    metadataLines: metadata
+  };
+}
+
 export async function generatePatchArtifact({
   env,
   baseSha,
@@ -245,7 +276,16 @@ export async function generatePatchArtifact({
     summary: generated.summary,
     diff: canonicalDiff
   });
-  if (!validated.ok) return validated;
+  if (!validated.ok) {
+    return {
+      ...validated,
+      diagnostic: {
+        stage: "generated_diff_validation",
+        shape: inspectGeneratedDiffShape(canonicalDiff),
+        canonicalizerApplied: canonicalDiff !== normalizedDiff
+      }
+    };
+  }
 
   let artifact;
   try {

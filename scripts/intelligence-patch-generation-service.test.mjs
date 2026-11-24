@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { canonicalizeAppendOnlyHunkHeader, generatePatchArtifact, normalizeGeneratedDiff } from "./intelligence-patch-generation-service.mjs";
+import { canonicalizeAppendOnlyHunkHeader, generatePatchArtifact, inspectGeneratedDiffShape, normalizeGeneratedDiff } from "./intelligence-patch-generation-service.mjs";
 import { buildPatchGenerationPrompt } from "./intelligence-patch-generation.mjs";
 
 const baseSha = "a".repeat(40);
@@ -142,4 +142,24 @@ test("does not canonicalize patches with context, deletions, or a different path
   const wrongPath = "--- a/other.js\n+++ b/other.js\n@@ broken\n+addition\n";
   assert.equal(canonicalizeAppendOnlyHunkHeader(malformed, 42), malformed);
   assert.equal(canonicalizeAppendOnlyHunkHeader(wrongPath, 42), wrongPath);
+});
+
+test("diff diagnostics expose only structural metadata and identify unsafe payload shapes", () => {
+  const malformed = [
+    "--- a/scripts/intelligence-capabilities.test.mjs",
+    "+++ b/scripts/intelligence-capabilities.test.mjs",
+    "@@ malformed",
+    "+one",
+    " context",
+    "+two",
+    ""
+  ].join("\n");
+  const diagnostic = inspectGeneratedDiffShape(malformed);
+  assert.equal(diagnostic.reason, "contains_non_addition");
+  assert.equal(diagnostic.exactPath, true);
+  assert.equal(diagnostic.additions, 2);
+  assert.equal(diagnostic.contexts, 1);
+  assert.equal(diagnostic.deletions, 0);
+  assert.equal(Object.hasOwn(diagnostic, "raw"), false);
+  assert.equal(Object.hasOwn(diagnostic, "diff"), false);
 });
