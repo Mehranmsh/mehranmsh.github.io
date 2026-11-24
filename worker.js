@@ -238,6 +238,22 @@ async function checkRateLimit(env, request, scope, maxAttempts, windowSeconds, b
   return true;
 }
 
+// Preserve actionable Workers AI diagnostics without logging prompts, credentials, or request bodies.
+function safeWorkersAIErrorDetails(err) {
+  const clean = value => String(value ?? "").replace(/Bearer\\s+[^\\s,;]+/gi, "Bearer [redacted]")
+    .replace(/[A-Za-z0-9_=-]{48,}/g, "[redacted]")
+    .replace(/[\\r\\n\\t]+/g, " ").slice(0, 220);
+  const cause = err && typeof err.cause === "object" ? err.cause : null;
+  return {
+    name: clean(err?.name || "Error"),
+    message: clean(err?.message || err || "Unknown Workers AI error"),
+    code: clean(err?.code ?? cause?.code ?? ""),
+    status: Number.isFinite(Number(err?.status ?? cause?.status)) ? Number(err?.status ?? cause?.status) : null,
+    causeName: clean(cause?.name || ""),
+    causeMessage: clean(cause?.message || "")
+  };
+}
+
 // Separate daily product allowances with one shared fail-closed ceiling.
 // These are conservative reservation credits, NOT Cloudflare's measured Neurons.
 // Cloudflare Free itself remains the final hard stop at 10,000 actual Neurons/day.
@@ -5934,7 +5950,7 @@ async function planIntelligenceMission(env, input) {
       max_tokens: 1600
     });
   } catch (err) {
-    console.error("INTELLIGENCE_MISSION_PLANNER_FAILURE", String(err && err.message || err).slice(0, 180));
+    console.error("INTELLIGENCE_MISSION_PLANNER_FAILURE", JSON.stringify(safeWorkersAIErrorDetails(err)));
     return fallback("ai_inference_failed");
   }
 
@@ -7078,7 +7094,7 @@ export default {
               max_tokens:2200
             });
           } catch (err) {
-            console.error("INTELLIGENCE_CODE_ANALYSIS_FAILURE",String(err?.message||err).slice(0,160));
+            console.error("INTELLIGENCE_CODE_ANALYSIS_FAILURE",JSON.stringify(safeWorkersAIErrorDetails(err)));
             return error("Workers AI code analysis failed.",503);
           }
           const raw = result?.response ?? result?.result?.response ?? "";
