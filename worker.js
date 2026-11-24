@@ -5423,9 +5423,14 @@ export async function persistIntelligencePackageReport(env, packageId, snapshot)
     return { stored: false, reason: "not_configured_or_not_final" };
   }
 
-  const pkg = await env.DB.prepare(
-    "SELECT id,created_at,report_stored_at FROM intelligence_work_packages WHERE id=?"
-  ).bind(packageId).first();
+  let pkg;
+  try {
+    pkg = await env.DB.prepare(
+      "SELECT id,created_at,report_stored_at FROM intelligence_work_packages WHERE id=?"
+    ).bind(packageId).first();
+  } catch {
+    throw new Error("report_package_lookup_failed");
+  }
   if (!pkg) return { stored: false, reason: "package_not_found" };
   // The durable marker is written only after the exact private report is verified.
   // Do not regenerate a timestamped snapshot and compare it against that immutable report.
@@ -5433,9 +5438,14 @@ export async function persistIntelligencePackageReport(env, packageId, snapshot)
     return { stored: true, alreadyExists: true, path: null, reason: "already_recorded" };
   }
 
-  const taskResult = await env.DB.prepare(
-    "SELECT id,status,action_type,attempts,max_attempts,last_error_code,result_text FROM intelligence_tasks WHERE work_package_id=? ORDER BY created_at ASC,id ASC"
-  ).bind(packageId).all();
+  let taskResult;
+  try {
+    taskResult = await env.DB.prepare(
+      "SELECT id,status,action_type,attempts,max_attempts,last_error_code,result_text FROM intelligence_tasks WHERE work_package_id=? ORDER BY created_at ASC,id ASC"
+    ).bind(packageId).all();
+  } catch {
+    throw new Error("report_tasks_lookup_failed");
+  }
 
   // Anchor report identity to the immutable package creation time. Snapshot
   // refreshes generate new timestamps, which must not change an idempotent artifact.
@@ -7011,7 +7021,9 @@ export default {
               const storeError = String(err?.message || err);
               const safeStoreReason = /^GitHub report (?:lookup|write) failed with status \d{3}\.$/.test(storeError)
                 ? storeError.slice(0,100)
-                : "internal_store_error";
+                : /^report_[a-z0-9_]{1,64}$/.test(storeError)
+                  ? storeError
+                  : "internal_store_error";
               console.error("INTELLIGENCE_PRIVATE_REPORT_STORE_FAILURE", safeStoreReason);
               reportStorage = {stored:false,reason:safeStoreReason};
             }
