@@ -1394,3 +1394,20 @@ test("patch generation uses the approved provider router without a second budget
   assert.equal(legacyBudgetCalls, 0);
   assert.equal(result.validation.deletions, 0);
 });
+
+test("Cloudflare AI diagnostics distinguish budget reservation failures from inference failures", () => {
+  const cloudflareStart = workerSource.indexOf('if (provider === "cloudflare")');
+  const cloudflareEnd = workerSource.indexOf('if (provider === "groq")', cloudflareStart);
+  const cloudflare = workerSource.slice(cloudflareStart, cloudflareEnd);
+  assert.match(cloudflare, /reason:"budget_reservation_error", stage:"budget_reservation"/);
+  assert.match(cloudflare, /reason:"daily_quota", stage:"budget_reservation"/);
+  assert.match(cloudflare, /await env\.AI\.run\(model/);
+  assert.match(workerSource, /stage: provider === "cloudflare" \? "inference" : "provider_request"/);
+  const analysisStart = workerSource.indexOf('if (path === "/agent/v1/repository/analyze"');
+  const analysisEnd = workerSource.indexOf('if (path === "/agent/v1/missions/plan"', analysisStart);
+  const analysisRoute = workerSource.slice(analysisStart, analysisEnd);
+  assert.match(analysisRoute, /recordIntelligenceAIProviderDiagnostics\(env, traceId, providerAttempts, model\)/);
+  assert.match(analysisRoute, /providerAttempts:safeAttempts/);
+  assert.match(workerSource, /ORDER BY CASE WHEN provider='cloudflare' THEN 0 ELSE 1 END,id DESC LIMIT 4/);
+  assert.match(workerSource, /aiProviderAttempts/);
+});
