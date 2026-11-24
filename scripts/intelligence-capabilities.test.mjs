@@ -7,6 +7,7 @@ import { createPatchArtifactRecord, verifyPatchArtifactRecord } from "./intellig
 import { storePrivatePatchArtifact, verifyPrivatePatchArtifactAtPath, getVerifiedPrivatePatchArtifactAtPath, getPrivatePatchArtifactPath, PRIVATE_PATCH_ARTIFACT_STORE_POLICY } from "./intelligence-private-patch-store.mjs";
 import { buildPatchGenerationPrompt, validateGeneratedPatch, PATCH_GENERATION_POLICY } from "./intelligence-patch-generation.mjs";
 import { generatePatchArtifact, PATCH_GENERATION_SERVICE_POLICY, canonicalizeAppendOnlyHunkHeader } from "./intelligence-patch-generation-service.mjs";
+import { nextWorkersAIDailyResetAt, isWorkersAIDailyQuotaCircuitOpen } from "./intelligence-ai-quota.mjs";
 import {
   INTELLIGENCE_CAPABILITIES,
   INTELLIGENCE_ACTION_TYPES,
@@ -1447,4 +1448,16 @@ test("Cloudflare AI diagnostics distinguish budget reservation failures from inf
   assert.match(workerSource, /archiveLatestIntelligenceAIProviderDiagnostics\(env\)/);
   assert.match(workerSource, /mehran-intelligence-reports\/contents\/\" \+ path/);
   assert.match(workerSource, /Private AI diagnostics archive write failed/);
+});
+
+
+test("Workers AI daily quota circuit resets at Cloudflare UTC midnight", () => {
+  const exhaustedAt = "2026-11-24T22:49:00.000Z";
+  assert.equal(nextWorkersAIDailyResetAt(exhaustedAt), Date.parse("2026-11-25T00:00:00.000Z"));
+  assert.equal(isWorkersAIDailyQuotaCircuitOpen(exhaustedAt, Date.parse("2026-11-24T23:59:59.000Z")), true);
+  assert.equal(isWorkersAIDailyQuotaCircuitOpen(exhaustedAt, Date.parse("2026-11-25T00:00:00.000Z")), false);
+  assert.equal(isWorkersAIDailyQuotaCircuitOpen("not-a-timestamp", Date.parse("2026-11-25T00:00:00.000Z")), false);
+  assert.match(workerSource, /function isWorkersAIDailyQuotaCircuitOpen\\(attemptedAt, now = Date\\.now\\(\\)\\)/);
+  assert.match(workerSource, /isWorkersAIDailyQuotaCircuitOpen\\(exhausted\\?\\.attempted_at\\)/);
+  assert.doesNotMatch(workerSource, /24 \\* 60 \\* 60 \\* 1000/);
 });
