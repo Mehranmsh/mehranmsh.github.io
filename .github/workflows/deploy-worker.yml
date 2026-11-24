@@ -1,13 +1,27 @@
 name: Deploy Cloudflare Worker
 
 on:
+  # Deploy automatically when Worker source/config changes land on main.
+  push:
+    branches:
+      - main
+    paths:
+      - "worker.js"
+      - "wrangler.jsonc"
+      - ".github/workflows/deploy-worker.yml"
+  # Keep a manual recovery path as well.
   workflow_dispatch:
+
+concurrency:
+  group: mehran-cloudflare-worker-production
+  cancel-in-progress: false
 
 jobs:
   deploy:
     if: github.ref == 'refs/heads/main'
     environment: production
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     permissions:
       contents: read
     steps:
@@ -15,6 +29,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           ref: main
+          persist-credentials: false
 
       - name: Deploy Worker to Cloudflare
         uses: cloudflare/wrangler-action@v3
