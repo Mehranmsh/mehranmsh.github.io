@@ -5420,6 +5420,13 @@ async function ensureIntelligenceProtocolTables(env) {
       throw migrationError;
     }
   }
+  try {
+    await env.DB.prepare("ALTER TABLE intelligence_work_packages ADD COLUMN report_payload TEXT NOT NULL DEFAULT ''").run();
+  } catch (migrationError) {
+    if (!/duplicate column name/i.test(String(migrationError?.message || migrationError))) {
+      throw migrationError;
+    }
+  }
   await env.DB.prepare(`
     CREATE TABLE IF NOT EXISTS intelligence_task_events(
       id TEXT PRIMARY KEY,
@@ -5599,7 +5606,7 @@ export async function persistIntelligencePackageReport(env, packageId, snapshot)
   let pkg;
   try {
     pkg = await env.DB.prepare(
-      "SELECT id,created_at,report_stored_at FROM intelligence_work_packages WHERE id=?"
+      "SELECT id,created_at,report_stored_at,report_payload FROM intelligence_work_packages WHERE id=?"
     ).bind(packageId).first();
   } catch {
     throw new Error("report_package_lookup_failed");
@@ -5712,9 +5719,22 @@ export async function persistIntelligencePackageReport(env, packageId, snapshot)
     throw lastError || new Error("Private report GitHub request failed after retries.");
   }
 
-  const reportText = JSON.stringify(report, null, 2) + "\n";
+  const hadStoredReportPayload = typeof pkg.report_payload === "string" && pkg.report_payload.length > 0;
+  let reportText = hadStoredReportPayload ? pkg.report_payload : JSON.stringify(report, null, 2) + "\n";
+  if (!hadStoredReportPayload) {
+    await reportStage("payload_reserve", () => env.DB.prepare(
+      "UPDATE intelligence_work_packages SET report_payload=? WHERE id=? AND (report_payload IS NULL OR report_payload='')"
+    ).bind(reportText, packageId).run());
+    const savedPayload = await reportStage("payload_read", () => env.DB.prepare(
+      "SELECT report_payload FROM intelligence_work_packages WHERE id=?"
+    ).bind(packageId).first());
+    if (typeof savedPayload?.report_payload !== "string" || !savedPayload.report_payload) {
+      throw new Error("report_payload_reservation_failed");
+    }
+    reportText = savedPayload.report_payload;
+  }
   const bytes = new TextEncoder().encode(reportText);
-  const expectedReportHash = await reportStage("hash", () => sha256(reportText));
+  let expectedReportHash = await reportStage("hash", () => sha256(reportText));
   async function verifyExistingReport() {
     const lookup = await reportStage("github_lookup", () => reportFetch(apiUrl, { method: "GET", headers }));
     if (!lookup.ok) {
@@ -5733,21 +5753,42 @@ export async function persistIntelligencePackageReport(env, packageId, snapshot)
     } catch {
       throw new Error("Existing private report could not be verified; refusing to mark it stored.");
     }
+    let priorReport;
+    try { priorReport = JSON.parse(existingReportText); }
+    catch { throw new Error("Existing private report could not be verified; refusing to mark it stored."); }
+    const priorDate = typeof priorReport?.generated_at === "string" ? new Date(priorReport.generated_at) : null;
+    const validPriorIdentity = priorReport && typeof priorReport === "object" && !Array.isArray(priorReport) &&
+      priorReport.schema_version === 1 &&
+      priorReport.report_id === packageId &&
+      priorReport.source === "mehran_intelligence" &&
+      priorReport.report_type === "work_package_summary" &&
+      ["success", "warning"].includes(priorReport.status) &&
+      priorDate && Number.isFinite(priorDate.getTime()) && priorDate.toISOString() === priorReport.generated_at &&
+      priorReport.data && typeof priorReport.data === "object" &&
+      priorReport.data.work_package_id === packageId &&
+      ["completed", "attention_required"].includes(priorReport.data.status) &&
+      priorReport.data.counts && typeof priorReport.data.counts === "object" &&
+      Array.isArray(priorReport.data.tasks);
+    if (!validPriorIdentity) {
+      throw new Error("Existing private report identity or schema does not match this work package.");
+    }
     if (await sha256(existingReportText) !== expectedReportHash) {
-      // Older finalizers used a volatile snapshot timestamp. Accept migration
-      // only when generated_at is the sole differing field; task evidence and
-      // every other report field must still match exactly.
-      let timestampOnlyMatch = false;
-      try {
-        const priorReport = JSON.parse(existingReportText);
-        if (priorReport && typeof priorReport === "object" && !Array.isArray(priorReport)) {
-          priorReport.generated_at = report.generated_at;
-          timestampOnlyMatch = JSON.stringify(priorReport) === JSON.stringify(report);
-        }
-      } catch {}
-      if (!timestampOnlyMatch) {
-        throw new Error("Existing private report content does not match the current package snapshot.");
+      if (hadStoredReportPayload) {
+        throw new Error("report_content_conflict");
       }
+      // Legacy reports predate the durable D1 payload. Adopt only a valid
+      // same-package artifact once, then pin its exact bytes for all future retries.
+      await reportStage("legacy_payload_adopt", () => env.DB.prepare(
+        "UPDATE intelligence_work_packages SET report_payload=? WHERE id=? AND report_payload=?"
+      ).bind(existingReportText, packageId, reportText).run());
+      const adopted = await reportStage("legacy_payload_verify", () => env.DB.prepare(
+        "SELECT report_payload FROM intelligence_work_packages WHERE id=?"
+      ).bind(packageId).first());
+      if (adopted?.report_payload !== existingReportText) {
+        throw new Error("report_content_conflict");
+      }
+      reportText = existingReportText;
+      expectedReportHash = await reportStage("hash", () => sha256(reportText));
     }
     await reportStage("marker_write", () => env.DB.prepare("UPDATE intelligence_work_packages SET report_stored_at=CURRENT_TIMESTAMP WHERE id=? AND report_stored_at IS NULL").bind(packageId).run());
     return { exists: true };

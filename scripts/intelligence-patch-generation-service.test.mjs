@@ -101,7 +101,7 @@ test("patch generation fails closed when independent GitHub refs disagree", asyn
 });
 
 
-test("patch prompt supplies the exact append-only hunk header for the source line count", () => {
+test("patch prompt asks for structured source lines and leaves diff construction to the executor", () => {
   const source = "const first = 1;\nconst second = 2;\n";
   const prompt = buildPatchGenerationPrompt({
     baseSha,
@@ -109,9 +109,11 @@ test("patch prompt supplies the exact append-only hunk header for the source lin
     source
   });
   assert.equal(prompt.ok, true);
-  assert.ok(prompt.system.includes("@@ -2,0 +3,K @@"));
-  assert.match(prompt.system, /no blank line or commentary/);
-  assert.match(prompt.system, /Do not omit ,0 or ,K/);
+  assert.match(prompt.system, /array-of-strings field testLines/);
+  assert.match(prompt.system, /no carriage return or newline characters/);
+  assert.match(prompt.system, /trusted executor constructs the unified diff itself/);
+  assert.match(prompt.system, /exactly scripts\/intelligence-capabilities\.test\.mjs/);
+  assert.doesNotMatch(prompt.system, /@@ -\d+/);
 });
 
 test("generated patch normalization converts CRLF and adds the required final newline", () => {
