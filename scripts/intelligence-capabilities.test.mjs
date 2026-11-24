@@ -1,4 +1,5 @@
 import test from "node:test";
+import { applyValidatedPatchInMemory } from "./intelligence-patch-apply.mjs";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { validatePatchProposal, PATCH_PROPOSAL_POLICY } from "./intelligence-patch-policy.mjs";
@@ -1265,4 +1266,50 @@ test("repository inspection and source audit accept worker.js while preserving s
   assert.match(runnerSource, /file\.path !== path/);
   assert.match(runnerSource, /Buffer\.byteLength\(text, "utf8"\) !== file\.size/);
   assert.match(runnerSource, /file\.sha !== "string"/);
+});
+
+
+test("patch application is in-memory only and rejects stale or non-append-only patches", () => {
+  const baseSha = "a".repeat(40);
+  const targetPath = "scripts/intelligence-capabilities.test.mjs";
+  const source = "const existing = true;\n";
+  const diff = [
+    `--- a/${targetPath}`,
+    `+++ b/${targetPath}`,
+    "@@ -1,0 +2,1 @@",
+    "+const appended = true;"
+  ].join("\n") + "\n";
+  const result = applyValidatedPatchInMemory({
+    baseSha,
+    expectedBaseSha: baseSha,
+    source,
+    targetPath,
+    summary: "Append one bounded test fixture safely",
+    diff
+  });
+  assert.equal(result.ok, true);
+  assert.equal(result.content, source + "const appended = true;\n");
+  assert.equal(result.mode, "in_memory_only");
+
+  const stale = applyValidatedPatchInMemory({
+    baseSha,
+    expectedBaseSha: "b".repeat(40),
+    source,
+    targetPath,
+    summary: "Append one bounded test fixture safely",
+    diff
+  });
+  assert.equal(stale.code, "stale_base_sha");
+
+  const replacement = diff.replace("@@ -1,0 +2,1 @@", "@@ -1,1 +1,1 @@")
+    .replace("+const appended = true;", "-const existing = true;\n+const replaced = true;");
+  const rejected = applyValidatedPatchInMemory({
+    baseSha,
+    expectedBaseSha: baseSha,
+    source,
+    targetPath,
+    summary: "Attempt to replace an existing line",
+    diff: replacement
+  });
+  assert.equal(rejected.ok, false);
 });
