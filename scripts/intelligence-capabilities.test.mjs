@@ -884,8 +884,10 @@ test("Private package reports are verified before the durable stored marker is s
   assert.match(persist, /priorReport\.report_id === packageId/);
   assert.match(persist, /priorReport\.data\.work_package_id === packageId/);
   assert.match(persist, /priorReport\.data\.tasks\)/);
-  assert.match(persist, /preserve the first valid snapshot/);
-  assert.match(persist, /INTELLIGENCE_PRIVATE_REPORT_EXISTING_SNAPSHOT_PRESERVED/);
+  assert.match(persist, /report_payload/);
+  assert.match(persist, /SET report_payload=\? WHERE id=\? AND report_payload=\?/);
+  assert.match(persist, /hadStoredReportPayload/);
+  assert.match(persist, /report_content_conflict/);
   assert.match(workerSource, /"report_content_conflict"/);
   assert.match(persist, /refusing to mark it stored/);
   assert.match(persist, /if \(\[409, 422\]\.includes\(response\.status\)\)[\s\S]*?verifyExistingReport\(\)/);
