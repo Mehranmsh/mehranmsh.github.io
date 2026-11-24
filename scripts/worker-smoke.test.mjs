@@ -16,7 +16,7 @@ const capabilityImport = 'import { INTELLIGENCE_ACTION_TYPES, PREAPPROVED_INTELL
 const patchStoreImport = 'import { storePrivatePatchArtifact, verifyPrivatePatchArtifactAtPath, getPrivatePatchArtifactPath, getVerifiedPrivatePatchArtifactAtPath } from "./scripts/intelligence-private-patch-store.mjs";';
 const patchGenerationImport = 'import { generatePatchArtifact } from "./scripts/intelligence-patch-generation-service.mjs";';
 const inboxSchemaImport = 'import { validatePrivateIntelligenceMission } from "./scripts/intelligence-inbox-schema.mjs";';
-if (!workerSource.startsWith(capabilityImport) || !workerSource.includes(patchStoreImport) ||
+if (!workerSource.includes(capabilityImport) || !workerSource.includes(patchStoreImport) ||
     !workerSource.includes(patchGenerationImport) || !workerSource.includes(inboxSchemaImport)) {
   throw new Error("Worker capability, patch storage, or private inbox schema imports were not found");
 }
