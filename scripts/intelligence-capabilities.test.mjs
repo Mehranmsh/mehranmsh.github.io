@@ -1223,6 +1223,8 @@ test("Intelligence Runner correlates API requests with bounded trace IDs and rec
   assert.match(runnerSource, /diagnostic\.traceId/);
   assert.match(workerSource, /INTELLIGENCE_CODE_ANALYSIS_START/);
   assert.match(workerSource, /INTELLIGENCE_CODE_ANALYSIS_SUCCESS/);
+  assert.match(workerSource, /INTELLIGENCE_MISSION_PLANNER_START/);
+  assert.match(workerSource, /INTELLIGENCE_MISSION_PLANNER_INFERENCE_SUCCESS/);
   assert.match(workerSource, /operation:"repository_analyze",traceId,elapsedMs/);
   assert.match(workerSource, /operation:"mission_plan",traceId,elapsedMs/);
 });
