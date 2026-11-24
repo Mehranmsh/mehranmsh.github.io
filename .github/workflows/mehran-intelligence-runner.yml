@@ -1137,3 +1137,4 @@ jobs:
 # Manual wake-up tick requested after confirming scheduled-run gap.
 
 # Read-only diagnostic wake-up marker: skip proposal-PR job for this trigger only.
+# Post-deployment diagnostic mission wake-up [read-only-wake]
