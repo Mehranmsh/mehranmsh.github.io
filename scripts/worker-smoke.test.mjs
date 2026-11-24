@@ -377,6 +377,21 @@ test("proposal-only work-package tasks require a bounded objective", () => {
   assert.equal(validateIntelligenceWorkPackage({ ...base, tasks: [{ ...base.tasks[0], actionType: "service_health_report" }] }).ok, false);
 });
 
+test("proposal queue is owner-authenticated and claims are bound to one runner", () => {
+  const ownerGuard = workerSource.slice(workerSource.indexOf('const ownerOrchestrationRoute ='), workerSource.indexOf('const configuredToken =', workerSource.indexOf('const ownerOrchestrationRoute =')));
+  assert.match(ownerGuard, /patch-proposals\/pending/);
+  assert.match(ownerGuard, /patch-proposals\/claim/);
+  assert.match(ownerGuard, /patch-proposals\/complete/);
+  const start = workerSource.indexOf('if (path === "/agent/v1/patch-proposals/pending" && method === "GET")');
+  const end = workerSource.indexOf('if (path === "/agent/v1/patch-proposals/artifact" && method === "GET")', start);
+  assert.ok(start >= 0 && end > start);
+  const routes = workerSource.slice(start, end);
+  assert.match(routes, /WHERE status='stored'.*LIMIT 3/);
+  assert.match(routes, /SET status='claimed',runner_run_id=\?/);
+  assert.match(routes, /status='claimed' AND runner_run_id=\?/);
+  assert.match(routes, /"pull_request_created","failed"/);
+});
+
 test("private patch retrieval is authenticated, rate-limited, digest-verified, and bound to D1 metadata", () => {
   const start = workerSource.indexOf('if (path === "/agent/v1/patch-proposals/artifact" && method === "GET")');
   const end = workerSource.indexOf('if (path === "/agent/v1/repository/analyze" && method === "POST")', start);
