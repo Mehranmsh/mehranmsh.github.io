@@ -1288,6 +1288,12 @@ test("repository inspection and source audit accept worker.js while preserving s
 });
 
 
+test("proposal PR runner imports the patch applier from its own scripts directory", () => {
+  const runnerSource = readFileSync(new URL("./intelligence-proposal-pr-runner.mjs", import.meta.url), "utf8");
+  assert.match(runnerSource, /from "\.\/intelligence-patch-apply\.mjs"/);
+  assert.doesNotMatch(runnerSource, /from "\.\/scripts\/intelligence-patch-apply\.mjs"/);
+});
+
 test("patch application is in-memory only and rejects stale or non-append-only patches", () => {
   const baseSha = "a".repeat(40);
   const targetPath = "scripts/intelligence-capabilities.test.mjs";
