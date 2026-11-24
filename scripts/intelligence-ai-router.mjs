@@ -81,7 +81,10 @@ function buildRequest(provider, env, input) {
   }
   if (provider === "gemini") {
     const key = env.GEMINI_API_KEY;
-    if (typeof key !== "string" || key.length < 20) return null;
+    // Explicit owner opt-in: Gemini's free tier may use submitted content for product improvement.
+    // The flag must only be enabled after confirming billing is disabled and the account is on the free tier.
+    if (env.MEHRAN_INTELLIGENCE_GEMINI_FREE_ONLY !== "true" ||
+        typeof key !== "string" || key.length < 20) return null;
     const system = input.messages.find(message => message.role === "system")?.content || "";
     const contents = input.messages.filter(message => message.role !== "system").map(message => ({
       role: message.role === "assistant" ? "model" : "user",
@@ -91,7 +94,7 @@ function buildRequest(provider, env, input) {
       model,
       run: () => fetchProvider(
         "https://generativelanguage.googleapis.com/v1beta/models/" + encodeURIComponent(model) +
-          ":generateContent?key=" + encodeURIComponent(key),
+          ":generateContent",
         "",
         {
           ...(system ? { systemInstruction: { parts: [{ text: system }] } } : {}),
@@ -102,13 +105,15 @@ function buildRequest(provider, env, input) {
             ...(input.responseFormat ? { responseMimeType: "application/json" } : {})
           }
         },
-        true
+        true,
+        { "x-goog-api-key": key }
       )
     };
   }
   if (provider === "openrouter") {
     const key = env.OPENROUTER_API_KEY;
-    if (typeof key !== "string" || key.length < 20) return null;
+    // OpenRouter's explicit free-model suffix prevents accidental paid model routing.
+    if (!model.endsWith(":free") || typeof key !== "string" || key.length < 20) return null;
     return {
       model,
       run: () => fetchProvider("https://openrouter.ai/api/v1/chat/completions", key, {
@@ -121,12 +126,13 @@ function buildRequest(provider, env, input) {
   return null;
 }
 
-async function fetchProvider(url, key, payload, isGemini = false) {
+async function fetchProvider(url, key, payload, isGemini = false, extraHeaders = {}) {
   const response = await fetch(url, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      ...(key && !isGemini ? { Authorization: "Bearer " + key } : {})
+      ...(key && !isGemini ? { Authorization: "Bearer " + key } : {}),
+      ...extraHeaders
     },
     body: JSON.stringify(payload),
     signal: AbortSignal.timeout(35000)
