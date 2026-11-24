@@ -6774,7 +6774,7 @@ export default {
             const status = generated.code === "stale_base_sha" ? 409 :
               generated.code === "ai_budget_exhausted" ? 429 :
               ["ai_unavailable","budget_guard_unavailable","ai_budget_guard_failed","main_commit_lookup_failed","source_fetch_failed","model_request_failed","model_returned_error","model_output_not_json","model_output_invalid"].includes(generated.code) ? 502 : 400;
-            return error("Patch generation rejected: " + String(generated.code || "unknown"),status);
+            return json({ success: false, error: "Patch generation rejected: " + String(generated.code || "unknown"), ...(generated.diagnostic ? { diagnostic: generated.diagnostic } : {}) },status);
           }
           const artifact = generated.artifact;
           const artifactPath = getPrivatePatchArtifactPath(artifact);
