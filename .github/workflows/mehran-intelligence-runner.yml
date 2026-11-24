@@ -776,6 +776,58 @@ jobs:
               throw new Error("Stored task checkpoint is not valid JSON; refusing to silently restart the task.");
             }
             let checkpointMatchesCurrentSchema = true;
+            if (savedCheckpoint.phase === "result_ready" && task.actionType === "inspect_repository") {
+              try {
+                const report = JSON.parse(savedCheckpoint.result || "null");
+                const allowedPaths = new Set([
+                  "worker.js",
+                  "scripts/intelligence-agent.mjs",
+                  "scripts/intelligence-capabilities.mjs",
+                  "scripts/intelligence-capabilities.test.mjs",
+                  ".github/workflows/mehran-intelligence-runner.yml",
+                  "docs/INTELLIGENCE_EXECUTION_PROTOCOL.md"
+                ]);
+                const files = Array.isArray(report?.files) ? report.files : [];
+                const seen = new Set();
+                let totalBytes = 0;
+                const filesValid = files.length >= 1 && files.length <= 6 && files.every(file => {
+                  if (!file || typeof file.path !== "string" || !allowedPaths.has(file.path) || seen.has(file.path) ||
+                      typeof file.blobSha !== "string" || !/^[a-f0-9]{40}$/i.test(file.blobSha) ||
+                      !Number.isInteger(file.bytes) || file.bytes < 0 || file.bytes > 500000 ||
+                      !Number.isInteger(file.lineCount) || file.lineCount < 0 || file.lineCount > 20000 ||
+                      !Array.isArray(file.symbols) || file.symbols.length > 2 ||
+                      file.symbols.some(symbol => typeof symbol !== "string" || symbol.length > 60)) return false;
+                  seen.add(file.path);
+                  totalBytes += file.bytes;
+                  return true;
+                });
+                const analysis = report?.analysis && typeof report.analysis === "object" ? report.analysis : {};
+                const analysisValid = typeof analysis.summary === "string" && analysis.summary.length <= 1600 &&
+                  Array.isArray(analysis.findings) && analysis.findings.length <= 8 &&
+                  analysis.findings.every(item => item && ["critical","high","medium","low","info"].includes(item.severity) &&
+                    typeof item.title === "string" && item.title.length <= 180 &&
+                    typeof item.rootCause === "string" && item.rootCause.length <= 1200 &&
+                    typeof item.recommendation === "string" && item.recommendation.length <= 1200 &&
+                    Array.isArray(item.evidence) && item.evidence.length <= 5 &&
+                    item.evidence.every(ev => ev && seen.has(ev.path) && typeof ev.quote === "string" && ev.quote.length <= 500) &&
+                    Array.isArray(item.regressionTests) && item.regressionTests.length <= 6 &&
+                    item.regressionTests.every(item => typeof item === "string" && item.length <= 300)) &&
+                  Array.isArray(analysis.limitations) && analysis.limitations.length <= 5 &&
+                  analysis.limitations.every(item => typeof item === "string" && item.length <= 300);
+                checkpointMatchesCurrentSchema = report?.type === "inspect_repository" &&
+                  report?.mode === "bounded_read_only_repository_inspection" &&
+                  report?.repository === "Mehranmsh/mehranmsh.github.io" &&
+                  typeof report?.commitSha === "string" && /^[a-f0-9]{40}$/i.test(report.commitSha) &&
+                  filesValid && totalBytes <= 750000 &&
+                  report?.summary?.filesInspected === files.length &&
+                  report?.summary?.totalBytes === totalBytes && analysisValid;
+              } catch {
+                checkpointMatchesCurrentSchema = false;
+              }
+              if (!checkpointMatchesCurrentSchema) {
+                console.log("Ignoring stale repository-inspection checkpoint; current Worker schema requires bounded evidence-backed semantic analysis.");
+              }
+            }
             if (savedCheckpoint.phase === "result_ready" && task.actionType === "source_security_audit") {
               try {
                 const checkpointReport = JSON.parse(savedCheckpoint.result || "null");
