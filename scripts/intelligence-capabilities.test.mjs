@@ -25,7 +25,9 @@ const workerSchedulerSource = workerSource.slice(scheduledStart, scheduledEnd);
 test("Workers AI inference failures expose only bounded sanitized diagnostics to the private runner", () => {
   assert.match(workerSource, /const diagnostic = safeWorkersAIErrorDetails\(err\)/);
   assert.match(workerSource, /stage:"workers_ai_inference"/);
-  assert.match(workerSource, /fallback\("ai_inference_failed", detail\)/);
+  assert.match(workerSource, /fallback\(failureReason, detail\)/);
+  assert.match(workerSource, /noProviderConfigured \? "ai_binding_unavailable"/);
+  assert.match(workerSource, /onlyQuotaBlocked \? "daily_ai_budget_unavailable"/);
   assert.match(runnerSource, /payload\.diagnostic\.stage === "workers_ai_inference"/);
   assert.match(runnerSource, /causeMessage: String\(diagnostic\.causeMessage \|\| ""\)\.slice\(0, 180\)/);
   assert.match(runnerSource, /Bounded safe diagnostic:/);
