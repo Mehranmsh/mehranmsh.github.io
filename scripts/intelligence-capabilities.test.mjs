@@ -182,6 +182,12 @@ test("completed self-assessment creates one idempotent evidence-driven terminal 
   assert.match(runnerSource, /Do not create another self-improvement mission or recursive follow-up/);
 });
 
+test("repository inspection report file-size limits stay aligned across Worker and Runner", () => {
+  assert.match(workerSource, /file\\.bytes > 600000/);
+  assert.match(runnerSource, /file\\.size > 600000/);
+  assert.match(runnerSource, /file\\.bytes > 600000/);
+});
+
 test("AI mission planner uses JSON mode and extracts one complete balanced object", () => {
   const start = workerSource.indexOf("function extractIntelligenceJsonObject(raw)");
   const plannerStart = workerSource.indexOf("async function planIntelligenceMission(env, input)");
