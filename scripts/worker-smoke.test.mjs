@@ -2658,14 +2658,14 @@ test("INTELLIGENCE package status transitions use compare-and-set and enqueue at
 });
 
 
-test("MEHRAN INTELLIGENCE mission planner uses Workers AI JSON Mode and accepts structured object responses", () => {
+test("MEHRAN INTELLIGENCE mission planner uses provider-neutral JSON mode and accepts structured object responses", () => {
   const start = workerSource.indexOf("async function planIntelligenceMission");
   const end = workerSource.indexOf("export function verifyIntelligenceReport", start);
   assert.ok(start >= 0 && end > start, "mission planner must exist");
   const planner = workerSource.slice(start, end);
-  assert.match(planner, /response_format:\s*\{\s*type:\s*"json_object"\s*\}/);
+  assert.match(intelligenceAIRouterSource, /response_format:\s*\{\s*type:\s*"json_object"\s*\}/);
   assert.match(planner, /extractIntelligenceJsonObject\(modelResponse\)/);
-  assert.match(planner, /max_tokens:\s*1600/);
+  assert.match(intelligenceAIRouterSource, /max_tokens: input\.maxTokens \?\? 1600/);
   assert.doesNotMatch(planner, /json_schema:/);
   assert.match(planner, /const modelResponse = modelResult && modelResult\.response != null/);
   assert.match(planner, /typeof modelResponse === "object" && !Array\.isArray\(modelResponse\)/);
