@@ -432,7 +432,8 @@ test("Agent patch proposal runner checkpoints an immutable base and submits a st
   assert.match(runnerSource, /\/agent\/v1\/patch-proposals\/generate/);
   assert.match(runnerSource, /requestId: task\.id/);
   assert.match(runnerSource, /checkpoint: \{ baseSha \}/);
-  assert.match(runnerSource, /retryable = Number\(error\?\.status\) === 503/);
+  assert.match(runnerSource, /retryable = !isWorkersAIInferenceFailure && \(/);
+  assert.match(runnerSource, /isWorkersAIInferenceFailure = error\?\.safeDiagnostic\?\.stage === "workers_ai_inference"/);
   assert.match(runnerSource, /JSON\.stringify\(\{ status, result, retryable, claimToken: task\.claimToken \}\)/);
   assert.match(workerSource, /parsedReport\.requestId !== id/);
   assert.match(workerSource, /checkpoint\.baseSha !== parsedReport\.baseSha/);
