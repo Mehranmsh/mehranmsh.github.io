@@ -22,6 +22,17 @@ const scheduledEnd = workerSource.indexOf("async fetch(request, env)", scheduled
 assert.ok(scheduledStart >= 0 && scheduledEnd > scheduledStart, "Worker scheduled handler must be locatable");
 const workerSchedulerSource = workerSource.slice(scheduledStart, scheduledEnd);
 
+test("bounded inspection serialization preserves a schema-valid semantic analysis", () => {
+  const serializerStart = runnerSource.indexOf("function serializeBoundedResult");
+  const serializerEnd = runnerSource.indexOf('for (let count = 0;', serializerStart);
+  const serializer = runnerSource.slice(serializerStart, serializerEnd);
+  assert.match(serializer, /analysis: compactAnalysis/);
+  assert.match(serializer, /findings: \[\]/);
+  assert.match(serializer, /Semantic findings were compacted/);
+  assert.match(serializer, /bounded\.length > maxChars/);
+  assert.match(serializer, /item\?\.rootCause/);
+});
+
 test("runner resumes a durable completed result checkpoint without repeating execution", () => {
   assert.ok(runnerSource.includes('savedCheckpoint.phase === "result_ready"'));
   assert.ok(runnerSource.includes('savedCheckpoint.actionType === task.actionType'));
