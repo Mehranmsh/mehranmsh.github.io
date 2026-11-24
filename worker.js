@@ -5498,6 +5498,16 @@ export async function persistIntelligencePackageReport(env, packageId, snapshot)
     evidence: [{ kind: "work_package_id", reference: packageId }]
   };
 
+  async function reportStage(name, operation) {
+    try {
+      return await operation();
+    } catch (error) {
+      const message = String(error?.message || "");
+      if (/^report_[a-z0-9_]{1,64}$/.test(message)) throw error;
+      throw new Error("report_" + name + "_failed");
+    }
+  }
+
   const path = `reports/${year}/${month}/${packageId}.json`;
   const apiUrl = `https://api.github.com/repos/Mehranmsh/mehran-intelligence-reports/contents/${path}`;
   const headers = {
@@ -5529,12 +5539,12 @@ export async function persistIntelligencePackageReport(env, packageId, snapshot)
 
   const reportText = JSON.stringify(report, null, 2) + "\n";
   const bytes = new TextEncoder().encode(reportText);
-  const expectedReportHash = await sha256(reportText);
+  const expectedReportHash = await reportStage("hash", () => sha256(reportText));
   async function verifyExistingReport() {
-    const lookup = await reportFetch(apiUrl, { method: "GET", headers });
+    const lookup = await reportStage("github_lookup", () => reportFetch(apiUrl, { method: "GET", headers }));
     if (!lookup.ok) {
       if (lookup.status === 404) return { exists: false };
-      throw new Error(`GitHub report lookup failed with status ${lookup.status}.`);
+      throw new Error("report_github_lookup_http_" + lookup.status);
     }
     let existingReportText = "";
     try {
@@ -5564,11 +5574,11 @@ export async function persistIntelligencePackageReport(env, packageId, snapshot)
         throw new Error("Existing private report content does not match the current package snapshot.");
       }
     }
-    await env.DB.prepare("UPDATE intelligence_work_packages SET report_stored_at=CURRENT_TIMESTAMP WHERE id=? AND report_stored_at IS NULL").bind(packageId).run();
+    await reportStage("marker_write", () => env.DB.prepare("UPDATE intelligence_work_packages SET report_stored_at=CURRENT_TIMESTAMP WHERE id=? AND report_stored_at IS NULL").bind(packageId).run());
     return { exists: true };
   }
 
-  const existing = await verifyExistingReport();
+  const existing = await reportStage("github_verify", () => verifyExistingReport());
   if (existing.exists) {
     return { stored: true, alreadyExists: true, path, artifactSha256: expectedReportHash };
   }
@@ -5577,14 +5587,14 @@ export async function persistIntelligencePackageReport(env, packageId, snapshot)
     binary += String.fromCharCode(...bytes.subarray(offset, offset + 0x8000));
   }
   const content = btoa(binary);
-  const response = await reportFetch(apiUrl, {
+  const response = await reportStage("github_write", () => reportFetch(apiUrl, {
     method: "PUT",
     headers: { ...headers, "Content-Type": "application/json" },
     body: JSON.stringify({
       message: `Store INTELLIGENCE report ${packageId}`,
       content
     })
-  });
+  }));
   if (!response.ok) {
     // Another Runner may have won the create race after our initial 404.
     // Accept only the exact expected artifact; never overwrite a conflicting report.
@@ -5594,9 +5604,9 @@ export async function persistIntelligencePackageReport(env, packageId, snapshot)
         return { stored: true, alreadyExists: true, path, artifactSha256: expectedReportHash };
       }
     }
-    throw new Error(`GitHub report write failed with status ${response.status}.`);
+    throw new Error("report_github_write_http_" + response.status);
   }
-  await env.DB.prepare("UPDATE intelligence_work_packages SET report_stored_at=CURRENT_TIMESTAMP WHERE id=? AND report_stored_at IS NULL").bind(packageId).run();
+  await reportStage("marker_write", () => env.DB.prepare("UPDATE intelligence_work_packages SET report_stored_at=CURRENT_TIMESTAMP WHERE id=? AND report_stored_at IS NULL").bind(packageId).run());
   return { stored: true, alreadyExists: false, path, artifactSha256: expectedReportHash };
 }
 
