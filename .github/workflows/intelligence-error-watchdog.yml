@@ -8,7 +8,7 @@ on:
     - cron: "*/5 * * * *"
   workflow_dispatch:
   workflow_run:
-    workflows: ["*"]
+    workflows: ["MEHRAN INTELLIGENCE private work-package runner"]
     types: [completed]
 
 permissions:
