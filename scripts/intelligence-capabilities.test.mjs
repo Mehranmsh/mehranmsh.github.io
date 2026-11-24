@@ -25,7 +25,9 @@ const workerSchedulerSource = workerSource.slice(scheduledStart, scheduledEnd);
 test("Workers AI inference failures expose only bounded sanitized diagnostics to the private runner", () => {
   assert.match(workerSource, /const diagnostic = safeWorkersAIErrorDetails\(err\)/);
   assert.match(workerSource, /stage:"workers_ai_inference"/);
-  assert.match(workerSource, /fallback\("ai_inference_failed", detail\)/);
+  assert.match(workerSource, /fallback\(failureReason, detail\)/);
+  assert.match(workerSource, /noProviderConfigured \? "ai_binding_unavailable"/);
+  assert.match(workerSource, /onlyQuotaBlocked \? "daily_ai_budget_unavailable"/);
   assert.match(runnerSource, /payload\.diagnostic\.stage === "workers_ai_inference"/);
   assert.match(runnerSource, /causeMessage: String\(diagnostic\.causeMessage \|\| ""\)\.slice\(0, 180\)/);
   assert.match(runnerSource, /Bounded safe diagnostic:/);
@@ -177,8 +179,8 @@ test("AI mission planner uses JSON mode and extracts one complete balanced objec
   const plannerEnd = workerSource.indexOf("export function verifyIntelligenceReport", plannerStart);
   assert.ok(start >= 0 && plannerStart > start && plannerEnd > plannerStart);
   const planner = workerSource.slice(plannerStart, plannerEnd);
-  assert.match(planner, /response_format: \{ type: "json_object" \}/);
-  assert.match(planner, /max_tokens: 1600/);
+  assert.match(planner, /jsonMode: true, temperature: 0, maxTokens: 1600/);
+  assert.match(planner, /runIntelligenceAI\(env/);
   assert.match(planner, /extractIntelligenceJsonObject\(modelResponse\)/);
   assert.match(workerSource.slice(start, plannerStart), /if \(depth === 0 && start >= 0\) return text\.slice\(start, index \+ 1\)/);
   assert.match(workerSource.slice(start, plannerStart), /if \(escaped\) escaped = false/);
@@ -842,8 +844,8 @@ test("Intelligence mission planning uses a bounded, more efficient daily reserva
   assert.match(workerSource, /WORKERS_AI_INTELLIGENCE_DAILY_RESERVATION_CREDITS = 7000/);
   assert.match(workerSource, /intelligence: \{ column: "intelligence_reserved", cap: WORKERS_AI_INTELLIGENCE_DAILY_RESERVATION_CREDITS \}/);
   assert.match(workerSource, /WORKERS_AI_GLOBAL_DAILY_RESERVATION_CREDITS = 9000/);
-  assert.match(workerSource, /reserveSocialWorkersAIBudget\(env, 25, "intelligence"\)/);
-  assert.match(workerSource, /max_tokens: 1600/);
+  assert.match(workerSource, /cloudflareReservation: 25/);
+  assert.match(workerSource, /maxTokens: 1600/);
 });
 
 test("scheduled Intelligence runner serializes ticks and bounds per-tick task execution", () => {
@@ -853,15 +855,14 @@ test("scheduled Intelligence runner serializes ticks and bounds per-tick task ex
   assert.match(runnerSource, /const taskExecutionDeadline = tickStartedAt \+ 7 \* 60 \* 1000/);
 });
 
-test("mission planner checks its idempotency key before any Workers AI budget reservation", () => {
+test("mission planner checks its idempotency key before routing to an AI provider", () => {
   const start = workerSource.indexOf("async function planIntelligenceMission(env, input)");
   const end = workerSource.indexOf("export function verifyIntelligenceReport", start);
   assert.ok(start >= 0 && end > start);
   const planner = workerSource.slice(start, end);
   const existingCheck = planner.indexOf("SELECT id,status FROM intelligence_work_packages WHERE idempotency_key=?");
-  const budgetReservation = planner.indexOf('reserveSocialWorkersAIBudget(env, 25, "intelligence")');
-  const inference = planner.indexOf("await env.AI.run(model");
-  assert.ok(existingCheck >= 0 && budgetReservation > existingCheck && inference > budgetReservation);
+  const inference = planner.indexOf("await runIntelligenceAI(env");
+  assert.ok(existingCheck >= 0 && inference > existingCheck);
   assert.match(planner, /if \(existing\) return \{ success: true, duplicate: true/);
 });
 
@@ -1200,17 +1201,17 @@ test("repository inspection performs bounded evidence-backed Workers AI semantic
   assert.doesNotMatch(runnerSource, /analysis endpoint.*source changes/i);
 });
 
-test("failed Intelligence Workers AI inference releases its daily reservation", () => {
+test("multi-provider Intelligence routing releases Cloudflare reservations on failed inference", () => {
   assert.ok(workerSource.includes("async function releaseSocialWorkersAIBudget(env, reservation)"));
   assert.ok(workerSource.includes("SET ${column}=MAX(0,${column}-?)"));
   const plannerStart = workerSource.indexOf("async function planIntelligenceMission(env, input)");
   const plannerEnd = workerSource.indexOf("export function verifyIntelligenceReport", plannerStart);
   const planner = workerSource.slice(plannerStart, plannerEnd);
-  assert.ok(planner.includes("releaseSocialWorkersAIBudget(env, budget)"));
+  assert.ok(workerSource.includes("await releaseSocialWorkersAIBudget(env, reservation).catch(() => {})"));
   const analysisStart = workerSource.indexOf('if (path === "/agent/v1/repository/analyze" && method === "POST")');
   const analysisEnd = workerSource.indexOf('if (path === "/agent/v1/missions/plan" && method === "POST")', analysisStart);
   const analysis = workerSource.slice(analysisStart, analysisEnd);
-  assert.ok(analysis.includes("releaseSocialWorkersAIBudget(env, budget)"));
+  assert.ok(analysis.includes("runIntelligenceAI(env"));
 });
 
 
@@ -1227,4 +1228,31 @@ test("Intelligence Runner correlates API requests with bounded trace IDs and rec
   assert.match(workerSource, /INTELLIGENCE_MISSION_PLANNER_INFERENCE_SUCCESS/);
   assert.match(workerSource, /operation:"repository_analyze",traceId,elapsedMs/);
   assert.match(workerSource, /operation:"mission_plan",traceId,elapsedMs/);
+});
+
+
+test("Intelligence AI router fails over across free providers and blocks paid OpenRouter models", () => {
+  assert.match(workerSource, /INTELLIGENCE_AI_PROVIDER_ORDER = Object\.freeze\(\["cloudflare", "groq", "gemini", "openrouter"\]\)/);
+  assert.match(workerSource, /MEHRAN_AI_FREE_PROVIDERS/);
+  assert.match(workerSource, /\|\| "openrouter"/);
+  assert.match(workerSource, /allowedProviders\.includes\(item\)/);
+  assert.match(workerSource, /GROQ_API_KEY/);
+  assert.match(workerSource, /GEMINI_API_KEY/);
+  assert.match(workerSource, /OPENROUTER_API_KEY/);
+  assert.match(workerSource, /if \(!model\.endsWith\(":free"\)\)/);
+  assert.match(workerSource, /quota_or_rate_limit/);
+  assert.match(workerSource, /No configured free AI provider completed the request/);
+  assert.match(workerSource, /runIntelligenceAI\(env/);
+});
+
+test("Intelligence mission planning and repository semantic analysis use the provider router", () => {
+  const plannerStart = workerSource.indexOf("async function planIntelligenceMission(env, input)");
+  const plannerEnd = workerSource.indexOf("export function verifyIntelligenceReport", plannerStart);
+  const planner = workerSource.slice(plannerStart, plannerEnd);
+  assert.match(planner, /await runIntelligenceAI\(env/);
+  const analysisStart = workerSource.indexOf('if (path === "/agent/v1/repository/analyze" && method === "POST")');
+  const analysisEnd = workerSource.indexOf('if (path === "/agent/v1/missions/plan" && method === "POST")', analysisStart);
+  const analysis = workerSource.slice(analysisStart, analysisEnd);
+  assert.match(analysis, /await runIntelligenceAI\(env/);
+  assert.doesNotMatch(analysis, /await env\.AI\.run\(model/);
 });
