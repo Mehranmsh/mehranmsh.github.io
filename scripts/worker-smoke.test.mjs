@@ -82,9 +82,12 @@ const INTELLIGENCE_ACTION_TYPES = ${JSON.stringify(INTELLIGENCE_ACTION_TYPES)};
 const PREAPPROVED_INTELLIGENCE_ACTION_TYPES = ${JSON.stringify(PREAPPROVED_INTELLIGENCE_ACTION_TYPES)};
 ` + workerRest;
 
-const workerModule = await import(
-  "data:text/javascript;base64," + Buffer.from(workerSourceForTest).toString("base64")
-);
+let workerModule;
+try {
+  workerModule = await import("data:text/javascript;base64," + Buffer.from(workerSourceForTest).toString("base64"));
+} catch (error) {
+  throw new Error("Worker smoke harness import failed: " + String(error?.name || "Error") + ": " + String(error?.message || error).slice(0,1000));
+}
 const patchStoreModule = await import(patchStoreUrl);
 const worker = workerModule.default;
 const { verifyIntelligenceReport, validateIntelligenceWorkPackage, persistIntelligencePackageReport } = workerModule;
