@@ -7444,6 +7444,7 @@ export default {
               !/^[a-f0-9]{64}$/.test(artifactSha256)) {
             return error("A valid private artifact path and SHA-256 digest are required.",400);
           }
+          await ensureSocialTables(env);
           if (!await checkRateLimit(env,request,"intelligence-patch-artifact-read",12,3600,3600)) {
             return error("Patch artifact retrieval limit reached. Try again later.",429);
           }
