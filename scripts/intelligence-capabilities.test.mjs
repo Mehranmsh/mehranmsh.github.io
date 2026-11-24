@@ -571,7 +571,7 @@ test("patch generation prompt treats source as untrusted and fixes the narrow ou
   assert.match(prompt.system, /testLines/);
   assert.match(prompt.system, /executor constructs the unified diff itself/);
   assert.match(prompt.system, /no carriage return or newline characters/);
-  assert.doesNotMatch(prompt.system, /hunk header/);
+  assert.match(prompt.system, /Do not return a diff, file headers, hunk headers/);
   assert.ok(prompt.system.includes("scripts/intelligence-capabilities.test.mjs"));
   assert.match(prompt.user, /Immutable base commit/);
   assert.match(prompt.user, /const example = true/);
@@ -756,11 +756,11 @@ test("Workers AI patch generation fails closed on budget denial and unsafe model
     ...base,
     env: { AI: { async run() { return { response: JSON.stringify({
       summary: "Reject a malformed generated source line",
-      testLines: ["const first = true;\\nconst second = false;"]
+      testLines: ["const first = true;\nconst second = false;"]
     }) }; } } },
     reserveBudget: async () => ({ allowed: true })
   });
-  assert.equal(unsafe.code, "patch_not_append_only");
+  assert.equal(unsafe.code, "model_output_schema_invalid");
 });
 
 
@@ -884,7 +884,7 @@ test("Private package reports are verified before the durable stored marker is s
   assert.match(persist, /priorReport\.report_id === packageId/);
   assert.match(persist, /priorReport\.data\.work_package_id === packageId/);
   assert.match(persist, /priorReport\.data\.tasks\)/);
-  assert.match(persist, /prior immutable snapshot/);
+  assert.match(persist, /preserve the first valid snapshot/);
   assert.match(persist, /INTELLIGENCE_PRIVATE_REPORT_EXISTING_SNAPSHOT_PRESERVED/);
   assert.match(workerSource, /"report_content_conflict"/);
   assert.match(persist, /refusing to mark it stored/);
