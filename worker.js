@@ -2,7 +2,17 @@ import { INTELLIGENCE_ACTION_TYPES, PREAPPROVED_INTELLIGENCE_ACTION_TYPES } from
 import { storePrivatePatchArtifact, verifyPrivatePatchArtifactAtPath, getPrivatePatchArtifactPath, getVerifiedPrivatePatchArtifactAtPath } from "./scripts/intelligence-private-patch-store.mjs";
 import { generatePatchArtifact } from "./scripts/intelligence-patch-generation-service.mjs";
 import { validatePrivateIntelligenceMission } from "./scripts/intelligence-inbox-schema.mjs";
-import { isWorkersAIDailyQuotaCircuitOpen } from "./scripts/intelligence-ai-quota.mjs";
+
+function nextWorkersAIDailyResetAt(attemptedAt) {
+  const timestamp = typeof attemptedAt === "number" ? attemptedAt : Date.parse(attemptedAt);
+  if (!Number.isFinite(timestamp)) return null;
+  const date = new Date(timestamp);
+  return Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate() + 1);
+}
+function isWorkersAIDailyQuotaCircuitOpen(attemptedAt, now = Date.now()) {
+  const resetAt = nextWorkersAIDailyResetAt(attemptedAt);
+  return resetAt !== null && Number.isFinite(now) && now < resetAt;
+}
 
 const ALLOWED_ORIGIN = "https://mehranmsh.github.io";
 const FIREBASE_WEB_API_KEY = "AIzaSyBNezoCzAUXi1D7vC_stoUnQuN_JHR-rDM";
