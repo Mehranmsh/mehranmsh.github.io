@@ -1071,6 +1071,19 @@ jobs:
             }
           }
 
+          // Archive the latest sanitized provider failure only to the private reports repository.
+          // Never print raw provider diagnostics into this public repository's Actions logs.
+          try {
+            const archived = await request("/agent/v1/ai-diagnostics/archive", {
+              method:"POST", body:JSON.stringify({})
+            }, agentHeaders, 20000);
+            console.log("Private Workers AI diagnostic archive: " +
+              (archived.stored ? archived.path : archived.reason || "not_available"));
+          } catch (error) {
+            console.log("Private Workers AI diagnostic archive deferred: " +
+              String(error?.message || error).slice(0,160));
+          }
+
           const tickTotalMs = Date.now() - tickStartedAt;
           timingSamples.push({name:"tick_total",elapsedMs:tickTotalMs});
           const githubOutput = process.env.GITHUB_OUTPUT;
