@@ -5979,8 +5979,16 @@ async function planIntelligenceMission(env, input) {
     catch (releaseError) {
       console.error("INTELLIGENCE_MISSION_BUDGET_RELEASE_FAILURE", JSON.stringify(safeWorkersAIErrorDetails(releaseError)));
     }
-    console.error("INTELLIGENCE_MISSION_PLANNER_FAILURE", JSON.stringify(safeWorkersAIErrorDetails(err)));
-    return fallback("ai_inference_failed");
+    const diagnostic = safeWorkersAIErrorDetails(err);
+    console.error("INTELLIGENCE_MISSION_PLANNER_FAILURE", JSON.stringify(diagnostic));
+    const detail = [
+      "name=" + diagnostic.name,
+      "code=" + diagnostic.code,
+      "status=" + diagnostic.status,
+      "cause=" + diagnostic.causeName + ":" + diagnostic.causeMessage,
+      "message=" + diagnostic.message
+    ].join("; ");
+    return fallback("ai_inference_failed", detail);
   }
 
   // Workers AI JSON Mode may return the structured object directly in response.
@@ -7127,8 +7135,13 @@ export default {
             catch (releaseError) {
               console.error("INTELLIGENCE_CODE_ANALYSIS_BUDGET_RELEASE_FAILURE",JSON.stringify(safeWorkersAIErrorDetails(releaseError)));
             }
-            console.error("INTELLIGENCE_CODE_ANALYSIS_FAILURE",JSON.stringify(safeWorkersAIErrorDetails(err)));
-            return error("Workers AI code analysis failed.",503);
+            const diagnostic = safeWorkersAIErrorDetails(err);
+            console.error("INTELLIGENCE_CODE_ANALYSIS_FAILURE",JSON.stringify(diagnostic));
+            return json({
+              success:false,
+              error:"Workers AI code analysis failed.",
+              diagnostic:{stage:"workers_ai_inference",...diagnostic}
+            },503);
           }
           const raw = result?.response ?? result?.result?.response ?? "";
           let analysis;
