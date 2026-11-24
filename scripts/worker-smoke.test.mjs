@@ -71,7 +71,7 @@ export async function generatePatchArtifact(args) {
   return hook(args);
 }
 `);
-const workerRest = workerSource.slice(capabilityImport.length)
+const workerRest = workerSource.replace(capabilityImport, "")
   .replace(patchStoreImport, "")
   .replace(patchGenerationImport, "")
   .replace(inboxSchemaImport, "");
