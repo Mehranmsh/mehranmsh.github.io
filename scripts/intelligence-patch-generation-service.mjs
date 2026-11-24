@@ -313,7 +313,8 @@ export async function generatePatchArtifact({
     artifact: artifact.artifact,
     artifactSha256: artifact.artifactSha256,
     validation: validated,
-    model,
+    model: inference.model,
+    provider: inference.provider,
     mode: "generate_validate_only"
   };
 }
