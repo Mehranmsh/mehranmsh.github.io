@@ -6044,6 +6044,8 @@ async function planIntelligenceMission(env, input) {
   const memoryRows = await env.DB.prepare("SELECT memory_key,category,content,importance,updated_at FROM intelligence_memory_items WHERE owner_uid=? ORDER BY updated_at DESC,importance DESC LIMIT 24").bind("mehran_intelligence").all();
   const durableMemoryContext = (memoryRows.results || []).map(item => ({key:item.memory_key,category:item.category,content:String(item.content||"").slice(0,700),importance:Number(item.importance||3)}));
   const model = cleanText(env.MEHRAN_INTELLIGENCE_MODEL, 120) || "@cf/meta/llama-3.3-70b-instruct-fp8-fast";
+  let selectedProvider = "unknown";
+  let selectedModel = model;
   const system = [
     "You are the planning core of MEHRAN INTELLIGENCE.",
     "Use the durable owner-confirmed project memory included in the mission context. Preserve project continuity and honor the newest owner decisions; never ask the owner to repeat facts already recorded.",
@@ -6081,6 +6083,8 @@ async function planIntelligenceMission(env, input) {
       jsonMode: true, temperature: 0, maxTokens: 1600, cloudflareReservation: 25
     });
     modelResult = routed.result;
+    selectedProvider = routed.provider;
+    selectedModel = routed.model;
     console.log("INTELLIGENCE_MISSION_PLANNER_PROVIDER",JSON.stringify({traceId,provider:routed.provider,model:routed.model,priorAttempts:routed.attempts.length}));
   } catch (err) {
     const diagnostic = safeWorkersAIErrorDetails(err);
@@ -6102,7 +6106,7 @@ async function planIntelligenceMission(env, input) {
   }
 
   console.log("INTELLIGENCE_MISSION_PLANNER_INFERENCE_SUCCESS",JSON.stringify({traceId,elapsedMs:Date.now()-inferenceStartedAt}));
-  // Workers AI JSON Mode may return the structured object directly in response.
+  // Provider adapters normalize structured JSON or text into the response field.
   // Non-JSON responses are still accepted as text and parsed below.
   const modelResponse = modelResult && modelResult.response != null
     ? modelResult.response
