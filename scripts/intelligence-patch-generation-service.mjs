@@ -249,7 +249,7 @@ export async function generatePatchArtifact({
       baseSha,
       targetPaths: [TARGET_PATH],
       summary: generated.summary,
-      diff: normalizedDiff
+      diff: canonicalDiff
     });
   } catch {
     return fail("artifact_creation_failed");
