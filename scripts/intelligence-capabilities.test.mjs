@@ -1424,4 +1424,10 @@ test("Cloudflare AI diagnostics distinguish budget reservation failures from inf
   const healthEnd = workerSource.indexOf('if (path.startsWith("/admin/session"))', healthStart);
   const healthRoute = workerSource.slice(healthStart, healthEnd);
   assert.doesNotMatch(healthRoute, /errorMessage:row\.error_message|causeMessage:row\.cause_message/);
+  assert.match(workerSource, /error_stack TEXT NOT NULL DEFAULT ''/);
+  assert.match(workerSource, /errorStack: details\.stack/);
+  assert.match(workerSource, /path === "\/agent\/v1\/ai-diagnostics\/archive" && method === "POST"/);
+  assert.match(workerSource, /archiveLatestIntelligenceAIProviderDiagnostics\(env\)/);
+  assert.match(workerSource, /mehran-intelligence-reports\/contents\/\" \+ path/);
+  assert.match(workerSource, /Private AI diagnostics archive write failed/);
 });
