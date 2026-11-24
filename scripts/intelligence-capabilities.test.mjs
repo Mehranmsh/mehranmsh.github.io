@@ -569,6 +569,9 @@ test("patch generation prompt treats source as untrusted and fixes the narrow ou
   assert.equal(prompt.ok, true);
   assert.match(prompt.system, /untrusted data/);
   assert.match(prompt.system, /zero deletions/);
+  assert.ok(prompt.system.includes("@@ -1,0 +2,K @@"));
+  assert.match(prompt.system, /K must equal the exact number of added lines/);
+  assert.doesNotMatch(prompt.system, /\+NEW_LINE,1/);
   assert.ok(prompt.system.includes("scripts/intelligence-capabilities.test.mjs"));
   assert.match(prompt.user, /Immutable base commit/);
   assert.match(prompt.user, /const example = true/);

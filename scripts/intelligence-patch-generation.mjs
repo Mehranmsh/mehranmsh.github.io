@@ -20,7 +20,7 @@ export function buildPatchGenerationPrompt({ baseSha, objective, source }) {
     return fail("invalid_source");
   }
   const sourceLineCount = source.endsWith("\n") ? source.split("\n").length - 1 : source.split("\n").length;
-  const exactHunkHeader = `@@ -${sourceLineCount},0 +${sourceLineCount + 1},1 @@`;
+  const exactHunkHeader = `@@ -${sourceLineCount},0 +${sourceLineCount + 1},K @@`;
   return {
     ok: true,
     system: [
@@ -33,7 +33,7 @@ export function buildPatchGenerationPrompt({ baseSha, objective, source }) {
       "Do not include diff --git, index, file mode, rename, or any preamble before those two lines.",
       "Never use an alternate, shortened, absolute, or differently cased file path. If you cannot follow the exact headers, return an empty diff.",
       "Immediately after the two file header lines, put exactly this hunk header with no blank line or commentary: " + exactHunkHeader,
-      "The hunk header syntax is mandatory: @@ -OLD_LINE,0 +NEW_LINE,1 @@. Do not omit ,0 or ,1, do not add a section heading after the closing @@, and do not use a bare @@ line.",
+      "The hunk header syntax is mandatory: @@ -OLD_LINE,0 +NEW_LINE,K @@. Do not omit ,0 or ,K, do not add a section heading after the closing @@, and do not use a bare @@ line. K must equal the exact number of added lines.",
       "After the hunk header, every remaining line must begin with + and contain one added test line. No context lines, deletion lines, blank lines, or trailing metadata.",
       "The patch must append new tests at end of file only: exactly one hunk, zero context lines, zero deletions, and additions only.",
       "The hunk header must use this exact unified-diff syntax with decimal integers: @@ -N,0 +N+1,K @@. N is the supplied source line count; K is the exact number of added lines. Never omit ,0 or ,K, never use bare @@, and do not add section text after @@.",
