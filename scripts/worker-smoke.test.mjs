@@ -13,7 +13,7 @@ const indexSource = await readFile(new URL("../index.html", import.meta.url), "u
 const runnerSource = await readFile(new URL("../.github/workflows/mehran-intelligence-runner.yml", import.meta.url), "utf8");
 const musicStudioSource = await readFile(new URL("../music-studio.html", import.meta.url), "utf8");
 const capabilityImport = 'import { INTELLIGENCE_ACTION_TYPES, PREAPPROVED_INTELLIGENCE_ACTION_TYPES } from "./scripts/intelligence-capabilities.mjs";';
-const patchStoreImport = 'import { storePrivatePatchArtifact, verifyPrivatePatchArtifactAtPath, getPrivatePatchArtifactPath } from "./scripts/intelligence-private-patch-store.mjs";';
+const patchStoreImport = 'import { storePrivatePatchArtifact, verifyPrivatePatchArtifactAtPath, getPrivatePatchArtifactPath, getVerifiedPrivatePatchArtifactAtPath } from "./scripts/intelligence-private-patch-store.mjs";';
 const patchGenerationImport = 'import { generatePatchArtifact } from "./scripts/intelligence-patch-generation-service.mjs";';
 const inboxSchemaImport = 'import { validatePrivateIntelligenceMission } from "./scripts/intelligence-inbox-schema.mjs";';
 if (!workerSource.startsWith(capabilityImport) || !workerSource.includes(patchStoreImport) ||
@@ -58,6 +58,11 @@ export async function verifyPrivatePatchArtifactAtPath(args) {
   if (typeof hook !== "function") throw new Error("Patch verification test hook is not configured.");
   return hook(args);
 }
+export async function getVerifiedPrivatePatchArtifactAtPath(args) {
+  const hook = globalThis.__MEHRAN_PATCH_TEST_HOOKS?.retrieve;
+  if (typeof hook !== "function") throw new Error("Patch retrieval test hook is not configured.");
+  return hook(args);
+}
 `);
 const patchGenerationTestUrl = moduleUrl(`
 export async function generatePatchArtifact(args) {
@@ -70,16 +75,19 @@ const workerRest = workerSource.slice(capabilityImport.length)
   .replace(patchStoreImport, "")
   .replace(patchGenerationImport, "")
   .replace(inboxSchemaImport, "");
-const workerSourceForTest = `import { storePrivatePatchArtifact, verifyPrivatePatchArtifactAtPath, getPrivatePatchArtifactPath } from "${patchStoreTestUrl}";
+const workerSourceForTest = `import { storePrivatePatchArtifact, verifyPrivatePatchArtifactAtPath, getPrivatePatchArtifactPath, getVerifiedPrivatePatchArtifactAtPath } from "${patchStoreTestUrl}";
 import { generatePatchArtifact } from "${patchGenerationTestUrl}";
 import { validatePrivateIntelligenceMission } from "${inboxSchemaUrl}";
 const INTELLIGENCE_ACTION_TYPES = ${JSON.stringify(INTELLIGENCE_ACTION_TYPES)};
 const PREAPPROVED_INTELLIGENCE_ACTION_TYPES = ${JSON.stringify(PREAPPROVED_INTELLIGENCE_ACTION_TYPES)};
 ` + workerRest;
 
-const workerModule = await import(
-  "data:text/javascript;base64," + Buffer.from(workerSourceForTest).toString("base64")
-);
+let workerModule;
+try {
+  workerModule = await import("data:text/javascript;base64," + Buffer.from(workerSourceForTest).toString("base64"));
+} catch (error) {
+  throw new Error("Worker smoke harness import failed: " + String(error?.name || "Error") + ": " + String(error?.message || error).slice(0,1000));
+}
 const patchStoreModule = await import(patchStoreUrl);
 const worker = workerModule.default;
 const { verifyIntelligenceReport, validateIntelligenceWorkPackage, persistIntelligencePackageReport } = workerModule;
@@ -367,6 +375,41 @@ test("proposal-only work-package tasks require a bounded objective", () => {
   assert.equal(validateIntelligenceWorkPackage({ ...base, tasks: [{ ...base.tasks[0], objective: "short" }] }).ok, false);
   assert.equal(validateIntelligenceWorkPackage({ ...base, tasks: [{ ...base.tasks[0], objective: undefined }] }).ok, false);
   assert.equal(validateIntelligenceWorkPackage({ ...base, tasks: [{ ...base.tasks[0], actionType: "service_health_report" }] }).ok, false);
+});
+
+test("proposal queue is owner-authenticated and claims are bound to one runner", () => {
+  const ownerGuard = workerSource.slice(workerSource.indexOf('const ownerOrchestrationRoute ='), workerSource.indexOf('const configuredToken =', workerSource.indexOf('const ownerOrchestrationRoute =')));
+  assert.match(ownerGuard, /patch-proposals\/pending/);
+  assert.match(ownerGuard, /patch-proposals\/claim/);
+  assert.match(ownerGuard, /patch-proposals\/complete/);
+  const start = workerSource.indexOf('if (path === "/agent/v1/patch-proposals/pending" && method === "GET")');
+  const end = workerSource.indexOf('if (path === "/agent/v1/patch-proposals/artifact" && method === "GET")', start);
+  assert.ok(start >= 0 && end > start);
+  const routes = workerSource.slice(start, end);
+  assert.match(routes, /WHERE status='stored'.*LIMIT 3/);
+  assert.match(routes, /SET status='claimed',runner_run_id=\?/);
+  assert.match(routes, /status='claimed' AND runner_run_id=\?/);
+  assert.match(routes, /"pull_request_created","failed"/);
+});
+
+test("private patch retrieval is authenticated, rate-limited, digest-verified, and bound to D1 metadata", () => {
+  const start = workerSource.indexOf('if (path === "/agent/v1/patch-proposals/artifact" && method === "GET")');
+  const end = workerSource.indexOf('if (path === "/agent/v1/repository/analyze" && method === "POST")', start);
+  assert.ok(start >= 0 && end > start, "private artifact retrieval route must exist before repository analysis");
+  const route = workerSource.slice(start, end);
+  assert.match(route, /url\.searchParams\.get\("path"\)/);
+  assert.match(route, /url\.searchParams\.get\("artifactSha256"\)/);
+  assert.match(route, /ensureSocialTables\(env\)/);
+  assert.match(route, /checkRateLimit\(env,request,"intelligence-patch-artifact-read",12,3600,3600\)/);
+  assert.match(route, /getVerifiedPrivatePatchArtifactAtPath\(/);
+  assert.match(route, /stored\.artifact_path !== artifactPath/);
+  assert.match(route, /stored\.artifact_sha256 !== artifactSha256/);
+  assert.match(route, /stored\.diff_sha256 !== artifact\.diffSha256/);
+  assert.match(route, /stored\.status !== "claimed"/);
+  assert.match(route, /stored\.runner_run_id !== runId/);
+  assert.match(route, /artifact\.targetPath !== "scripts\/intelligence-capabilities\.test\.mjs"/);
+  assert.match(route, /mode:"verified_proposal_data_only"/);
+  assert.match(route, /diff:artifact\.diff/);
 });
 
 test("patch proposal task reports are independently verified and bound to private artifact metadata", () => {
@@ -1128,7 +1171,7 @@ test("authenticated patch proposal route stores only verified metadata and retur
 
 test("patch proposal API rejects unexpected request fields before storage", () => {
   const start = workerSource.indexOf('if (path === "/agent/v1/patch-proposals" && method === "POST")');
-  const end = workerSource.indexOf('if (path === "/agent/v1/missions/plan"', start);
+  const end = workerSource.indexOf('if (path === "/agent/v1/patch-proposals/artifact" && method === "GET")', start);
   assert.ok(start >= 0 && end > start);
   const route = workerSource.slice(start, end);
   assert.match(route, /Object\.keys\(body\)\.sort\(\)\.join\(","\) !== "artifact,artifactSha256"/);

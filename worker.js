@@ -1,5 +1,5 @@
 import { INTELLIGENCE_ACTION_TYPES, PREAPPROVED_INTELLIGENCE_ACTION_TYPES } from "./scripts/intelligence-capabilities.mjs";
-import { storePrivatePatchArtifact, verifyPrivatePatchArtifactAtPath, getPrivatePatchArtifactPath } from "./scripts/intelligence-private-patch-store.mjs";
+import { storePrivatePatchArtifact, verifyPrivatePatchArtifactAtPath, getPrivatePatchArtifactPath, getVerifiedPrivatePatchArtifactAtPath } from "./scripts/intelligence-private-patch-store.mjs";
 import { generatePatchArtifact } from "./scripts/intelligence-patch-generation-service.mjs";
 import { validatePrivateIntelligenceMission } from "./scripts/intelligence-inbox-schema.mjs";
 
@@ -5516,6 +5516,8 @@ async function ensureIntelligencePatchProposalTable(env) {
     )
   `).run();
   await env.DB.prepare("CREATE INDEX IF NOT EXISTS idx_intelligence_patch_proposals_created ON intelligence_patch_proposals(created_at DESC)").run();
+  try { await env.DB.prepare("ALTER TABLE intelligence_patch_proposals ADD COLUMN runner_run_id TEXT").run(); } catch {}
+  try { await env.DB.prepare("ALTER TABLE intelligence_patch_proposals ADD COLUMN claimed_at TEXT").run(); } catch {}
 }
 
 async function persistIntelligenceNotification(env, row) {
@@ -7225,7 +7227,7 @@ export default {
       }
 
       if (path.startsWith("/agent/v1/")) {
-        const ownerOrchestrationRoute = (path === "/agent/v1/repository/analyze" && method === "POST") || (path === "/agent/v1/missions/plan" && method === "POST") || (path === "/agent/v1/work-packages" && method === "POST") || (path === "/agent/v1/work-packages/pending-finalization" && method === "GET") || (path.startsWith("/agent/v1/work-packages/") && method === "GET") || (path === "/agent/v1/notifications/next" && method === "GET") || (path === "/agent/v1/notifications/status" && method === "GET") || (path.startsWith("/agent/v1/notifications/") && method === "POST");
+        const ownerOrchestrationRoute = (path === "/agent/v1/patch-proposals/pending" && method === "GET") || (path === "/agent/v1/patch-proposals/claim" && method === "POST") || (path === "/agent/v1/patch-proposals/complete" && method === "POST") || (path === "/agent/v1/repository/analyze" && method === "POST") || (path === "/agent/v1/missions/plan" && method === "POST") || (path === "/agent/v1/work-packages" && method === "POST") || (path === "/agent/v1/work-packages/pending-finalization" && method === "GET") || (path.startsWith("/agent/v1/work-packages/") && method === "GET") || (path === "/agent/v1/notifications/next" && method === "GET") || (path === "/agent/v1/notifications/status" && method === "GET") || (path.startsWith("/agent/v1/notifications/") && method === "POST");
         const configuredToken = ownerOrchestrationRoute
           ? (typeof env.MEHRAN_ORCHESTRATOR_TOKEN === "string" ? env.MEHRAN_ORCHESTRATOR_TOKEN : "")
           : (typeof env.MEHRAN_AGENT_TOKEN === "string" ? env.MEHRAN_AGENT_TOKEN : "");
@@ -7436,6 +7438,98 @@ export default {
             path:confirmed.artifact_path,artifactSha256:confirmed.artifact_sha256,
             diffSha256:confirmed.diff_sha256,status:confirmed.status
           },stored.alreadyExists ? 200 : 201);
+        }
+        if (path === "/agent/v1/patch-proposals/pending" && method === "GET") {
+          await ensureIntelligencePatchProposalTable(env);
+          const rows = await env.DB.prepare(
+            "SELECT proposal_id,base_sha,target_path,summary,artifact_path,artifact_sha256,diff_sha256,created_at FROM intelligence_patch_proposals WHERE status='stored' OR (status='claimed' AND claimed_at < datetime('now','-15 minutes')) ORDER BY created_at ASC LIMIT 3"
+          ).all();
+          return json({success:true,proposals:(rows.results || []).map(row => ({
+            proposalId:row.proposal_id,baseSha:row.base_sha,targetPath:row.target_path,
+            summary:row.summary,path:row.artifact_path,artifactSha256:row.artifact_sha256,
+            diffSha256:row.diff_sha256,createdAt:row.created_at
+          }))});
+        }
+        if (path === "/agent/v1/patch-proposals/claim" && method === "POST") {
+          const body = await readBody(request);
+          if (!body || Object.keys(body).sort().join(",") !== "proposalId,runId" ||
+              typeof body.proposalId !== "string" || !/^[a-f0-9-]{36}$/.test(body.proposalId) ||
+              typeof body.runId !== "string" || !/^[0-9]{1,24}$/.test(body.runId)) {
+            return error("A valid proposal ID and runner ID are required.",400);
+          }
+          await ensureIntelligencePatchProposalTable(env);
+          const claimed = await env.DB.prepare(
+            "UPDATE intelligence_patch_proposals SET status='claimed',runner_run_id=?,claimed_at=CURRENT_TIMESTAMP WHERE proposal_id=? AND (status='stored' OR (status='claimed' AND claimed_at < datetime('now','-15 minutes')))"
+          ).bind(body.runId,body.proposalId).run();
+          if (!claimed.meta?.changes) return error("Proposal is not available for claiming.",409);
+          return json({success:true,claimed:true,proposalId:body.proposalId,runId:body.runId});
+        }
+        if (path === "/agent/v1/patch-proposals/complete" && method === "POST") {
+          const body = await readBody(request);
+          if (!body || Object.keys(body).sort().join(",") !== "proposalId,runId,status" ||
+              typeof body.proposalId !== "string" || !/^[a-f0-9-]{36}$/.test(body.proposalId) ||
+              typeof body.runId !== "string" || !/^[0-9]{1,24}$/.test(body.runId) ||
+              !["pull_request_created","failed"].includes(body.status)) {
+            return error("A valid proposal completion record is required.",400);
+          }
+          await ensureIntelligencePatchProposalTable(env);
+          const updated = await env.DB.prepare(
+            "UPDATE intelligence_patch_proposals SET status=? WHERE proposal_id=? AND status='claimed' AND runner_run_id=?"
+          ).bind(body.status,body.proposalId,body.runId).run();
+          if (!updated.meta?.changes) return error("Claimed proposal could not be finalized.",409);
+          return json({success:true,proposalId:body.proposalId,status:body.status,runId:body.runId});
+        }
+        // Expose proposal diffs only to the authenticated runner after private storage and D1 metadata agree.
+        if (path === "/agent/v1/patch-proposals/artifact" && method === "GET") {
+          const artifactPath = url.searchParams.get("path") || "";
+          const artifactSha256 = url.searchParams.get("artifactSha256") || "";
+          const runId = url.searchParams.get("runId") || "";
+          if (!/^[0-9]{1,24}$/.test(runId)) return error("A valid runner ID is required.",400);
+          if (!/^patch-proposals\/\d{4}\/\d{2}\/[a-f0-9-]{36}\.json$/.test(artifactPath) ||
+              !/^[a-f0-9]{64}$/.test(artifactSha256)) {
+            return error("A valid private artifact path and SHA-256 digest are required.",400);
+          }
+          await ensureSocialTables(env);
+          if (!await checkRateLimit(env,request,"intelligence-patch-artifact-read",12,3600,3600)) {
+            return error("Patch artifact retrieval limit reached. Try again later.",429);
+          }
+          await ensureIntelligencePatchProposalTable(env);
+          const retrieved = await getVerifiedPrivatePatchArtifactAtPath({
+            token:env.MEHRAN_REPORTS_GITHUB_TOKEN,
+            path:artifactPath,
+            artifactSha256
+          });
+          if (!retrieved.retrieved) {
+            const status = retrieved.code === "artifact_not_found" ? 404 :
+              ["invalid_artifact_lookup","artifact_path_mismatch","artifact_digest_mismatch","artifact_id_conflict"].includes(retrieved.code) ? 409 : 503;
+            return error("Verified private patch retrieval failed: " + String(retrieved.code || "unknown"),status);
+          }
+          const artifact = retrieved.artifact;
+          const proposalId = artifact?.proposalId || "";
+          const stored = await env.DB.prepare(
+            "SELECT proposal_id,base_sha,target_path,summary,artifact_path,artifact_sha256,diff_sha256,status,runner_run_id FROM intelligence_patch_proposals WHERE proposal_id=?"
+          ).bind(proposalId).first();
+          if (!stored || stored.status !== "claimed" || stored.runner_run_id !== runId || stored.artifact_path !== artifactPath ||
+              stored.artifact_sha256 !== artifactSha256 || stored.diff_sha256 !== artifact.diffSha256 ||
+              stored.base_sha !== artifact.baseSha || stored.target_path !== artifact.targetPath ||
+              stored.summary !== artifact.summary) {
+            return error("Private artifact does not match the durable proposal record.",409);
+          }
+          if (artifact.targetPath !== "scripts/intelligence-capabilities.test.mjs" ||
+              typeof artifact.diff !== "string" || artifact.diff.length > 8192) {
+            return error("Verified proposal exceeds the active patch policy.",409);
+          }
+          return json({
+            success:true,
+            proposalId,
+            baseSha:artifact.baseSha,
+            targetPath:artifact.targetPath,
+            summary:artifact.summary,
+            diff:artifact.diff,
+            artifactSha256,
+            diffSha256:artifact.diffSha256,
+            mode:"verified_proposal_data_only"
+          });
         }
         if (path === "/agent/v1/repository/analyze" && method === "POST") {
           const body = await readBody(request);

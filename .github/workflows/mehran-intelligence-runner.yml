@@ -1106,5 +1106,32 @@ jobs:
           console.log("Runner completion telemetry recorded.");
           NODE
 
+
+  create-review-pr-from-verified-patch:
+    needs: execute-safe-reports
+    if: needs.execute-safe-reports.result == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - name: Check out immutable main history without persisted credentials
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: main
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Apply one verified proposal, test in isolation, and open a draft PR
+        env:
+          MEHRAN_AGENT_TOKEN: ${{ secrets.MEHRAN_AGENT_TOKEN }}
+          MEHRAN_ORCHESTRATOR_TOKEN: ${{ secrets.MEHRAN_ORCHESTRATOR_TOKEN }}
+          MEHRAN_AGENT_URL: https://mehran-msh-auth.mehran79mehran.workers.dev
+          GITHUB_TOKEN: ${{ github.token }}
+          GITHUB_RUN_ID: ${{ github.run_id }}
+          GITHUB_SHA: ${{ github.sha }}
+        run: |
+          node scripts/intelligence-proposal-pr-runner.mjs
+
 # Per-tick concurrency isolation and step timeout 2026-11-24
 # Manual wake-up tick requested after confirming scheduled-run gap.
