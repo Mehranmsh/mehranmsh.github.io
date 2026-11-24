@@ -1109,7 +1109,7 @@ jobs:
 
   create-review-pr-from-verified-patch:
     needs: execute-safe-reports
-    if: needs.execute-safe-reports.result == 'success'
+    if: needs.execute-safe-reports.result == 'success' && !contains(github.event.head_commit.message, '[read-only-wake]')
     runs-on: ubuntu-latest
     timeout-minutes: 8
     permissions:
@@ -1135,3 +1135,5 @@ jobs:
 
 # Per-tick concurrency isolation and step timeout 2026-11-24
 # Manual wake-up tick requested after confirming scheduled-run gap.
+
+# Read-only diagnostic wake-up marker: skip proposal-PR job for this trigger only.
