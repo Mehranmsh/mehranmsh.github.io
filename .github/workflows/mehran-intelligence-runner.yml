@@ -1157,3 +1157,5 @@ jobs:
 
 # Read-only diagnostic wake-up marker: skip proposal-PR job for this trigger only.
 # Post-deployment diagnostic mission wake-up [read-only-wake]
+
+# Post-deploy validator wake-up 2026-11-25 [read-only-wake]
