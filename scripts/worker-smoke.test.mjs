@@ -405,6 +405,8 @@ test("private patch retrieval is authenticated, rate-limited, digest-verified, a
   assert.match(route, /stored\.artifact_path !== artifactPath/);
   assert.match(route, /stored\.artifact_sha256 !== artifactSha256/);
   assert.match(route, /stored\.diff_sha256 !== artifact\.diffSha256/);
+  assert.match(route, /stored\.status !== "claimed"/);
+  assert.match(route, /stored\.runner_run_id !== runId/);
   assert.match(route, /artifact\.targetPath !== "scripts\/intelligence-capabilities\.test\.mjs"/);
   assert.match(route, /mode:"verified_proposal_data_only"/);
   assert.match(route, /diff:artifact\.diff/);
