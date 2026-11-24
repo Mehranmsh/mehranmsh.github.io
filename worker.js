@@ -5578,7 +5578,7 @@ export async function persistIntelligencePackageReport(env, packageId, snapshot)
     return { exists: true };
   }
 
-  const existing = await reportStage("github_verify", () => verifyExistingReport());
+  const existing = await verifyExistingReport();
   if (existing.exists) {
     return { stored: true, alreadyExists: true, path, artifactSha256: expectedReportHash };
   }
