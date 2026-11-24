@@ -52,49 +52,55 @@ function extractJsonObject(raw) {
 }
 
 async function fetchCurrentMainCommit(fetchImpl) {
-  const url = `https://api.github.com/repos/${REPOSITORY}/commits/main`;
   const headers = {
     "Accept": "application/vnd.github+json",
     "User-Agent": "MEHRAN-INTELLIGENCE-Patch-Generator"
   };
-  for (let attempt = 0; attempt < 3; attempt++) {
-    try {
-      const response = await fetchImpl(url, {
-        headers,
-        signal: AbortSignal.timeout(8000)
-      });
-      if (response.ok) {
-        const payload = await response.json();
-        if (typeof payload?.sha === "string" && /^[a-f0-9]{40}$/.test(payload.sha)) {
-          return { ok: true, sha: payload.sha };
-        }
-        break;
-      }
-      if (response.status < 500 && response.status !== 429) break;
-      try { await response.body?.cancel(); } catch {}
-    } catch {
-      // Try the bounded alternate public ref source below after the API retries.
-    }
-    if (attempt < 2) await new Promise(resolve => setTimeout(resolve, 250 * (attempt + 1)));
-  }
-
-  // GitHub's REST API can intermittently return 502 from Workers even while
-  // the public repository is healthy. The Atom feed is an independent,
-  // read-only source; accept only a syntactically valid commit SHA.
-  try {
-    const feed = await fetchImpl(`https://github.com/${REPOSITORY}/commits/main.atom`, {
+  const sources = [
+    {
+      url: `https://api.github.com/repos/${REPOSITORY}/commits/main`,
+      read: async response => (await response.json())?.sha
+    },
+    {
+      url: `https://api.github.com/repos/${REPOSITORY}/git/ref/heads/main`,
+      read: async response => (await response.json())?.object?.sha
+    },
+    {
+      url: `https://github.com/${REPOSITORY}/commits/main.atom`,
       headers: {
         "Accept": "application/atom+xml, application/xml, text/xml",
         "User-Agent": "MEHRAN-INTELLIGENCE-Patch-Generator"
       },
-      signal: AbortSignal.timeout(8000)
-    });
-    if (!feed.ok) return fail("main_commit_lookup_failed");
-    const body = await feed.text();
-    const match = body.match(/Grit::Commit\/([a-f0-9]{40})/);
-    if (match) return { ok: true, sha: match[1] };
-  } catch {
-    // Fail closed if neither independent source can establish the current ref.
+      read: async response => {
+        const body = await response.text();
+        return body.match(/Grit::Commit\/([a-f0-9]{40})/)?.[1];
+      }
+    }
+  ];
+
+  // Query independent read-only GitHub ref endpoints concurrently. This avoids
+  // serial timeout stacking while retaining exact-SHA verification and fail-closed
+  // behavior when sources disagree or none can establish the current ref.
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const observed = await Promise.all(sources.map(async source => {
+      try {
+        const response = await fetchImpl(source.url, {
+          headers: source.headers || headers,
+          signal: AbortSignal.timeout(6000)
+        });
+        if (!response.ok) {
+          try { await response.body?.cancel(); } catch {}
+          return null;
+        }
+        const sha = await source.read(response);
+        return typeof sha === "string" && /^[a-f0-9]{40}$/.test(sha) ? sha : null;
+      } catch {
+        return null;
+      }
+    }));
+    const unique = [...new Set(observed.filter(Boolean))];
+    if (unique.length === 1) return { ok: true, sha: unique[0] };
+    if (attempt === 0) await new Promise(resolve => setTimeout(resolve, 300));
   }
   return fail("main_commit_lookup_failed");
 }
