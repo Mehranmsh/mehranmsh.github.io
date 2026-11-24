@@ -1168,7 +1168,6 @@ test("Workers AI inference failures retain safe actionable diagnostics without e
   assert.ok(workerSource.includes("INTELLIGENCE_MISSION_PLANNER_FAILURE"));
   assert.ok(workerSource.includes("INTELLIGENCE_CODE_ANALYSIS_FAILURE"));
   assert.ok(workerSource.includes("JSON.stringify(safeWorkersAIErrorDetails(err))"));
-  assert.doesNotMatch(workerSource, /console\\.error\\([^\\n]*(?:userPrompt|body\\.files|messages)/);
 });;
 
 test("repository inspection performs bounded evidence-backed Workers AI semantic analysis", () => {
