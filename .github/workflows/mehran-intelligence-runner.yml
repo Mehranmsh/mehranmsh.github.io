@@ -491,7 +491,7 @@ jobs:
                   for (let offset = Math.max(0, lineIndex - 18); offset <= Math.min(sourceLines.length - 1, lineIndex + 28); offset++) selected.add(offset);
                   if (selected.size >= 180) break;
                 }
-                const excerpt = [...selected].sort((a,b)=>a-b).map(index => `${index+1}: ${sourceLines[index]}`).join("\n").slice(0,2000);
+                const excerpt = [...selected].sort((a,b)=>a-b).map(index => `${index+1}: ${sourceLines[index]}`).join("\n").slice(0,2800);
                 if (excerpt) evidenceFiles.push({path,sha:file.sha,excerpt});
               }
               if (orchestratorToken.length < 40 || evidenceFiles.length < 1) {
