@@ -5968,6 +5968,7 @@ async function planIntelligenceMission(env, input) {
     "Create between 1 and 5 tasks. Choose only tasks genuinely relevant to the mission. Use propose_code_patch only when the owner mission clearly requests code improvement; it remains proposal-only and never changes repository source."
   ].join("\n");
 
+  console.log("INTELLIGENCE_MISSION_PLANNER_START",JSON.stringify({traceId,model,missionChars:mission.length,memoryItems:durableMemoryContext.length}));
   let modelResult;
   try {
     modelResult = await env.AI.run(model, {
@@ -5999,6 +6000,7 @@ async function planIntelligenceMission(env, input) {
     };
   }
 
+  console.log("INTELLIGENCE_MISSION_PLANNER_INFERENCE_SUCCESS",JSON.stringify({traceId,elapsedMs:Date.now()-inferenceStartedAt}));
   // Workers AI JSON Mode may return the structured object directly in response.
   // Non-JSON responses are still accepted as text and parsed below.
   const modelResponse = modelResult && modelResult.response != null
