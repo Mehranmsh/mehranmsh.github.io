@@ -1,6 +1,7 @@
 import { INTELLIGENCE_ACTION_TYPES, PREAPPROVED_INTELLIGENCE_ACTION_TYPES } from "./scripts/intelligence-capabilities.mjs";
 import { storePrivatePatchArtifact, verifyPrivatePatchArtifactAtPath, getPrivatePatchArtifactPath } from "./scripts/intelligence-private-patch-store.mjs";
 import { generatePatchArtifact } from "./scripts/intelligence-patch-generation-service.mjs";
+import { validatePrivateIntelligenceMission } from "./scripts/intelligence-inbox-schema.mjs";
 
 const ALLOWED_ORIGIN = "https://mehranmsh.github.io";
 const FIREBASE_WEB_API_KEY = "AIzaSyBNezoCzAUXi1D7vC_stoUnQuN_JHR-rDM";
@@ -6616,12 +6617,59 @@ async function socialDeleteAccount(request, env) {
 }
 
 
+async function ensurePrivateIntelligenceInboxDiagnostics(env) {
+  await env.DB.prepare(`
+    CREATE TABLE IF NOT EXISTS intelligence_inbox_diagnostics(
+      id INTEGER PRIMARY KEY CHECK(id=1),
+      last_checked_at TEXT NOT NULL,
+      last_status TEXT NOT NULL,
+      scanned_count INTEGER NOT NULL DEFAULT 0,
+      imported_count INTEGER NOT NULL DEFAULT 0,
+      rejected_count INTEGER NOT NULL DEFAULT 0,
+      last_rejection_code TEXT NOT NULL DEFAULT '',
+      last_error_code TEXT NOT NULL DEFAULT '',
+      last_entry_name TEXT NOT NULL DEFAULT ''
+    )
+  `).run();
+  try {
+    await env.DB.prepare("ALTER TABLE intelligence_inbox_diagnostics ADD COLUMN last_entry_name TEXT NOT NULL DEFAULT ''").run();
+  } catch {}
+}
+
 async function ingestPrivateIntelligenceInbox(env) {
   // Private, owner-controlled mission inbox. The inbox document is data only:
   // task definitions are never accepted from it; a fixed read-only package is built here.
+  await ensurePrivateIntelligenceInboxDiagnostics(env);
+  let scanned = 0;
+  let rejected = 0;
+  let imported = 0;
+  let lastRejectionCode = "";
+  let lastEntryName = "";
+  const recordDiagnostics = async (status, errorCode = "") => {
+    try {
+      await env.DB.prepare(`
+        INSERT INTO intelligence_inbox_diagnostics(
+          id,last_checked_at,last_status,scanned_count,imported_count,rejected_count,last_rejection_code,last_error_code,last_entry_name
+        ) VALUES(1,?,?,?,?,?,?,?,?)
+        ON CONFLICT(id) DO UPDATE SET
+          last_checked_at=excluded.last_checked_at,
+          last_status=excluded.last_status,
+          scanned_count=excluded.scanned_count,
+          imported_count=excluded.imported_count,
+          rejected_count=excluded.rejected_count,
+          last_rejection_code=excluded.last_rejection_code,
+          last_error_code=excluded.last_error_code,
+          last_entry_name=excluded.last_entry_name
+      `).bind(new Date().toISOString(),status,scanned,imported,rejected,lastRejectionCode,errorCode,lastEntryName).run();
+    } catch (diagnosticError) {
+      console.error("INTELLIGENCE_PRIVATE_INBOX_DIAGNOSTICS_WRITE_FAILED",
+        String(diagnosticError?.message || "database_error").slice(0,120));
+    }
+  };
   const token = typeof env.MEHRAN_REPORTS_GITHUB_TOKEN === "string" ? env.MEHRAN_REPORTS_GITHUB_TOKEN : "";
   if (!token || token.length < 20) {
     console.error("INTELLIGENCE_PRIVATE_INBOX_UNAVAILABLE", "reports_token_missing");
+    await recordDiagnostics("error","reports_token_missing");
     return 0;
   }
   const base = "https://api.github.com/repos/Mehranmsh/mehran-intelligence-reports/contents/";
@@ -6643,14 +6691,30 @@ async function ingestPrivateIntelligenceInbox(env) {
     }
     return btoa(binary);
   };
-  let imported = 0;
   try {
     const listingResponse = await request(base + "inbox/pending?ref=main");
-    if (listingResponse.status === 404) return 0;
+    if (listingResponse.status === 404) {
+      await recordDiagnostics("idle");
+      return 0;
+    }
     if (!listingResponse.ok) throw new Error("private_inbox_listing_http_" + listingResponse.status);
     const entries = await listingResponse.json();
     if (!Array.isArray(entries)) throw new Error("private_inbox_listing_invalid");
-    for (const entry of entries.slice(0, 20)) {
+    const candidates = entries.filter(entry =>
+      entry && entry.type === "file" && typeof entry.name === "string" &&
+      /^[a-z0-9][a-z0-9._-]{2,120}\.json$/i.test(entry.name)
+    );
+    const cursor = await env.DB.prepare(
+      "SELECT last_entry_name FROM intelligence_inbox_diagnostics WHERE id=1"
+    ).first();
+    const cursorIndex = candidates.findIndex(entry => entry.name === (cursor?.last_entry_name || ""));
+    const orderedCandidates = cursorIndex >= 0
+      ? [...candidates.slice(cursorIndex + 1), ...candidates.slice(0, cursorIndex + 1)]
+      : candidates;
+    // Round-robin over the directory so old ingested files cannot permanently
+    // occupy the first 20 slots and starve newer pending missions.
+    for (const entry of orderedCandidates.slice(0, 20)) {
+      lastEntryName = entry.name;
       if (!entry || entry.type !== "file" || typeof entry.name !== "string" || !/^[a-z0-9][a-z0-9._-]{2,120}\.json$/i.test(entry.name)) continue;
       const fileResponse = await request(base + "inbox/pending/" + encodeURIComponent(entry.name) + "?ref=main");
       if (!fileResponse.ok) {
@@ -6658,29 +6722,36 @@ async function ingestPrivateIntelligenceInbox(env) {
         throw new Error("private_inbox_file_http_" + fileResponse.status);
       }
       const filePayload = await fileResponse.json();
-      if (filePayload?.encoding !== "base64" || typeof filePayload.content !== "string" || typeof filePayload.sha !== "string") continue;
+      scanned++;
+      if (filePayload?.encoding !== "base64" || typeof filePayload.content !== "string" || typeof filePayload.sha !== "string") {
+        rejected++;
+        lastRejectionCode = "invalid_github_file_payload";
+        console.warn("INTELLIGENCE_PRIVATE_INBOX_REJECTED", "invalid_github_file_payload");
+        continue;
+      }
       let mission;
       try {
         const binary = atob(filePayload.content.replace(/\s+/g, ""));
         const bytes = Uint8Array.from(binary, character => character.charCodeAt(0));
         mission = JSON.parse(new TextDecoder().decode(bytes));
       } catch {
-        console.error("INTELLIGENCE_PRIVATE_INBOX_QUARANTINED", entry.name, "invalid_json");
+        rejected++;
+        lastRejectionCode = "invalid_json";
+        console.error("INTELLIGENCE_PRIVATE_INBOX_QUARANTINED", "invalid_json");
         continue;
       }
-      if (!mission || mission.schema_version !== 1 || mission.status !== "pending_ingestion" ||
-          typeof mission.mission_id !== "string" || !/^[a-z0-9][a-z0-9-]{7,100}$/i.test(mission.mission_id) ||
-          typeof mission.title !== "string" || typeof mission.objective !== "string" ||
-          !mission.scope || mission.scope.mode !== "read_only_diagnostic" ||
-          !Array.isArray(mission.scope.allowed_actions) ||
-          !["inspect_repository","source_security_audit","repository_quality_check"].every(action => mission.scope.allowed_actions.includes(action)) ||
-          !Array.isArray(mission.scope.forbidden) ||
-          !["source_changes","patch_application","branch_creation","pull_request_creation","merge","deployment","secret_access","arbitrary_shell","changes_to_production_state"].every(action => mission.scope.forbidden.includes(action))) {
+      // Already-ingested documents remain in the pending directory as an audit
+      // trail. Skip them without counting them as rejected missions.
+      if (mission?.status === "ingested") continue;
+      const validationReasons = validatePrivateIntelligenceMission(mission);
+      if (validationReasons.length) {
+        rejected++;
+        lastRejectionCode = validationReasons[0];
+        console.warn("INTELLIGENCE_PRIVATE_INBOX_REJECTED", validationReasons.join(","));
         continue;
       }
       const evidence = Array.isArray(mission.known_evidence) ? mission.known_evidence.slice(0, 4) : [];
       const objective = cleanText(mission.objective, 1800);
-      if (objective.length < 40) continue;
       const packageInput = {
         idempotencyKey: "private-inbox:" + mission.mission_id,
         title: cleanText(mission.title, 150) || "Private Intelligence diagnostic",
@@ -6752,8 +6823,12 @@ async function ingestPrivateIntelligenceInbox(env) {
       }
       imported++;
     }
+    await recordDiagnostics(rejected ? "rejected" : imported ? "imported" : "idle");
   } catch (err) {
-    console.error("INTELLIGENCE_PRIVATE_INBOX_FAILURE", String(err?.message || err).slice(0, 240));
+    const message = String(err?.message || "unexpected_error").slice(0, 240);
+    const errorCode = /^[a-z0-9_]{1,80}$/i.test(message) ? message : "unexpected_error";
+    console.error("INTELLIGENCE_PRIVATE_INBOX_FAILURE", errorCode);
+    await recordDiagnostics("error",errorCode);
   }
   return imported;
 }
@@ -7602,6 +7677,7 @@ export default {
       if (path === "/health" && method === "GET") {
         let database = false;
         let scheduler = null;
+        let privateInbox = null;
         try {
           if (env.DB) {
             await env.DB.prepare("SELECT 1 AS test").first();
@@ -7621,6 +7697,22 @@ export default {
             } catch {
               // Scheduler history may not exist yet on a fresh database.
             }
+            try {
+              const inbox = await env.DB.prepare(
+                "SELECT last_checked_at,last_status,scanned_count,imported_count,rejected_count,last_rejection_code,last_error_code FROM intelligence_inbox_diagnostics WHERE id=1"
+              ).first();
+              if (inbox) privateInbox = {
+                lastCheckedAt: inbox.last_checked_at || null,
+                lastStatus: inbox.last_status || "unknown",
+                scanned: Number(inbox.scanned_count || 0),
+                imported: Number(inbox.imported_count || 0),
+                rejected: Number(inbox.rejected_count || 0),
+                lastRejectionCode: inbox.last_rejection_code || null,
+                lastErrorCode: inbox.last_error_code || null
+              };
+            } catch {
+              // Inbox diagnostics may not exist until the first scheduled scan.
+            }
           }
         } catch {}
 
@@ -7629,7 +7721,8 @@ export default {
           service: "MEHRAN MSH AUTH",
           version: "5.9",
           database,
-          scheduler
+          scheduler,
+          privateInbox
         });
       }
 
