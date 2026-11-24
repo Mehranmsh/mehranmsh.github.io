@@ -50,6 +50,7 @@ test("router uses Gemini response parsing and JSON mode when configured", async 
     const result = await runIntelligenceAI({
       env: {
         GEMINI_API_KEY: "k".repeat(40),
+        MEHRAN_INTELLIGENCE_GEMINI_FREE_ONLY: "true",
         MEHRAN_INTELLIGENCE_GEMINI_MODEL: "gemini-test",
         MEHRAN_INTELLIGENCE_PROVIDER_ORDER: "gemini"
       },
@@ -61,8 +62,9 @@ test("router uses Gemini response parsing and JSON mode when configured", async 
     });
     assert.equal(result.ok, true);
     assert.equal(result.provider, "gemini");
-    assert.match(captured.url, /gemini-test:generateContent/);
+    assert.match(captured.url, /gemini-test:generateContent$/);
     assert.equal(captured.body.generationConfig.responseMimeType, "application/json");
+    assert.equal(captured.url.includes("key="), false);
     assert.equal(captured.body.systemInstruction.parts[0].text, "system prompt");
   } finally {
     globalThis.fetch = previousFetch;
@@ -93,7 +95,7 @@ test("router falls through on provider rate limits without exposing provider res
         GROQ_API_KEY: "g".repeat(40),
         OPENROUTER_API_KEY: "o".repeat(40),
         MEHRAN_INTELLIGENCE_GROQ_MODEL: "groq-model",
-        MEHRAN_INTELLIGENCE_OPENROUTER_MODEL: "openrouter-model",
+        MEHRAN_INTELLIGENCE_OPENROUTER_MODEL: "openrouter-model:free",
         MEHRAN_INTELLIGENCE_PROVIDER_ORDER: "groq,openrouter"
       },
       messages: [{ role: "user", content: "test" }]
