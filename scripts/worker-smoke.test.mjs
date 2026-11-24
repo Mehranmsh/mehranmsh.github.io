@@ -2749,6 +2749,27 @@ test("INTELLIGENCE package status transitions use compare-and-set and enqueue at
 });
 
 
+test("routine read-only missions are classified before any AI memory or inference work", () => {
+  const helperStart = workerSource.indexOf("function buildDeterministicRoutinePlan");
+  const helperEnd = workerSource.indexOf("async function createDeterministicRoutinePackage", helperStart);
+  const plannerStart = workerSource.indexOf("async function planIntelligenceMission");
+  const plannerEnd = workerSource.indexOf("export function verifyIntelligenceReport", plannerStart);
+  assert.ok(helperStart >= 0 && helperEnd > helperStart, "deterministic classifier must exist");
+  assert.ok(plannerStart >= 0 && plannerEnd > plannerStart, "mission planner must exist");
+  const classifier = workerSource.slice(helperStart, helperEnd);
+  const planner = workerSource.slice(plannerStart, plannerEnd);
+  assert.match(classifier, /service_health_report/);
+  assert.match(classifier, /repository_quality_check/);
+  assert.match(classifier, /source_security_audit/);
+  assert.match(classifier, /بررسی سلامت/);
+  assert.match(classifier, /بررسی امنیت/);
+  assert.match(planner, /const deterministicPlan = buildDeterministicRoutinePlan\(mission\)/);
+  assert.match(planner, /return createDeterministicRoutinePackage\(env, mission, idempotencyKey, input\?\.ownerUid, deterministicPlan\)/);
+  assert.ok(planner.indexOf("buildDeterministicRoutinePlan(mission)") < planner.indexOf("await ensureIntelligenceMemoryTables(env)"), "routine tasks must bypass memory reads and AI planning");
+  assert.match(workerSource, /aiInferenceUsed: false/);
+  assert.match(workerSource, /deterministic_rules_v1/);
+});
+
 test("MEHRAN INTELLIGENCE mission planner uses Workers AI JSON Mode and accepts structured object responses", () => {
   const start = workerSource.indexOf("async function planIntelligenceMission");
   const end = workerSource.indexOf("export function verifyIntelligenceReport", start);
