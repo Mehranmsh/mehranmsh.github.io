@@ -1412,6 +1412,12 @@ test("patch generation uses the approved provider router without a second budget
 });
 
 test("Cloudflare AI diagnostics distinguish budget reservation failures from inference failures", () => {
+  assert.match(workerSource, /const DEFAULT_INTELLIGENCE_MODEL = "@cf\/meta\/llama-3\.1-8b-instruct-fp8-fast"/);
+  assert.match(workerSource, /LIMIT 12\)\.bind\("mehran_intelligence"\)/);
+  assert.match(workerSource, /content:String\(item\.content\|\|""\)\.slice\(0,450\)/);
+  assert.match(workerSource, /jsonMode: true, temperature: 0, maxTokens: 1000, cloudflareReservation: 25/);
+  assert.match(workerSource, /jsonMode:true,temperature:0,maxTokens:1500,cloudflareReservation:500/);
+
   const cloudflareStart = workerSource.indexOf('if (provider === "cloudflare")');
   const cloudflareEnd = workerSource.indexOf('if (provider === "groq")', cloudflareStart);
   const cloudflare = workerSource.slice(cloudflareStart, cloudflareEnd);
