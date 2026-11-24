@@ -7047,7 +7047,7 @@ export default {
             totalChars += file.excerpt.length;
             files.push({path:file.path,sha:file.sha,excerpt:file.excerpt});
           }
-          if (totalChars > 16000) return error("Source evidence exceeds the 16 KB analysis limit.",413);
+          if (totalChars > 16000) return error("Source evidence exceeds the 16,000-character analysis limit.",413);
           if (!env.AI || typeof env.AI.run !== "function") return error("Workers AI analysis binding is unavailable.",503);
           const budget = await reserveSocialWorkersAIBudget(env,500,"intelligence");
           if (!budget.allowed) return error("Intelligence AI analysis budget is unavailable.",429);
