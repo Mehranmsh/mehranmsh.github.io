@@ -241,9 +241,9 @@ async function checkRateLimit(env, request, scope, maxAttempts, windowSeconds, b
 
 // Preserve actionable Workers AI diagnostics without logging prompts, credentials, or request bodies.
 function safeWorkersAIErrorDetails(err) {
-  const clean = value => String(value ?? "").replace(/Bearer\s+[^\s,;]+/gi, "Bearer [redacted]")
+  const clean = (value, max = 220) => String(value ?? "").replace(/Bearer\s+[^\s,;]+/gi, "Bearer [redacted]")
     .replace(/[A-Za-z0-9_=-]{48,}/g, "[redacted]")
-    .replace(/[\r\n\t]+/g, " ").slice(0, 220);
+    .replace(/[\r\n\t]+/g, " ").slice(0, max);
   const cause = err && typeof err.cause === "object" ? err.cause : null;
   return {
     name: clean(err?.name || "Error"),
@@ -251,7 +251,8 @@ function safeWorkersAIErrorDetails(err) {
     code: clean(err?.code ?? cause?.code ?? ""),
     status: Number.isFinite(Number(err?.status ?? cause?.status)) ? Number(err?.status ?? cause?.status) : null,
     causeName: clean(cause?.name || ""),
-    causeMessage: clean(cause?.message || "")
+    causeMessage: clean(cause?.message || ""),
+    stack: clean(err?.stack || "", 1200)
   };
 }
 
@@ -457,7 +458,8 @@ async function runIntelligenceAI(env, options) {
         stage: provider === "cloudflare" ? "inference" : "provider_request",
         status: Number.isInteger(status) ? status : 0,
         errorName: details.name, errorCode: details.code, errorMessage: details.message,
-        causeName: details.causeName, causeMessage: details.causeMessage
+        causeName: details.causeName, causeMessage: details.causeMessage,
+        errorStack: details.stack, model: provider === "cloudflare" ? (cleanText(env.MEHRAN_INTELLIGENCE_MODEL,120) || "@cf/meta/llama-3.3-70b-instruct-fp8-fast") : ""
       };
       attempts.push(attempt);
       console.warn("INTELLIGENCE_AI_PROVIDER_FAILED",JSON.stringify({
@@ -6725,9 +6727,11 @@ async function ensureIntelligenceAIProviderDiagnostics(env) {
       id INTEGER PRIMARY KEY AUTOINCREMENT, trace_id TEXT NOT NULL, attempted_at TEXT NOT NULL,
       provider TEXT NOT NULL, reason TEXT NOT NULL, model TEXT NOT NULL DEFAULT '',
       error_name TEXT NOT NULL DEFAULT '', error_code TEXT NOT NULL DEFAULT '', http_status INTEGER,
-      error_message TEXT NOT NULL DEFAULT '', cause_name TEXT NOT NULL DEFAULT '', cause_message TEXT NOT NULL DEFAULT ''
+      error_message TEXT NOT NULL DEFAULT '', cause_name TEXT NOT NULL DEFAULT '', cause_message TEXT NOT NULL DEFAULT '',
+      error_stack TEXT NOT NULL DEFAULT ''
     )
   `).run();
+  try { await env.DB.prepare("ALTER TABLE intelligence_ai_provider_diagnostics ADD COLUMN error_stack TEXT NOT NULL DEFAULT ''").run(); } catch {}
   await env.DB.prepare("CREATE INDEX IF NOT EXISTS idx_intelligence_ai_provider_diagnostics_time ON intelligence_ai_provider_diagnostics(attempted_at DESC)").run();
 }
 async function recordIntelligenceAIProviderDiagnostics(env, traceId, attempts, model = "") {
@@ -6737,14 +6741,15 @@ async function recordIntelligenceAIProviderDiagnostics(env, traceId, attempts, m
     const now = new Date().toISOString();
     const statements = attempts.map(item => env.DB.prepare(`
       INSERT INTO intelligence_ai_provider_diagnostics(
-        trace_id,attempted_at,provider,reason,model,error_name,error_code,http_status,error_message,cause_name,cause_message
-      ) VALUES(?,?,?,?,?,?,?,?,?,?,?)
+        trace_id,attempted_at,provider,reason,model,error_name,error_code,http_status,error_message,cause_name,cause_message,error_stack
+      ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)
     `).bind(
       String(traceId || "").slice(0,100),now,String(item?.provider || "unknown").slice(0,40),
       String(item?.reason || "unknown").slice(0,60),String(item?.model || model || "").slice(0,120),
       String(item?.errorName || "").slice(0,100),String(item?.errorCode || "").slice(0,100),
       Number.isInteger(item?.status) ? item.status : null,String(item?.errorMessage || "").slice(0,220),
-      String(item?.causeName || "").slice(0,100),String(item?.causeMessage || "").slice(0,220)
+      String(item?.causeName || "").slice(0,100),String(item?.causeMessage || "").slice(0,220),
+      String(item?.errorStack || "").slice(0,1200)
     ));
     await env.DB.batch(statements);
     await env.DB.prepare("DELETE FROM intelligence_ai_provider_diagnostics WHERE id NOT IN (SELECT id FROM intelligence_ai_provider_diagnostics ORDER BY id DESC LIMIT 50)").run();
@@ -6753,6 +6758,58 @@ async function recordIntelligenceAIProviderDiagnostics(env, traceId, attempts, m
     console.error("INTELLIGENCE_AI_DIAGNOSTICS_WRITE_FAILED",String(diagnosticError?.message || "database_error").slice(0,120));
     return false;
   }
+}
+
+async function archiveLatestIntelligenceAIProviderDiagnostics(env) {
+  const token = typeof env.MEHRAN_REPORTS_GITHUB_TOKEN === "string" ? env.MEHRAN_REPORTS_GITHUB_TOKEN.trim() : "";
+  if (token.length < 40) return {stored:false,reason:"private_archive_not_configured"};
+  await ensureIntelligenceAIProviderDiagnostics(env);
+  const latest = await env.DB.prepare(
+    "SELECT trace_id,attempted_at FROM intelligence_ai_provider_diagnostics ORDER BY id DESC LIMIT 1"
+  ).first();
+  if (!latest?.trace_id) return {stored:false,reason:"no_ai_failure_diagnostics"};
+  const rows = await env.DB.prepare(`
+    SELECT trace_id,attempted_at,provider,reason,model,error_name,error_code,http_status,error_message,cause_name,cause_message,error_stack
+    FROM intelligence_ai_provider_diagnostics WHERE trace_id=? ORDER BY id ASC LIMIT 8
+  `).bind(latest.trace_id).all();
+  const attempts = (rows.results || []).map(row => ({
+    provider:row.provider,reason:row.reason,model:row.model || null,
+    errorName:row.error_name || null,errorCode:row.error_code || null,
+    httpStatus:row.http_status===null?null:Number(row.http_status),
+    errorMessage:row.error_message || null,causeName:row.cause_name || null,
+    causeMessage:row.cause_message || null,errorStack:row.error_stack || null,
+    attemptedAt:row.attempted_at
+  }));
+  const record = {schema_version:1,trace_id:latest.trace_id,attempts};
+  const safeTrace = String(latest.trace_id).replace(/[^A-Za-z0-9._-]/g,"_").slice(0,100);
+  const date = String(latest.attempted_at || new Date().toISOString());
+  const path = "diagnostics/workers-ai/" + date.slice(0,4) + "/" + date.slice(5,7) + "/" + safeTrace + ".json";
+  const apiUrl = "https://api.github.com/repos/Mehranmsh/mehran-intelligence-reports/contents/" + path;
+  const headers = {"Accept":"application/vnd.github+json","Authorization":"Bearer "+token,
+    "X-GitHub-Api-Version":"2022-11-28","User-Agent":"MEHRAN-INTELLIGENCE-Private-AI-Diagnostics"};
+  const contentText = JSON.stringify(record,null,2) + "\n";
+  const expectedHash = await sha256(contentText);
+  async function verifyExisting() {
+    const response = await fetch(apiUrl,{method:"GET",headers});
+    if (!response.ok) { if (response.status===404) return false; throw new Error("Private AI diagnostics lookup failed with status "+response.status+"."); }
+    const body = await response.json();
+    if (body?.encoding!=="base64" || typeof body.content!=="string") throw new Error("Private AI diagnostics content encoding is invalid.");
+    const binary = atob(body.content.replace(/\\s+/g,""));
+    const existingText = new TextDecoder().decode(Uint8Array.from(binary,ch=>ch.charCodeAt(0)));
+    if ((await sha256(existingText)) !== expectedHash) throw new Error("Private AI diagnostics archive conflicts with the stored trace.");
+    return true;
+  }
+  if (await verifyExisting()) return {stored:true,alreadyExists:true,path,artifactSha256:expectedHash};
+  const bytes = new TextEncoder().encode(contentText);
+  let binary = "";
+  for (let offset=0;offset<bytes.length;offset+=0x8000) binary += String.fromCharCode(...bytes.subarray(offset,offset+0x8000));
+  const response = await fetch(apiUrl,{method:"PUT",headers:{...headers,"Content-Type":"application/json"},
+    body:JSON.stringify({message:"Archive private Workers AI diagnostic "+safeTrace,content:btoa(binary)})});
+  if (!response.ok) {
+    if ([409,422].includes(response.status) && await verifyExisting()) return {stored:true,alreadyExists:true,path,artifactSha256:expectedHash};
+    throw new Error("Private AI diagnostics archive write failed with status "+response.status+".");
+  }
+  return {stored:true,alreadyExists:false,path,artifactSha256:expectedHash};
 }
 
 async function ensurePrivateIntelligenceInboxDiagnostics(env) {
@@ -7261,6 +7318,10 @@ export default {
         if (mismatch !== 0) return error(ownerOrchestrationRoute ? "Owner orchestration authentication required." : "Agent authentication required.", 401);
         await ensureIntelligenceTaskTable(env);
         await ensureIntelligenceProtocolTables(env);
+        if (path === "/agent/v1/ai-diagnostics/archive" && method === "POST") {
+          const archived = await archiveLatestIntelligenceAIProviderDiagnostics(env);
+          return json({success:true,...archived},archived.stored?200:202);
+        }
         if (path === "/agent/v1/runner/heartbeat" && method === "POST") {
           const body = await readBody(request);
           if (!body || !["started","finished","failed"].includes(body.phase) ||
