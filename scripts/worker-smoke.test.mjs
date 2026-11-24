@@ -374,6 +374,24 @@ test("proposal-only work-package tasks require a bounded objective", () => {
   assert.equal(validateIntelligenceWorkPackage({ ...base, tasks: [{ ...base.tasks[0], actionType: "service_health_report" }] }).ok, false);
 });
 
+test("private patch retrieval is authenticated, rate-limited, digest-verified, and bound to D1 metadata", () => {
+  const start = workerSource.indexOf('if (path === "/agent/v1/patch-proposals/artifact" && method === "GET")');
+  const end = workerSource.indexOf('if (path === "/agent/v1/repository/analyze" && method === "POST")', start);
+  assert.ok(start >= 0 && end > start, "private artifact retrieval route must exist before repository analysis");
+  const route = workerSource.slice(start, end);
+  assert.match(route, /url\.searchParams\.get\("path"\)/);
+  assert.match(route, /url\.searchParams\.get\("artifactSha256"\)/);
+  assert.match(route, /ensureSocialTables\(env\)/);
+  assert.match(route, /checkRateLimit\(env,request,"intelligence-patch-artifact-read",12,3600,3600\)/);
+  assert.match(route, /getVerifiedPrivatePatchArtifactAtPath\(/);
+  assert.match(route, /stored\.artifact_path !== artifactPath/);
+  assert.match(route, /stored\.artifact_sha256 !== artifactSha256/);
+  assert.match(route, /stored\.diff_sha256 !== artifact\.diffSha256/);
+  assert.match(route, /artifact\.targetPath !== "scripts\/intelligence-capabilities\.test\.mjs"/);
+  assert.match(route, /mode:"verified_proposal_data_only"/);
+  assert.match(route, /diff:artifact\.diff/);
+});
+
 test("patch proposal task reports are independently verified and bound to private artifact metadata", () => {
   const proposalId = "123e4567-e89b-42d3-a456-426614174000";
   const report = {
