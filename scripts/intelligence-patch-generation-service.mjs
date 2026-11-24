@@ -274,7 +274,7 @@ export async function generatePatchArtifact({
     `@@ -${sourceLineCount},0 +${sourceLineCount + 1},${generated.testLines.length} @@`,
     ...generated.testLines.map(line => "+" + line),
     ""
-  ].join("\\n");
+  ].join("\n");
   const validated = validateGeneratedPatch({
     baseSha,
     sourceLineCount,
