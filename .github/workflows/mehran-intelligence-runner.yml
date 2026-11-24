@@ -684,6 +684,21 @@ jobs:
             // Keep the exact schema required by verifyIntelligenceReport while
             // shortening verbose evidence. In particular, every check retains
             // its id, boolean outcome, and string detail.
+            const compactAnalysis = value?.analysis && typeof value.analysis === "object" ? {
+              summary: String(value.analysis.summary || "").slice(0, 700),
+              findings: Array.isArray(value.analysis.findings) ? value.analysis.findings.slice(0, 3).map(item => ({
+                severity: item?.severity,
+                title: String(item?.title || "").slice(0, 100),
+                rootCause: String(item?.rootCause || "").slice(0, 420),
+                recommendation: String(item?.recommendation || "").slice(0, 420),
+                evidence: Array.isArray(item?.evidence) ? item.evidence.slice(0, 2).map(ev => ({
+                  path: String(ev?.path || "").slice(0, 240),
+                  quote: String(ev?.quote || "").slice(0, 220)
+                })) : [],
+                regressionTests: Array.isArray(item?.regressionTests) ? item.regressionTests.slice(0, 3).map(item => String(item).slice(0, 180)) : []
+              })) : [],
+              limitations: Array.isArray(value.analysis.limitations) ? value.analysis.limitations.slice(0, 3).map(item => String(item).slice(0, 180)) : []
+            } : { summary: "Semantic analysis unavailable after bounded serialization.", findings: [], limitations: ["Original analysis payload was absent."] };
             const compact = {
               type: value?.type || "read_only_report",
               generatedAt: value?.generatedAt || new Date().toISOString(),
@@ -697,13 +712,14 @@ jobs:
                     blobSha: String(file?.blobSha || "").slice(0, 40),
                     bytes: Number(file?.bytes || 0),
                     lineCount: Number(file?.lineCount || 0),
-                    symbols: Array.isArray(file?.symbols) ? file.symbols.slice(0, 4).map(item => String(item).slice(0, 100)) : []
+                    symbols: Array.isArray(file?.symbols) ? file.symbols.slice(0, 2).map(item => String(item).slice(0, 60)) : []
                   }))
                 : value?.files && typeof value.files === "object"
                   ? Object.fromEntries(Object.entries(value.files).map(([name, file]) => [
                       name, { sha: file?.sha || null, bytes: Number(file?.bytes || 0) }
                     ]))
                   : undefined,
+              analysis: compactAnalysis,
               checks: Array.isArray(value?.checks)
                 ? value.checks.map(check => ({
                     id: String(check?.id || "unnamed_check").slice(0, 80),
@@ -712,14 +728,13 @@ jobs:
                   }))
                 : undefined,
               limitations: Array.isArray(value?.limitations)
-                ? value.limitations.map(item => String(item).slice(0, 72))
+                ? value.limitations.slice(0, 3).map(item => String(item).slice(0, 120))
                 : undefined,
               detailsTruncated: true
             };
             let bounded = JSON.stringify(compact);
             if (bounded.length > maxChars) {
-              // The Worker verifier requires mode, both source-file entries,
-              // summary, and a detail string for every check. Do not drop them.
+              // Preserve the Worker-required semantic-analysis shape even in the smallest fallback.
               const minimal = {
                 type: compact.type,
                 generatedAt: compact.generatedAt,
@@ -728,13 +743,11 @@ jobs:
                 commitSha: compact.commitSha,
                 files: compact.files,
                 summary: compact.summary,
-                checks: Array.isArray(compact.checks)
-                  ? compact.checks.map(check => ({
-                      id: check.id,
-                      passed: check.passed,
-                      detail: ""
-                    }))
-                  : undefined,
+                analysis: {
+                  summary: String(compactAnalysis.summary || "Semantic findings were compacted to fit the result limit.").slice(0, 700),
+                  findings: [],
+                  limitations: ["Findings omitted only to satisfy the bounded task-result size."]
+                },
                 detailsTruncated: true
               };
               bounded = JSON.stringify(minimal);
