@@ -137,13 +137,14 @@ test("canonicalizes only malformed hunk counts for exact-path additions-only pat
   assert.equal(output.split("\n").slice(3).join("\n"), input.split("\n").slice(3).join("\n"));
 });
 
-test("does not canonicalize patches with context, deletions, or a different path", () => {
-  const malformed = "--- a/scripts/intelligence-capabilities.test.mjs\n+++ b/scripts/intelligence-capabilities.test.mjs\n@@ broken\n context\n+addition\n";
+test("canonicalizes safe context but rejects deletions and a different path", () => {
+  const context = "--- a/scripts/intelligence-capabilities.test.mjs\n+++ b/scripts/intelligence-capabilities.test.mjs\n@@ broken\n context\n+addition\n";
+  const deletion = "--- a/scripts/intelligence-capabilities.test.mjs\n+++ b/scripts/intelligence-capabilities.test.mjs\n@@ broken\n-deletion\n+addition\n";
   const wrongPath = "--- a/other.js\n+++ b/other.js\n@@ broken\n+addition\n";
-  assert.equal(canonicalizeAppendOnlyHunkHeader(malformed, 42), malformed);
+  assert.equal(canonicalizeAppendOnlyHunkHeader(context, 42), "--- a/scripts/intelligence-capabilities.test.mjs\n+++ b/scripts/intelligence-capabilities.test.mjs\n@@ -42,0 +43,1 @@\n+addition\n");
+  assert.equal(canonicalizeAppendOnlyHunkHeader(deletion, 42), deletion);
   assert.equal(canonicalizeAppendOnlyHunkHeader(wrongPath, 42), wrongPath);
 });
-
 test("diff diagnostics expose only structural metadata and identify unsafe payload shapes", () => {
   const malformed = [
     "--- a/scripts/intelligence-capabilities.test.mjs",

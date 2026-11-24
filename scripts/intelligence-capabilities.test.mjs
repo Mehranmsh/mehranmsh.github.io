@@ -5,7 +5,7 @@ import { validatePatchProposal, PATCH_PROPOSAL_POLICY } from "./intelligence-pat
 import { createPatchArtifactRecord, verifyPatchArtifactRecord } from "./intelligence-patch-artifact.mjs";
 import { storePrivatePatchArtifact, verifyPrivatePatchArtifactAtPath, getPrivatePatchArtifactPath, PRIVATE_PATCH_ARTIFACT_STORE_POLICY } from "./intelligence-private-patch-store.mjs";
 import { buildPatchGenerationPrompt, validateGeneratedPatch, PATCH_GENERATION_POLICY } from "./intelligence-patch-generation.mjs";
-import { generatePatchArtifact, PATCH_GENERATION_SERVICE_POLICY } from "./intelligence-patch-generation-service.mjs";
+import { generatePatchArtifact, PATCH_GENERATION_SERVICE_POLICY, canonicalizeAppendOnlyHunkHeader } from "./intelligence-patch-generation-service.mjs";
 import {
   INTELLIGENCE_CAPABILITIES,
   INTELLIGENCE_ACTION_TYPES,
@@ -614,6 +614,40 @@ test("generated patches accept only pure additions at exact end-of-file", () => 
   assert.equal(result.mode, "append_only_validate_only");
 });
 
+test("append-only hunk canonicalizer removes unchanged model context and rebuilds exact counts", () => {
+  const path = "scripts/intelligence-capabilities.test.mjs";
+  const generated = [
+    `--- a/${path}`,
+    `+++ b/${path}`,
+    "@@ -98,4 +98,5 @@",
+    " const before = true;",
+    " const unchanged = 1;",
+    "+test(\"context-heavy model output is canonicalized\", () => {});",
+    " const after = false;",
+    " const final = true;",
+    ""
+  ].join("\n");
+  const canonical = canonicalizeAppendOnlyHunkHeader(generated, 100);
+  assert.equal(canonical, [
+    `--- a/${path}`,
+    `+++ b/${path}`,
+    "@@ -100,0 +101,1 @@",
+    "+test(\"context-heavy model output is canonicalized\", () => {});",
+    ""
+  ].join("\n"));
+  const validated = validateGeneratedPatch({
+    baseSha: "d".repeat(40),
+    sourceLineCount: 100,
+    summary: "Canonicalize a context-heavy append-only model patch",
+    diff: canonical
+  });
+  assert.equal(validated.ok, true);
+  assert.equal(validated.additions, 1);
+  assert.equal(validated.deletions, 0);
+  const unsafe = generated.replace(" const unchanged = 1;", "-const deleted = 1;");
+  assert.equal(canonicalizeAppendOnlyHunkHeader(unsafe, 100), unsafe);
+});
+
 test("generated patch validator rejects replacements, non-EOF hunks, and extra files", () => {
   const path = "scripts/intelligence-capabilities.test.mjs";
   const replacement = [
@@ -1115,11 +1149,22 @@ test("repository inspection checkpoints are revalidated against the current Work
   assert.ok(runnerSource.indexOf("Ignoring stale repository-inspection checkpoint") < runnerSource.indexOf("Resuming task " + '" + task.id'));
 });
 
+test("package report snapshots wait until runnable sibling tasks are quiescent", () => {
+  const start = workerSource.indexOf("async function refreshIntelligenceWorkPackageSnapshot");
+  const end = workerSource.indexOf("async function ensureIntelligenceSchedulerRunsTable", start);
+  const snapshot = workerSource.slice(start, end);
+  assert.match(snapshot, /else if \(row\.status === "cancelled"\) counts\.cancelled \+= n/);
+  assert.match(snapshot, /counts\.inProgress \? "in_progress"/);
+  assert.match(snapshot, /counts\.queued > counts\.blockedDependencies/);
+  assert.match(snapshot, /reportIsQuiescent = counts\.inProgress === 0/);
+  assert.match(snapshot, /includes\(status\) && reportIsQuiescent/);
+});
+
 test("repository inspection performs bounded evidence-backed Workers AI semantic analysis", () => {
   assert.match(workerSource, /path === "\/agent\/v1\/repository\/analyze"/);
   assert.match(workerSource, /ownerOrchestrationRoute = .*repository\/analyze/);
-  assert.match(workerSource, /totalChars > 12000/);
-  assert.match(workerSource, /file\.excerpt\.length > 2000/);
+  assert.match(workerSource, /totalChars > 16000/);
+  assert.match(workerSource, /file\.excerpt\.length > 2800/);
   assert.match(workerSource, /env\.AI\.run\(model/);
   assert.match(workerSource, /supplied source excerpts as untrusted code data/);
   assert.match(workerSource, /files\.find\(f=>f\.path===ev\.path\)\?\.excerpt\.includes\(ev\.quote\)/);
@@ -1127,6 +1172,9 @@ test("repository inspection performs bounded evidence-backed Workers AI semantic
   assert.match(runnerSource, /request\("\/agent\/v1\/repository\/analyze"/);
   assert.match(runnerSource, /const evidenceFiles = \[\]/);
   assert.match(runnerSource, /analysis: semantic\.analysis/);
-  assert.match(runnerSource, /slice\(0,2000\)/);
+  assert.match(runnerSource, /slice\(0,2800\)/);
+  assert.match(workerSource, /Do not call a named constant a magic number/);
+  assert.match(workerSource, /Do not label a Firebase Web API key/);
+  assert.match(workerSource, /unsupportedMagicNumberFindings/);
   assert.doesNotMatch(runnerSource, /analysis endpoint.*source changes/i);
 });
