@@ -3641,3 +3641,23 @@ test("Intelligence OpenRouter default uses dynamic free-only routing and rejects
   assert.match(workerSource, /non_free_model_blocked/);
   assert.match(workerSource, /MEHRAN_AI_FREE_PROVIDERS/);
 });
+
+
+test("deterministic routine planner returns only fixed read-only actions for explicit intents", async () => {
+  const { buildDeterministicRoutinePlan } = await import("./intelligence-routine-planner.mjs");
+  const health = buildDeterministicRoutinePlan("بررسی سلامت سرویس و D1");
+  assert.deepEqual(health.tasks.map(task => task.actionType), ["service_health_report"]);
+  const security = buildDeterministicRoutinePlan("لطفاً ممیزی امنیتی سورس را انجام بده");
+  assert.deepEqual(security.tasks.map(task => task.actionType), ["source_security_audit"]);
+  const combined = buildDeterministicRoutinePlan("worker health, repository status, and security audit");
+  assert.deepEqual(combined.tasks.map(task => task.actionType), [
+    "service_health_report", "repository_quality_check", "source_security_audit"
+  ]);
+  assert.equal(buildDeterministicRoutinePlan("Please improve the whole project and make it smarter"), null);
+  assert.equal(buildDeterministicRoutinePlan("check the project"), null);
+  for (const task of combined.tasks) {
+    assert.deepEqual(task.dependsOn, []);
+    assert.equal(task.requiresApproval, undefined);
+    assert.ok(["service_health_report", "repository_quality_check", "source_security_audit"].includes(task.actionType));
+  }
+});
