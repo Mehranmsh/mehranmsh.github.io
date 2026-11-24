@@ -6627,9 +6627,13 @@ async function ensurePrivateIntelligenceInboxDiagnostics(env) {
       imported_count INTEGER NOT NULL DEFAULT 0,
       rejected_count INTEGER NOT NULL DEFAULT 0,
       last_rejection_code TEXT NOT NULL DEFAULT '',
-      last_error_code TEXT NOT NULL DEFAULT ''
+      last_error_code TEXT NOT NULL DEFAULT '',
+      last_entry_name TEXT NOT NULL DEFAULT ''
     )
   `).run();
+  try {
+    await env.DB.prepare("ALTER TABLE intelligence_inbox_diagnostics ADD COLUMN last_entry_name TEXT NOT NULL DEFAULT ''").run();
+  } catch {}
 }
 
 async function ingestPrivateIntelligenceInbox(env) {
@@ -6640,12 +6644,13 @@ async function ingestPrivateIntelligenceInbox(env) {
   let rejected = 0;
   let imported = 0;
   let lastRejectionCode = "";
+  let lastEntryName = "";
   const recordDiagnostics = async (status, errorCode = "") => {
     try {
       await env.DB.prepare(`
         INSERT INTO intelligence_inbox_diagnostics(
-          id,last_checked_at,last_status,scanned_count,imported_count,rejected_count,last_rejection_code,last_error_code
-        ) VALUES(1,?,?,?,?,?,?,?)
+          id,last_checked_at,last_status,scanned_count,imported_count,rejected_count,last_rejection_code,last_error_code,last_entry_name
+        ) VALUES(1,?,?,?,?,?,?,?,?)
         ON CONFLICT(id) DO UPDATE SET
           last_checked_at=excluded.last_checked_at,
           last_status=excluded.last_status,
@@ -6653,8 +6658,9 @@ async function ingestPrivateIntelligenceInbox(env) {
           imported_count=excluded.imported_count,
           rejected_count=excluded.rejected_count,
           last_rejection_code=excluded.last_rejection_code,
-          last_error_code=excluded.last_error_code
-      `).bind(new Date().toISOString(),status,scanned,imported,rejected,lastRejectionCode,errorCode).run();
+          last_error_code=excluded.last_error_code,
+          last_entry_name=excluded.last_entry_name
+      `).bind(new Date().toISOString(),status,scanned,imported,rejected,lastRejectionCode,errorCode,lastEntryName).run();
     } catch (diagnosticError) {
       console.error("INTELLIGENCE_PRIVATE_INBOX_DIAGNOSTICS_WRITE_FAILED",
         String(diagnosticError?.message || "database_error").slice(0,120));
@@ -6694,7 +6700,21 @@ async function ingestPrivateIntelligenceInbox(env) {
     if (!listingResponse.ok) throw new Error("private_inbox_listing_http_" + listingResponse.status);
     const entries = await listingResponse.json();
     if (!Array.isArray(entries)) throw new Error("private_inbox_listing_invalid");
-    for (const entry of entries.slice(0, 20)) {
+    const candidates = entries.filter(entry =>
+      entry && entry.type === "file" && typeof entry.name === "string" &&
+      /^[a-z0-9][a-z0-9._-]{2,120}\.json$/i.test(entry.name)
+    );
+    const cursor = await env.DB.prepare(
+      "SELECT last_entry_name FROM intelligence_inbox_diagnostics WHERE id=1"
+    ).first();
+    const cursorIndex = candidates.findIndex(entry => entry.name === (cursor?.last_entry_name || ""));
+    const orderedCandidates = cursorIndex >= 0
+      ? [...candidates.slice(cursorIndex + 1), ...candidates.slice(0, cursorIndex + 1)]
+      : candidates;
+    // Round-robin over the directory so old ingested files cannot permanently
+    // occupy the first 20 slots and starve newer pending missions.
+    for (const entry of orderedCandidates.slice(0, 20)) {
+      lastEntryName = entry.name;
       if (!entry || entry.type !== "file" || typeof entry.name !== "string" || !/^[a-z0-9][a-z0-9._-]{2,120}\.json$/i.test(entry.name)) continue;
       const fileResponse = await request(base + "inbox/pending/" + encodeURIComponent(entry.name) + "?ref=main");
       if (!fileResponse.ok) {
@@ -6702,22 +6722,27 @@ async function ingestPrivateIntelligenceInbox(env) {
         throw new Error("private_inbox_file_http_" + fileResponse.status);
       }
       const filePayload = await fileResponse.json();
+      scanned++;
       if (filePayload?.encoding !== "base64" || typeof filePayload.content !== "string" || typeof filePayload.sha !== "string") {
         rejected++;
         lastRejectionCode = "invalid_github_file_payload";
         console.warn("INTELLIGENCE_PRIVATE_INBOX_REJECTED", "invalid_github_file_payload");
         continue;
       }
-      scanned++;
       let mission;
       try {
         const binary = atob(filePayload.content.replace(/\s+/g, ""));
         const bytes = Uint8Array.from(binary, character => character.charCodeAt(0));
         mission = JSON.parse(new TextDecoder().decode(bytes));
       } catch {
-        console.error("INTELLIGENCE_PRIVATE_INBOX_QUARANTINED", entry.name, "invalid_json");
+        rejected++;
+        lastRejectionCode = "invalid_json";
+        console.error("INTELLIGENCE_PRIVATE_INBOX_QUARANTINED", "invalid_json");
         continue;
       }
+      // Already-ingested documents remain in the pending directory as an audit
+      // trail. Skip them without counting them as rejected missions.
+      if (mission?.status === "ingested") continue;
       const validationReasons = validatePrivateIntelligenceMission(mission);
       if (validationReasons.length) {
         rejected++;
