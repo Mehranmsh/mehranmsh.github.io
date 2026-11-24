@@ -7028,14 +7028,14 @@ export default {
             if (!file || Object.keys(file).sort().join(",") !== "excerpt,path,sha" ||
                 typeof file.path !== "string" || !allowed.has(file.path) || seen.has(file.path) ||
                 typeof file.sha !== "string" || !/^[a-f0-9]{40}$/i.test(file.sha) ||
-                typeof file.excerpt !== "string" || !file.excerpt.trim() || file.excerpt.length > 6000) {
+                typeof file.excerpt !== "string" || !file.excerpt.trim() || file.excerpt.length > 2000) {
               return error("Source evidence contains an invalid path, digest, or excerpt.",400);
             }
             seen.add(file.path);
             totalChars += file.excerpt.length;
             files.push({path:file.path,sha:file.sha,excerpt:file.excerpt});
           }
-          if (totalChars > 24000) return error("Source evidence exceeds the 24 KB analysis limit.",413);
+          if (totalChars > 12000) return error("Source evidence exceeds the 24 KB analysis limit.",413);
           if (!env.AI || typeof env.AI.run !== "function") return error("Workers AI analysis binding is unavailable.",503);
           const budget = await reserveSocialWorkersAIBudget(env,500,"intelligence");
           if (!budget.allowed) return error("Intelligence AI analysis budget is unavailable.",429);
