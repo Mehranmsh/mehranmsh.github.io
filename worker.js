@@ -8035,8 +8035,7 @@ export default {
                   provider:row.provider,reason:row.reason,model:row.model || null,
                   errorName:row.error_name || null,errorCode:row.error_code || null,
                   httpStatus:row.http_status===null?null:Number(row.http_status),
-                  errorMessage:row.error_message || null,causeName:row.cause_name || null,
-                  causeMessage:row.cause_message || null
+                  causeName:row.cause_name || null
                 }));
                 aiProvider = aiProviderAttempts.find(item => item.provider === "cloudflare") || aiProviderAttempts[0] || null;
               }
