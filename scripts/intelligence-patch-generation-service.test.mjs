@@ -153,7 +153,7 @@ test("diff diagnostics expose only structural metadata and identify unsafe paylo
     " context",
     "+two",
     ""
-  ].join("\\n");
+  ].join("\n");
   const diagnostic = inspectGeneratedDiffShape(malformed);
   assert.equal(diagnostic.reason, "contains_non_addition");
   assert.equal(diagnostic.exactPath, true);
