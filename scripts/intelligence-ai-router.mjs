@@ -133,8 +133,7 @@ async function fetchProvider(url, key, payload, isGemini = false) {
   });
   const data = await readJsonBounded(response);
   if (!response.ok) {
-    const providerCode = data?.error?.code || data?.error?.status || data?.error?.type ||
-      data?.error?.message || "http_error";
+    const providerCode = data?.error?.code || data?.error?.status || data?.error?.type || "http_error";
     const error = new Error("provider_http_" + response.status);
     error.providerStatus = response.status;
     error.providerCode = bounded(providerCode, 80);
