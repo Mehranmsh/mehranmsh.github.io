@@ -3666,3 +3666,19 @@ test("deterministic routine planner returns only fixed read-only actions for exp
     assert.ok(["service_health_report", "repository_quality_check", "source_security_audit"].includes(task.actionType));
   }
 });
+
+
+test("deterministic routine planner refuses to downgrade change requests into read-only checks", async () => {
+  const { buildDeterministicRoutinePlan } = await import("./intelligence-routine-planner.mjs");
+  const missions = [
+    "Check repository status and fix the failing workflow",
+    "Run a security check and improve the security controls",
+    "بررسی سلامت سرویس و اصلاح مشکل دیتابیس",
+    "ممیزی امنیتی سورس را انجام بده و آسیب‌پذیری‌ها را برطرف کن",
+    "Update the repository health dashboard",
+    "پیاده‌سازی بررسی سلامت خودکار"
+  ];
+  for (const mission of missions) {
+    assert.equal(buildDeterministicRoutinePlan(mission), null, `change intent must not be downgraded: ${mission}`);
+  }
+});
