@@ -2756,6 +2756,7 @@ test("repository inspection result verifier requires immutable commit and bounde
     repository: "Mehranmsh/mehranmsh.github.io",
     commitSha: "a".repeat(40),
     summary: { filesInspected: 2, totalBytes: 15 },
+    analysis: { summary: "Inspected supplied source excerpts.", findings: [], limitations: [] },
     files: [
       { path: "worker.js", blobSha: "b".repeat(40), bytes: 10, lineCount: 2, symbols: ["fetch"] },
       { path: "docs/INTELLIGENCE_EXECUTION_PROTOCOL.md", blobSha: "c".repeat(40), bytes: 5, lineCount: 1, symbols: [] }
