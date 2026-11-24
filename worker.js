@@ -5638,7 +5638,7 @@ async function refreshIntelligenceWorkPackageSnapshot(env, packageId) {
   // Queued tasks whose dependencies are already blocked are terminal for this package.
   const status = allCompleted ? "completed"
     : counts.inProgress ? "in_progress"
-    : counts.retryWaiting ? "waiting_retry"
+    : counts.retryWaiting && !hasRunnableQueued ? "waiting_retry"
     : hasRunnableQueued ? "queued"
     : (counts.blocked || counts.failed || counts.cancelled || counts.awaitingApproval || counts.blockedDependencies) ? "attention_required"
     : "queued";
