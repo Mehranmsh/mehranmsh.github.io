@@ -342,7 +342,7 @@ async function runIntelligenceAI(env, options) {
   const attempts = [];
   // Fail closed: only explicitly approved free-tier providers may receive requests.
   // OpenRouter :free is the sole default; all other providers require owner allowlisting.
-  const freeProviderAllowlist = cleanText(env.MEHRAN_AI_FREE_PROVIDERS, 120) || "openrouter";
+  const freeProviderAllowlist = cleanText(env.MEHRAN_AI_FREE_PROVIDERS, 120) || "cloudflare,openrouter";
   const allowedProviders = freeProviderAllowlist.split(",").map(item => item.trim().toLowerCase())
     .filter((item, index, all) => INTELLIGENCE_AI_PROVIDER_ORDER.includes(item) && all.indexOf(item) === index);
   const configuredOrder = cleanText(env.MEHRAN_AI_PROVIDER_ORDER, 120)
