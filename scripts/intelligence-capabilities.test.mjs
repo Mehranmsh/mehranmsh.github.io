@@ -1256,3 +1256,13 @@ test("Intelligence mission planning and repository semantic analysis use the pro
   assert.match(analysis, /await runIntelligenceAI\(env/);
   assert.doesNotMatch(analysis, /await env\.AI\.run\(model/);
 });
+
+test("repository inspection and source audit accept worker.js while preserving strict byte and SHA bounds", () => {
+  assert.match(runnerSource, /file\.size > 600000/);
+  assert.match(runnerSource, /file\.bytes > 600000/);
+  assert.match(runnerSource, /totalBytes > 750000/);
+  assert.match(runnerSource, /totalBytes <= 750000/);
+  assert.match(runnerSource, /file\.path !== path/);
+  assert.match(runnerSource, /Buffer\.byteLength\(text, "utf8"\) !== file\.size/);
+  assert.match(runnerSource, /file\.sha !== "string"/);
+});
