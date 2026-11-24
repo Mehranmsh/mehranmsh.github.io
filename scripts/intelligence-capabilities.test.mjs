@@ -194,7 +194,7 @@ test("AI mission planner uses JSON mode and extracts one complete balanced objec
   const plannerEnd = workerSource.indexOf("export function verifyIntelligenceReport", plannerStart);
   assert.ok(start >= 0 && plannerStart > start && plannerEnd > plannerStart);
   const planner = workerSource.slice(plannerStart, plannerEnd);
-  assert.match(planner, /jsonMode: true, temperature: 0, maxTokens: 1600/);
+  assert.match(planner, /jsonMode: true, temperature: 0, maxTokens: 1000/);
   assert.match(planner, /runIntelligenceAI\(env/);
   assert.match(planner, /extractIntelligenceJsonObject\(modelResponse\)/);
   assert.match(workerSource.slice(start, plannerStart), /if \(depth === 0 && start >= 0\) return text\.slice\(start, index \+ 1\)/);
@@ -879,7 +879,7 @@ test("Intelligence mission planning uses a bounded, more efficient daily reserva
   assert.match(workerSource, /intelligence: \{ column: "intelligence_reserved", cap: WORKERS_AI_INTELLIGENCE_DAILY_RESERVATION_CREDITS \}/);
   assert.match(workerSource, /WORKERS_AI_GLOBAL_DAILY_RESERVATION_CREDITS = 9000/);
   assert.match(workerSource, /cloudflareReservation: 25/);
-  assert.match(workerSource, /maxTokens: 1600/);
+  assert.match(workerSource, /maxTokens: 1000/);
 });
 
 test("scheduled Intelligence runner serializes ticks and bounds per-tick task execution", () => {
@@ -1412,6 +1412,12 @@ test("patch generation uses the approved provider router without a second budget
 });
 
 test("Cloudflare AI diagnostics distinguish budget reservation failures from inference failures", () => {
+  assert.match(workerSource, /const DEFAULT_INTELLIGENCE_MODEL = "@cf\/meta\/llama-3\.1-8b-instruct-fp8-fast"/);
+  assert.match(workerSource, /LIMIT 12"\)\.bind\("mehran_intelligence"\)/);
+  assert.match(workerSource, /content:String\(item\.content\|\|""\)\.slice\(0,450\)/);
+  assert.match(workerSource, /jsonMode: true, temperature: 0, maxTokens: 1000, cloudflareReservation: 25/);
+  assert.match(workerSource, /jsonMode:true,temperature:0,maxTokens:1500,cloudflareReservation:500/);
+
   const cloudflareStart = workerSource.indexOf('if (provider === "cloudflare")');
   const cloudflareEnd = workerSource.indexOf('if (provider === "groq")', cloudflareStart);
   const cloudflare = workerSource.slice(cloudflareStart, cloudflareEnd);

@@ -330,6 +330,7 @@ async function releaseSocialWorkersAIBudget(env, reservation) {
 
 
 const INTELLIGENCE_AI_PROVIDER_ORDER = Object.freeze(["cloudflare", "groq", "gemini", "openrouter"]);
+const DEFAULT_INTELLIGENCE_MODEL = "@cf/meta/llama-3.1-8b-instruct-fp8-fast";
 function intelligenceProviderError(provider, status, message) {
   const error = new Error(String(message || "Provider request failed").slice(0, 180));
   error.provider = provider;
@@ -355,7 +356,7 @@ async function runIntelligenceAI(env, options) {
     try {
       if (provider === "cloudflare") {
         if (!env.AI || typeof env.AI.run !== "function") { attempts.push({provider, reason:"not_configured"}); continue; }
-        const model = cleanText(env.MEHRAN_INTELLIGENCE_MODEL, 120) || "@cf/meta/llama-3.3-70b-instruct-fp8-fast";
+        const model = cleanText(env.MEHRAN_INTELLIGENCE_MODEL, 120) || DEFAULT_INTELLIGENCE_MODEL;
         if (env.DB) {
           try {
             await ensureIntelligenceAIProviderDiagnostics(env);
@@ -481,7 +482,7 @@ async function runIntelligenceAI(env, options) {
         status: Number.isInteger(status) ? status : 0,
         errorName: details.name, errorCode:provider === "cloudflare" && (/\b4006\b/.test(details.message) || /used up your daily free allocation of 10,000 neurons/i.test(details.message)) ? "4006" : details.code, errorMessage: details.message,
         causeName: details.causeName, causeMessage: details.causeMessage,
-        errorStack: details.stack, model: provider === "cloudflare" ? (cleanText(env.MEHRAN_INTELLIGENCE_MODEL,120) || "@cf/meta/llama-3.3-70b-instruct-fp8-fast") : ""
+        errorStack: details.stack, model: provider === "cloudflare" ? (cleanText(env.MEHRAN_INTELLIGENCE_MODEL,120) || DEFAULT_INTELLIGENCE_MODEL) : ""
       };
       attempts.push(attempt);
       console.warn("INTELLIGENCE_AI_PROVIDER_FAILED",JSON.stringify({
@@ -6103,9 +6104,9 @@ async function planIntelligenceMission(env, input) {
   if (existing) return { success: true, duplicate: true, workPackageId: existing.id, status: existing.status };
   await ensureIntelligenceMemoryTables(env);
   await seedIntelligenceOwnerMemory(env,"mehran_intelligence");
-  const memoryRows = await env.DB.prepare("SELECT memory_key,category,content,importance,updated_at FROM intelligence_memory_items WHERE owner_uid=? ORDER BY updated_at DESC,importance DESC LIMIT 24").bind("mehran_intelligence").all();
-  const durableMemoryContext = (memoryRows.results || []).map(item => ({key:item.memory_key,category:item.category,content:String(item.content||"").slice(0,700),importance:Number(item.importance||3)}));
-  const model = cleanText(env.MEHRAN_INTELLIGENCE_MODEL, 120) || "@cf/meta/llama-3.3-70b-instruct-fp8-fast";
+  const memoryRows = await env.DB.prepare("SELECT memory_key,category,content,importance,updated_at FROM intelligence_memory_items WHERE owner_uid=? ORDER BY updated_at DESC,importance DESC LIMIT 12").bind("mehran_intelligence").all();
+  const durableMemoryContext = (memoryRows.results || []).map(item => ({key:item.memory_key,category:item.category,content:String(item.content||"").slice(0,450),importance:Number(item.importance||3)}));
+  const model = cleanText(env.MEHRAN_INTELLIGENCE_MODEL, 120) || DEFAULT_INTELLIGENCE_MODEL;
   let selectedProvider = "unknown";
   let selectedModel = model;
   const system = [
@@ -6142,7 +6143,7 @@ async function planIntelligenceMission(env, input) {
   try {
     const routed = await runIntelligenceAI(env, {
       messages: [{ role: "system", content: system }, { role: "user", content: userPrompt }],
-      jsonMode: true, temperature: 0, maxTokens: 1600, cloudflareReservation: 25
+      jsonMode: true, temperature: 0, maxTokens: 1000, cloudflareReservation: 25
     });
     modelResult = routed.result;
     selectedProvider = routed.provider;
@@ -7676,7 +7677,7 @@ export default {
           if (totalChars > 16000) return error("Source evidence exceeds the 16,000-character analysis limit.",413);
           const traceId = cleanText(request.headers.get("X-Intelligence-Trace-Id"),100).replace(/[^A-Za-z0-9._:-]/g,"").slice(0,100) || crypto.randomUUID();
           const inferenceStartedAt = Date.now();
-          const model = cleanText(env.MEHRAN_INTELLIGENCE_MODEL,120) || "@cf/meta/llama-3.3-70b-instruct-fp8-fast";
+          const model = cleanText(env.MEHRAN_INTELLIGENCE_MODEL,120) || DEFAULT_INTELLIGENCE_MODEL;
           console.log("INTELLIGENCE_CODE_ANALYSIS_START",JSON.stringify({traceId,commitShaPrefix:body.commitSha.slice(0,12),fileCount:files.length,totalChars,model}));
           const system = [
             "You are the bounded code-analysis engine for MEHRAN INTELLIGENCE.",
@@ -7699,7 +7700,7 @@ export default {
                 {role:"system",content:system},
                 {role:"user",content:JSON.stringify({repository:"Mehranmsh/mehranmsh.github.io",commitSha:body.commitSha,files})}
               ],
-              jsonMode:true,temperature:0,maxTokens:2200,cloudflareReservation:500
+              jsonMode:true,temperature:0,maxTokens:1500,cloudflareReservation:500
             });
             result = routed.result;
             console.log("INTELLIGENCE_CODE_ANALYSIS_PROVIDER",JSON.stringify({traceId,provider:routed.provider,model:routed.model,priorAttempts:routed.attempts.length}));

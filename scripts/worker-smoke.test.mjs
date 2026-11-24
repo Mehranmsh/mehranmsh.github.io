@@ -2754,7 +2754,7 @@ test("MEHRAN INTELLIGENCE mission planner uses Workers AI JSON Mode and accepts 
   const end = workerSource.indexOf("export function verifyIntelligenceReport", start);
   assert.ok(start >= 0 && end > start, "mission planner must exist");
   const planner = workerSource.slice(start, end);
-  assert.match(planner, /jsonMode: true, temperature: 0, maxTokens: 1600/);
+  assert.match(planner, /jsonMode: true, temperature: 0, maxTokens: 1000/);
   assert.match(planner, /runIntelligenceAI\(env/);
   assert.match(planner, /extractIntelligenceJsonObject\(modelResponse\)/);
   assert.doesNotMatch(planner, /json_schema:/);
