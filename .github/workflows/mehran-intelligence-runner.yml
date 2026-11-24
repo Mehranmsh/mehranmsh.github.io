@@ -116,6 +116,17 @@ jobs:
                           metadataLines: Number.isInteger(shape.metadataLines) ? shape.metadataLines : null,
                           canonicalizerApplied: payload.diagnostic.canonicalizerApplied === true
                         };
+                      } else if (payload.diagnostic.stage === "workers_ai_inference") {
+                        const diagnostic = payload.diagnostic;
+                        failure.safeDiagnostic = {
+                          stage: "workers_ai_inference",
+                          name: String(diagnostic.name || "Error").slice(0, 80),
+                          code: String(diagnostic.code || "").slice(0, 80),
+                          status: Number.isFinite(Number(diagnostic.status)) ? Number(diagnostic.status) : null,
+                          causeName: String(diagnostic.causeName || "").slice(0, 80),
+                          causeMessage: String(diagnostic.causeMessage || "").slice(0, 180),
+                          message: String(diagnostic.message || "").slice(0, 180)
+                        };
                       }
                     }
                     throw failure;
@@ -904,7 +915,7 @@ jobs:
                   Number(error?.status) === 409 && /already in progress|concurrently reserved/i.test(String(error?.message || "")));
               const diagnostic = String(error?.message || error).slice(0,300);
               console.log(`Bounded task diagnostic (${task.actionType}): ${diagnostic}`);
-              if (error?.safeDiagnostic) console.log("Bounded patch-shape diagnostic: " + JSON.stringify(error.safeDiagnostic));
+              if (error?.safeDiagnostic) console.log("Bounded safe diagnostic: " + JSON.stringify(error.safeDiagnostic));
               result = `Bounded runner failed: ${diagnostic}`;
             }
             recordTiming(`task_execute:${task.actionType}`, executionStartedAt);
