@@ -735,6 +735,25 @@ jobs:
                 console.log("Ignoring stale source-security-audit checkpoint; current Worker schema requires deterministic_read_only_static_audit.");
               }
             }
+            if (savedCheckpoint.phase === "result_ready" && task.actionType === "propose_code_patch") {
+              try {
+                const patchReport = JSON.parse(savedCheckpoint.result || "null");
+                const payload = typeof task.actionPayload === "string" ? JSON.parse(task.actionPayload || "{}") : (task.actionPayload || {});
+                const expectedDigest = createHash("sha256")
+                  .update(String(patchReport?.baseSha || "") + "\n" + String(payload?.objective || "").trim())
+                  .digest("base64url");
+                checkpointMatchesCurrentSchema = patchReport?.type === "propose_code_patch" &&
+                  patchReport?.requestId === task.id &&
+                  /^[a-f0-9]{40}$/.test(patchReport?.baseSha || "") &&
+                  savedCheckpoint.baseSha === patchReport.baseSha &&
+                  patchReport?.requestHash === expectedDigest;
+              } catch {
+                checkpointMatchesCurrentSchema = false;
+              }
+              if (!checkpointMatchesCurrentSchema) {
+                console.log("Ignoring stale patch-proposal checkpoint; immutable task objective, request ID, or base commit did not match.");
+              }
+            }
             if (savedCheckpoint.phase === "result_ready" &&
                 savedCheckpoint.actionType === task.actionType &&
                 typeof savedCheckpoint.result === "string" &&
@@ -753,10 +772,13 @@ jobs:
                 if (task.actionType === "run_repository_tests" && executionResult?.passed !== true) status = "blocked";
                 result = serializeBoundedResult(executionResult);
                 if (status === "completed") {
+                  const resultReport = JSON.parse(result);
                   const checkpoint = {
                     phase: "result_ready",
                     actionType: task.actionType,
                     status,
+                    ...(task.actionType === "propose_code_patch" && /^[a-f0-9]{40}$/.test(resultReport?.baseSha || "")
+                      ? { baseSha: resultReport.baseSha } : {}),
                     result,
                     resultSha256: createHash("sha256").update(result).digest("hex"),
                     preparedAt: new Date().toISOString()
