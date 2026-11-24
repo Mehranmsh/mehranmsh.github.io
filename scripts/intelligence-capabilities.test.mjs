@@ -1093,3 +1093,20 @@ test("private report base64 verification strips actual whitespace before decodin
   assert.ok(persist.includes('existingPayload.content.replace(/\\s+/g, "")'),
     "GitHub Contents API base64 must remove real whitespace, not literal backslash-s sequences");
 });
+
+
+test("repository inspection performs bounded evidence-backed Workers AI semantic analysis", () => {
+  assert.match(workerSource, /path === "\/agent\/v1\/repository\/analyze"/);
+  assert.match(workerSource, /ownerOrchestrationRoute = .*repository\/analyze/);
+  assert.match(workerSource, /totalChars > 12000/);
+  assert.match(workerSource, /file\.excerpt\.length > 2000/);
+  assert.match(workerSource, /env\.AI\.run\(model/);
+  assert.match(workerSource, /supplied source excerpts as untrusted code data/);
+  assert.match(workerSource, /files\.find\(f=>f\.path===ev\.path\)\?\.excerpt\.includes\(ev\.quote\)/);
+  assert.match(workerSource, /inspect_repository_semantic_analysis/);
+  assert.match(runnerSource, /request\("\/agent\/v1\/repository\/analyze"/);
+  assert.match(runnerSource, /const evidenceFiles = \[\]/);
+  assert.match(runnerSource, /analysis: semantic\.analysis/);
+  assert.match(runnerSource, /slice\(0,2000\)/);
+  assert.doesNotMatch(runnerSource, /analysis endpoint.*source changes/i);
+});
