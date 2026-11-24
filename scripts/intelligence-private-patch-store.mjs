@@ -139,6 +139,59 @@ export async function verifyPrivatePatchArtifactAtPath({
   return verified;
 }
 
+
+/**
+ * Retrieve the exact private artifact only after path, schema, diff and envelope
+ * digests have all been verified. The returned content remains proposal data.
+ */
+export async function getVerifiedPrivatePatchArtifactAtPath({
+  token,
+  path,
+  artifactSha256,
+  fetchImpl = fetch
+} = {}) {
+  if (typeof token !== "string" || token.trim().length < 40 ||
+      typeof path !== "string" || !/^patch-proposals\/\d{4}\/\d{2}\/[a-f0-9-]{36}\.json$/.test(path) ||
+      typeof artifactSha256 !== "string" || !/^[a-f0-9]{64}$/.test(artifactSha256)) {
+    return { retrieved: false, code: "invalid_artifact_lookup" };
+  }
+  const url = `${API_ROOT}/repos/${REPORTS_REPOSITORY}/contents/${path}`;
+  let response;
+  try { response = await fetchImpl(url, { method: "GET", headers: headers(token.trim()) }); }
+  catch { return { retrieved: false, code: "artifact_lookup_failed" }; }
+  if (response.status === 404) return { retrieved: false, code: "artifact_not_found" };
+  if (!response.ok) return { retrieved: false, code: "artifact_lookup_failed" };
+  let payload;
+  try { payload = await response.json(); }
+  catch { return { retrieved: false, code: "artifact_unreadable" }; }
+  if (payload?.encoding !== "base64" || payload.path !== path || typeof payload.content !== "string") {
+    return { retrieved: false, code: "artifact_path_mismatch" };
+  }
+  let serialized;
+  try { serialized = decodeBase64Utf8(payload.content); }
+  catch { return { retrieved: false, code: "artifact_encoding_invalid" }; }
+  if (new TextEncoder().encode(serialized).byteLength > MAX_ARTIFACT_BYTES) {
+    return { retrieved: false, code: "artifact_size_exceeded" };
+  }
+  let artifact;
+  try { artifact = JSON.parse(serialized); }
+  catch { return { retrieved: false, code: "artifact_invalid_json" }; }
+  let canonicalPath;
+  try { canonicalPath = getPrivatePatchArtifactPath(artifact); }
+  catch { return { retrieved: false, code: "artifact_path_mismatch" }; }
+  if (canonicalPath !== path) return { retrieved: false, code: "artifact_path_mismatch" };
+  const verified = await verifyPatchArtifactRecord(artifact, artifactSha256);
+  if (!verified.ok) return { retrieved: false, code: "artifact_digest_mismatch" };
+  return {
+    retrieved: true,
+    path,
+    artifactSha256,
+    artifact,
+    verification: verified,
+    mode: "verified_proposal_data_only"
+  };
+}
+
 export const PRIVATE_PATCH_ARTIFACT_STORE_POLICY = Object.freeze({
   repository: REPORTS_REPOSITORY,
   pathPrefix: "patch-proposals/",
