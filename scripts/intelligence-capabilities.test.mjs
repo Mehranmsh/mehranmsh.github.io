@@ -35,6 +35,14 @@ test("Workers AI inference failures expose only bounded sanitized diagnostics to
   assert.doesNotMatch(runnerSource, /console\.log\([^\n]*payload\.diagnostic[^\n]*requestBody/);
 });
 
+test("persistent Workers AI inference 503 failures are not automatically retried", () => {
+  assert.match(runnerSource, /const isWorkersAIInferenceFailure = error\?\.safeDiagnostic\?\.stage === "workers_ai_inference"/);
+  assert.match(runnerSource, /retryable = !isWorkersAIInferenceFailure && \(/);
+  assert.match(runnerSource, /Workers AI inference failure is recorded as non-retryable/);
+  assert.match(runnerSource, /error\?\.name === "TimeoutError" \|\| error\?\.name === "AbortError"/);
+  assert.match(runnerSource, /Number\(error\?\.status\) === 503/);
+});
+
 test("bounded inspection serialization preserves a schema-valid semantic analysis", () => {
   const serializerStart = runnerSource.indexOf("function serializeBoundedResult");
   const serializerEnd = runnerSource.indexOf('for (let count = 0;', serializerStart);
@@ -887,15 +895,17 @@ test("mission planner checks its idempotency key before routing to an AI provide
 });
 
 test("Intelligence runner retries only explicitly safe patch-generation interruptions", () => {
-  const retryStart = runnerSource.indexOf("retryable = Number(error?.status) === 503 ||");
+  const retryStart = runnerSource.indexOf("const isWorkersAIInferenceFailure =");
   const retryEnd = runnerSource.indexOf("const diagnostic =", retryStart);
   assert.ok(retryStart >= 0 && retryEnd > retryStart);
   const retryPolicy = runnerSource.slice(retryStart, retryEnd);
+  assert.match(retryPolicy, /retryable = !isWorkersAIInferenceFailure && \(/);
   assert.match(retryPolicy, /Number\(error\?\.status\) === 503/);
   assert.match(retryPolicy, /Number\(error\?\.status\) === 409 && \/already in progress\|concurrently reserved\//);
   assert.match(retryPolicy, /error\?\.name === "TimeoutError" \|\| error\?\.name === "AbortError"/);
   assert.doesNotMatch(retryPolicy, /Number\(error\?\.status\) === 409\s*\|\|/);
   assert.doesNotMatch(retryPolicy, /Number\(error\?\.status\) === 502/);
+  assert.match(retryPolicy, /isWorkersAIInferenceFailure/);
 });
 
 test("Patch generation timeout and model failures remain terminal instead of triggering duplicate inference", () => {
