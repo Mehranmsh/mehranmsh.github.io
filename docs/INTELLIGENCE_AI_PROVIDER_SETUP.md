@@ -28,7 +28,7 @@ Provider free-tier quotas are controlled by each provider and can change by mode
 
 ## Privacy and safety
 
-Only the existing bounded repository excerpts are sent to external providers. Do not send credentials, secrets, wallet material, or unrelated personal data. Gemini free-tier data handling may differ from paid tiers; review current provider terms before enabling it. Secrets remain Worker-side. This router is limited to mission planning and repository semantic analysis in this first phase; other Intelligence chat and media-generation paths are not silently migrated by this change.
+External providers may receive the bounded owner mission, selected durable MEHRAN project-memory entries, and/or the bounded repository excerpts required for the requested analysis. These payloads are sent from the Worker to the selected provider. Do not store credentials, secrets, wallet material, or unrelated personal data in project memory or source excerpts. Gemini free-tier data handling may differ from paid tiers; review current provider terms before enabling it. Groq and OpenRouter have their own data-handling terms as well. Secrets remain Worker-side and are never included as model inputs. This router is limited to mission planning and repository semantic analysis in this first phase; other Intelligence chat and media-generation paths are not silently migrated by this change.
 
 ## Activation
 
