@@ -88,7 +88,7 @@ for (const proposal of proposals) {
       continue;
     }
 
-    run("git", ["merge-base", "--is-ancestor", baseSha, currentMainSha]);
+    if (baseSha !== currentMainSha) throw new Error("Proposal base is stale relative to this runner main snapshot.");
     const artifact = await workerRequest(
       "/agent/v1/patch-proposals/artifact?path=" + encodeURIComponent(artifactPath) +
         "&artifactSha256=" + encodeURIComponent(artifactSha256),
