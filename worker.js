@@ -7040,7 +7040,7 @@ export default {
             if (!file || Object.keys(file).sort().join(",") !== "excerpt,path,sha" ||
                 typeof file.path !== "string" || !allowed.has(file.path) || seen.has(file.path) ||
                 typeof file.sha !== "string" || !/^[a-f0-9]{40}$/i.test(file.sha) ||
-                typeof file.excerpt !== "string" || !file.excerpt.trim() || file.excerpt.length > 2000) {
+                typeof file.excerpt !== "string" || !file.excerpt.trim() || file.excerpt.length > 2800) {
               return error("Source evidence contains an invalid path, digest, or excerpt.",400);
             }
             seen.add(file.path);
