@@ -7225,7 +7225,7 @@ export default {
       }
 
       if (path.startsWith("/agent/v1/")) {
-        const ownerOrchestrationRoute = (path === "/agent/v1/repository/analyze" && method === "POST") || (path === "/agent/v1/missions/plan" && method === "POST") || (path === "/agent/v1/work-packages" && method === "POST") || (path === "/agent/v1/work-packages/pending-finalization" && method === "GET") || (path.startsWith("/agent/v1/work-packages/") && method === "GET") || (path === "/agent/v1/notifications/next" && method === "GET") || (path === "/agent/v1/notifications/status" && method === "GET") || (path.startsWith("/agent/v1/notifications/") && method === "POST");
+        const ownerOrchestrationRoute = (path === "/agent/v1/patch-proposals/pending" && method === "GET") || (path === "/agent/v1/patch-proposals/claim" && method === "POST") || (path === "/agent/v1/patch-proposals/complete" && method === "POST") || (path === "/agent/v1/repository/analyze" && method === "POST") || (path === "/agent/v1/missions/plan" && method === "POST") || (path === "/agent/v1/work-packages" && method === "POST") || (path === "/agent/v1/work-packages/pending-finalization" && method === "GET") || (path.startsWith("/agent/v1/work-packages/") && method === "GET") || (path === "/agent/v1/notifications/next" && method === "GET") || (path === "/agent/v1/notifications/status" && method === "GET") || (path.startsWith("/agent/v1/notifications/") && method === "POST");
         const configuredToken = ownerOrchestrationRoute
           ? (typeof env.MEHRAN_ORCHESTRATOR_TOKEN === "string" ? env.MEHRAN_ORCHESTRATOR_TOKEN : "")
           : (typeof env.MEHRAN_AGENT_TOKEN === "string" ? env.MEHRAN_AGENT_TOKEN : "");
@@ -7436,6 +7436,46 @@ export default {
             path:confirmed.artifact_path,artifactSha256:confirmed.artifact_sha256,
             diffSha256:confirmed.diff_sha256,status:confirmed.status
           },stored.alreadyExists ? 200 : 201);
+        }
+        if (path === "/agent/v1/patch-proposals/pending" && method === "GET") {
+          await ensureIntelligencePatchProposalTable(env);
+          const rows = await env.DB.prepare(
+            "SELECT proposal_id,base_sha,target_path,summary,artifact_path,artifact_sha256,diff_sha256,created_at FROM intelligence_patch_proposals WHERE status='stored' ORDER BY created_at ASC LIMIT 3"
+          ).all();
+          return json({success:true,proposals:(rows.results || []).map(row => ({
+            proposalId:row.proposal_id,baseSha:row.base_sha,targetPath:row.target_path,
+            summary:row.summary,path:row.artifact_path,artifactSha256:row.artifact_sha256,
+            diffSha256:row.diff_sha256,createdAt:row.created_at
+          }))});
+        }
+        if (path === "/agent/v1/patch-proposals/claim" && method === "POST") {
+          const body = await readBody(request);
+          if (!body || Object.keys(body).sort().join(",") !== "proposalId,runId" ||
+              typeof body.proposalId !== "string" || !/^[a-f0-9-]{36}$/.test(body.proposalId) ||
+              typeof body.runId !== "string" || !/^[0-9]{1,24}$/.test(body.runId)) {
+            return error("A valid proposal ID and runner ID are required.",400);
+          }
+          await ensureIntelligencePatchProposalTable(env);
+          const claimed = await env.DB.prepare(
+            "UPDATE intelligence_patch_proposals SET status='claimed' WHERE proposal_id=? AND status='stored'"
+          ).bind(body.proposalId).run();
+          if (!claimed.meta?.changes) return error("Proposal is not available for claiming.",409);
+          return json({success:true,claimed:true,proposalId:body.proposalId,runId:body.runId});
+        }
+        if (path === "/agent/v1/patch-proposals/complete" && method === "POST") {
+          const body = await readBody(request);
+          if (!body || Object.keys(body).sort().join(",") !== "proposalId,runId,status" ||
+              typeof body.proposalId !== "string" || !/^[a-f0-9-]{36}$/.test(body.proposalId) ||
+              typeof body.runId !== "string" || !/^[0-9]{1,24}$/.test(body.runId) ||
+              !["pull_request_created","failed"].includes(body.status)) {
+            return error("A valid proposal completion record is required.",400);
+          }
+          await ensureIntelligencePatchProposalTable(env);
+          const updated = await env.DB.prepare(
+            "UPDATE intelligence_patch_proposals SET status=? WHERE proposal_id=? AND status='claimed'"
+          ).bind(body.status,body.proposalId).run();
+          if (!updated.meta?.changes) return error("Claimed proposal could not be finalized.",409);
+          return json({success:true,proposalId:body.proposalId,status:body.status,runId:body.runId});
         }
         // Expose proposal diffs only to the authenticated runner after private storage and D1 metadata agree.
         if (path === "/agent/v1/patch-proposals/artifact" && method === "GET") {
