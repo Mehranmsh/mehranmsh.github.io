@@ -1107,3 +1107,4 @@ jobs:
           NODE
 
 # Per-tick concurrency isolation and step timeout 2026-11-24
+# Manual wake-up tick requested after confirming scheduled-run gap.
