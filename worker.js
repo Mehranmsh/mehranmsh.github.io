@@ -6083,6 +6083,59 @@ function extractIntelligenceJsonObject(raw) {
   return "";
 }
 
+function buildDeterministicRoutinePlan(mission) {
+  const text = String(mission || "").toLowerCase();
+  const tasks = [];
+  const add = (task) => { if (!tasks.some((item) => item.actionType === task.actionType)) tasks.push(task); };
+  if (/(service health|worker health|database health|d1 health|health check|check health|بررسی سلامت|سلامت سرویس|سلامت ورکر|سلامت دیتابیس|وضعیت سرویس)/i.test(text)) {
+    add({ taskId: "service-health", title: "Verify Worker and D1 service health", description: "Read the Worker health endpoint and verify service and database readiness.", actionType: "service_health_report", dependsOn: [] });
+  }
+  if (/(repository quality|repository status|repo status|github repository|check repository|کیفیت مخزن|وضعیت مخزن|وضعیت گیت.?هاب|بررسی مخزن)/i.test(text)) {
+    add({ taskId: "repository-quality", title: "Inspect repository metadata", description: "Read repository metadata and latest commit information without changing files.", actionType: "repository_quality_check", dependsOn: [] });
+  }
+  if (/(security audit|source security|security check|audit source|بررسی امنیت|ممیزی امنیتی|ممیزی سورس|امنیت کد)/i.test(text)) {
+    add({ taskId: "source-security", title: "Run deterministic source security checks", description: "Run existing bounded, pattern-based read-only checks. This is not a semantic AI code review.", actionType: "source_security_audit", dependsOn: [] });
+  }
+  if (!tasks.length) return null;
+  return {
+    title: "MEHRAN INTELLIGENCE routine checks",
+    objective: "Complete only the explicitly recognized routine read-only checks using deterministic rules, without invoking an AI provider.",
+    priority: "normal",
+    planSummary: "Recognized routine checks were planned locally by the deterministic rules engine. No AI inference was requested.",
+    tasks
+  };
+}
+
+async function createDeterministicRoutinePackage(env, mission, idempotencyKey, ownerUid, plan) {
+  const scope = {
+    mode: "read_only",
+    planner: "deterministic_rules_v1",
+    mission,
+    planSummary: plan.planSummary,
+    allowedActions: plan.tasks.map((task) => task.actionType),
+    forbidden: ["source_changes", "patch_application", "branch_creation", "pull_request_creation", "merge", "deployment", "secret_access", "arbitrary_shell", "wallet_or_financial_actions", "account_mutations"]
+  };
+  const created = await createIntelligenceWorkPackage(env, {
+    idempotencyKey,
+    title: plan.title,
+    objective: plan.objective,
+    priority: plan.priority,
+    scope,
+    tasks: plan.tasks,
+    ownerUid
+  });
+  if (!created.success) return created;
+  return {
+    ...created,
+    planner: { provider: "deterministic_rules_v1" },
+    planSummary: plan.planSummary,
+    taskCount: created.taskCount || plan.tasks.length,
+    deterministic: true,
+    aiInferenceUsed: false,
+    safety: "Only explicitly recognized read-only actions are included; no AI provider, source writes, deployment, secret access, or external actions."
+  };
+}
+
 async function planIntelligenceMission(env, input) {
   const traceId = cleanText(input?.traceId, 100).replace(/[^A-Za-z0-9._:-]/g, "").slice(0, 100) || crypto.randomUUID();
   const inferenceStartedAt = Date.now();
@@ -6102,6 +6155,10 @@ async function planIntelligenceMission(env, input) {
     "SELECT id,status FROM intelligence_work_packages WHERE idempotency_key=? LIMIT 1"
   ).bind(idempotencyKey).first();
   if (existing) return { success: true, duplicate: true, workPackageId: existing.id, status: existing.status };
+  const deterministicPlan = buildDeterministicRoutinePlan(mission);
+  if (deterministicPlan) {
+    return createDeterministicRoutinePackage(env, mission, idempotencyKey, input?.ownerUid, deterministicPlan);
+  }
   await ensureIntelligenceMemoryTables(env);
   await seedIntelligenceOwnerMemory(env,"mehran_intelligence");
   const memoryRows = await env.DB.prepare("SELECT memory_key,category,content,importance,updated_at FROM intelligence_memory_items WHERE owner_uid=? ORDER BY updated_at DESC,importance DESC LIMIT 12").bind("mehran_intelligence").all();
