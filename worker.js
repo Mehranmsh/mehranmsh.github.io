@@ -326,6 +326,117 @@ async function releaseSocialWorkersAIBudget(env, reservation) {
   return true;
 }
 
+
+const INTELLIGENCE_AI_PROVIDER_ORDER = Object.freeze(["cloudflare", "groq", "gemini", "openrouter"]);
+function intelligenceProviderError(provider, status, message) {
+  const error = new Error(String(message || "Provider request failed").slice(0, 180));
+  error.provider = provider;
+  error.status = Number.isInteger(status) ? status : 0;
+  return error;
+}
+async function runIntelligenceAI(env, options) {
+  const messages = Array.isArray(options?.messages) ? options.messages : [];
+  if (!messages.length || messages.some(item => !item || !["system","user","assistant"].includes(item.role) || typeof item.content !== "string")) {
+    throw new Error("Invalid Intelligence model request.");
+  }
+  const attempts = [];
+  const configuredOrder = cleanText(env.MEHRAN_AI_PROVIDER_ORDER, 120)
+    .split(",").map(item => item.trim().toLowerCase()).filter((item, index, all) =>
+      INTELLIGENCE_AI_PROVIDER_ORDER.includes(item) && all.indexOf(item) === index);
+  const order = [...configuredOrder, ...INTELLIGENCE_AI_PROVIDER_ORDER.filter(item => !configuredOrder.includes(item))];
+  for (const provider of order) {
+    try {
+      if (provider === "cloudflare") {
+        if (!env.AI || typeof env.AI.run !== "function") { attempts.push({provider, reason:"not_configured"}); continue; }
+        const reservation = await reserveSocialWorkersAIBudget(env, Number(options.cloudflareReservation || 500), "intelligence");
+        if (!reservation.allowed) { attempts.push({provider, reason:"daily_quota"}); continue; }
+        const model = cleanText(env.MEHRAN_INTELLIGENCE_MODEL, 120) || "@cf/meta/llama-3.3-70b-instruct-fp8-fast";
+        try {
+          const result = await env.AI.run(model, {
+            messages,
+            ...(options.jsonMode ? {response_format:{type:"json_object"}} : {}),
+            ...(options.tools ? {tools:options.tools,tool_choice:options.toolChoice || "auto"} : {}),
+            temperature: options.temperature ?? 0,
+            max_tokens: options.maxTokens || 1600
+          });
+          return {result, provider, model, attempts};
+        } catch (error) {
+          await releaseSocialWorkersAIBudget(env, reservation).catch(() => {});
+          throw error;
+        }
+      }
+      if (provider === "groq") {
+        const key = typeof env.GROQ_API_KEY === "string" ? env.GROQ_API_KEY : "";
+        if (!key) { attempts.push({provider,reason:"not_configured"}); continue; }
+        const model = cleanText(env.MEHRAN_GROQ_MODEL, 120) || "llama-3.3-70b-versatile";
+        const payload = {model,messages,max_tokens:options.maxTokens || 1600,temperature:options.temperature ?? 0};
+        if (options.jsonMode) payload.response_format = {type:"json_object"};
+        if (options.tools) { payload.tools=options.tools; payload.tool_choice=options.toolChoice || "auto"; }
+        const response = await fetch("https://api.groq.com/openai/v1/chat/completions",{
+          method:"POST",headers:{"Authorization":"Bearer "+key,"Content-Type":"application/json"},
+          body:JSON.stringify(payload),signal:AbortSignal.timeout(45000)
+        });
+        const data = await response.json().catch(()=>({}));
+        if (!response.ok) throw intelligenceProviderError(provider,response.status,data?.error?.message || "Groq request failed");
+        const choice = data.choices?.[0]?.message;
+        const content = typeof choice?.content === "string" ? choice.content : "";
+        if (!content && !Array.isArray(choice?.tool_calls)) throw intelligenceProviderError(provider,502,"Groq returned an empty response");
+        return {result:{response:content,tool_calls:choice?.tool_calls || []},provider,model,attempts};
+      }
+      if (provider === "gemini") {
+        const key = typeof env.GEMINI_API_KEY === "string" ? env.GEMINI_API_KEY : "";
+        if (!key) { attempts.push({provider,reason:"not_configured"}); continue; }
+        const model = cleanText(env.MEHRAN_GEMINI_MODEL, 120) || "gemini-2.5-flash";
+        const contents = messages.filter(item=>item.role!=="system").map(item=>({
+          role:item.role==="assistant"?"model":"user",parts:[{text:item.content}]
+        }));
+        const systemText = messages.filter(item=>item.role==="system").map(item=>item.content).join("\n");
+        const payload = {
+          ...(systemText ? {systemInstruction:{parts:[{text:systemText}]}} : {}),
+          contents,
+          generationConfig:{maxOutputTokens:options.maxTokens || 1600,temperature:options.temperature ?? 0,
+            ...(options.jsonMode ? {responseMimeType:"application/json"} : {})}
+        };
+        const response = await fetch("https://generativelanguage.googleapis.com/v1beta/models/"+encodeURIComponent(model)+":generateContent?key="+encodeURIComponent(key),{
+          method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload),signal:AbortSignal.timeout(45000)
+        });
+        const data = await response.json().catch(()=>({}));
+        if (!response.ok) throw intelligenceProviderError(provider,response.status,data?.error?.message || "Gemini request failed");
+        const content = (data.candidates || []).flatMap(item=>item.content?.parts || []).map(part=>part.text || "").join("\n").trim();
+        if (!content) throw intelligenceProviderError(provider,502,"Gemini returned an empty response");
+        return {result:{response:content},provider,model,attempts};
+      }
+      if (provider === "openrouter") {
+        const key = typeof env.OPENROUTER_API_KEY === "string" ? env.OPENROUTER_API_KEY : "";
+        if (!key) { attempts.push({provider,reason:"not_configured"}); continue; }
+        const model = cleanText(env.MEHRAN_OPENROUTER_MODEL, 160) || "meta-llama/llama-3.3-70b-instruct:free";
+        if (!model.endsWith(":free")) { attempts.push({provider,reason:"non_free_model_blocked"}); continue; }
+        const payload = {model,messages,max_tokens:options.maxTokens || 1600,temperature:options.temperature ?? 0};
+        if (options.jsonMode) payload.response_format = {type:"json_object"};
+        if (options.tools) { payload.tools=options.tools; payload.tool_choice=options.toolChoice || "auto"; }
+        const response = await fetch("https://openrouter.ai/api/v1/chat/completions",{
+          method:"POST",headers:{"Authorization":"Bearer "+key,"Content-Type":"application/json","HTTP-Referer":"https://mehranmsh.github.io","X-Title":"MEHRAN Intelligence"},
+          body:JSON.stringify(payload),signal:AbortSignal.timeout(45000)
+        });
+        const data = await response.json().catch(()=>({}));
+        if (!response.ok) throw intelligenceProviderError(provider,response.status,data?.error?.message || "OpenRouter request failed");
+        const choice = data.choices?.[0]?.message;
+        const content = typeof choice?.content === "string" ? choice.content : "";
+        if (!content && !Array.isArray(choice?.tool_calls)) throw intelligenceProviderError(provider,502,"OpenRouter returned an empty response");
+        return {result:{response:content,tool_calls:choice?.tool_calls || []},provider,model,attempts};
+      }
+    } catch (error) {
+      const status = Number(error?.status || 0);
+      attempts.push({provider,reason:status===429?"quota_or_rate_limit":status===401||status===403?"authentication_failed":"provider_error"});
+      console.warn("INTELLIGENCE_AI_PROVIDER_FAILED",JSON.stringify({provider,status,reason:attempts[attempts.length-1].reason}));
+    }
+  }
+  const summary = attempts.map(item=>item.provider+":"+item.reason).join(",");
+  const error = new Error("No configured free AI provider completed the request ("+summary+").");
+  error.providerAttempts = attempts;
+  throw error;
+}
+
 const socialSchemaInit = new WeakMap();
 
 async function ensureSocialTables(env) {
@@ -5932,12 +6043,6 @@ async function planIntelligenceMission(env, input) {
   await seedIntelligenceOwnerMemory(env,"mehran_intelligence");
   const memoryRows = await env.DB.prepare("SELECT memory_key,category,content,importance,updated_at FROM intelligence_memory_items WHERE owner_uid=? ORDER BY updated_at DESC,importance DESC LIMIT 24").bind("mehran_intelligence").all();
   const durableMemoryContext = (memoryRows.results || []).map(item => ({key:item.memory_key,category:item.category,content:String(item.content||"").slice(0,700),importance:Number(item.importance||3)}));
-  if (!env.AI || typeof env.AI.run !== "function") {
-    return fallback("ai_binding_unavailable");
-  }
-  const budget = await reserveSocialWorkersAIBudget(env, 25, "intelligence");
-  if (!budget.allowed) return fallback("daily_ai_budget_unavailable");
-
   const model = cleanText(env.MEHRAN_INTELLIGENCE_MODEL, 120) || "@cf/meta/llama-3.3-70b-instruct-fp8-fast";
   const system = [
     "You are the planning core of MEHRAN INTELLIGENCE.",
@@ -5971,17 +6076,13 @@ async function planIntelligenceMission(env, input) {
   console.log("INTELLIGENCE_MISSION_PLANNER_START",JSON.stringify({traceId,model,missionChars:mission.length,memoryItems:durableMemoryContext.length}));
   let modelResult;
   try {
-    modelResult = await env.AI.run(model, {
+    const routed = await runIntelligenceAI(env, {
       messages: [{ role: "system", content: system }, { role: "user", content: userPrompt }],
-      response_format: { type: "json_object" },
-      temperature: 0,
-      max_tokens: 1600
+      jsonMode: true, temperature: 0, maxTokens: 1600, cloudflareReservation: 25
     });
+    modelResult = routed.result;
+    console.log("INTELLIGENCE_MISSION_PLANNER_PROVIDER",JSON.stringify({traceId,provider:routed.provider,model:routed.model,priorAttempts:routed.attempts.length}));
   } catch (err) {
-    try { await releaseSocialWorkersAIBudget(env, budget); }
-    catch (releaseError) {
-      console.error("INTELLIGENCE_MISSION_BUDGET_RELEASE_FAILURE", JSON.stringify(safeWorkersAIErrorDetails(releaseError)));
-    }
     const diagnostic = safeWorkersAIErrorDetails(err);
     const elapsedMs = Date.now() - inferenceStartedAt;
     console.error("INTELLIGENCE_MISSION_PLANNER_FAILURE", JSON.stringify({traceId,elapsedMs,...diagnostic}));
@@ -7111,11 +7212,8 @@ export default {
             files.push({path:file.path,sha:file.sha,excerpt:file.excerpt});
           }
           if (totalChars > 16000) return error("Source evidence exceeds the 16,000-character analysis limit.",413);
-          if (!env.AI || typeof env.AI.run !== "function") return error("Workers AI analysis binding is unavailable.",503);
           const traceId = cleanText(request.headers.get("X-Intelligence-Trace-Id"),100).replace(/[^A-Za-z0-9._:-]/g,"").slice(0,100) || crypto.randomUUID();
           const inferenceStartedAt = Date.now();
-          const budget = await reserveSocialWorkersAIBudget(env,500,"intelligence");
-          if (!budget.allowed) return json({success:false,error:"Intelligence AI analysis budget is unavailable.",diagnostic:{stage:"budget_reservation",operation:"repository_analyze",traceId}},429);
           const model = cleanText(env.MEHRAN_INTELLIGENCE_MODEL,120) || "@cf/meta/llama-3.3-70b-instruct-fp8-fast";
           console.log("INTELLIGENCE_CODE_ANALYSIS_START",JSON.stringify({traceId,commitShaPrefix:body.commitSha.slice(0,12),fileCount:files.length,totalChars,model}));
           const system = [
@@ -7134,20 +7232,16 @@ export default {
           ].join(" ");
           let result;
           try {
-            result = await env.AI.run(model,{
+            const routed = await runIntelligenceAI(env,{
               messages:[
                 {role:"system",content:system},
                 {role:"user",content:JSON.stringify({repository:"Mehranmsh/mehranmsh.github.io",commitSha:body.commitSha,files})}
               ],
-              response_format:{type:"json_object"},
-              temperature:0,
-              max_tokens:2200
+              jsonMode:true,temperature:0,maxTokens:2200,cloudflareReservation:500
             });
+            result = routed.result;
+            console.log("INTELLIGENCE_CODE_ANALYSIS_PROVIDER",JSON.stringify({traceId,provider:routed.provider,model:routed.model,priorAttempts:routed.attempts.length}));
           } catch (err) {
-            try { await releaseSocialWorkersAIBudget(env, budget); }
-            catch (releaseError) {
-              console.error("INTELLIGENCE_CODE_ANALYSIS_BUDGET_RELEASE_FAILURE",JSON.stringify(safeWorkersAIErrorDetails(releaseError)));
-            }
             const elapsedMs = Date.now() - inferenceStartedAt;
             const diagnostic = safeWorkersAIErrorDetails(err);
             console.error("INTELLIGENCE_CODE_ANALYSIS_FAILURE",JSON.stringify({traceId,elapsedMs,...diagnostic}));
