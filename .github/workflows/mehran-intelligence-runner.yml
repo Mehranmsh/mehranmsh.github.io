@@ -136,6 +136,22 @@ jobs:
                           causeMessage: String(diagnostic.causeMessage || "").slice(0, 180),
                           message: String(diagnostic.message || "").slice(0, 180)
                         };
+                      } else if (payload.diagnostic.stage === "multi_provider_inference") {
+                        const diagnostic = payload.diagnostic;
+                        const attempted = Array.isArray(diagnostic.attemptedProviders) ? diagnostic.attemptedProviders : [];
+                        const failures = Array.isArray(diagnostic.failures) ? diagnostic.failures : [];
+                        failure.safeDiagnostic = {
+                          stage: "multi_provider_inference",
+                          operation: String(diagnostic.operation || timingRoute(path)).slice(0, 80),
+                          traceId: String(diagnostic.traceId || traceId).slice(0, 100),
+                          elapsedMs: Number.isFinite(Number(diagnostic.elapsedMs)) ? Number(diagnostic.elapsedMs) : null,
+                          attemptedProviders: attempted.slice(0, 4).map(value => String(value).slice(0, 24)),
+                          failures: failures.slice(0, 4).map(item => ({
+                            provider: String(item?.provider || "").slice(0, 24),
+                            status: Number.isFinite(Number(item?.status)) ? Number(item.status) : null,
+                            code: String(item?.code || "").slice(0, 80)
+                          }))
+                        };
                       } else if (payload.diagnostic.stage === "budget_reservation") {
                         failure.safeDiagnostic = {
                           stage: "budget_reservation",
@@ -302,7 +318,7 @@ jobs:
                 "--cpus", "1", "--tmpfs", "/tmp:rw,noexec,nosuid,nodev,size=64m",
                 "--mount", `type=bind,src=${workspace},dst=/workspace,readonly`,
                 "--workdir", "/workspace", image, "sh", "-c",
-                "node --check worker.js && node --check scripts/intelligence-capabilities.mjs && node --test --test-reporter=tap scripts/intelligence-capabilities.test.mjs"
+                "node --check worker.js && node --check scripts/intelligence-capabilities.mjs && node --check scripts/intelligence-ai-router.mjs && node --check scripts/intelligence-patch-generation-service.mjs && node --test --test-reporter=tap scripts/intelligence-capabilities.test.mjs scripts/intelligence-ai-router.test.mjs"
               ];
               const result = spawnSync("docker", args, { encoding: "utf8", timeout: 240000, maxBuffer: 1024 * 1024 });
               const output = [result.stdout || "", result.stderr || ""].join("\n").slice(-24000);
