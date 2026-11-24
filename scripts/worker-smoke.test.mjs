@@ -2857,12 +2857,13 @@ test("private report persistence writes a minimized JSON report to the dedicated
   }
 });
 
-test("private report finalization verifies existing artifact bytes before marking them stored", async () => {
+test("private report finalization rejects malformed existing artifact bytes before marking them stored", async () => {
   const originalFetch = globalThis.fetch;
   let storedContent = "";
   let mode = "missing";
   let markerWrites = 0;
   let reportStoredAt = null;
+  let reportPayload = "";
   globalThis.fetch = async (_url, init = {}) => {
     if (init.method === "PUT") {
       storedContent = JSON.parse(init.body).content;
@@ -2875,11 +2876,12 @@ test("private report finalization verifies existing artifact bytes before markin
   const db = {
     prepare(sql) {
       return {
-        bind() { return this; },
+        bind(...args) { this.args = args; return this; },
         async first() {
-          if (sql.includes("SELECT id,created_at,report_stored_at FROM intelligence_work_packages")) {
-            return { id: "package-verify", created_at: "2026-11-22T20:00:00.000Z", report_stored_at: reportStoredAt };
+          if (sql.includes("SELECT id,created_at,report_stored_at,report_payload FROM intelligence_work_packages")) {
+            return { id: "package-verify", created_at: "2026-11-22T20:00:00.000Z", report_stored_at: reportStoredAt, report_payload: reportPayload };
           }
+          if (sql.includes("SELECT report_payload FROM intelligence_work_packages")) return { report_payload: reportPayload };
           throw new Error("Unexpected first query: " + sql);
         },
         async all() {
@@ -2889,7 +2891,11 @@ test("private report finalization verifies existing artifact bytes before markin
           }
           throw new Error("Unexpected all query: " + sql);
         },
-        async run() { markerWrites += 1; reportStoredAt = "2026-11-23T00:00:00.000Z"; return { success: true, meta: { changes: 1 } }; }
+        async run() {
+          if (sql.includes("SET report_payload=?")) reportPayload = this.args[0];
+          if (sql.includes("SET report_stored_at=")) { markerWrites += 1; reportStoredAt = "2026-11-23T00:00:00.000Z"; }
+          return { success: true, meta: { changes: 1 } };
+        }
       };
     }
   };
@@ -2911,20 +2917,21 @@ test("private report finalization verifies existing artifact bytes before markin
     mode = "tampered";
     await assert.rejects(
       persistIntelligencePackageReport(env, "package-verify", snapshot),
-      /does not match the current package snapshot/
+      /report_github_verify_failed/
     );
-    assert.equal(markerWrites, 1, "a conflicting artifact must never be marked as finalized");
+    assert.equal(markerWrites, 1, "a malformed artifact must never be marked as finalized");
   } finally {
     globalThis.fetch = originalFetch;
   }
 });
 
-test("private report retries accept only legacy generated_at drift and keep report evidence immutable", async () => {
+test("private report retries pin a durable snapshot and safely adopt valid legacy artifacts", async () => {
   const originalFetch = globalThis.fetch;
   let storedContent = "";
   let mode = "missing";
   let markerWrites = 0;
   let reportStoredAt = null;
+  let reportPayload = "";
   globalThis.fetch = async (_url, init = {}) => {
     if (init.method === "PUT") {
       storedContent = JSON.parse(init.body).content;
@@ -2936,11 +2943,12 @@ test("private report retries accept only legacy generated_at drift and keep repo
   const db = {
     prepare(sql) {
       return {
-        bind() { return this; },
+        bind(...args) { this.args = args; return this; },
         async first() {
-          if (sql.includes("SELECT id,created_at,report_stored_at FROM intelligence_work_packages")) {
-            return { id: "package-stable", created_at: "2026-11-22T20:00:00.000Z", report_stored_at: reportStoredAt };
+          if (sql.includes("SELECT id,created_at,report_stored_at,report_payload FROM intelligence_work_packages")) {
+            return { id: "package-stable", created_at: "2026-11-22T20:00:00.000Z", report_stored_at: reportStoredAt, report_payload: reportPayload };
           }
+          if (sql.includes("SELECT report_payload FROM intelligence_work_packages")) return { report_payload: reportPayload };
           throw new Error("Unexpected first query: " + sql);
         },
         async all() {
@@ -2950,7 +2958,17 @@ test("private report retries accept only legacy generated_at drift and keep repo
           }
           throw new Error("Unexpected all query: " + sql);
         },
-        async run() { markerWrites += 1; reportStoredAt = "2026-11-23T00:00:00.000Z"; return { success: true, meta: { changes: 1 } }; }
+        async run() {
+          if (sql.includes("SET report_payload=? WHERE id=? AND (report_payload IS NULL OR report_payload='')")) {
+            if (!reportPayload) reportPayload = this.args[0];
+          } else if (sql.includes("SET report_payload=? WHERE id=? AND report_payload=?")) {
+            if (reportPayload === this.args[2]) reportPayload = this.args[0];
+          } else if (sql.includes("SET report_stored_at=")) {
+            markerWrites += 1;
+            reportStoredAt = "2026-11-23T00:00:00.000Z";
+          }
+          return { success: true, meta: { changes: 1 } };
+        }
       };
     }
   };
@@ -2962,17 +2980,22 @@ test("private report retries accept only legacy generated_at drift and keep repo
     assert.equal(first.stored, true);
     const originalReport = JSON.parse(Buffer.from(storedContent, "base64").toString("utf8"));
     assert.equal(originalReport.generated_at, "2026-11-22T20:00:00.000Z");
+    assert.ok(reportPayload, "the exact first snapshot must be pinned in D1 before GitHub storage");
 
+    // Simulate a legacy package whose pre-existing report predates report_payload.
     const legacyReport = { ...originalReport, generated_at: "2026-11-23T21:00:00.000Z" };
     storedContent = Buffer.from(JSON.stringify(legacyReport, null, 2) + "\n").toString("base64");
     mode = "matching";
     reportStoredAt = null;
+    reportPayload = "";
     const recovered = await persistIntelligencePackageReport(env, "package-stable", {
       status: "completed", generatedAt: "2026-11-24T01:00:00.000Z", counts: { total: 1, completed: 1 }
     });
     assert.equal(recovered.stored, true);
     assert.equal(recovered.alreadyExists, true);
     assert.equal(markerWrites, 2);
+    assert.equal(reportPayload, Buffer.from(storedContent, "base64").toString("utf8"),
+      "legacy artifact bytes must be adopted as the durable retry payload");
 
     const tampered = { ...legacyReport, data: { ...legacyReport.data, tasks: [{ ...legacyReport.data.tasks[0], status: "blocked" }] } };
     storedContent = Buffer.from(JSON.stringify(tampered, null, 2) + "\n").toString("base64");
@@ -2981,9 +3004,9 @@ test("private report retries accept only legacy generated_at drift and keep repo
       persistIntelligencePackageReport(env, "package-stable", {
         status: "completed", generatedAt: "2026-11-24T01:00:00.000Z", counts: { total: 1, completed: 1 }
       }),
-      /does not match the current package snapshot/
+      /report_content_conflict/
     );
-    assert.equal(markerWrites, 2, "changed task evidence must never be marked as stored");
+    assert.equal(markerWrites, 2, "changed report bytes must never be marked as stored after the durable payload is pinned");
   } finally {
     globalThis.fetch = originalFetch;
   }
