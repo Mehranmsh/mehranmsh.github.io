@@ -301,6 +301,31 @@ async function reserveSocialWorkersAIBudget(env, reservedCredits, productKey = "
   };
 }
 
+// Failed inference attempts must not permanently consume daily reservation capacity.
+// The decrement is atomic and clamped to zero so repeated cleanup is harmless.
+async function releaseSocialWorkersAIBudget(env, reservation) {
+  const budgetColumns = {
+    music: "music_reserved",
+    social: "social_reserved",
+    intelligence: "intelligence_reserved"
+  };
+  const column = budgetColumns[reservation?.product];
+  const credits = Number(reservation?.reservedCredits);
+  const dayKey = reservation?.dayKey;
+  if (!env?.DB || !column || !Number.isInteger(credits) || credits < 1 ||
+      typeof dayKey !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(dayKey)) {
+    return false;
+  }
+  await env.DB.prepare(`
+    UPDATE workers_ai_daily_budget
+    SET ${column}=MAX(0,${column}-?),
+        total_reserved=MAX(0,total_reserved-?),
+        updated_at=CURRENT_TIMESTAMP
+    WHERE day_key=?
+  `).bind(credits,credits,dayKey).run();
+  return true;
+}
+
 const socialSchemaInit = new WeakMap();
 
 async function ensureSocialTables(env) {
@@ -5950,6 +5975,10 @@ async function planIntelligenceMission(env, input) {
       max_tokens: 1600
     });
   } catch (err) {
+    try { await releaseSocialWorkersAIBudget(env, budget); }
+    catch (releaseError) {
+      console.error("INTELLIGENCE_MISSION_BUDGET_RELEASE_FAILURE", JSON.stringify(safeWorkersAIErrorDetails(releaseError)));
+    }
     console.error("INTELLIGENCE_MISSION_PLANNER_FAILURE", JSON.stringify(safeWorkersAIErrorDetails(err)));
     return fallback("ai_inference_failed");
   }
@@ -7094,6 +7123,10 @@ export default {
               max_tokens:2200
             });
           } catch (err) {
+            try { await releaseSocialWorkersAIBudget(env, budget); }
+            catch (releaseError) {
+              console.error("INTELLIGENCE_CODE_ANALYSIS_BUDGET_RELEASE_FAILURE",JSON.stringify(safeWorkersAIErrorDetails(releaseError)));
+            }
             console.error("INTELLIGENCE_CODE_ANALYSIS_FAILURE",JSON.stringify(safeWorkersAIErrorDetails(err)));
             return error("Workers AI code analysis failed.",503);
           }
