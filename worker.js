@@ -474,12 +474,12 @@ async function runIntelligenceAI(env, options) {
       const details = safeWorkersAIErrorDetails(error);
       const attempt = {
         provider,
-        reason:provider === "cloudflare" && (/\\b4006\\b/.test(details.message) || /used up your daily free allocation of 10,000 neurons/i.test(details.message))
+        reason:provider === "cloudflare" && (/\b4006\b/.test(details.message) || /used up your daily free allocation of 10,000 neurons/i.test(details.message))
           ? "daily_quota"
           : status===429?"quota_or_rate_limit":status===401||status===403?"authentication_failed":"provider_error",
         stage: provider === "cloudflare" ? "inference" : "provider_request",
         status: Number.isInteger(status) ? status : 0,
-        errorName: details.name, errorCode:provider === "cloudflare" && (/\\b4006\\b/.test(details.message) || /used up your daily free allocation of 10,000 neurons/i.test(details.message)) ? "4006" : details.code, errorMessage: details.message,
+        errorName: details.name, errorCode:provider === "cloudflare" && (/\b4006\b/.test(details.message) || /used up your daily free allocation of 10,000 neurons/i.test(details.message)) ? "4006" : details.code, errorMessage: details.message,
         causeName: details.causeName, causeMessage: details.causeMessage,
         errorStack: details.stack, model: provider === "cloudflare" ? (cleanText(env.MEHRAN_INTELLIGENCE_MODEL,120) || "@cf/meta/llama-3.3-70b-instruct-fp8-fast") : ""
       };
