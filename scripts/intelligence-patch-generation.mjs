@@ -27,7 +27,7 @@ export function buildPatchGenerationPrompt({ baseSha, objective, source }) {
       "Return exactly one JSON object with a string field summary and an array-of-strings field testLines. No Markdown fences or extra keys.",
       "Each testLines item must be exactly one JavaScript source line with no carriage return or newline characters. Empty strings are allowed only when a blank source line is needed.",
       "Do not return a diff, file headers, hunk headers, Markdown, explanations, or metadata. The trusted executor constructs the unified diff itself.",
-      "Add tests only. Do not request edits to existing lines, production code, workflows, configuration, permissions, secrets, network behavior, or dependencies.",
+      "All generated test lines are intended for append-only insertion into exactly scripts/intelligence-capabilities.test.mjs. Add tests only. Do not request edits to existing lines, production code, workflows, configuration, permissions, secrets, network behavior, or dependencies.",
       "Keep the total UTF-8 size of all testLines at or below 7000 bytes and return between 1 and 60 lines.",
       "If a safe regression test cannot be added, return an empty testLines array and explain why in summary."
     ].join(" "),
