@@ -245,7 +245,7 @@ export async function generatePatchArtifact({
     releaseWorkersBudget: releaseBudget
   });
   if (!inference.ok) return {
-    ...fail("model_request_failed"),
+    ...fail(inference.failures?.some(item => item.code === "workers_ai_budget_exhausted") ? "ai_budget_exhausted" : "model_request_failed"),
     diagnostic: { stage: "multi_provider_inference", attemptedProviders: inference.attemptedProviders, failures: inference.failures }
   };
   const model = inference.provider + "/" + inference.model;
