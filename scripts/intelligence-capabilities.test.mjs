@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { validatePatchProposal, PATCH_PROPOSAL_POLICY } from "./intelligence-patch-policy.mjs";
 import { createPatchArtifactRecord, verifyPatchArtifactRecord } from "./intelligence-patch-artifact.mjs";
-import { storePrivatePatchArtifact, verifyPrivatePatchArtifactAtPath, getPrivatePatchArtifactPath, PRIVATE_PATCH_ARTIFACT_STORE_POLICY } from "./intelligence-private-patch-store.mjs";
+import { storePrivatePatchArtifact, verifyPrivatePatchArtifactAtPath, getVerifiedPrivatePatchArtifactAtPath, getPrivatePatchArtifactPath, PRIVATE_PATCH_ARTIFACT_STORE_POLICY } from "./intelligence-private-patch-store.mjs";
 import { buildPatchGenerationPrompt, validateGeneratedPatch, PATCH_GENERATION_POLICY } from "./intelligence-patch-generation.mjs";
 import { generatePatchArtifact, PATCH_GENERATION_SERVICE_POLICY, canonicalizeAppendOnlyHunkHeader } from "./intelligence-patch-generation-service.mjs";
 import {
@@ -548,6 +548,24 @@ test("private patch artifact recovery verifies an exact stored path and digest",
   });
   assert.equal(invalid.code, "invalid_artifact_lookup");
   assert.equal(calls, 1);
+});
+
+
+test("private patch retrieval returns content only after exact path and digest verification", async () => {
+  const created = await makeTestPatchArtifact();
+  const path = getPrivatePatchArtifactPath(created.artifact);
+  const recovered = await getVerifiedPrivatePatchArtifactAtPath({
+    token: "t".repeat(48), path, artifactSha256: created.artifactSha256,
+    fetchImpl: async () => githubContentResponse(created.artifact, path)
+  });
+  assert.equal(recovered.retrieved, true);
+  assert.deepEqual(recovered.artifact, created.artifact);
+  const rejected = await getVerifiedPrivatePatchArtifactAtPath({
+    token: "t".repeat(48), path, artifactSha256: "0".repeat(64),
+    fetchImpl: async () => githubContentResponse(created.artifact, path)
+  });
+  assert.equal(rejected.retrieved, false);
+  assert.equal(rejected.code, "artifact_digest_mismatch");
 });
 
 test("private patch artifact recovery returns a retryable lookup error on transient network failure", async () => {
