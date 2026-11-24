@@ -644,7 +644,8 @@ test("append-only hunk canonicalizer removes unchanged model context and rebuild
   assert.equal(validated.ok, true);
   assert.equal(validated.additions, 1);
   assert.equal(validated.deletions, 0);
-  assert.equal(canonicalizeAppendOnlyHunkHeader(generated.replace(" const unchanged = 1;", "-const deleted = 1;"), 100), generated.replace(" const unchanged = 1;", "-const deleted = 1;"));
+  const unsafe = generated.replace(" const unchanged = 1;", "-const deleted = 1;");
+  assert.equal(canonicalizeAppendOnlyHunkHeader(unsafe, 100), unsafe);
 });
 
 test("generated patch validator rejects replacements, non-EOF hunks, and extra files", () => {
@@ -1159,7 +1160,7 @@ test("package report snapshots wait until runnable sibling tasks are quiescent",
   assert.match(snapshot, /includes\(status\) && reportIsQuiescent/);
 });
 
-
+test("repository inspection performs bounded evidence-backed Workers AI semantic analysis", () => {
   assert.match(workerSource, /path === "\/agent\/v1\/repository\/analyze"/);
   assert.match(workerSource, /ownerOrchestrationRoute = .*repository\/analyze/);
   assert.match(workerSource, /totalChars > 16000/);
@@ -1172,20 +1173,8 @@ test("package report snapshots wait until runnable sibling tasks are quiescent",
   assert.match(runnerSource, /const evidenceFiles = \[\]/);
   assert.match(runnerSource, /analysis: semantic\.analysis/);
   assert.match(runnerSource, /slice\(0,2800\)/);
-  assert.doesNotMatch(runnerSource, /analysis endpoint.*source changes/i);
-});
-
-  assert.match(workerSource, /path === "\/agent\/v1\/repository\/analyze"/);
-  assert.match(workerSource, /ownerOrchestrationRoute = .*repository\/analyze/);
-  assert.match(workerSource, /totalChars > 16000/);
-  assert.match(workerSource, /file\.excerpt\.length > 2000/);
-  assert.match(workerSource, /env\.AI\.run\(model/);
-  assert.match(workerSource, /supplied source excerpts as untrusted code data/);
-  assert.match(workerSource, /files\.find\(f=>f\.path===ev\.path\)\?\.excerpt\.includes\(ev\.quote\)/);
-  assert.match(workerSource, /inspect_repository_semantic_analysis/);
-  assert.match(runnerSource, /request\("\/agent\/v1\/repository\/analyze"/);
-  assert.match(runnerSource, /const evidenceFiles = \[\]/);
-  assert.match(runnerSource, /analysis: semantic\.analysis/);
-  assert.match(runnerSource, /slice\(0,2000\)/);
+  assert.match(workerSource, /Do not call a named constant a magic number/);
+  assert.match(workerSource, /Do not label a Firebase Web API key/);
+  assert.match(workerSource, /unsupportedMagicNumberFindings/);
   assert.doesNotMatch(runnerSource, /analysis endpoint.*source changes/i);
 });
