@@ -1131,6 +1131,8 @@ test("MEHRAN Intelligence Agent API is enabled only behind its dedicated bearer 
   assert.match(route, /assigned_to IN \('mehran_intelligence','shared'\)/);
   assert.match(route, /action_type IN \('repository_quality_check','service_health_report','source_security_audit','inspect_repository','run_repository_tests','propose_code_patch'\)/);
   assert.ok(route.includes("status IN ('queued','accepted','retry_wait')"), "agent claims must include retry_wait tasks");
+  assert.match(route, /ORDER BY CASE t\.priority WHEN 'high' THEN 0 WHEN 'normal' THEN 1 ELSE 2 END,CASE WHEN t\.work_package_id IS NOT NULL AND EXISTS \(SELECT 1 FROM intelligence_tasks prior WHERE prior\.work_package_id=t\.work_package_id AND prior\.status='completed'\) THEN 0 ELSE 1 END,t\.created_at ASC/,
+    "after honoring priority, continue packages that have already completed a task before starting another package");
   assert.match(route, /status='awaiting_approval' AND requires_approval=0/);
   assert.match(route, /agent_claimed_at=CURRENT_TIMESTAMP/);
   assert.ok(route.includes("WHERE id=? AND status IN ('queued','accepted','retry_wait') AND requires_approval=0 AND assigned_to IN ('mehran_intelligence','shared') AND action_type IN ('repository_quality_check','service_health_report','source_security_audit','inspect_repository','run_repository_tests','propose_code_patch')"));
@@ -3496,4 +3498,20 @@ test("real Worker task recovery preserves durable checkpoints and fences the cra
     "a checkpoint arriving after terminal result commit must be rejected");
   assert.deepEqual(JSON.parse(state.row.checkpoint_json), resumedCheckpoint,
     "a late checkpoint must not mutate terminal task state");
+});
+
+
+test("private package report failures expose only bounded stage codes", () => {
+  assert.match(workerSource, /report_package_lookup_failed/);
+  assert.match(workerSource, /report_tasks_lookup_failed/);
+  assert.match(workerSource, /reportStage\("hash"/);
+  assert.match(workerSource, /reportStage\("github_lookup"/);
+  assert.match(workerSource, /reportStage\("github_verify"/);
+  assert.match(workerSource, /reportStage\("github_write"/);
+  assert.match(workerSource, /reportStage\("marker_write"/);
+  assert.match(workerSource, /report_github_lookup_http_/);
+  assert.match(workerSource, /report_github_write_http_/);
+  assert.match(workerSource, /\^report_\[a-z0-9_\]\{1,64\}\$/);
+  assert.match(workerSource, /INTELLIGENCE_PRIVATE_REPORT_STORE_FAILURE/);
+  assert.doesNotMatch(workerSource, /console\.error\("INTELLIGENCE_PRIVATE_REPORT_STORE_FAILURE",\s*storeError\)/);
 });
