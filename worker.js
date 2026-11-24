@@ -414,8 +414,9 @@ async function runIntelligenceAI(env, options) {
       if (provider === "openrouter") {
         const key = typeof env.OPENROUTER_API_KEY === "string" ? env.OPENROUTER_API_KEY : "";
         if (!key) { attempts.push({provider,reason:"not_configured"}); continue; }
-        const model = cleanText(env.MEHRAN_OPENROUTER_MODEL, 160) || "meta-llama/llama-3.3-70b-instruct:free";
-        if (!model.endsWith(":free")) { attempts.push({provider,reason:"non_free_model_blocked"}); continue; }
+        // The OpenRouter free router selects an available $0 model dynamically. Explicit model overrides must remain free variants.
+        const model = cleanText(env.MEHRAN_OPENROUTER_MODEL, 160) || "openrouter/free";
+        if (model !== "openrouter/free" && !model.endsWith(":free")) { attempts.push({provider,reason:"non_free_model_blocked"}); continue; }
         const payload = {model,messages,max_tokens:options.maxTokens || 1600,temperature:options.temperature ?? 0};
         if (options.jsonMode) payload.response_format = {type:"json_object"};
         if (options.tools) { payload.tools=options.tools; payload.tool_choice=options.toolChoice || "auto"; }
