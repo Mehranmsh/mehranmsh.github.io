@@ -6064,14 +6064,28 @@ export function verifyIntelligenceReport(actionType, report) {
       totalBytes += file.bytes;
       return true;
     });
+    const analysis = report.analysis && typeof report.analysis === "object" ? report.analysis : {};
+    const validAnalysis = typeof analysis.summary === "string" && analysis.summary.length <= 1600 &&
+      Array.isArray(analysis.findings) && analysis.findings.length <= 8 &&
+      analysis.findings.every(item => item && ["critical","high","medium","low","info"].includes(item.severity) &&
+        typeof item.title === "string" && item.title.length <= 180 &&
+        typeof item.rootCause === "string" && item.rootCause.length <= 1200 &&
+        typeof item.recommendation === "string" && item.recommendation.length <= 1200 &&
+        Array.isArray(item.evidence) && item.evidence.length <= 5 &&
+        item.evidence.every(ev => ev && seen.has(ev.path) && typeof ev.quote === "string" && ev.quote.length <= 500) &&
+        Array.isArray(item.regressionTests) && item.regressionTests.length <= 6 &&
+        item.regressionTests.every(test => typeof test === "string" && test.length <= 300)) &&
+      Array.isArray(analysis.limitations) && analysis.limitations.length <= 5 &&
+      analysis.limitations.every(item => typeof item === "string" && item.length <= 300);
     if (report.mode !== "bounded_read_only_repository_inspection" ||
         report.repository !== "Mehranmsh/mehranmsh.github.io" ||
         typeof report.commitSha !== "string" || !/^[a-f0-9]{40}$/i.test(report.commitSha) ||
         !validFiles || totalBytes > 750000 ||
-        !report.summary || report.summary.filesInspected !== files.length || report.summary.totalBytes !== totalBytes) {
+        !report.summary || report.summary.filesInspected !== files.length || report.summary.totalBytes !== totalBytes ||
+        !validAnalysis) {
       return { passed: false, checks: [...checks, "inspect_repository_schema"] };
     }
-    checks.push("inspect_repository_identity", "inspect_repository_paths", "inspect_repository_bounds");
+    checks.push("inspect_repository_identity", "inspect_repository_paths", "inspect_repository_bounds", "inspect_repository_semantic_analysis");
   } else if (actionType === "run_repository_tests") {
     const tests = report.tests && typeof report.tests === "object" ? report.tests : {};
     const container = report.container && typeof report.container === "object" ? report.container : {};
