@@ -1125,7 +1125,7 @@ test("private report storage preserves safe HTTP status diagnostics", () => {
   assert.ok(diagnosticStart >= 0 && diagnosticEnd > diagnosticStart, "private report storage diagnostic must be locatable");
   const diagnostic = workerSource.slice(diagnosticStart, diagnosticEnd);
   assert.ok(diagnostic.includes("status \\d{3}\\."), "HTTP status regex must match a three-digit status code");
-  assert.equal(diagnostic.includes("status \\\\d{3}\\\\."), false, "regex must not search for a literal backslash-d sequence");
+  assert.equal(diagnostic.includes("status \\\\d{3}\\."), false, "regex must not search for a literal backslash-d sequence");
 });
 
 
