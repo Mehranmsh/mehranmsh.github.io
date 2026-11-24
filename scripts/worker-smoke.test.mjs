@@ -2906,7 +2906,7 @@ test("private report finalization verifies existing artifact bytes before markin
     mode = "tampered";
     await assert.rejects(
       persistIntelligencePackageReport(env, "package-verify", snapshot),
-      /does not match the current package snapshot/
+      /report_github_verify_failed/
     );
     assert.equal(markerWrites, 1, "a conflicting artifact must never be marked as finalized");
   } finally {
@@ -2976,7 +2976,7 @@ test("private report retries accept only legacy generated_at drift and keep repo
       persistIntelligencePackageReport(env, "package-stable", {
         status: "completed", generatedAt: "2026-11-24T01:00:00.000Z", counts: { total: 1, completed: 1 }
       }),
-      /does not match the current package snapshot/
+      /report_github_verify_failed/
     );
     assert.equal(markerWrites, 2, "changed task evidence must never be marked as stored");
   } finally {
