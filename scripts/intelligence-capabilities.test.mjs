@@ -901,6 +901,8 @@ test("Private package reports are verified before the durable stored marker is s
   const upload = persist.indexOf("method: \"PUT\"");
   assert.ok(verify >= 0 && hashCheck > verify && markStored > hashCheck && upload > verify);
   assert.match(persist, /Existing private report content does not match the current package snapshot/);
+  assert.match(workerSource, /storeError === "Existing private report content does not match the current package snapshot\."/);
+  assert.match(workerSource, /"report_content_conflict"/);
   assert.match(persist, /refusing to mark it stored/);
   assert.match(persist, /if \(\[409, 422\]\.includes\(response\.status\)\)[\s\S]*?verifyExistingReport\(\)/);
   assert.match(persist, /UPDATE intelligence_work_packages SET report_stored_at=CURRENT_TIMESTAMP WHERE id=\? AND report_stored_at IS NULL/);

@@ -7031,11 +7031,13 @@ export default {
               reportStorage = await persistIntelligencePackageReport(env, packageId, report);
             } catch (err) {
               const storeError = String(err?.message || err);
-              const safeStoreReason = /^GitHub report (?:lookup|write) failed with status \d{3}\.$/.test(storeError)
-                ? storeError.slice(0,100)
-                : /^report_[a-z0-9_]{1,64}$/.test(storeError)
-                  ? storeError
-                  : "internal_store_error";
+              const safeStoreReason = storeError === "Existing private report content does not match the current package snapshot."
+                ? "report_content_conflict"
+                : /^GitHub report (?:lookup|write) failed with status \d{3}\.$/.test(storeError)
+                  ? storeError.slice(0,100)
+                  : /^report_[a-z0-9_]{1,64}$/.test(storeError)
+                    ? storeError
+                    : "internal_store_error";
               console.error("INTELLIGENCE_PRIVATE_REPORT_STORE_FAILURE", safeStoreReason);
               reportStorage = {stored:false,reason:safeStoreReason};
             }
