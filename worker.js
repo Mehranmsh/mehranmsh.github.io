@@ -355,6 +355,27 @@ async function runIntelligenceAI(env, options) {
     try {
       if (provider === "cloudflare") {
         if (!env.AI || typeof env.AI.run !== "function") { attempts.push({provider, reason:"not_configured"}); continue; }
+        const model = cleanText(env.MEHRAN_INTELLIGENCE_MODEL, 120) || "@cf/meta/llama-3.3-70b-instruct-fp8-fast";
+        if (env.DB) {
+          try {
+            await ensureIntelligenceAIProviderDiagnostics(env);
+            const exhausted = await env.DB.prepare(
+              "SELECT attempted_at FROM intelligence_ai_provider_diagnostics WHERE provider='cloudflare' AND reason='daily_quota' ORDER BY id DESC LIMIT 1"
+            ).first();
+            const exhaustedAt = exhausted?.attempted_at ? Date.parse(exhausted.attempted_at) : NaN;
+            if (Number.isFinite(exhaustedAt) && Date.now() - exhaustedAt < 24 * 60 * 60 * 1000) {
+              attempts.push({
+                provider,reason:"daily_quota_circuit_open",stage:"inference",status:0,
+                errorName:"AiError",errorCode:"4006",
+                errorMessage:"Cloudflare Workers AI calls are paused after the confirmed daily free-allocation error; the 24-hour safety window has not elapsed.",
+                model
+              });
+              continue;
+            }
+          } catch (diagnosticReadError) {
+            console.warn("INTELLIGENCE_AI_QUOTA_GUARD_READ_FAILED",String(diagnosticReadError?.message || "database_error").slice(0,120));
+          }
+        }
         let reservation;
         try {
           reservation = await reserveSocialWorkersAIBudget(env, Number(options.cloudflareReservation || 500), "intelligence");
@@ -373,7 +394,6 @@ async function runIntelligenceAI(env, options) {
           continue;
         }
         if (!reservation.allowed) { attempts.push({provider, reason:"daily_quota", stage:"budget_reservation"}); continue; }
-        const model = cleanText(env.MEHRAN_INTELLIGENCE_MODEL, 120) || "@cf/meta/llama-3.3-70b-instruct-fp8-fast";
         try {
           const result = await env.AI.run(model, {
             messages,
@@ -454,10 +474,12 @@ async function runIntelligenceAI(env, options) {
       const details = safeWorkersAIErrorDetails(error);
       const attempt = {
         provider,
-        reason:status===429?"quota_or_rate_limit":status===401||status===403?"authentication_failed":"provider_error",
+        reason:provider === "cloudflare" && (/\\b4006\\b/.test(details.message) || /used up your daily free allocation of 10,000 neurons/i.test(details.message))
+          ? "daily_quota"
+          : status===429?"quota_or_rate_limit":status===401||status===403?"authentication_failed":"provider_error",
         stage: provider === "cloudflare" ? "inference" : "provider_request",
         status: Number.isInteger(status) ? status : 0,
-        errorName: details.name, errorCode: details.code, errorMessage: details.message,
+        errorName: details.name, errorCode:provider === "cloudflare" && (/\\b4006\\b/.test(details.message) || /used up your daily free allocation of 10,000 neurons/i.test(details.message)) ? "4006" : details.code, errorMessage: details.message,
         causeName: details.causeName, causeMessage: details.causeMessage,
         errorStack: details.stack, model: provider === "cloudflare" ? (cleanText(env.MEHRAN_INTELLIGENCE_MODEL,120) || "@cf/meta/llama-3.3-70b-instruct-fp8-fast") : ""
       };
@@ -6131,7 +6153,9 @@ async function planIntelligenceMission(env, input) {
     const providerAttempts = Array.isArray(err?.providerAttempts) ? err.providerAttempts : [];
     await recordIntelligenceAIProviderDiagnostics(env, traceId, providerAttempts);
     const noProviderConfigured = providerAttempts.length > 0 && providerAttempts.every(item => item.reason === "not_configured");
-    const onlyQuotaBlocked = providerAttempts.length > 0 && providerAttempts.every(item => ["daily_quota","quota_or_rate_limit"].includes(item.reason));
+    const quotaRelevantAttempts = providerAttempts.filter(item => !["not_configured","non_free_model_blocked"].includes(item.reason));
+    const onlyQuotaBlocked = quotaRelevantAttempts.length > 0 &&
+      quotaRelevantAttempts.every(item => ["daily_quota","daily_quota_circuit_open","quota_or_rate_limit"].includes(item.reason));
     const failureReason = noProviderConfigured ? "ai_binding_unavailable" : onlyQuotaBlocked ? "daily_ai_budget_unavailable" : "ai_inference_failed";
     const elapsedMs = Date.now() - inferenceStartedAt;
     console.error("INTELLIGENCE_MISSION_PLANNER_FAILURE", JSON.stringify({traceId,elapsedMs,providerAttempts:providerAttempts.length,...diagnostic}));
