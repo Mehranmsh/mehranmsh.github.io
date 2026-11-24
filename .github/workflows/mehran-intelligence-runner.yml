@@ -177,7 +177,7 @@ jobs:
               const plannedId = planned.workPackageId || "";
               if (plannedId) selfImprovementPackageId = plannedId;
               if (plannedId) packageIds.add(plannedId);
-              console.log(`Self-improvement mission: ${planned.status || "unknown"}; duplicate=${Boolean(planned.duplicate)}; tasks=${planned.taskCount || 0}; planner=${planned.planner?.provider || "unavailable"}`);
+              console.log(`Self-improvement mission: ${planned.status || "unknown"}; duplicate=${Boolean(planned.duplicate)}; tasks=${planned.taskCount || 0}; planner=${planned.planner?.provider || "unavailable"}; reason=${planned.reason || "none"}; detail=${String(planned.error || "").slice(0,180)}`);
               if (planned.plannerUnavailable) {
                 console.log("Self-improvement mission was not created because AI planning is unavailable; no deterministic result is presented as AI analysis.");
               }
