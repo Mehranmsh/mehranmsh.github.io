@@ -22,6 +22,16 @@ const scheduledEnd = workerSource.indexOf("async fetch(request, env)", scheduled
 assert.ok(scheduledStart >= 0 && scheduledEnd > scheduledStart, "Worker scheduled handler must be locatable");
 const workerSchedulerSource = workerSource.slice(scheduledStart, scheduledEnd);
 
+test("Workers AI inference failures expose only bounded sanitized diagnostics to the private runner", () => {
+  assert.match(workerSource, /const diagnostic = safeWorkersAIErrorDetails\(err\)/);
+  assert.match(workerSource, /stage:"workers_ai_inference"/);
+  assert.match(workerSource, /fallback\("ai_inference_failed", detail\)/);
+  assert.match(runnerSource, /payload\.diagnostic\.stage === "workers_ai_inference"/);
+  assert.match(runnerSource, /causeMessage: String\(diagnostic\.causeMessage \|\| ""\)\.slice\(0, 180\)/);
+  assert.match(runnerSource, /Bounded safe diagnostic:/);
+  assert.doesNotMatch(runnerSource, /console\.log\([^\n]*payload\.diagnostic[^\n]*requestBody/);
+});
+
 test("bounded inspection serialization preserves a schema-valid semantic analysis", () => {
   const serializerStart = runnerSource.indexOf("function serializeBoundedResult");
   const serializerEnd = runnerSource.indexOf('for (let count = 0;', serializerStart);
