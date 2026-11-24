@@ -13,7 +13,7 @@ const indexSource = await readFile(new URL("../index.html", import.meta.url), "u
 const runnerSource = await readFile(new URL("../.github/workflows/mehran-intelligence-runner.yml", import.meta.url), "utf8");
 const musicStudioSource = await readFile(new URL("../music-studio.html", import.meta.url), "utf8");
 const capabilityImport = 'import { INTELLIGENCE_ACTION_TYPES, PREAPPROVED_INTELLIGENCE_ACTION_TYPES } from "./scripts/intelligence-capabilities.mjs";';
-const patchStoreImport = 'import { storePrivatePatchArtifact, verifyPrivatePatchArtifactAtPath, getPrivatePatchArtifactPath } from "./scripts/intelligence-private-patch-store.mjs";';
+const patchStoreImport = 'import { storePrivatePatchArtifact, verifyPrivatePatchArtifactAtPath, getPrivatePatchArtifactPath, getVerifiedPrivatePatchArtifactAtPath } from "./scripts/intelligence-private-patch-store.mjs";';
 const patchGenerationImport = 'import { generatePatchArtifact } from "./scripts/intelligence-patch-generation-service.mjs";';
 const inboxSchemaImport = 'import { validatePrivateIntelligenceMission } from "./scripts/intelligence-inbox-schema.mjs";';
 if (!workerSource.startsWith(capabilityImport) || !workerSource.includes(patchStoreImport) ||
@@ -58,6 +58,11 @@ export async function verifyPrivatePatchArtifactAtPath(args) {
   if (typeof hook !== "function") throw new Error("Patch verification test hook is not configured.");
   return hook(args);
 }
+export async function getVerifiedPrivatePatchArtifactAtPath(args) {
+  const hook = globalThis.__MEHRAN_PATCH_TEST_HOOKS?.retrieve;
+  if (typeof hook !== "function") throw new Error("Patch retrieval test hook is not configured.");
+  return hook(args);
+}
 `);
 const patchGenerationTestUrl = moduleUrl(`
 export async function generatePatchArtifact(args) {
@@ -70,7 +75,7 @@ const workerRest = workerSource.slice(capabilityImport.length)
   .replace(patchStoreImport, "")
   .replace(patchGenerationImport, "")
   .replace(inboxSchemaImport, "");
-const workerSourceForTest = `import { storePrivatePatchArtifact, verifyPrivatePatchArtifactAtPath, getPrivatePatchArtifactPath } from "${patchStoreTestUrl}";
+const workerSourceForTest = `import { storePrivatePatchArtifact, verifyPrivatePatchArtifactAtPath, getPrivatePatchArtifactPath, getVerifiedPrivatePatchArtifactAtPath } from "${patchStoreTestUrl}";
 import { generatePatchArtifact } from "${patchGenerationTestUrl}";
 import { validatePrivateIntelligenceMission } from "${inboxSchemaUrl}";
 const INTELLIGENCE_ACTION_TYPES = ${JSON.stringify(INTELLIGENCE_ACTION_TYPES)};
