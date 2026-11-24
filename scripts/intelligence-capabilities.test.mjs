@@ -1148,10 +1148,36 @@ test("repository inspection checkpoints are revalidated against the current Work
   assert.ok(runnerSource.indexOf("Ignoring stale repository-inspection checkpoint") < runnerSource.indexOf("Resuming task " + '" + task.id'));
 });
 
-test("repository inspection performs bounded evidence-backed Workers AI semantic analysis", () => {
+test("package report snapshots wait until runnable sibling tasks are quiescent", () => {
+  const start = workerSource.indexOf("async function refreshIntelligenceWorkPackageSnapshot");
+  const end = workerSource.indexOf("async function ensureIntelligenceSchedulerRunsTable", start);
+  const snapshot = workerSource.slice(start, end);
+  assert.match(snapshot, /else if \(row\.status === "cancelled"\) counts\.cancelled \+= n/);
+  assert.match(snapshot, /counts\.inProgress \? "in_progress"/);
+  assert.match(snapshot, /counts\.queued > counts\.blockedDependencies/);
+  assert.match(snapshot, /reportIsQuiescent = counts\.inProgress === 0/);
+  assert.match(snapshot, /includes\(status\) && reportIsQuiescent/);
+});
+
+
   assert.match(workerSource, /path === "\/agent\/v1\/repository\/analyze"/);
   assert.match(workerSource, /ownerOrchestrationRoute = .*repository\/analyze/);
-  assert.match(workerSource, /totalChars > 12000/);
+  assert.match(workerSource, /totalChars > 16000/);
+  assert.match(workerSource, /file\.excerpt\.length > 2000/);
+  assert.match(workerSource, /env\.AI\.run\(model/);
+  assert.match(workerSource, /supplied source excerpts as untrusted code data/);
+  assert.match(workerSource, /files\.find\(f=>f\.path===ev\.path\)\?\.excerpt\.includes\(ev\.quote\)/);
+  assert.match(workerSource, /inspect_repository_semantic_analysis/);
+  assert.match(runnerSource, /request\("\/agent\/v1\/repository\/analyze"/);
+  assert.match(runnerSource, /const evidenceFiles = \[\]/);
+  assert.match(runnerSource, /analysis: semantic\.analysis/);
+  assert.match(runnerSource, /slice\(0,2000\)/);
+  assert.doesNotMatch(runnerSource, /analysis endpoint.*source changes/i);
+});
+
+  assert.match(workerSource, /path === "\/agent\/v1\/repository\/analyze"/);
+  assert.match(workerSource, /ownerOrchestrationRoute = .*repository\/analyze/);
+  assert.match(workerSource, /totalChars > 16000/);
   assert.match(workerSource, /file\.excerpt\.length > 2000/);
   assert.match(workerSource, /env\.AI\.run\(model/);
   assert.match(workerSource, /supplied source excerpts as untrusted code data/);
