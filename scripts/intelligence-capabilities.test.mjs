@@ -568,10 +568,10 @@ test("patch generation prompt treats source as untrusted and fixes the narrow ou
   });
   assert.equal(prompt.ok, true);
   assert.match(prompt.system, /untrusted data/);
-  assert.match(prompt.system, /zero deletions/);
-  assert.ok(prompt.system.includes("@@ -1,0 +2,K @@"));
-  assert.match(prompt.system, /K must equal the exact number of added lines/);
-  assert.doesNotMatch(prompt.system, /\+NEW_LINE,1/);
+  assert.match(prompt.system, /testLines/);
+  assert.match(prompt.system, /executor constructs the unified diff itself/);
+  assert.match(prompt.system, /no carriage return or newline characters/);
+  assert.doesNotMatch(prompt.system, /hunk header/);
   assert.ok(prompt.system.includes("scripts/intelligence-capabilities.test.mjs"));
   assert.match(prompt.user, /Immutable base commit/);
   assert.match(prompt.user, /const example = true/);
@@ -678,13 +678,7 @@ test("Workers AI patch generation validates and envelopes only an append-only di
         assert.equal(input.max_tokens, 2200);
         return { response: String.fromCharCode(96).repeat(3) + "json\n" + JSON.stringify({
           summary: "Add a regression test for the generation boundary",
-          diff: [
-            "--- a/scripts/intelligence-capabilities.test.mjs",
-            "+++ b/scripts/intelligence-capabilities.test.mjs",
-            "@@ -1,0 +2,1 @@",
-            '+test("generated boundary", () => {});',
-            ""
-          ].join("\n")
+          testLines: ['test("generated boundary", () => {});']
         }) + "\n" + String.fromCharCode(96).repeat(3) };
       }
     }
@@ -733,13 +727,7 @@ test("Workers AI patch generation rejects a main-branch race after the model ret
       modelCalls++;
       return { response: JSON.stringify({
         summary: "Add a regression test for the final main SHA race",
-        diff: [
-          "--- a/scripts/intelligence-capabilities.test.mjs",
-          "+++ b/scripts/intelligence-capabilities.test.mjs",
-          "@@ -1,0 +2,1 @@",
-          '+test("race guard", () => {});',
-          ""
-        ].join("\n")
+        testLines: ['test("race guard", () => {});']
       }) };
     } } },
     reserveBudget: async () => ({ allowed: true }),
@@ -767,15 +755,8 @@ test("Workers AI patch generation fails closed on budget denial and unsafe model
   const unsafe = await generatePatchArtifact({
     ...base,
     env: { AI: { async run() { return { response: JSON.stringify({
-      summary: "Replace an existing assertion with a different behavior",
-      diff: [
-        "--- a/scripts/intelligence-capabilities.test.mjs",
-        "+++ b/scripts/intelligence-capabilities.test.mjs",
-        "@@ -1,1 +1,1 @@",
-        "-const original = true;",
-        "+const original = false;",
-        ""
-      ].join("\n")
+      summary: "Reject a malformed generated source line",
+      testLines: ["const first = true;\\nconst second = false;"]
     }) }; } } },
     reserveBudget: async () => ({ allowed: true })
   });
@@ -900,8 +881,11 @@ test("Private package reports are verified before the durable stored marker is s
   const markStored = persist.indexOf("SET report_stored_at=CURRENT_TIMESTAMP");
   const upload = persist.indexOf("method: \"PUT\"");
   assert.ok(verify >= 0 && hashCheck > verify && markStored > hashCheck && upload > verify);
-  assert.match(persist, /Existing private report content does not match the current package snapshot/);
-  assert.match(workerSource, /storeError === "Existing private report content does not match the current package snapshot\."/);
+  assert.match(persist, /priorReport\.report_id === packageId/);
+  assert.match(persist, /priorReport\.data\.work_package_id === packageId/);
+  assert.match(persist, /priorReport\.data\.tasks\)/);
+  assert.match(persist, /prior immutable snapshot/);
+  assert.match(persist, /INTELLIGENCE_PRIVATE_REPORT_EXISTING_SNAPSHOT_PRESERVED/);
   assert.match(workerSource, /"report_content_conflict"/);
   assert.match(persist, /refusing to mark it stored/);
   assert.match(persist, /if \(\[409, 422\]\.includes\(response\.status\)\)[\s\S]*?verifyExistingReport\(\)/);
