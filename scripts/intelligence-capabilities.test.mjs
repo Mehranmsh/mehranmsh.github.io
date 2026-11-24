@@ -1198,7 +1198,7 @@ test("Workers AI inference failures retain safe actionable diagnostics without e
   assert.ok(workerSource.includes("Bearer\\s+"));
   assert.ok(workerSource.includes("INTELLIGENCE_MISSION_PLANNER_FAILURE"));
   assert.ok(workerSource.includes("INTELLIGENCE_CODE_ANALYSIS_FAILURE"));
-  assert.ok(workerSource.includes("JSON.stringify({traceId,elapsedMs,...diagnostic})"));
+  assert.ok(workerSource.includes("JSON.stringify({traceId,elapsedMs,providerAttempts:safeAttempts,...diagnostic})"));
   assert.ok(workerSource.includes("stage:\"workers_ai_inference\""));
 });;
 
