@@ -3504,6 +3504,13 @@ test("real Worker task recovery preserves durable checkpoints and fences the cra
 test("private package report failures expose only bounded stage codes", () => {
   assert.match(workerSource, /report_package_lookup_failed/);
   assert.match(workerSource, /report_tasks_lookup_failed/);
+  assert.match(workerSource, /reportStage\("hash"/);
+  assert.match(workerSource, /reportStage\("github_lookup"/);
+  assert.match(workerSource, /reportStage\("github_verify"/);
+  assert.match(workerSource, /reportStage\("github_write"/);
+  assert.match(workerSource, /reportStage\("marker_write"/);
+  assert.match(workerSource, /report_github_lookup_http_/);
+  assert.match(workerSource, /report_github_write_http_/);
   assert.match(workerSource, /\^report_\[a-z0-9_\]\{1,64\}\$/);
   assert.match(workerSource, /INTELLIGENCE_PRIVATE_REPORT_STORE_FAILURE/);
   assert.doesNotMatch(workerSource, /console\.error\("INTELLIGENCE_PRIVATE_REPORT_STORE_FAILURE",\s*storeError\)/);
