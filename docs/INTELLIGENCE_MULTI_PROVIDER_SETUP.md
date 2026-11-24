@@ -28,12 +28,13 @@ Configure the model identifiers for providers you enable:
 
 - `MEHRAN_INTELLIGENCE_GROQ_MODEL`
 - `MEHRAN_INTELLIGENCE_GEMINI_MODEL`
-- `MEHRAN_INTELLIGENCE_OPENROUTER_MODEL`
+- `MEHRAN_INTELLIGENCE_OPENROUTER_MODEL` (must end in `:free`; paid model IDs are skipped)
+- `MEHRAN_INTELLIGENCE_GEMINI_FREE_ONLY=true` (required opt-in; set only after confirming the Google account has billing disabled and the free tier is in use)
 - `MEHRAN_INTELLIGENCE_PROVIDER_ORDER` (optional)
 
 Model identifiers are intentionally explicit rather than silently hard-coded. Choose identifiers
 currently available to the account and its free tier from each provider's own model catalog.
-The model names and free-tier quotas can change.
+The model names and free-tier quotas can change. Gemini is deliberately disabled unless the explicit free-only opt-in is set. OpenRouter is restricted to model IDs ending in `:free`.
 
 ## Failover behavior
 
