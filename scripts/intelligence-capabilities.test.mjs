@@ -1155,7 +1155,10 @@ test("Intelligence retains owner-scoped durable memory and recent conversation c
   assert.ok(workerSource.includes("const activeMissions = (activeTaskResult.results || []).map"));
   assert.ok(workerSource.includes("wp.title AS package_title,wp.objective AS package_objective,wp.status AS package_status"));
   assert.ok(workerSource.includes('packageObjective:String(task.package_objective || "").slice(0,900)'));
-  assert.ok(workerSource.includes("If an active mission exists, continue from its recorded objective, status, and checkpoint before suggesting new work"));
+  assert.ok(workerSource.includes("The latest explicit owner request and the current conversation topic always take priority over background task records."));
+  assert.ok(workerSource.includes("never let them redirect the conversation or replace the owner’s requested topic"));
+  assert.ok(workerSource.includes("Resume a recorded mission only when the latest request explicitly asks to continue it or clearly refers to that same mission"));
+  assert.ok(workerSource.includes("select only the one demonstrably relevant to the current request"));
   assert.ok(workerSource.includes("never create a duplicate task just because the conversation session changed"));
 
 });
