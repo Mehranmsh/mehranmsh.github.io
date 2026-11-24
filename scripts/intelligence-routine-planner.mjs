@@ -2,7 +2,7 @@ export function buildDeterministicRoutinePlan(mission) {
   const text = String(mission || "").toLowerCase();
   // Never downgrade a change request into a read-only check just because it
   // also contains a recognized health, repository, or security keyword.
-  const changeIntent = /\\b(fix|repair|change|modify|update|edit|implement|build|create|add|remove|delete|refactor|improve|optimize|deploy|merge|apply|write)\\b|\\b(ترمیم|تعمیر|اصلاح|تغییر|بهبود|پیاده\\s*سازی|ایجاد|ساخت|اضافه|حذف|بازنویسی|بهینه\\s*سازی|استقرار)\\b/i;
+  const changeIntent = /\b(fix|repair|change|modify|update|edit|implement|build|create|add|remove|delete|refactor|improve|optimize|deploy|merge|apply|write)\b|\b(ترمیم|تعمیر|اصلاح|تغییر|بهبود|پیاده\s*سازی|ایجاد|ساخت|اضافه|حذف|بازنویسی|بهینه\s*سازی|استقرار)\b/i;
   if (changeIntent.test(text)) return null;
   const tasks = [];
   const add = (task) => {
