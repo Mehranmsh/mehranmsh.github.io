@@ -1154,7 +1154,7 @@ test("authenticated patch proposal route stores only verified metadata and retur
 
 test("patch proposal API rejects unexpected request fields before storage", () => {
   const start = workerSource.indexOf('if (path === "/agent/v1/patch-proposals" && method === "POST")');
-  const end = workerSource.indexOf('if (path === "/agent/v1/missions/plan"', start);
+  const end = workerSource.indexOf('if (path === "/agent/v1/patch-proposals/artifact" && method === "GET")', start);
   assert.ok(start >= 0 && end > start);
   const route = workerSource.slice(start, end);
   assert.match(route, /Object\.keys\(body\)\.sort\(\)\.join\(","\) !== "artifact,artifactSha256"/);
