@@ -14,7 +14,8 @@ Required secret names (only providers you choose to enable):
 Cloudflare Workers AI remains available through the existing `AI` binding and needs no API key.
 
 Optional Worker variables:
-- `MEHRAN_AI_PROVIDER_ORDER`: comma-separated order, e.g. `cloudflare,groq,gemini,openrouter`.
+- `MEHRAN_AI_FREE_PROVIDERS`: explicit allowlist of providers verified by the owner to be on a no-billing free tier. Defaults to `openrouter` only. Cloudflare, Groq, and Gemini are completely skipped unless explicitly added here.
+- `MEHRAN_AI_PROVIDER_ORDER`: comma-separated order, e.g. `openrouter,groq,gemini,cloudflare`. Entries not present in `MEHRAN_AI_FREE_PROVIDERS` are ignored.
 - `MEHRAN_GROQ_MODEL`: defaults to `llama-3.3-70b-versatile`.
 - `MEHRAN_GEMINI_MODEL`: defaults to `gemini-2.5-flash`.
 - `MEHRAN_OPENROUTER_MODEL`: defaults to `meta-llama/llama-3.3-70b-instruct:free`. The router refuses OpenRouter model names that do not end in `:free`.
@@ -22,9 +23,9 @@ Optional Worker variables:
 
 ## Failover behavior
 
-The default order is Cloudflare, Groq, Gemini, then OpenRouter. Missing credentials are skipped. Provider quota/rate-limit and transient failures are recorded as bounded provider/status diagnostics, then the next configured provider is attempted. Cloudflare reservations are released after failed inference. The router does not retry indefinitely.
+The default provider is OpenRouter using a model ID ending in `:free`. Other providers are disabled by default and are skipped unless explicitly added to `MEHRAN_AI_FREE_PROVIDERS` after the owner verifies that the account/project is on a free tier with no billing enabled. Missing credentials are skipped. Provider quota/rate-limit and transient failures are recorded as bounded provider/status diagnostics, then the next configured provider is attempted. Cloudflare reservations are released after failed inference. The router does not retry indefinitely.
 
-Provider free-tier quotas are controlled by each provider and can change by model, account, and region. A successful API key configuration does not guarantee free access or unlimited usage. OpenRouter is explicitly restricted to model IDs ending in `:free`; confirm the selected model remains available in the provider dashboard.
+Provider free-tier quotas are controlled by each provider and can change by model, account, and region. A successful API key configuration does not guarantee free access or unlimited usage. This code cannot inspect a provider account's billing-plan state. Never add Groq or Gemini to the allowlist if billing is enabled or a paid tier is active. Never enable Cloudflare here unless the account remains on the Workers Free plan; Workers AI overage is billable on Workers Paid. Keep payment methods and auto-recharge disabled. When unsure, leave the provider disabled. OpenRouter is explicitly restricted to model IDs ending in `:free`; confirm the selected model remains available in the provider dashboard.
 
 ## Privacy and safety
 
