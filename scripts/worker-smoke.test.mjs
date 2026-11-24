@@ -3499,3 +3499,12 @@ test("real Worker task recovery preserves durable checkpoints and fences the cra
   assert.deepEqual(JSON.parse(state.row.checkpoint_json), resumedCheckpoint,
     "a late checkpoint must not mutate terminal task state");
 });
+
+
+test("private package report failures expose only bounded stage codes", () => {
+  assert.match(workerSource, /report_package_lookup_failed/);
+  assert.match(workerSource, /report_tasks_lookup_failed/);
+  assert.match(workerSource, /\^report_\[a-z0-9_\]\{1,64\}\$/);
+  assert.match(workerSource, /INTELLIGENCE_PRIVATE_REPORT_STORE_FAILURE/);
+  assert.doesNotMatch(workerSource, /console\.error\("INTELLIGENCE_PRIVATE_REPORT_STORE_FAILURE",\s*storeError\)/);
+});
