@@ -650,15 +650,21 @@ test("Workers AI patch generation bounds streamed source before budget or model 
 });
 
 test("Workers AI patch generation validates and envelopes only an append-only diff", async () => {
-  const source = "const original = true;\n";
+  const source = "const original = true;\\n";
   const baseSha = "d".repeat(40);
   let budgetAmount = 0;
   let modelName = "";
   const calls = [];
-  const fetchImpl = async (url) => {
-    calls.push(String(url));
-    if (String(url).includes("/commits/main")) {
-      return new Response(JSON.stringify({ sha: baseSha }), { status: 200 });
+  const fetchImpl = async url => {
+    const value = String(url);
+    calls.push(value);
+    if (value.startsWith("https://api.github.com/")) {
+      return value.endsWith("/git/ref/heads/main")
+        ? Response.json({ object: { sha: baseSha } })
+        : Response.json({ sha: baseSha });
+    }
+    if (value.endsWith("/commits/main.atom")) {
+      return new Response(`<feed><entry><id>tag:github.com,2008:Grit::Commit/${baseSha}</id></entry></feed>`, { status: 200 });
     }
     return new Response(source, { status: 200 });
   };
@@ -667,16 +673,16 @@ test("Workers AI patch generation validates and envelopes only an append-only di
       async run(model, input) {
         modelName = model;
         assert.equal(input.max_tokens, 2200);
-        return { response: "```json\\n" + JSON.stringify({
+        return { response: "\`\`\`json\\n" + JSON.stringify({
           summary: "Add a regression test for the generation boundary",
           diff: [
             "--- a/scripts/intelligence-capabilities.test.mjs",
             "+++ b/scripts/intelligence-capabilities.test.mjs",
             "@@ -1,0 +2,1 @@",
-            "+test(\"generated boundary\", () => {});",
+            "+test(\\"generated boundary\\", () => {});",
             ""
-          ].join("\n")
-        }) + "\\n```" };
+          ].join("\\n")
+        }) + "\\n\`\`\`" };
       }
     }
   };
@@ -695,21 +701,27 @@ test("Workers AI patch generation validates and envelopes only an append-only di
   assert.equal(result.artifactSha256.length, 64);
   assert.equal(budgetAmount, 100);
   assert.equal(modelName, PATCH_GENERATION_SERVICE_POLICY.model);
-  assert.equal(calls.length, 3);
+  assert.equal(calls.length, 7);
   assert.equal(result.mode, "generate_validate_only");
   assert.equal(PATCH_GENERATION_SERVICE_POLICY.appliesPatch, false);
 });
 
 test("Workers AI patch generation rejects a main-branch race after the model returns", async () => {
   const baseSha = "f".repeat(40);
-  let mainLookups = 0;
+  let mainRefCalls = 0;
   let modelCalls = 0;
   const fetchImpl = async url => {
-    if (String(url).includes("/commits/main")) {
-      mainLookups++;
-      return new Response(JSON.stringify({ sha: mainLookups === 1 ? baseSha : "9".repeat(40) }), { status: 200 });
+    const value = String(url);
+    if (value.startsWith("https://api.github.com/") || value.endsWith("/commits/main.atom")) {
+      mainRefCalls++;
+      const sha = mainRefCalls <= 3 ? baseSha : "9".repeat(40);
+      if (value.endsWith("/git/ref/heads/main")) return Response.json({ object: { sha } });
+      if (value.endsWith("/commits/main.atom")) {
+        return new Response(`<feed><entry><id>tag:github.com,2008:Grit::Commit/${sha}</id></entry></feed>`, { status: 200 });
+      }
+      return Response.json({ sha });
     }
-    return new Response("const original = true;\n", { status: 200 });
+    return new Response("const original = true;\\n", { status: 200 });
   };
   const result = await generatePatchArtifact({
     baseSha,
@@ -722,16 +734,16 @@ test("Workers AI patch generation rejects a main-branch race after the model ret
           "--- a/scripts/intelligence-capabilities.test.mjs",
           "+++ b/scripts/intelligence-capabilities.test.mjs",
           "@@ -1,0 +2,1 @@",
-          "+test(\"race guard\", () => {});",
+          "+test(\\"race guard\\", () => {});",
           ""
-        ].join("\n")
+        ].join("\\n")
       }) };
     } } },
     reserveBudget: async () => ({ allowed: true }),
     fetchImpl
   });
   assert.equal(result.code, "stale_base_sha");
-  assert.equal(mainLookups, 2);
+  assert.equal(mainRefCalls, 6);
   assert.equal(modelCalls, 1);
 });
 
