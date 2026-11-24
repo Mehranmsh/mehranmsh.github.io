@@ -24,7 +24,7 @@ jobs:
   service-health:
     if: github.event_name != 'workflow_run'
     runs-on: ubuntu-latest
-    timeout-minutes: 2
+    timeout-minutes: 3
     steps:
       - name: Check MEHRAN Worker and MCP health
         uses: actions/github-script@v7
@@ -61,7 +61,7 @@ jobs:
                   method: "tools/call",
                   params: { name: "get_service_health", arguments: {} }
                 }),
-                signal: AbortSignal.timeout(15000)
+                signal: AbortSignal.timeout(30000)
               });
               const raw = await response.text();
               if (!response.ok) throw new Error(`MCP HTTP ${response.status}`);
