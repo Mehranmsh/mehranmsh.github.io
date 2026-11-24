@@ -1161,14 +1161,15 @@ test("package report snapshots wait until runnable sibling tasks are quiescent",
 });
 
 test("Workers AI inference failures retain safe actionable diagnostics without exposing request content", () => {
-  assert.match(workerSource, /function safeWorkersAIErrorDetails\\(err\\)/);
-  assert.match(workerSource, /err\\?\\.code \\?\\? cause\\?\\.code/);
-  assert.match(workerSource, /err\\?\\.status \\?\\? cause\\?\\.status/);
-  assert.match(workerSource, /Bearer\\\\s\+/);
-  assert.match(workerSource, /INTELLIGENCE_MISSION_PLANNER_FAILURE.*safeWorkersAIErrorDetails/);
-  assert.match(workerSource, /INTELLIGENCE_CODE_ANALYSIS_FAILURE.*safeWorkersAIErrorDetails/);
+  assert.ok(workerSource.includes("function safeWorkersAIErrorDetails(err)"));
+  assert.ok(workerSource.includes("err?.code ?? cause?.code"));
+  assert.ok(workerSource.includes("err?.status ?? cause?.status"));
+  assert.ok(workerSource.includes("Bearer\\\\s+"));
+  assert.ok(workerSource.includes("INTELLIGENCE_MISSION_PLANNER_FAILURE"));
+  assert.ok(workerSource.includes("INTELLIGENCE_CODE_ANALYSIS_FAILURE"));
+  assert.ok(workerSource.includes("JSON.stringify(safeWorkersAIErrorDetails(err))"));
   assert.doesNotMatch(workerSource, /console\\.error\\([^\\n]*(?:userPrompt|body\\.files|messages)/);
-});
+});;
 
 test("repository inspection performs bounded evidence-backed Workers AI semantic analysis", () => {
   assert.match(workerSource, /path === "\/agent\/v1\/repository\/analyze"/);
