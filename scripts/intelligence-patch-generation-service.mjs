@@ -265,7 +265,7 @@ export async function generatePatchArtifact({
   if (!finalMainCommit.ok) return fail("main_commit_recheck_failed");
   if (finalMainCommit.sha !== baseSha) return fail("stale_base_sha");
 
-  const sourceLineCount = source.endsWith("\n") ? source.split("\n").length - 1 : source.split("\\n").length;
+  const sourceLineCount = source.endsWith("\n") ? source.split("\n").length - 1 : source.split("\n").length;
   // The model returns source lines only. Build every diff header and prefix
   // deterministically so model formatting can never create malformed hunks.
   const canonicalDiff = [
