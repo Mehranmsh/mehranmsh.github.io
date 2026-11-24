@@ -1457,7 +1457,7 @@ test("Workers AI daily quota circuit resets at Cloudflare UTC midnight", () => {
   assert.equal(isWorkersAIDailyQuotaCircuitOpen(exhaustedAt, Date.parse("2026-11-24T23:59:59.000Z")), true);
   assert.equal(isWorkersAIDailyQuotaCircuitOpen(exhaustedAt, Date.parse("2026-11-25T00:00:00.000Z")), false);
   assert.equal(isWorkersAIDailyQuotaCircuitOpen("not-a-timestamp", Date.parse("2026-11-25T00:00:00.000Z")), false);
-  assert.match(workerSource, /function isWorkersAIDailyQuotaCircuitOpen\\(attemptedAt, now = Date\\.now\\(\\)\\)/);
-  assert.match(workerSource, /isWorkersAIDailyQuotaCircuitOpen\\(exhausted\\?\\.attempted_at\\)/);
-  assert.doesNotMatch(workerSource, /24 \\* 60 \\* 60 \\* 1000/);
+  assert.match(workerSource, /function isWorkersAIDailyQuotaCircuitOpen\(attemptedAt, now = Date\.now\(\)\)/);
+  assert.match(workerSource, /isWorkersAIDailyQuotaCircuitOpen\(exhausted\?\.attempted_at\)/);
+  assert.doesNotMatch(workerSource, /24 \* 60 \* 60 \* 1000/);
 });
