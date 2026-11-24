@@ -2,7 +2,7 @@ import { spawnSync } from "node:child_process";
 import { mkdtempSync, readFileSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { applyValidatedPatchInMemory } from "./scripts/intelligence-patch-apply.mjs";
+import { applyValidatedPatchInMemory } from "./intelligence-patch-apply.mjs";
 
 const baseUrl = process.env.MEHRAN_AGENT_URL;
 const agentToken = process.env.MEHRAN_AGENT_TOKEN || "";
