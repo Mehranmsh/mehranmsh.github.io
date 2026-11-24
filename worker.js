@@ -360,12 +360,12 @@ async function runIntelligenceAI(env, options) {
           try {
             await ensureIntelligenceAIProviderDiagnostics(env);
             const exhausted = await env.DB.prepare(
-              "SELECT attempted_at FROM intelligence_ai_provider_diagnostics WHERE provider='cloudflare' AND reason='daily_quota' ORDER BY id DESC LIMIT 1"
+              "SELECT attempted_at FROM intelligence_ai_provider_diagnostics WHERE provider='cloudflare' AND (reason='cloudflare_daily_quota_exhausted' OR error_code='4006' OR error_message LIKE '%used up your daily free allocation of 10,000 neurons%') ORDER BY id DESC LIMIT 1"
             ).first();
             const exhaustedAt = exhausted?.attempted_at ? Date.parse(exhausted.attempted_at) : NaN;
             if (Number.isFinite(exhaustedAt) && Date.now() - exhaustedAt < 24 * 60 * 60 * 1000) {
               attempts.push({
-                provider,reason:"daily_quota_circuit_open",stage:"inference",status:0,
+                provider,reason:"cloudflare_daily_quota_circuit_open",stage:"inference",status:0,
                 errorName:"AiError",errorCode:"4006",
                 errorMessage:"Cloudflare Workers AI calls are paused after the confirmed daily free-allocation error; the 24-hour safety window has not elapsed.",
                 model
@@ -475,7 +475,7 @@ async function runIntelligenceAI(env, options) {
       const attempt = {
         provider,
         reason:provider === "cloudflare" && (/\b4006\b/.test(details.message) || /used up your daily free allocation of 10,000 neurons/i.test(details.message))
-          ? "daily_quota"
+          ? "cloudflare_daily_quota_exhausted"
           : status===429?"quota_or_rate_limit":status===401||status===403?"authentication_failed":"provider_error",
         stage: provider === "cloudflare" ? "inference" : "provider_request",
         status: Number.isInteger(status) ? status : 0,
@@ -6155,7 +6155,7 @@ async function planIntelligenceMission(env, input) {
     const noProviderConfigured = providerAttempts.length > 0 && providerAttempts.every(item => item.reason === "not_configured");
     const quotaRelevantAttempts = providerAttempts.filter(item => !["not_configured","non_free_model_blocked"].includes(item.reason));
     const onlyQuotaBlocked = quotaRelevantAttempts.length > 0 &&
-      quotaRelevantAttempts.every(item => ["daily_quota","daily_quota_circuit_open","quota_or_rate_limit"].includes(item.reason));
+      quotaRelevantAttempts.every(item => ["cloudflare_daily_quota_exhausted","cloudflare_daily_quota_circuit_open","quota_or_rate_limit"].includes(item.reason));
     const failureReason = noProviderConfigured ? "ai_binding_unavailable" : onlyQuotaBlocked ? "daily_ai_budget_unavailable" : "ai_inference_failed";
     const elapsedMs = Date.now() - inferenceStartedAt;
     console.error("INTELLIGENCE_MISSION_PLANNER_FAILURE", JSON.stringify({traceId,elapsedMs,providerAttempts:providerAttempts.length,...diagnostic}));
