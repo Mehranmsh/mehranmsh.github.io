@@ -1239,7 +1239,7 @@ test("Intelligence AI router fails over across free providers and blocks paid Op
   assert.match(workerSource, /GROQ_API_KEY/);
   assert.match(workerSource, /GEMINI_API_KEY/);
   assert.match(workerSource, /OPENROUTER_API_KEY/);
-  assert.match(workerSource, /if \(!model\.endsWith\(":free"\)\)/);
+  assert.match(workerSource, /model !== "openrouter\/free" && !model\.endsWith\(":free"\)/);
   assert.match(workerSource, /quota_or_rate_limit/);
   assert.match(workerSource, /No configured free AI provider completed the request/);
   assert.match(workerSource, /runIntelligenceAI\(env/);

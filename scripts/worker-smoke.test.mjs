@@ -3516,3 +3516,11 @@ test("private package report failures expose only bounded stage codes", () => {
   assert.match(workerSource, /INTELLIGENCE_PRIVATE_REPORT_STORE_FAILURE/);
   assert.doesNotMatch(workerSource, /console\.error\("INTELLIGENCE_PRIVATE_REPORT_STORE_FAILURE",\s*storeError\)/);
 });
+
+
+test("Intelligence OpenRouter default uses dynamic free-only routing and rejects paid model overrides", () => {
+  assert.match(workerSource, /cleanText\(env\.MEHRAN_OPENROUTER_MODEL, 160\) \|\| "openrouter\/free"/);
+  assert.match(workerSource, /model !== "openrouter\/free" && !model\.endsWith\(":free"\)/);
+  assert.match(workerSource, /non_free_model_blocked/);
+  assert.match(workerSource, /MEHRAN_AI_FREE_PROVIDERS/);
+});
