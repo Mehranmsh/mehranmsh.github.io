@@ -1188,3 +1188,16 @@ test("repository inspection performs bounded evidence-backed Workers AI semantic
   assert.match(workerSource, /unsupportedMagicNumberFindings/);
   assert.doesNotMatch(runnerSource, /analysis endpoint.*source changes/i);
 });
+
+test("failed Intelligence Workers AI inference releases its daily reservation", () => {
+  assert.match(workerSource, /async function releaseSocialWorkersAIBudget\(env, reservation\)/);
+  assert.match(workerSource, /SET \\${column\\}=MAX\\(0,\\$\\{column\\}-\\?\\)/);
+  const plannerStart = workerSource.indexOf("async function planIntelligenceMission(env, input)");
+  const plannerEnd = workerSource.indexOf("export function verifyIntelligenceReport", plannerStart);
+  const planner = workerSource.slice(plannerStart, plannerEnd);
+  assert.match(planner, /catch \\(err\\) \\{[\\s\\S]*?releaseSocialWorkersAIBudget\\(env, budget\\)/);
+  const analysisStart = workerSource.indexOf('if (path === "/agent/v1/repository/analyze" && method === "POST")');
+  const analysisEnd = workerSource.indexOf('if (path === "/agent/v1/missions/plan" && method === "POST")', analysisStart);
+  const analysis = workerSource.slice(analysisStart, analysisEnd);
+  assert.match(analysis, /catch \\(err\\) \\{[\\s\\S]*?releaseSocialWorkersAIBudget\\(env, budget\\)/);
+});
