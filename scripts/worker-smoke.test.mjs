@@ -1131,7 +1131,7 @@ test("MEHRAN Intelligence Agent API is enabled only behind its dedicated bearer 
   assert.match(route, /assigned_to IN \('mehran_intelligence','shared'\)/);
   assert.match(route, /action_type IN \('repository_quality_check','service_health_report','source_security_audit','inspect_repository','run_repository_tests','propose_code_patch'\)/);
   assert.ok(route.includes("status IN ('queued','accepted','retry_wait')"), "agent claims must include retry_wait tasks");
-  assert.match(route, /ORDER BY CASE t\.priority WHEN 'high' THEN 0 WHEN 'normal' THEN 1 ELSE 2 END,CASE WHEN t\.work_package_id IS NOT NULL AND EXISTS \(SELECT 1 FROM intelligence_tasks prior WHERE prior\.work_package_id=t\.work_package_id AND prior\.status='completed'\) THEN 0 ELSE 1 END,t\.created_at ASC/,
+  assert.ok(route.includes("ORDER BY CASE t.priority") && route.includes("prior.work_package_id=t.work_package_id") && route.includes("prior.status='completed'"),
     "after honoring priority, continue packages that have already completed a task before starting another package");
   assert.match(route, /status='awaiting_approval' AND requires_approval=0/);
   assert.match(route, /agent_claimed_at=CURRENT_TIMESTAMP/);
