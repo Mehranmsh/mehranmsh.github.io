@@ -2,6 +2,7 @@ import { INTELLIGENCE_ACTION_TYPES, PREAPPROVED_INTELLIGENCE_ACTION_TYPES } from
 import { storePrivatePatchArtifact, verifyPrivatePatchArtifactAtPath, getPrivatePatchArtifactPath, getVerifiedPrivatePatchArtifactAtPath } from "./scripts/intelligence-private-patch-store.mjs";
 import { generatePatchArtifact } from "./scripts/intelligence-patch-generation-service.mjs";
 import { validatePrivateIntelligenceMission } from "./scripts/intelligence-inbox-schema.mjs";
+import { isWorkersAIDailyQuotaCircuitOpen } from "./scripts/intelligence-ai-quota.mjs";
 
 const ALLOWED_ORIGIN = "https://mehranmsh.github.io";
 const FIREBASE_WEB_API_KEY = "AIzaSyBNezoCzAUXi1D7vC_stoUnQuN_JHR-rDM";
@@ -362,12 +363,11 @@ async function runIntelligenceAI(env, options) {
             const exhausted = await env.DB.prepare(
               "SELECT attempted_at FROM intelligence_ai_provider_diagnostics WHERE provider='cloudflare' AND reason='daily_quota' ORDER BY id DESC LIMIT 1"
             ).first();
-            const exhaustedAt = exhausted?.attempted_at ? Date.parse(exhausted.attempted_at) : NaN;
-            if (Number.isFinite(exhaustedAt) && Date.now() - exhaustedAt < 24 * 60 * 60 * 1000) {
+            if (isWorkersAIDailyQuotaCircuitOpen(exhausted?.attempted_at)) {
               attempts.push({
                 provider,reason:"daily_quota_circuit_open",stage:"inference",status:0,
                 errorName:"AiError",errorCode:"4006",
-                errorMessage:"Cloudflare Workers AI calls are paused after the confirmed daily free-allocation error; the 24-hour safety window has not elapsed.",
+                errorMessage:"Cloudflare Workers AI calls are paused until the next daily allocation reset at 00:00 UTC.",
                 model
               });
               continue;
