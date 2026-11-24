@@ -1101,7 +1101,7 @@ test("repository inspection performs bounded evidence-backed Workers AI semantic
   assert.match(workerSource, /totalChars > 12000/);
   assert.match(workerSource, /file\.excerpt\.length > 2000/);
   assert.match(workerSource, /env\.AI\.run\(model/);
-  assert.match(workerSource, /content was treated as untrusted data/);
+  assert.match(workerSource, /supplied source excerpts as untrusted code data/);
   assert.match(workerSource, /files\.find\(f=>f\.path===ev\.path\)\?\.excerpt\.includes\(ev\.quote\)/);
   assert.match(workerSource, /inspect_repository_semantic_analysis/);
   assert.match(runnerSource, /request\("\/agent\/v1\/repository\/analyze"/);
