@@ -5503,7 +5503,7 @@ export async function persistIntelligencePackageReport(env, packageId, snapshot)
       return await operation();
     } catch (error) {
       const message = String(error?.message || "");
-      if (/^report_[a-z0-9_]{1,64}$/.test(message)) throw error;
+      if (/^report_[a-z0-9_]{1,64}$/.test(message) || /^Existing private report (?:content does not match the current package snapshot|could not be verified; refusing to mark it stored)\.$/.test(message)) throw error;
       throw new Error("report_" + name + "_failed");
     }
   }
@@ -7053,7 +7053,7 @@ export default {
             "UPDATE intelligence_tasks SET status='queued',updated_at=CURRENT_TIMESTAMP WHERE status='awaiting_approval' AND requires_approval=0 AND assigned_to IN ('mehran_intelligence','shared') AND action_type IN ('repository_quality_check','service_health_report','source_security_audit','inspect_repository','run_repository_tests','propose_code_patch')"
           ).run();
           const candidate = await env.DB.prepare(
-            "SELECT t.id,t.status FROM intelligence_tasks t WHERE t.assigned_to IN ('mehran_intelligence','shared') AND t.status IN ('queued','accepted','retry_wait') AND t.requires_approval=0 AND t.action_type IN ('repository_quality_check','service_health_report','source_security_audit','inspect_repository','run_repository_tests','propose_code_patch') AND COALESCE(t.attempts,0)<COALESCE(t.max_attempts,3) AND (t.next_attempt_at IS NULL OR datetime(t.next_attempt_at)<=datetime('now')) AND NOT EXISTS (SELECT 1 FROM intelligence_task_dependencies d JOIN intelligence_tasks p ON p.id=d.depends_on_task_id WHERE d.task_id=t.id AND p.status<>'completed') ORDER BY CASE t.priority WHEN 'high' THEN 0 WHEN 'normal' THEN 1 ELSE 2 END,t.created_at ASC LIMIT 1"
+            "SELECT t.id,t.status FROM intelligence_tasks t WHERE t.assigned_to IN ('mehran_intelligence','shared') AND t.status IN ('queued','accepted','retry_wait') AND t.requires_approval=0 AND t.action_type IN ('repository_quality_check','service_health_report','source_security_audit','inspect_repository','run_repository_tests','propose_code_patch') AND COALESCE(t.attempts,0)<COALESCE(t.max_attempts,3) AND (t.next_attempt_at IS NULL OR datetime(t.next_attempt_at)<=datetime('now')) AND NOT EXISTS (SELECT 1 FROM intelligence_task_dependencies d JOIN intelligence_tasks p ON p.id=d.depends_on_task_id WHERE d.task_id=t.id AND p.status<>'completed') ORDER BY CASE t.priority WHEN 'high' THEN 0 WHEN 'normal' THEN 1 ELSE 2 END,CASE WHEN t.work_package_id IS NOT NULL AND EXISTS (SELECT 1 FROM intelligence_tasks prior WHERE prior.work_package_id=t.work_package_id AND prior.status='completed') THEN 0 ELSE 1 END,t.created_at ASC LIMIT 1"
           ).first();
           if (!candidate) return json({success:true,task:null});
           const claimToken = toBase64Url(crypto.getRandomValues(new Uint8Array(32)));
