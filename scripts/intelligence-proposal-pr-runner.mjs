@@ -91,7 +91,8 @@ for (const proposal of proposals) {
     if (baseSha !== currentMainSha) throw new Error("Proposal base is stale relative to this runner main snapshot.");
     const artifact = await workerRequest(
       "/agent/v1/patch-proposals/artifact?path=" + encodeURIComponent(artifactPath) +
-        "&artifactSha256=" + encodeURIComponent(artifactSha256),
+        "&artifactSha256=" + encodeURIComponent(artifactSha256) +
+        "&runId=" + encodeURIComponent(runId),
       agentToken
     );
     if (artifact.success !== true || artifact.proposalId !== proposalId ||
