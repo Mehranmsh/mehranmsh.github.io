@@ -7441,7 +7441,7 @@ export default {
         if (path === "/agent/v1/patch-proposals/artifact" && method === "GET") {
           const artifactPath = url.searchParams.get("path") || "";
           const artifactSha256 = url.searchParams.get("artifactSha256") || "";
-          if (!/^patch-proposals\\/\\d{4}\\/\\d{2}\\/[a-f0-9-]{36}\\.json$/.test(artifactPath) ||
+          if (!/^patch-proposals\/\d{4}\/\d{2}\/[a-f0-9-]{36}\.json$/.test(artifactPath) ||
               !/^[a-f0-9]{64}$/.test(artifactSha256)) {
             return error("A valid private artifact path and SHA-256 digest are required.",400);
           }
