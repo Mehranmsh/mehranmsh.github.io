@@ -1065,7 +1065,7 @@ jobs:
           const githubOutput = process.env.GITHUB_OUTPUT;
           if (githubOutput) {
             const fs = await import("node:fs");
-            fs.appendFileSync(githubOutput,"timing_samples=" + JSON.stringify(timingSamples.slice(0,30)) + "\\n");
+            fs.appendFileSync(githubOutput,"timing_samples=" + JSON.stringify(timingSamples.slice(0,30)) + "\n");
           }
           console.log(`[performance] tick_total: ${tickTotalMs}ms; measured_stages=${timingSamples.length}`);
           NODE
