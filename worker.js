@@ -5617,13 +5617,14 @@ async function refreshIntelligenceWorkPackageSnapshot(env, packageId) {
   const pkg = await env.DB.prepare("SELECT status FROM intelligence_work_packages WHERE id=?").bind(packageId).first();
   if (!pkg) return null;
   const result = await env.DB.prepare("SELECT status,COUNT(*) AS total FROM intelligence_tasks WHERE work_package_id=? GROUP BY status").bind(packageId).all();
-  const counts = {total:0,completed:0,blocked:0,failed:0,awaitingApproval:0,inProgress:0,queued:0,retryWaiting:0,blockedDependencies:0};
+  const counts = {total:0,completed:0,blocked:0,failed:0,cancelled:0,awaitingApproval:0,inProgress:0,queued:0,retryWaiting:0,blockedDependencies:0};
   for (const row of result.results || []) {
     const n = Number(row.total || 0);
     counts.total += n;
     if (row.status === "completed") counts.completed += n;
     else if (row.status === "blocked") counts.blocked += n;
     else if (row.status === "failed") counts.failed += n;
+    else if (row.status === "cancelled") counts.cancelled += n;
     else if (row.status === "awaiting_approval") counts.awaitingApproval += n;
     else if (row.status === "in_progress") counts.inProgress += n;
     else if (row.status === "retry_wait") counts.retryWaiting += n;
@@ -5631,7 +5632,18 @@ async function refreshIntelligenceWorkPackageSnapshot(env, packageId) {
   }
   const dependencyResult = await env.DB.prepare("SELECT COUNT(*) AS total FROM intelligence_task_dependencies d JOIN intelligence_tasks child ON child.id=d.task_id JOIN intelligence_tasks parent ON parent.id=d.depends_on_task_id WHERE child.work_package_id=? AND child.status IN ('queued','accepted','retry_wait') AND parent.status IN ('blocked','failed')").bind(packageId).first();
   counts.blockedDependencies = Number(dependencyResult?.total || 0);
-  const status = counts.total > 0 && counts.completed === counts.total ? "completed" : (counts.blocked || counts.failed || counts.awaitingApproval || counts.blockedDependencies) ? "attention_required" : counts.inProgress ? "in_progress" : counts.retryWaiting && !counts.queued ? "waiting_retry" : "queued";
+  const allCompleted = counts.total > 0 && counts.completed === counts.total;
+  const hasRunnableQueued = counts.queued > counts.blockedDependencies;
+  // A blocked task must not finalize a package while sibling work is still running.
+  // Queued tasks whose dependencies are already blocked are terminal for this package.
+  const status = allCompleted ? "completed"
+    : counts.inProgress ? "in_progress"
+    : counts.retryWaiting ? "waiting_retry"
+    : hasRunnableQueued ? "queued"
+    : (counts.blocked || counts.failed || counts.cancelled || counts.awaitingApproval || counts.blockedDependencies) ? "attention_required"
+    : "queued";
+  const reportIsQuiescent = counts.inProgress === 0 && counts.retryWaiting === 0 &&
+    counts.awaitingApproval === 0 && counts.queued <= counts.blockedDependencies;
   const report = {status,counts,generatedAt:new Date().toISOString()};
   if ((pkg.status || "queued") !== status) {
     const details = JSON.stringify({fromStatus:pkg.status || "queued",toStatus:status,counts});
@@ -5646,7 +5658,7 @@ async function refreshIntelligenceWorkPackageSnapshot(env, packageId) {
   } else {
     await env.DB.prepare("UPDATE intelligence_work_packages SET status=?,report_json=?,updated_at=CURRENT_TIMESTAMP WHERE id=?").bind(status,JSON.stringify(report),packageId).run();
   }
-  if (["completed","attention_required"].includes(status)) {
+  if (["completed","attention_required"].includes(status) && reportIsQuiescent) {
     try {
       await persistIntelligencePackageReport(env, packageId, report);
     } catch (err) {
