@@ -1,5 +1,6 @@
 import { buildPatchGenerationPrompt, validateGeneratedPatch } from "./intelligence-patch-generation.mjs";
 import { createPatchArtifactRecord } from "./intelligence-patch-artifact.mjs";
+import { runIntelligenceAI } from "./intelligence-ai-router.mjs";
 
 const REPOSITORY = "Mehranmsh/mehranmsh.github.io";
 const TARGET_PATH = "scripts/intelligence-capabilities.test.mjs";
@@ -200,11 +201,12 @@ export async function generatePatchArtifact({
   baseSha,
   objective,
   reserveBudget,
+  releaseBudget,
   fetchImpl = fetch,
   now = () => new Date().toISOString(),
   proposalId = () => crypto.randomUUID()
 } = {}) {
-  if (!env || !env.AI || typeof env.AI.run !== "function") return fail("ai_unavailable");
+  if (!env) return fail("ai_unavailable");
   if (typeof reserveBudget !== "function") return fail("budget_guard_unavailable");
   if (typeof baseSha !== "string" || !/^[a-f0-9]{40}$/.test(baseSha)) return fail("invalid_base_sha");
 
@@ -228,32 +230,27 @@ export async function generatePatchArtifact({
   const prompt = buildPatchGenerationPrompt({ baseSha, objective, source });
   if (!prompt.ok) return prompt;
 
-  let budget;
-  try {
-    budget = await reserveBudget(100);
-  } catch {
-    return fail("ai_budget_guard_failed");
-  }
-  if (!budget?.allowed) return fail("ai_budget_exhausted");
+  const inference = await runIntelligenceAI({
+    env,
+    messages: [
+      { role: "system", content: prompt.system },
+      { role: "user", content: prompt.user }
+    ],
+    operation: "patch_generation",
+    maxTokens: 2200,
+    temperature: 0.1,
+    responseFormat: false,
+    workersBudgetCredits: 100,
+    reserveWorkersBudget: reserveBudget,
+    releaseWorkersBudget: releaseBudget
+  });
+  if (!inference.ok) return {
+    ...fail("model_request_failed"),
+    diagnostic: { stage: "multi_provider_inference", attemptedProviders: inference.attemptedProviders, failures: inference.failures }
+  };
+  const model = inference.provider + "/" + inference.model;
+  const raw = inference.text;
 
-  let modelResult;
-  try {
-    modelResult = await env.AI.run(MODEL, {
-      messages: [
-        { role: "system", content: prompt.system },
-        { role: "user", content: prompt.user }
-      ],
-      max_tokens: 2200,
-      temperature: 0.1
-    });
-  } catch {
-    return fail("model_request_failed");
-  }
-  if (Array.isArray(modelResult?.errors) && modelResult.errors.length) {
-    return fail("model_returned_error");
-  }
-
-  const raw = extractModelText(modelResult);
   if (!raw || raw.length > 24000) return fail("model_output_invalid");
   let generated;
   try {
@@ -316,7 +313,7 @@ export async function generatePatchArtifact({
     artifact: artifact.artifact,
     artifactSha256: artifact.artifactSha256,
     validation: validated,
-    model: MODEL,
+    model,
     mode: "generate_validate_only"
   };
 }
