@@ -7345,7 +7345,22 @@ export default {
             env,
             baseSha:body.baseSha,
             objective:body.objective.trim(),
-            reserveBudget:credits => reserveSocialWorkersAIBudget(env,credits,"intelligence")
+            runAI: async ({ messages, maxTokens, temperature }) => {
+              try {
+                const routed = await runIntelligenceAI(env, {
+                  messages,
+                  jsonMode: false,
+                  temperature,
+                  maxTokens,
+                  cloudflareReservation: 100
+                });
+                const text = routed?.result?.response ?? routed?.result?.output_text ?? "";
+                if (typeof text !== "string" || !text.trim()) return { ok: false, code: "model_output_invalid" };
+                return { ok: true, text, provider: routed.provider, model: routed.model };
+              } catch {
+                return { ok: false, code: "model_request_failed" };
+              }
+            }
           });
           if (!generated.ok) {
             await env.DB.prepare(
