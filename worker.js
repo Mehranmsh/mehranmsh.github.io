@@ -354,8 +354,24 @@ async function runIntelligenceAI(env, options) {
     try {
       if (provider === "cloudflare") {
         if (!env.AI || typeof env.AI.run !== "function") { attempts.push({provider, reason:"not_configured"}); continue; }
-        const reservation = await reserveSocialWorkersAIBudget(env, Number(options.cloudflareReservation || 500), "intelligence");
-        if (!reservation.allowed) { attempts.push({provider, reason:"daily_quota"}); continue; }
+        let reservation;
+        try {
+          reservation = await reserveSocialWorkersAIBudget(env, Number(options.cloudflareReservation || 500), "intelligence");
+        } catch (error) {
+          const details = safeWorkersAIErrorDetails(error);
+          attempts.push({
+            provider, reason:"budget_reservation_error", stage:"budget_reservation",
+            status:details.status, errorName:details.name, errorCode:details.code,
+            errorMessage:details.message, causeName:details.causeName, causeMessage:details.causeMessage
+          });
+          console.warn("INTELLIGENCE_AI_BUDGET_RESERVATION_FAILED",JSON.stringify({
+            provider,reason:"budget_reservation_error",errorName:details.name,
+            errorCode:details.code,status:details.status,errorMessage:details.message,
+            causeName:details.causeName,causeMessage:details.causeMessage
+          }));
+          continue;
+        }
+        if (!reservation.allowed) { attempts.push({provider, reason:"daily_quota", stage:"budget_reservation"}); continue; }
         const model = cleanText(env.MEHRAN_INTELLIGENCE_MODEL, 120) || "@cf/meta/llama-3.3-70b-instruct-fp8-fast";
         try {
           const result = await env.AI.run(model, {
@@ -438,6 +454,7 @@ async function runIntelligenceAI(env, options) {
       const attempt = {
         provider,
         reason:status===429?"quota_or_rate_limit":status===401||status===403?"authentication_failed":"provider_error",
+        stage: provider === "cloudflare" ? "inference" : "provider_request",
         status: Number.isInteger(status) ? status : 0,
         errorName: details.name, errorCode: details.code, errorMessage: details.message,
         causeName: details.causeName, causeMessage: details.causeMessage
@@ -7604,11 +7621,24 @@ export default {
           } catch (err) {
             const elapsedMs = Date.now() - inferenceStartedAt;
             const diagnostic = safeWorkersAIErrorDetails(err);
-            console.error("INTELLIGENCE_CODE_ANALYSIS_FAILURE",JSON.stringify({traceId,elapsedMs,...diagnostic}));
+            const providerAttempts = Array.isArray(err?.providerAttempts) ? err.providerAttempts : [];
+            await recordIntelligenceAIProviderDiagnostics(env, traceId, providerAttempts, model);
+            const safeAttempts = providerAttempts.slice(0, 4).map(item => ({
+              provider:String(item?.provider || "unknown").slice(0,40),
+              reason:String(item?.reason || "unknown").slice(0,60),
+              stage:String(item?.stage || "provider_request").slice(0,40),
+              status:Number.isInteger(item?.status) ? item.status : null,
+              errorName:String(item?.errorName || "").slice(0,100),
+              errorCode:String(item?.errorCode || "").slice(0,100),
+              errorMessage:String(item?.errorMessage || "").slice(0,180),
+              causeName:String(item?.causeName || "").slice(0,100),
+              causeMessage:String(item?.causeMessage || "").slice(0,180)
+            }));
+            console.error("INTELLIGENCE_CODE_ANALYSIS_FAILURE",JSON.stringify({traceId,elapsedMs,providerAttempts:safeAttempts,...diagnostic}));
             return json({
               success:false,
               error:"Workers AI code analysis failed.",
-              diagnostic:{stage:"workers_ai_inference",operation:"repository_analyze",traceId,elapsedMs,...diagnostic}
+              diagnostic:{stage:"workers_ai_inference",operation:"repository_analyze",traceId,elapsedMs,providerAttempts:safeAttempts,...diagnostic}
             },503);
           }
           const raw = result?.response ?? result?.result?.response ?? "";
@@ -7952,6 +7982,7 @@ export default {
         let runner = null;
         let runnerDispatch = null;
         let aiProvider = null;
+        let aiProviderAttempts = [];
         try {
           if (env.DB) {
             await env.DB.prepare("SELECT 1 AS test").first();
@@ -7990,18 +8021,24 @@ export default {
             } catch {}
             try {
               await ensureIntelligenceAIProviderDiagnostics(env);
-              const latestAI = await env.DB.prepare(`
-                SELECT trace_id,attempted_at,provider,reason,model,error_name,error_code,http_status,error_message,cause_name,cause_message
-                FROM intelligence_ai_provider_diagnostics ORDER BY id DESC LIMIT 1
-              `).first();
-              if (latestAI) aiProvider = {
-                traceId:latestAI.trace_id,attemptedAt:latestAI.attempted_at,
-                provider:latestAI.provider,reason:latestAI.reason,model:latestAI.model || null,
-                errorName:latestAI.error_name || null,errorCode:latestAI.error_code || null,
-                httpStatus:latestAI.http_status===null?null:Number(latestAI.http_status),
-                errorMessage:latestAI.error_message || null,causeName:latestAI.cause_name || null,
-                causeMessage:latestAI.cause_message || null
-              };
+              const latestTrace = await env.DB.prepare(
+                "SELECT trace_id FROM intelligence_ai_provider_diagnostics ORDER BY id DESC LIMIT 1"
+              ).first();
+              if (latestTrace?.trace_id) {
+                const latestRows = await env.DB.prepare(`
+                  SELECT trace_id,attempted_at,provider,reason,model,error_name,error_code,http_status,error_message,cause_name,cause_message
+                  FROM intelligence_ai_provider_diagnostics WHERE trace_id=?
+                  ORDER BY CASE WHEN provider='cloudflare' THEN 0 ELSE 1 END,id DESC LIMIT 4
+                `).bind(latestTrace.trace_id).all();
+                aiProviderAttempts = (latestRows.results || []).map(row => ({
+                  traceId:row.trace_id,attemptedAt:row.attempted_at,
+                  provider:row.provider,reason:row.reason,model:row.model || null,
+                  errorName:row.error_name || null,errorCode:row.error_code || null,
+                  httpStatus:row.http_status===null?null:Number(row.http_status),
+                  causeName:row.cause_name || null
+                }));
+                aiProvider = aiProviderAttempts.find(item => item.provider === "cloudflare") || aiProviderAttempts[0] || null;
+              }
             } catch {
               // AI provider diagnostics are initialized on the first recorded failure.
             }
@@ -8033,7 +8070,8 @@ export default {
           privateInbox,
           runner,
           runnerDispatch,
-          aiProvider
+          aiProvider,
+          aiProviderAttempts
         });
       }
 
