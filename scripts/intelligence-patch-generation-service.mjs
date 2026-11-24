@@ -256,8 +256,8 @@ export async function generatePatchArtifact({
       Object.keys(generated).sort().join(",") !== "summary,testLines" ||
       typeof generated.summary !== "string" || !Array.isArray(generated.testLines) ||
       generated.testLines.length < 1 || generated.testLines.length > 60 ||
-      generated.testLines.some(line => typeof line !== "string" || /[\\r\\n]/.test(line) || new TextEncoder().encode(line).byteLength > 500) ||
-      new TextEncoder().encode(generated.testLines.join("\\n")).byteLength > 7000) {
+      generated.testLines.some(line => typeof line !== "string" || /[\r\n]/.test(line) || new TextEncoder().encode(line).byteLength > 500) ||
+      new TextEncoder().encode(generated.testLines.join("\n")).byteLength > 7000) {
     return fail("model_output_schema_invalid");
   }
 
@@ -265,7 +265,7 @@ export async function generatePatchArtifact({
   if (!finalMainCommit.ok) return fail("main_commit_recheck_failed");
   if (finalMainCommit.sha !== baseSha) return fail("stale_base_sha");
 
-  const sourceLineCount = source.endsWith("\\n") ? source.split("\\n").length - 1 : source.split("\\n").length;
+  const sourceLineCount = source.endsWith("\n") ? source.split("\n").length - 1 : source.split("\\n").length;
   // The model returns source lines only. Build every diff header and prefix
   // deterministically so model formatting can never create malformed hunks.
   const canonicalDiff = [
