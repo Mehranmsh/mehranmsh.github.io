@@ -1159,3 +1159,5 @@ jobs:
 # Post-deployment diagnostic mission wake-up [read-only-wake]
 
 # Post-deploy validator wake-up 2026-11-25 [read-only-wake]
+
+# Wake runner after private inbox mission schema correction 2026-11-25 [post-ingest]
