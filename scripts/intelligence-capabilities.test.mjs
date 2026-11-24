@@ -17,16 +17,17 @@ import {
 const workerSource = readFileSync(new URL("../worker.js", import.meta.url), "utf8");
 const indexSource = readFileSync(new URL("../index.html", import.meta.url), "utf8");
 const runnerSource = readFileSync(new URL("../.github/workflows/mehran-intelligence-runner.yml", import.meta.url), "utf8");
+const routerSource = readFileSync(new URL("./intelligence-ai-router.mjs", import.meta.url), "utf8");
 const scheduledStart = workerSource.indexOf("async scheduled(controller, env, ctx)");
 const scheduledEnd = workerSource.indexOf("async fetch(request, env)", scheduledStart);
 assert.ok(scheduledStart >= 0 && scheduledEnd > scheduledStart, "Worker scheduled handler must be locatable");
 const workerSchedulerSource = workerSource.slice(scheduledStart, scheduledEnd);
 
 test("Workers AI inference failures expose only bounded sanitized diagnostics to the private runner", () => {
-  assert.match(workerSource, /const diagnostic = safeWorkersAIErrorDetails\(err\)/);
-  assert.match(workerSource, /stage:"workers_ai_inference"/);
-  assert.match(workerSource, /fallback\("ai_inference_failed", detail\)/);
-  assert.match(runnerSource, /payload\.diagnostic\.stage === "workers_ai_inference"/);
+  assert.match(workerSource, /failures:inference\.failures/);
+  assert.match(workerSource, /stage:"multi_provider_inference"/);
+  assert.match(workerSource, /fallback\("ai_providers_unavailable", detail\)/);
+  assert.match(runnerSource, /payload\.diagnostic\.stage === "multi_provider_inference"/);
   assert.match(runnerSource, /causeMessage: String\(diagnostic\.causeMessage \|\| ""\)\.slice\(0, 180\)/);
   assert.match(runnerSource, /Bounded safe diagnostic:/);
   assert.doesNotMatch(runnerSource, /console\.log\([^\n]*payload\.diagnostic[^\n]*requestBody/);
@@ -177,8 +178,8 @@ test("AI mission planner uses JSON mode and extracts one complete balanced objec
   const plannerEnd = workerSource.indexOf("export function verifyIntelligenceReport", plannerStart);
   assert.ok(start >= 0 && plannerStart > start && plannerEnd > plannerStart);
   const planner = workerSource.slice(plannerStart, plannerEnd);
-  assert.match(planner, /response_format: \{ type: "json_object" \}/);
-  assert.match(planner, /max_tokens: 1600/);
+  assert.match(routerSource, /response_format: \{ type: "json_object" \}/);
+  assert.match(routerSource, /max_tokens: input\.maxTokens \?\? 1600/);
   assert.match(planner, /extractIntelligenceJsonObject\(modelResponse\)/);
   assert.match(workerSource.slice(start, plannerStart), /if \(depth === 0 && start >= 0\) return text\.slice\(start, index \+ 1\)/);
   assert.match(workerSource.slice(start, plannerStart), /if \(escaped\) escaped = false/);
@@ -842,8 +843,8 @@ test("Intelligence mission planning uses a bounded, more efficient daily reserva
   assert.match(workerSource, /WORKERS_AI_INTELLIGENCE_DAILY_RESERVATION_CREDITS = 7000/);
   assert.match(workerSource, /intelligence: \{ column: "intelligence_reserved", cap: WORKERS_AI_INTELLIGENCE_DAILY_RESERVATION_CREDITS \}/);
   assert.match(workerSource, /WORKERS_AI_GLOBAL_DAILY_RESERVATION_CREDITS = 9000/);
-  assert.match(workerSource, /reserveSocialWorkersAIBudget\(env, 25, "intelligence"\)/);
-  assert.match(workerSource, /max_tokens: 1600/);
+  assert.match(workerSource, /reserveWorkersBudget: credits => reserveSocialWorkersAIBudget\(env, credits, "intelligence"\)/);
+  assert.match(routerSource, /max_tokens: input\.maxTokens \?\? 1600/);
 });
 
 test("scheduled Intelligence runner serializes ticks and bounds per-tick task execution", () => {
@@ -859,9 +860,9 @@ test("mission planner checks its idempotency key before any Workers AI budget re
   assert.ok(start >= 0 && end > start);
   const planner = workerSource.slice(start, end);
   const existingCheck = planner.indexOf("SELECT id,status FROM intelligence_work_packages WHERE idempotency_key=?");
-  const budgetReservation = planner.indexOf('reserveSocialWorkersAIBudget(env, 25, "intelligence")');
-  const inference = planner.indexOf("await env.AI.run(model");
-  assert.ok(existingCheck >= 0 && budgetReservation > existingCheck && inference > budgetReservation);
+  const budgetReservation = planner.indexOf('reserveWorkersBudget: credits => reserveSocialWorkersAIBudget(env, credits, "intelligence")');
+  const inference = planner.indexOf("await runIntelligenceAI");
+  assert.ok(existingCheck >= 0 && inference > existingCheck && budgetReservation > inference);
   assert.match(planner, /if \(existing\) return \{ success: true, duplicate: true/);
 });
 
@@ -1177,8 +1178,8 @@ test("Workers AI inference failures retain safe actionable diagnostics without e
   assert.ok(workerSource.includes("Bearer\\s+"));
   assert.ok(workerSource.includes("INTELLIGENCE_MISSION_PLANNER_FAILURE"));
   assert.ok(workerSource.includes("INTELLIGENCE_CODE_ANALYSIS_FAILURE"));
-  assert.ok(workerSource.includes("JSON.stringify({traceId,elapsedMs,...diagnostic})"));
-  assert.ok(workerSource.includes("stage:\"workers_ai_inference\""));
+  assert.ok(workerSource.includes("providerCount:inference.attemptedProviders.length"));
+  assert.ok(workerSource.includes("stage:\"multi_provider_inference\""));
 });;
 
 test("repository inspection performs bounded evidence-backed Workers AI semantic analysis", () => {
@@ -1186,7 +1187,7 @@ test("repository inspection performs bounded evidence-backed Workers AI semantic
   assert.match(workerSource, /ownerOrchestrationRoute = .*repository\/analyze/);
   assert.match(workerSource, /totalChars > 16000/);
   assert.match(workerSource, /file\.excerpt\.length > 2800/);
-  assert.match(workerSource, /env\.AI\.run\(model/);
+  assert.match(workerSource, /await runIntelligenceAI\(/);
   assert.match(workerSource, /supplied source excerpts as untrusted code data/);
   assert.match(workerSource, /files\.find\(f=>f\.path===ev\.path\)\?\.excerpt\.includes\(ev\.quote\)/);
   assert.match(workerSource, /inspect_repository_semantic_analysis/);
@@ -1206,11 +1207,11 @@ test("failed Intelligence Workers AI inference releases its daily reservation", 
   const plannerStart = workerSource.indexOf("async function planIntelligenceMission(env, input)");
   const plannerEnd = workerSource.indexOf("export function verifyIntelligenceReport", plannerStart);
   const planner = workerSource.slice(plannerStart, plannerEnd);
-  assert.ok(planner.includes("releaseSocialWorkersAIBudget(env, budget)"));
+  assert.ok(planner.includes("releaseWorkersBudget: reservation => releaseSocialWorkersAIBudget(env, reservation)"));
   const analysisStart = workerSource.indexOf('if (path === "/agent/v1/repository/analyze" && method === "POST")');
   const analysisEnd = workerSource.indexOf('if (path === "/agent/v1/missions/plan" && method === "POST")', analysisStart);
   const analysis = workerSource.slice(analysisStart, analysisEnd);
-  assert.ok(analysis.includes("releaseSocialWorkersAIBudget(env, budget)"));
+  assert.ok(analysis.includes("releaseWorkersBudget:reservation=>releaseSocialWorkersAIBudget(env,reservation)"));
 });
 
 

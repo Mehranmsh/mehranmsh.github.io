@@ -23,6 +23,7 @@ const artifactSource = await readFile(new URL("./intelligence-patch-artifact.mjs
 const patchStoreSource = await readFile(new URL("./intelligence-private-patch-store.mjs", import.meta.url), "utf8");
 const patchGenerationPromptSource = await readFile(new URL("./intelligence-patch-generation.mjs", import.meta.url), "utf8");
 const patchGenerationServiceSource = await readFile(new URL("./intelligence-patch-generation-service.mjs", import.meta.url), "utf8");
+const intelligenceAIRouterSource = await readFile(new URL("./intelligence-ai-router.mjs", import.meta.url), "utf8");
 const moduleUrl = source => "data:text/javascript;base64," + Buffer.from(source).toString("base64");
 const policyUrl = moduleUrl(policySource);
 const artifactUrl = moduleUrl(artifactSource.replace(
@@ -37,7 +38,9 @@ const patchGenerationPromptUrl = moduleUrl(patchGenerationPromptSource.replace(
   'from "./intelligence-patch-policy.mjs"',
   `from "${policyUrl}"`
 ));
+const intelligenceAIRouterUrl = moduleUrl(intelligenceAIRouterSource);
 const patchGenerationServiceUrl = moduleUrl(patchGenerationServiceSource
+  .replace('from "./intelligence-ai-router.mjs"', `from "${intelligenceAIRouterUrl}"`)
   .replace('from "./intelligence-patch-generation.mjs"', `from "${patchGenerationPromptUrl}"`)
   .replace('from "./intelligence-patch-artifact.mjs"', `from "${artifactUrl}"`)
 );
@@ -62,9 +65,11 @@ export async function generatePatchArtifact(args) {
   return hook(args);
 }
 `);
-const workerRest = workerSource.slice(capabilityImport.length).replace(patchStoreImport, "").replace(patchGenerationImport, "");
+const routerImport = 'import { runIntelligenceAI } from "./scripts/intelligence-ai-router.mjs";';
+const workerRest = workerSource.slice(capabilityImport.length).replace(patchStoreImport, "").replace(patchGenerationImport, "").replace(routerImport, "");
 const workerSourceForTest = `import { storePrivatePatchArtifact, verifyPrivatePatchArtifactAtPath, getPrivatePatchArtifactPath } from "${patchStoreTestUrl}";
 import { generatePatchArtifact } from "${patchGenerationTestUrl}";
+import { runIntelligenceAI } from "${intelligenceAIRouterUrl}";
 const INTELLIGENCE_ACTION_TYPES = ${JSON.stringify(INTELLIGENCE_ACTION_TYPES)};
 const PREAPPROVED_INTELLIGENCE_ACTION_TYPES = ${JSON.stringify(PREAPPROVED_INTELLIGENCE_ACTION_TYPES)};
 ` + workerRest;
@@ -1276,9 +1281,9 @@ test("Intelligence mission planner creates a bounded deterministic fallback when
 
   const plannerEnd = workerSource.indexOf("\nexport function verifyIntelligenceReport", helperEnd);
   const planner = workerSource.slice(helperEnd, plannerEnd);
-  assert.match(planner, /ai_binding_unavailable/);
-  assert.match(planner, /daily_ai_budget_unavailable/);
-  assert.match(planner, /ai_inference_failed/);
+  assert.match(planner, /ai_providers_unavailable/);
+  assert.match(planner, /runIntelligenceAI/);
+  assert.match(planner, /workersBudgetCredits: 25/);
   assert.match(planner, /ai_response_invalid_json/);
   assert.match(planner, /ai_plan_validation_failed/);
   assert.match(planner, /SELECT id,status FROM intelligence_work_packages WHERE idempotency_key=\?/);
@@ -2653,14 +2658,14 @@ test("INTELLIGENCE package status transitions use compare-and-set and enqueue at
 });
 
 
-test("MEHRAN INTELLIGENCE mission planner uses Workers AI JSON Mode and accepts structured object responses", () => {
+test("MEHRAN INTELLIGENCE mission planner uses provider-neutral JSON mode and accepts structured object responses", () => {
   const start = workerSource.indexOf("async function planIntelligenceMission");
   const end = workerSource.indexOf("export function verifyIntelligenceReport", start);
   assert.ok(start >= 0 && end > start, "mission planner must exist");
   const planner = workerSource.slice(start, end);
-  assert.match(planner, /response_format:\s*\{\s*type:\s*"json_object"\s*\}/);
+  assert.match(intelligenceAIRouterSource, /response_format:\s*\{\s*type:\s*"json_object"\s*\}/);
   assert.match(planner, /extractIntelligenceJsonObject\(modelResponse\)/);
-  assert.match(planner, /max_tokens:\s*1600/);
+  assert.match(intelligenceAIRouterSource, /max_tokens: input\.maxTokens \?\? 1600/);
   assert.doesNotMatch(planner, /json_schema:/);
   assert.match(planner, /const modelResponse = modelResult && modelResult\.response != null/);
   assert.match(planner, /typeof modelResponse === "object" && !Array\.isArray\(modelResponse\)/);
