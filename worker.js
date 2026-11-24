@@ -6411,6 +6411,149 @@ async function socialDeleteAccount(request, env) {
   return json({ success: true, deleted: true, removedFiles: uploadRows.length, ownershipTransferred: true, providerIdentityDeleted });
 }
 
+
+async function ingestPrivateIntelligenceInbox(env) {
+  // Private, owner-controlled mission inbox. The inbox document is data only:
+  // task definitions are never accepted from it; a fixed read-only package is built here.
+  const token = typeof env.MEHRAN_REPORTS_GITHUB_TOKEN === "string" ? env.MEHRAN_REPORTS_GITHUB_TOKEN : "";
+  if (!token || token.length < 20) {
+    console.error("INTELLIGENCE_PRIVATE_INBOX_UNAVAILABLE", "reports_token_missing");
+    return 0;
+  }
+  const base = "https://api.github.com/repos/Mehranmsh/mehran-intelligence-reports/contents/";
+  const headers = {
+    "Accept": "application/vnd.github+json",
+    "Authorization": "Bearer " + token,
+    "X-GitHub-Api-Version": "2022-11-28",
+    "User-Agent": "MEHRAN-INTELLIGENCE-Private-Inbox"
+  };
+  const request = async (url, options = {}) => {
+    const response = await fetch(url, { ...options, headers: { ...headers, ...(options.headers || {}) }, signal: AbortSignal.timeout(12000) });
+    return response;
+  };
+  const encodeBase64 = value => {
+    const bytes = new TextEncoder().encode(value);
+    let binary = "";
+    for (let offset = 0; offset < bytes.length; offset += 0x8000) {
+      binary += String.fromCharCode(...bytes.subarray(offset, offset + 0x8000));
+    }
+    return btoa(binary);
+  };
+  let imported = 0;
+  try {
+    const listingResponse = await request(base + "inbox/pending?ref=main");
+    if (listingResponse.status === 404) return 0;
+    if (!listingResponse.ok) throw new Error("private_inbox_listing_http_" + listingResponse.status);
+    const entries = await listingResponse.json();
+    if (!Array.isArray(entries)) throw new Error("private_inbox_listing_invalid");
+    for (const entry of entries.slice(0, 20)) {
+      if (!entry || entry.type !== "file" || typeof entry.name !== "string" || !/^[a-z0-9][a-z0-9._-]{2,120}\.json$/i.test(entry.name)) continue;
+      const fileResponse = await request(base + "inbox/pending/" + encodeURIComponent(entry.name) + "?ref=main");
+      if (!fileResponse.ok) {
+        if (fileResponse.status === 404) continue;
+        throw new Error("private_inbox_file_http_" + fileResponse.status);
+      }
+      const filePayload = await fileResponse.json();
+      if (filePayload?.encoding !== "base64" || typeof filePayload.content !== "string" || typeof filePayload.sha !== "string") continue;
+      let mission;
+      try {
+        const binary = atob(filePayload.content.replace(/\s+/g, ""));
+        const bytes = Uint8Array.from(binary, character => character.charCodeAt(0));
+        mission = JSON.parse(new TextDecoder().decode(bytes));
+      } catch {
+        console.error("INTELLIGENCE_PRIVATE_INBOX_QUARANTINED", entry.name, "invalid_json");
+        continue;
+      }
+      if (!mission || mission.schema_version !== 1 || mission.status !== "pending_ingestion" ||
+          typeof mission.mission_id !== "string" || !/^[a-z0-9][a-z0-9-]{7,100}$/i.test(mission.mission_id) ||
+          typeof mission.title !== "string" || typeof mission.objective !== "string" ||
+          !mission.scope || mission.scope.mode !== "read_only_diagnostic" ||
+          !Array.isArray(mission.scope.allowed_actions) ||
+          !["inspect_repository","source_security_audit","repository_quality_check"].every(action => mission.scope.allowed_actions.includes(action)) ||
+          !Array.isArray(mission.scope.forbidden) ||
+          !["source_changes","patch_application","branch_creation","pull_request_creation","merge","deployment","secret_access","arbitrary_shell","changes_to_production_state"].every(action => mission.scope.forbidden.includes(action))) {
+        continue;
+      }
+      const evidence = Array.isArray(mission.known_evidence) ? mission.known_evidence.slice(0, 4) : [];
+      const objective = cleanText(mission.objective, 1800);
+      if (objective.length < 40) continue;
+      const packageInput = {
+        idempotencyKey: "private-inbox:" + mission.mission_id,
+        title: cleanText(mission.title, 150) || "Private Intelligence diagnostic",
+        objective,
+        priority: "high",
+        scope: {
+          mode: "read_only",
+          source: "private_owner_inbox",
+          missionId: mission.mission_id,
+          allowedActions: ["inspect_repository","source_security_audit","repository_quality_check"],
+          forbidden: ["source_changes","patch_application","branch_creation","pull_request_creation","merge","deployment","secret_access","credential_output","wallet_operations","financial_operations","arbitrary_shell","production_state_changes"],
+          deliverables: Array.isArray(mission.deliverables) ? mission.deliverables.slice(0, 6).map(item => cleanText(item, 300)) : [],
+          evidence
+        },
+        tasks: [
+          {
+            taskId: "inspect-source",
+            title: "Inspect exact Intelligence source and runner files",
+            description: "Read the allowlisted source files at the current repository commit. Trace the generated diff validation and private report persistence paths. Do not execute repository content or modify files.",
+            actionType: "inspect_repository",
+            dependsOn: [],
+            paths: [
+              "worker.js",
+              "scripts/intelligence-agent.mjs",
+              "scripts/intelligence-capabilities.mjs",
+              "scripts/intelligence-capabilities.test.mjs",
+              ".github/workflows/mehran-intelligence-runner.yml",
+              "docs/INTELLIGENCE_EXECUTION_PROTOCOL.md"
+            ]
+          },
+          {
+            taskId: "security-review",
+            title: "Run bounded source security audit",
+            description: "Run the existing deterministic read-only security audit and report any relevant findings. No secret values or production changes.",
+            actionType: "source_security_audit",
+            dependsOn: []
+          },
+          {
+            taskId: "repository-check",
+            title: "Verify repository and runner state",
+            description: "Collect repository metadata and runner configuration needed to anchor the diagnostic findings to the current source revision.",
+            actionType: "repository_quality_check",
+            dependsOn: ["inspect-source"]
+          }
+        ]
+      };
+      const created = await createIntelligenceWorkPackage(env, packageInput);
+      if (!created?.success || !created.workPackageId) {
+        throw new Error("private_inbox_package_creation_failed");
+      }
+      // Mark ingested only after the idempotent package is durably present in D1.
+      mission.status = "ingested";
+      mission.ingested_at = new Date().toISOString();
+      mission.work_package_id = created.workPackageId;
+      const updated = await request(base + "inbox/pending/" + encodeURIComponent(entry.name), {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          message: "Ingest private Intelligence mission " + mission.mission_id,
+          sha: filePayload.sha,
+          content: encodeBase64(JSON.stringify(mission, null, 2) + "\n"),
+          branch: "main"
+        })
+      });
+      if (!updated.ok) {
+        // The idempotency key prevents duplicate packages. Leave the file pending
+        // so the next scheduler run can safely retry the status acknowledgement.
+        throw new Error("private_inbox_ack_http_" + updated.status);
+      }
+      imported++;
+    }
+  } catch (err) {
+    console.error("INTELLIGENCE_PRIVATE_INBOX_FAILURE", String(err?.message || err).slice(0, 240));
+  }
+  return imported;
+}
+
 async function ingestGitHubIntelligenceInbox(env) {
   // Public GitHub Issues are a one-way task inbox. Imported items are untrusted
   // and remain awaiting owner approval; no action type is assigned.
@@ -6498,6 +6641,7 @@ export default {
         await ensureIntelligenceTaskTable(env);
         await ensureIntelligenceProtocolTables(env);
         await ensureIntelligenceSchedulerRunsTable(env);
+        await ingestPrivateIntelligenceInbox(env);
         await ingestGitHubIntelligenceInbox(env);
         await env.DB.prepare(
           "INSERT INTO intelligence_scheduler_runs(id,started_at,status) VALUES(?,?,'running')"
