@@ -253,8 +253,11 @@ export async function generatePatchArtifact({
     return fail("model_output_not_json");
   }
   if (!generated || typeof generated !== "object" || Array.isArray(generated) ||
-      Object.keys(generated).sort().join(",") !== "diff,summary" ||
-      typeof generated.summary !== "string" || typeof generated.diff !== "string") {
+      Object.keys(generated).sort().join(",") !== "summary,testLines" ||
+      typeof generated.summary !== "string" || !Array.isArray(generated.testLines) ||
+      generated.testLines.length < 1 || generated.testLines.length > 60 ||
+      generated.testLines.some(line => typeof line !== "string" || /[\\r\\n]/.test(line) || new TextEncoder().encode(line).byteLength > 500) ||
+      new TextEncoder().encode(generated.testLines.join("\\n")).byteLength > 7000) {
     return fail("model_output_schema_invalid");
   }
 
@@ -262,14 +265,16 @@ export async function generatePatchArtifact({
   if (!finalMainCommit.ok) return fail("main_commit_recheck_failed");
   if (finalMainCommit.sha !== baseSha) return fail("stale_base_sha");
 
-  const sourceLineCount = source.endsWith("\n") ? source.split("\n").length - 1 : source.split("\n").length;
-  // Canonicalize harmless transport formatting from model output before strict validation.
-  // Preserve patch content; reject lone carriage returns and malformed no-newline markers.
-  const normalizedDiff = normalizeGeneratedDiff(generated.diff);
-  if (normalizedDiff === null) return fail("model_diff_encoding_invalid");
-  // Repair only the unified-diff count header when the file path is exact and
-  // every payload line is already an addition. No patch content is changed.
-  const canonicalDiff = canonicalizeAppendOnlyHunkHeader(normalizedDiff, sourceLineCount);
+  const sourceLineCount = source.endsWith("\\n") ? source.split("\\n").length - 1 : source.split("\\n").length;
+  // The model returns source lines only. Build every diff header and prefix
+  // deterministically so model formatting can never create malformed hunks.
+  const canonicalDiff = [
+    `--- a/${TARGET_PATH}`,
+    `+++ b/${TARGET_PATH}`,
+    `@@ -${sourceLineCount},0 +${sourceLineCount + 1},${generated.testLines.length} @@`,
+    ...generated.testLines.map(line => "+" + line),
+    ""
+  ].join("\\n");
   const validated = validateGeneratedPatch({
     baseSha,
     sourceLineCount,
@@ -282,7 +287,7 @@ export async function generatePatchArtifact({
       diagnostic: {
         stage: "generated_diff_validation",
         shape: inspectGeneratedDiffShape(canonicalDiff),
-        canonicalizerApplied: canonicalDiff !== normalizedDiff
+        canonicalizerApplied: false
       }
     };
   }
