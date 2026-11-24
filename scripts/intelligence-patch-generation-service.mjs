@@ -149,8 +149,17 @@ export function canonicalizeAppendOnlyHunkHeader(diff, sourceLineCount) {
   const target = "--- a/scripts/intelligence-capabilities.test.mjs";
   const replacement = "+++ b/scripts/intelligence-capabilities.test.mjs";
   if (lines.length < 4 || lines[0] !== target || lines[1] !== replacement) return diff;
-  const additions = lines.slice(3);
-  if (!additions.length || additions.some(line => !line.startsWith("+") || line.startsWith("+++"))) return diff;
+  const payload = lines.slice(3);
+  // Model output commonly includes unchanged context lines even though this
+  // capability is additions-only. Context is safe to discard; deletions,
+  // metadata, blank payload lines, and extra file headers remain a hard stop.
+  if (!payload.length || payload.some(line =>
+    line.startsWith("-") || line.startsWith("+++") || line.length === 0 ||
+    (!line.startsWith("+") && !line.startsWith(" "))
+  )) return diff;
+  const additions = payload.filter(line => line.startsWith("+"));
+  if (!additions.length) return diff;
+  lines.splice(3, lines.length - 3, ...additions);
   lines[2] = `@@ -${sourceLineCount},0 +${sourceLineCount + 1},${additions.length} @@`;
   return lines.join("\n") + "\n";
 }
