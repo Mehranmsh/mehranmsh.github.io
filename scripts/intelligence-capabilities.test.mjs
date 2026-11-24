@@ -1177,7 +1177,7 @@ test("Workers AI inference failures retain safe actionable diagnostics without e
   assert.ok(workerSource.includes("Bearer\\s+"));
   assert.ok(workerSource.includes("INTELLIGENCE_MISSION_PLANNER_FAILURE"));
   assert.ok(workerSource.includes("INTELLIGENCE_CODE_ANALYSIS_FAILURE"));
-  assert.ok(workerSource.includes("JSON.stringify(diagnostic)"));
+  assert.ok(workerSource.includes("JSON.stringify({traceId,elapsedMs,...diagnostic})"));
   assert.ok(workerSource.includes("stage:\"workers_ai_inference\""));
 });;
 
@@ -1211,4 +1211,20 @@ test("failed Intelligence Workers AI inference releases its daily reservation", 
   const analysisEnd = workerSource.indexOf('if (path === "/agent/v1/missions/plan" && method === "POST")', analysisStart);
   const analysis = workerSource.slice(analysisStart, analysisEnd);
   assert.ok(analysis.includes("releaseSocialWorkersAIBudget(env, budget)"));
+});
+
+
+test("Intelligence Runner correlates API requests with bounded trace IDs and records stage timings", () => {
+  assert.match(runnerSource, /let requestSequence = 0/);
+  assert.match(runnerSource, /const traceId = traceRunId \+ "-" \+ \(\+\+requestSequence\)/);
+  assert.match(runnerSource, /"X-Intelligence-Trace-Id": traceId/);
+  assert.match(runnerSource, /\[trace\].*elapsed_ms=/);
+  assert.match(runnerSource, /repository_analyze/);
+  assert.match(runnerSource, /diagnostic\.traceId/);
+  assert.match(workerSource, /INTELLIGENCE_CODE_ANALYSIS_START/);
+  assert.match(workerSource, /INTELLIGENCE_CODE_ANALYSIS_SUCCESS/);
+  assert.match(workerSource, /INTELLIGENCE_MISSION_PLANNER_START/);
+  assert.match(workerSource, /INTELLIGENCE_MISSION_PLANNER_INFERENCE_SUCCESS/);
+  assert.match(workerSource, /operation:"repository_analyze",traceId,elapsedMs/);
+  assert.match(workerSource, /operation:"mission_plan",traceId,elapsedMs/);
 });
