@@ -14,6 +14,7 @@ import {
   getIntelligenceCapability,
   validateIntelligenceCapabilityRequest
 } from "./intelligence-capabilities.mjs";
+import { nextWorkersAIDailyResetAt, isWorkersAIDailyQuotaCircuitOpen } from "./intelligence-ai-quota.mjs";
 
 const workerSource = readFileSync(new URL("../worker.js", import.meta.url), "utf8");
 const indexSource = readFileSync(new URL("../index.html", import.meta.url), "utf8");
@@ -352,7 +353,8 @@ test("isolated test workflow runs one fixed suite without secrets or network acc
     "./intelligence-private-patch-store.mjs",
     "./intelligence-patch-generation.mjs",
     "./intelligence-patch-generation-service.mjs",
-    "./intelligence-capabilities.mjs"
+    "./intelligence-capabilities.mjs",
+    "./intelligence-ai-quota.mjs"
   ]);
   for (const forbidden of [
     ["process", ".", "env"].join(""),
@@ -1420,7 +1422,10 @@ test("Cloudflare AI diagnostics distinguish budget reservation failures from inf
   assert.match(cloudflare, /await env\.AI\.run\(model/);
   assert.match(workerSource, /stage: provider === "cloudflare" \? "inference" : "provider_request"/);
   assert.match(cloudflare, /reason:"daily_quota_circuit_open"/);
-  assert.match(cloudflare, /24 \* 60 \* 60 \* 1000/);
+  assert.match(workerSource, /function isWorkersAIDailyQuotaCircuitOpen\(attemptedAt, now = Date\.now\(\)\)/);
+  assert.match(workerSource, /Date\.UTC\(date\.getUTCFullYear\(\), date\.getUTCMonth\(\), date\.getUTCDate\(\) \+ 1\)/);
+  assert.match(cloudflare, /isWorkersAIDailyQuotaCircuitOpen\(exhausted\?\.attempted_at\)/);
+  assert.doesNotMatch(cloudflare, /24 \* 60 \* 60 \* 1000/);
   assert.match(workerSource, /used up your daily free allocation of 10,000 neurons/);
   assert.match(workerSource, /daily_quota_circuit_open/);
   assert.match(workerSource, /quotaRelevantAttempts/);
@@ -1441,4 +1446,13 @@ test("Cloudflare AI diagnostics distinguish budget reservation failures from inf
   assert.match(workerSource, /archiveLatestIntelligenceAIProviderDiagnostics\(env\)/);
   assert.match(workerSource, /mehran-intelligence-reports\/contents\/\" \+ path/);
   assert.match(workerSource, /Private AI diagnostics archive write failed/);
+});
+
+
+test("Workers AI daily quota circuit resets at Cloudflare UTC midnight", () => {
+  const exhaustedAt = "2026-11-24T22:49:00.000Z";
+  assert.equal(nextWorkersAIDailyResetAt(exhaustedAt), Date.parse("2026-11-25T00:00:00.000Z"));
+  assert.equal(isWorkersAIDailyQuotaCircuitOpen(exhaustedAt, Date.parse("2026-11-24T23:59:59.000Z")), true);
+  assert.equal(isWorkersAIDailyQuotaCircuitOpen(exhaustedAt, Date.parse("2026-11-25T00:00:00.000Z")), false);
+  assert.equal(isWorkersAIDailyQuotaCircuitOpen("not-a-timestamp", Date.parse("2026-11-25T00:00:00.000Z")), false);
 });
