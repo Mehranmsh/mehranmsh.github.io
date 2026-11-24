@@ -650,7 +650,7 @@ test("Workers AI patch generation bounds streamed source before budget or model 
 });
 
 test("Workers AI patch generation validates and envelopes only an append-only diff", async () => {
-  const source = "const original = true;\\n";
+  const source = "const original = true;\n";
   const baseSha = "d".repeat(40);
   let budgetAmount = 0;
   let modelName = "";
@@ -664,7 +664,7 @@ test("Workers AI patch generation validates and envelopes only an append-only di
         : Response.json({ sha: baseSha });
     }
     if (value.endsWith("/commits/main.atom")) {
-      return new Response(`<feed><entry><id>tag:github.com,2008:Grit::Commit/${baseSha}</id></entry></feed>`, { status: 200 });
+      return new Response(\`<feed><entry><id>tag:github.com,2008:Grit::Commit/\${baseSha}</id></entry></feed>\`, { status: 200 });
     }
     return new Response(source, { status: 200 });
   };
@@ -679,10 +679,10 @@ test("Workers AI patch generation validates and envelopes only an append-only di
             "--- a/scripts/intelligence-capabilities.test.mjs",
             "+++ b/scripts/intelligence-capabilities.test.mjs",
             "@@ -1,0 +2,1 @@",
-            "+test(\\"generated boundary\\", () => {});",
+            "+test(\"generated boundary\", () => {});",
             ""
-          ].join("\\n")
-        }) + "\\n\`\`\`" };
+          ].join("\n")
+        }) + "\n\`\`\`" };
       }
     }
   };
@@ -717,11 +717,11 @@ test("Workers AI patch generation rejects a main-branch race after the model ret
       const sha = mainRefCalls <= 3 ? baseSha : "9".repeat(40);
       if (value.endsWith("/git/ref/heads/main")) return Response.json({ object: { sha } });
       if (value.endsWith("/commits/main.atom")) {
-        return new Response(`<feed><entry><id>tag:github.com,2008:Grit::Commit/${sha}</id></entry></feed>`, { status: 200 });
+        return new Response(\`<feed><entry><id>tag:github.com,2008:Grit::Commit/\${sha}</id></entry></feed>\`, { status: 200 });
       }
       return Response.json({ sha });
     }
-    return new Response("const original = true;\\n", { status: 200 });
+    return new Response("const original = true;\n", { status: 200 });
   };
   const result = await generatePatchArtifact({
     baseSha,
@@ -734,9 +734,9 @@ test("Workers AI patch generation rejects a main-branch race after the model ret
           "--- a/scripts/intelligence-capabilities.test.mjs",
           "+++ b/scripts/intelligence-capabilities.test.mjs",
           "@@ -1,0 +2,1 @@",
-          "+test(\\"race guard\\", () => {});",
+          "+test(\"race guard\", () => {});",
           ""
-        ].join("\\n")
+        ].join("\n")
       }) };
     } } },
     reserveBudget: async () => ({ allowed: true }),
