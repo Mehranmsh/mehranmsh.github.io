@@ -5517,6 +5517,7 @@ async function ensureIntelligencePatchProposalTable(env) {
   `).run();
   await env.DB.prepare("CREATE INDEX IF NOT EXISTS idx_intelligence_patch_proposals_created ON intelligence_patch_proposals(created_at DESC)").run();
   try { await env.DB.prepare("ALTER TABLE intelligence_patch_proposals ADD COLUMN runner_run_id TEXT").run(); } catch {}
+  try { await env.DB.prepare("ALTER TABLE intelligence_patch_proposals ADD COLUMN claimed_at TEXT").run(); } catch {}
 }
 
 async function persistIntelligenceNotification(env, row) {
@@ -7441,7 +7442,7 @@ export default {
         if (path === "/agent/v1/patch-proposals/pending" && method === "GET") {
           await ensureIntelligencePatchProposalTable(env);
           const rows = await env.DB.prepare(
-            "SELECT proposal_id,base_sha,target_path,summary,artifact_path,artifact_sha256,diff_sha256,created_at FROM intelligence_patch_proposals WHERE status='stored' ORDER BY created_at ASC LIMIT 3"
+            "SELECT proposal_id,base_sha,target_path,summary,artifact_path,artifact_sha256,diff_sha256,created_at FROM intelligence_patch_proposals WHERE status='stored' OR (status='claimed' AND claimed_at < datetime('now','-15 minutes')) ORDER BY created_at ASC LIMIT 3"
           ).all();
           return json({success:true,proposals:(rows.results || []).map(row => ({
             proposalId:row.proposal_id,baseSha:row.base_sha,targetPath:row.target_path,
@@ -7458,7 +7459,7 @@ export default {
           }
           await ensureIntelligencePatchProposalTable(env);
           const claimed = await env.DB.prepare(
-            "UPDATE intelligence_patch_proposals SET status='claimed',runner_run_id=? WHERE proposal_id=? AND status='stored'"
+            "UPDATE intelligence_patch_proposals SET status='claimed',runner_run_id=?,claimed_at=CURRENT_TIMESTAMP WHERE proposal_id=? AND (status='stored' OR (status='claimed' AND claimed_at < datetime('now','-15 minutes')))"
           ).bind(body.runId,body.proposalId).run();
           if (!claimed.meta?.changes) return error("Proposal is not available for claiming.",409);
           return json({success:true,claimed:true,proposalId:body.proposalId,runId:body.runId});
