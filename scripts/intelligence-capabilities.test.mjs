@@ -622,19 +622,19 @@ test("append-only hunk canonicalizer removes unchanged model context and rebuild
     "@@ -98,4 +98,5 @@",
     " const before = true;",
     " const unchanged = 1;",
-    "+test(\\"context-heavy model output is canonicalized\\", () => {});",
+    "+test(\"context-heavy model output is canonicalized\", () => {});",
     " const after = false;",
     " const final = true;",
     ""
-  ].join("\\n");
+  ].join("\n");
   const canonical = canonicalizeAppendOnlyHunkHeader(generated, 100);
   assert.equal(canonical, [
     `--- a/${path}`,
     `+++ b/${path}`,
     "@@ -100,0 +101,1 @@",
-    "+test(\\"context-heavy model output is canonicalized\\", () => {});",
+    "+test(\"context-heavy model output is canonicalized\", () => {});",
     ""
-  ].join("\\n"));
+  ].join("\n"));
   const validated = validateGeneratedPatch({
     baseSha: "d".repeat(40),
     sourceLineCount: 100,
