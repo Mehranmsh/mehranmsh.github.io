@@ -1,0 +1,29 @@
+name: MEHRAN INTELLIGENCE bounded patch tests
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "scripts/intelligence-patch-*.mjs"
+      - "scripts/intelligence-capabilities.test.mjs"
+      - ".github/workflows/intelligence-patch-tests.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: intelligence-patch-tests-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  bounded-patch-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout proposed commit without persisted credentials
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Run bounded patch policy regression tests
+        run: node --test scripts/intelligence-capabilities.test.mjs
