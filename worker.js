@@ -7029,6 +7029,16 @@ async function ingestGitHubIntelligenceInbox(env) {
 
 export default {
   async scheduled(controller, env, ctx) {
+    // Fast lane: poll only the private owner inbox on intervening minutes.
+    // At five-minute boundaries, the dedicated five-minute trigger runs the full scheduler.
+    if (controller?.cron === "* * * * *") {
+      const minute = new Date(controller.scheduledTime).getUTCMinutes();
+      if (Number.isFinite(minute) && minute % 5 !== 0) {
+        if (env.DB) await ingestPrivateIntelligenceInbox(env);
+      }
+      return;
+    }
+
     // Only owner-approved, allowlisted read-only reports are processed by this scheduler.
     const run = async () => {
       if (!env.DB) return;
