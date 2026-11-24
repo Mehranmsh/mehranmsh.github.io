@@ -7437,6 +7437,54 @@ export default {
             diffSha256:confirmed.diff_sha256,status:confirmed.status
           },stored.alreadyExists ? 200 : 201);
         }
+        if (path === "/agent/v1/patch-proposals/artifact" && method === "GET") {
+          const artifactPath = url.searchParams.get("path") || "";
+          const artifactSha256 = url.searchParams.get("artifactSha256") || "";
+          if (!/^patch-proposals\\/\\d{4}\\/\\d{2}\\/[a-f0-9-]{36}\\.json$/.test(artifactPath) ||
+              !/^[a-f0-9]{64}$/.test(artifactSha256)) {
+            return error("A valid private artifact path and SHA-256 digest are required.",400);
+          }
+          if (!await checkRateLimit(env,request,"intelligence-patch-artifact-read",12,3600,3600)) {
+            return error("Patch artifact retrieval limit reached. Try again later.",429);
+          }
+          await ensureIntelligencePatchProposalTable(env);
+          const retrieved = await getVerifiedPrivatePatchArtifactAtPath({
+            token:env.MEHRAN_REPORTS_GITHUB_TOKEN,
+            path:artifactPath,
+            artifactSha256
+          });
+          if (!retrieved.retrieved) {
+            const status = retrieved.code === "artifact_not_found" ? 404 :
+              ["invalid_artifact_lookup","artifact_path_mismatch","artifact_digest_mismatch","artifact_id_conflict"].includes(retrieved.code) ? 409 : 503;
+            return error("Verified private patch retrieval failed: " + String(retrieved.code || "unknown"),status);
+          }
+          const artifact = retrieved.artifact;
+          const proposalId = artifact?.proposalId || "";
+          const stored = await env.DB.prepare(
+            "SELECT proposal_id,base_sha,target_path,summary,artifact_path,artifact_sha256,diff_sha256,status FROM intelligence_patch_proposals WHERE proposal_id=?"
+          ).bind(proposalId).first();
+          if (!stored || stored.status !== "stored" || stored.artifact_path !== artifactPath ||
+              stored.artifact_sha256 !== artifactSha256 || stored.diff_sha256 !== artifact.diffSha256 ||
+              stored.base_sha !== artifact.baseSha || stored.target_path !== artifact.targetPath ||
+              stored.summary !== artifact.summary) {
+            return error("Private artifact does not match the durable proposal record.",409);
+          }
+          if (artifact.targetPath !== "scripts/intelligence-capabilities.test.mjs" ||
+              typeof artifact.diff !== "string" || artifact.diff.length > 8192) {
+            return error("Verified proposal exceeds the active patch policy.",409);
+          }
+          return json({
+            success:true,
+            proposalId,
+            baseSha:artifact.baseSha,
+            targetPath:artifact.targetPath,
+            summary:artifact.summary,
+            diff:artifact.diff,
+            artifactSha256,
+            diffSha256:artifact.diffSha256,
+            mode:"verified_proposal_data_only"
+          });
+        }
         if (path === "/agent/v1/repository/analyze" && method === "POST") {
           const body = await readBody(request);
           const allowed = new Set(INTELLIGENCE_INSPECT_ALLOWED_PATHS);
