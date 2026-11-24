@@ -7483,6 +7483,8 @@ export default {
         if (path === "/agent/v1/patch-proposals/artifact" && method === "GET") {
           const artifactPath = url.searchParams.get("path") || "";
           const artifactSha256 = url.searchParams.get("artifactSha256") || "";
+          const runId = url.searchParams.get("runId") || "";
+          if (!/^[0-9]{1,24}$/.test(runId)) return error("A valid runner ID is required.",400);
           if (!/^patch-proposals\/\d{4}\/\d{2}\/[a-f0-9-]{36}\.json$/.test(artifactPath) ||
               !/^[a-f0-9]{64}$/.test(artifactSha256)) {
             return error("A valid private artifact path and SHA-256 digest are required.",400);
@@ -7505,9 +7507,9 @@ export default {
           const artifact = retrieved.artifact;
           const proposalId = artifact?.proposalId || "";
           const stored = await env.DB.prepare(
-            "SELECT proposal_id,base_sha,target_path,summary,artifact_path,artifact_sha256,diff_sha256,status FROM intelligence_patch_proposals WHERE proposal_id=?"
+            "SELECT proposal_id,base_sha,target_path,summary,artifact_path,artifact_sha256,diff_sha256,status,runner_run_id FROM intelligence_patch_proposals WHERE proposal_id=?"
           ).bind(proposalId).first();
-          if (!stored || stored.status !== "stored" || stored.artifact_path !== artifactPath ||
+          if (!stored || stored.status !== "claimed" || stored.runner_run_id !== runId || stored.artifact_path !== artifactPath ||
               stored.artifact_sha256 !== artifactSha256 || stored.diff_sha256 !== artifact.diffSha256 ||
               stored.base_sha !== artifact.baseSha || stored.target_path !== artifact.targetPath ||
               stored.summary !== artifact.summary) {
