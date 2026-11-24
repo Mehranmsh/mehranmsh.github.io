@@ -6617,6 +6617,76 @@ async function socialDeleteAccount(request, env) {
 }
 
 
+async function ensureIntelligenceRunnerTelemetryTable(env) {
+  await env.DB.prepare(`
+    CREATE TABLE IF NOT EXISTS intelligence_runner_telemetry(
+      id INTEGER PRIMARY KEY CHECK(id=1),
+      run_id TEXT NOT NULL DEFAULT '',
+      phase TEXT NOT NULL DEFAULT 'unknown',
+      status TEXT NOT NULL DEFAULT 'unknown',
+      started_at TEXT,
+      heartbeat_at TEXT NOT NULL,
+      finished_at TEXT,
+      duration_ms INTEGER,
+      timing_json TEXT NOT NULL DEFAULT '[]',
+      error_code TEXT NOT NULL DEFAULT ''
+    )
+  `).run();
+}
+
+async function recordIntelligenceRunnerDispatch(env, statusCode, outcome) {
+  try {
+    await env.DB.prepare(`
+      CREATE TABLE IF NOT EXISTS intelligence_runner_dispatch(
+        id INTEGER PRIMARY KEY CHECK(id=1),
+        attempted_at TEXT NOT NULL,
+        http_status INTEGER NOT NULL,
+        outcome TEXT NOT NULL
+      )
+    `).run();
+    await env.DB.prepare(`
+      INSERT INTO intelligence_runner_dispatch(id,attempted_at,http_status,outcome)
+      VALUES(1,?,?,?)
+      ON CONFLICT(id) DO UPDATE SET attempted_at=excluded.attempted_at,
+        http_status=excluded.http_status,outcome=excluded.outcome
+    `).bind(new Date().toISOString(),Number(statusCode||0),String(outcome||"unknown").slice(0,80)).run();
+  } catch (err) {
+    console.error("INTELLIGENCE_RUNNER_DISPATCH_DIAGNOSTIC_FAILURE",String(err?.message||err).slice(0,120));
+  }
+}
+
+async function triggerIntelligenceRunner(env) {
+  const token = typeof env.MEHRAN_REPORTS_GITHUB_TOKEN === "string" ? env.MEHRAN_REPORTS_GITHUB_TOKEN.trim() : "";
+  if (token.length < 20) {
+    await recordIntelligenceRunnerDispatch(env,0,"dispatch_token_unavailable");
+    return false;
+  }
+  try {
+    const response = await fetch("https://api.github.com/repos/Mehranmsh/mehranmsh.github.io/actions/workflows/mehran-intelligence-runner.yml/dispatches", {
+      method:"POST",
+      headers:{
+        "Accept":"application/vnd.github+json",
+        "Authorization":"Bearer "+token,
+        "X-GitHub-Api-Version":"2022-11-28",
+        "User-Agent":"MEHRAN-INTELLIGENCE-Runner-Dispatch",
+        "Content-Type":"application/json"
+      },
+      body:JSON.stringify({ref:"main"}),
+      signal:AbortSignal.timeout(10000)
+    });
+    const outcome = response.status === 204 ? "dispatched" :
+      response.status === 403 || response.status === 404 ? "token_scope_missing" :
+      response.status === 401 ? "token_invalid" : "dispatch_http_error";
+    await recordIntelligenceRunnerDispatch(env,response.status,outcome);
+    if (response.status !== 204) console.warn("INTELLIGENCE_RUNNER_DISPATCH_DEFERRED",outcome,"http_"+response.status);
+    return response.status === 204;
+  } catch (err) {
+    await recordIntelligenceRunnerDispatch(env,0,"dispatch_network_error");
+    console.warn("INTELLIGENCE_RUNNER_DISPATCH_DEFERRED","network_error");
+    return false;
+  }
+}
+
 async function ensurePrivateIntelligenceInboxDiagnostics(env) {
   await env.DB.prepare(`
     CREATE TABLE IF NOT EXISTS intelligence_inbox_diagnostics(
@@ -6822,6 +6892,9 @@ async function ingestPrivateIntelligenceInbox(env) {
         throw new Error("private_inbox_ack_http_" + updated.status);
       }
       imported++;
+      // Best-effort immediate wake-up. If this token lacks Actions write access,
+      // the five-minute scheduled runner remains the safe fallback.
+      await triggerIntelligenceRunner(env);
     }
     await recordDiagnostics(rejected ? "rejected" : imported ? "imported" : "idle");
   } catch (err) {
@@ -7110,6 +7183,33 @@ export default {
         if (mismatch !== 0) return error(ownerOrchestrationRoute ? "Owner orchestration authentication required." : "Agent authentication required.", 401);
         await ensureIntelligenceTaskTable(env);
         await ensureIntelligenceProtocolTables(env);
+        if (path === "/agent/v1/runner/heartbeat" && method === "POST") {
+          const body = await readBody(request);
+          if (!body || !["started","finished","failed"].includes(body.phase) ||
+              typeof body.runId !== "string" || !/^[0-9]{1,24}$/.test(body.runId) ||
+              (body.status !== undefined && (typeof body.status !== "string" || body.status.length > 40))) {
+            return error("A valid runner phase, run ID, and bounded status are required.",400);
+          }
+          const samples = Array.isArray(body.timingSamples) ? body.timingSamples.slice(0,30).filter(item =>
+            item && typeof item.name === "string" && /^[a-z0-9:_-]{1,80}$/i.test(item.name) &&
+            Number.isFinite(Number(item.elapsedMs)) && Number(item.elapsedMs) >= 0 && Number(item.elapsedMs) <= 600000
+          ).map(item => ({name:item.name,elapsedMs:Math.round(Number(item.elapsedMs))})) : [];
+          await ensureIntelligenceRunnerTelemetryTable(env);
+          const now = new Date().toISOString();
+          const existing = await env.DB.prepare("SELECT run_id,started_at FROM intelligence_runner_telemetry WHERE id=1").first();
+          const startedAt = body.phase === "started" || existing?.run_id !== body.runId ? now : (existing?.started_at || now);
+          const finishedAt = body.phase === "finished" || body.phase === "failed" ? now : null;
+          const durationMs = finishedAt ? Math.max(0,Date.parse(finishedAt)-Date.parse(startedAt)) : null;
+          await env.DB.prepare(`
+            INSERT INTO intelligence_runner_telemetry(id,run_id,phase,status,started_at,heartbeat_at,finished_at,duration_ms,timing_json,error_code)
+            VALUES(1,?,?,?,?,?,?,?,?,?)
+            ON CONFLICT(id) DO UPDATE SET run_id=excluded.run_id,phase=excluded.phase,status=excluded.status,
+              started_at=excluded.started_at,heartbeat_at=excluded.heartbeat_at,finished_at=excluded.finished_at,
+              duration_ms=excluded.duration_ms,timing_json=excluded.timing_json,error_code=excluded.error_code
+          `).bind(body.runId,body.phase,String(body.status||body.phase).slice(0,40),startedAt,now,finishedAt,durationMs,
+            JSON.stringify(samples),body.phase==="failed"?"runner_job_failed":"").run();
+          return json({success:true,recorded:true,phase:body.phase,runId:body.runId});
+        }
         if (path === "/agent/v1/patch-proposals/generate" && method === "POST") {
           const body = await readBody(request);
           if (!body || Object.keys(body).sort().join(",") !== "baseSha,objective,requestId" ||
@@ -7678,6 +7778,8 @@ export default {
         let database = false;
         let scheduler = null;
         let privateInbox = null;
+        let runner = null;
+        let runnerDispatch = null;
         try {
           if (env.DB) {
             await env.DB.prepare("SELECT 1 AS test").first();
@@ -7697,6 +7799,23 @@ export default {
             } catch {
               // Scheduler history may not exist yet on a fresh database.
             }
+            try {
+              await ensureIntelligenceRunnerTelemetryTable(env);
+              const row = await env.DB.prepare("SELECT run_id,phase,status,started_at,heartbeat_at,finished_at,duration_ms,timing_json,error_code FROM intelligence_runner_telemetry WHERE id=1").first();
+              if (row) {
+                const ageSeconds = Math.max(0,Math.floor((Date.now()-Date.parse(row.heartbeat_at))/1000));
+                let timings = [];
+                try { timings = JSON.parse(row.timing_json || "[]"); } catch {}
+                runner = {runId:row.run_id,phase:row.phase,status:row.status,startedAt:row.started_at||null,
+                  heartbeatAt:row.heartbeat_at,finishedAt:row.finished_at||null,durationMs:row.duration_ms===null?null:Number(row.duration_ms),
+                  heartbeatAgeSeconds:ageSeconds,health:row.phase==="started" && ageSeconds>900?"stale":row.phase==="started"?"running":row.phase==="failed"?"failed":"idle",
+                  timingSamples:Array.isArray(timings)?timings.slice(0,30):[],errorCode:row.error_code||null};
+              }
+            } catch {}
+            try {
+              const dispatch = await env.DB.prepare("SELECT attempted_at,http_status,outcome FROM intelligence_runner_dispatch WHERE id=1").first();
+              if (dispatch) runnerDispatch = {attemptedAt:dispatch.attempted_at,httpStatus:Number(dispatch.http_status||0),outcome:dispatch.outcome};
+            } catch {}
             try {
               const inbox = await env.DB.prepare(
                 "SELECT last_checked_at,last_status,scanned_count,imported_count,rejected_count,last_rejection_code,last_error_code FROM intelligence_inbox_diagnostics WHERE id=1"
@@ -7722,7 +7841,9 @@ export default {
           version: "5.9",
           database,
           scheduler,
-          privateInbox
+          privateInbox,
+          runner,
+          runnerDispatch
         });
       }
 
