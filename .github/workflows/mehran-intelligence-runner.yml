@@ -169,10 +169,15 @@ jobs:
           }
 
           const runnerRunId = String(process.env.GITHUB_RUN_ID || "local");
-          await request("/agent/v1/runner/heartbeat", {
-            method:"POST",
-            body:JSON.stringify({phase:"started",runId:runnerRunId,status:"running"})
-          }, agentHeaders, 15000);
+          try {
+            await request("/agent/v1/runner/heartbeat", {
+              method:"POST",
+              body:JSON.stringify({phase:"started",runId:runnerRunId,status:"running"})
+            }, agentHeaders, 15000);
+          } catch (error) {
+            // Telemetry must never block mission execution during a rolling Worker deployment.
+            console.log("Runner start telemetry temporarily unavailable; continuing work: " + String(error?.message || error).slice(0,160));
+          }
           // Seed one bounded read-only baseline inspection. Its immutable commit key avoids duplicate packages
           // while ensuring the AI planner has real, immutable repository evidence to analyze.
           const packageIds = new Set();
