@@ -6088,8 +6088,12 @@ async function planIntelligenceMission(env, input) {
     console.log("INTELLIGENCE_MISSION_PLANNER_PROVIDER",JSON.stringify({traceId,provider:routed.provider,model:routed.model,priorAttempts:routed.attempts.length}));
   } catch (err) {
     const diagnostic = safeWorkersAIErrorDetails(err);
+    const providerAttempts = Array.isArray(err?.providerAttempts) ? err.providerAttempts : [];
+    const noProviderConfigured = providerAttempts.length > 0 && providerAttempts.every(item => item.reason === "not_configured");
+    const onlyQuotaBlocked = providerAttempts.length > 0 && providerAttempts.every(item => ["daily_quota","quota_or_rate_limit"].includes(item.reason));
+    const failureReason = noProviderConfigured ? "ai_binding_unavailable" : onlyQuotaBlocked ? "daily_ai_budget_unavailable" : "ai_inference_failed";
     const elapsedMs = Date.now() - inferenceStartedAt;
-    console.error("INTELLIGENCE_MISSION_PLANNER_FAILURE", JSON.stringify({traceId,elapsedMs,...diagnostic}));
+    console.error("INTELLIGENCE_MISSION_PLANNER_FAILURE", JSON.stringify({traceId,elapsedMs,providerAttempts:providerAttempts.length,...diagnostic}));
     const detail = [
       "traceId=" + traceId,
       "elapsedMs=" + elapsedMs,
@@ -6100,7 +6104,7 @@ async function planIntelligenceMission(env, input) {
       "message=" + diagnostic.message
     ].join("; ");
     return {
-      ...fallback("ai_inference_failed", detail),
+      ...fallback(failureReason, detail),
       diagnostic:{stage:"workers_ai_inference",operation:"mission_plan",traceId,elapsedMs,...diagnostic}
     };
   }
