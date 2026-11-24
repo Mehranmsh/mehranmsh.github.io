@@ -24,9 +24,9 @@ assert.ok(scheduledStart >= 0 && scheduledEnd > scheduledStart, "Worker schedule
 const workerSchedulerSource = workerSource.slice(scheduledStart, scheduledEnd);
 
 test("Workers AI inference failures expose only bounded sanitized diagnostics to the private runner", () => {
-  assert.match(workerSource, /const diagnostic = safeWorkersAIErrorDetails\(err\)/);
+  assert.match(workerSource, /failures:inference\.failures/);
   assert.match(workerSource, /stage:"multi_provider_inference"/);
-  assert.match(workerSource, /fallback\("ai_inference_failed", detail\)/);
+  assert.match(workerSource, /fallback\("ai_providers_unavailable", detail\)/);
   assert.match(runnerSource, /payload\.diagnostic\.stage === "multi_provider_inference"/);
   assert.match(runnerSource, /causeMessage: String\(diagnostic\.causeMessage \|\| ""\)\.slice\(0, 180\)/);
   assert.match(runnerSource, /Bounded safe diagnostic:/);
@@ -844,7 +844,7 @@ test("Intelligence mission planning uses a bounded, more efficient daily reserva
   assert.match(workerSource, /intelligence: \{ column: "intelligence_reserved", cap: WORKERS_AI_INTELLIGENCE_DAILY_RESERVATION_CREDITS \}/);
   assert.match(workerSource, /WORKERS_AI_GLOBAL_DAILY_RESERVATION_CREDITS = 9000/);
   assert.match(workerSource, /reserveWorkersBudget: credits => reserveSocialWorkersAIBudget\(env, credits, "intelligence"\)/);
-  assert.match(workerSource, /max_tokens: 1600/);
+  assert.match(routerSource, /max_tokens: input\.maxTokens \?\? 1600/);
 });
 
 test("scheduled Intelligence runner serializes ticks and bounds per-tick task execution", () => {
