@@ -1212,3 +1212,17 @@ test("failed Intelligence Workers AI inference releases its daily reservation", 
   const analysis = workerSource.slice(analysisStart, analysisEnd);
   assert.ok(analysis.includes("releaseSocialWorkersAIBudget(env, budget)"));
 });
+
+
+test("Intelligence Runner correlates API requests with bounded trace IDs and records stage timings", () => {
+  assert.match(runnerSource, /let requestSequence = 0/);
+  assert.match(runnerSource, /const traceId = traceRunId \+ "-" \+ \(\+\+requestSequence\)/);
+  assert.match(runnerSource, /"X-Intelligence-Trace-Id": traceId/);
+  assert.match(runnerSource, /\[trace\].*elapsed_ms=/);
+  assert.match(runnerSource, /repository_analyze/);
+  assert.match(runnerSource, /diagnostic\.traceId/);
+  assert.match(workerSource, /INTELLIGENCE_CODE_ANALYSIS_START/);
+  assert.match(workerSource, /INTELLIGENCE_CODE_ANALYSIS_SUCCESS/);
+  assert.match(workerSource, /operation:"repository_analyze",traceId,elapsedMs/);
+  assert.match(workerSource, /operation:"mission_plan",traceId,elapsedMs/);
+});
