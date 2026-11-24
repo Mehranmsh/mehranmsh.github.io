@@ -240,9 +240,9 @@ async function checkRateLimit(env, request, scope, maxAttempts, windowSeconds, b
 
 // Preserve actionable Workers AI diagnostics without logging prompts, credentials, or request bodies.
 function safeWorkersAIErrorDetails(err) {
-  const clean = value => String(value ?? "").replace(/Bearer\\s+[^\\s,;]+/gi, "Bearer [redacted]")
+  const clean = value => String(value ?? "").replace(/Bearer\s+[^\s,;]+/gi, "Bearer [redacted]")
     .replace(/[A-Za-z0-9_=-]{48,}/g, "[redacted]")
-    .replace(/[\\r\\n\\t]+/g, " ").slice(0, 220);
+    .replace(/[\r\n\t]+/g, " ").slice(0, 220);
   const cause = err && typeof err.cause === "object" ? err.cause : null;
   return {
     name: clean(err?.name || "Error"),
