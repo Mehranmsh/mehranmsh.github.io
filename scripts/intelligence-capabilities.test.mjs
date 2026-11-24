@@ -1106,6 +1106,15 @@ test("private report base64 verification strips actual whitespace before decodin
 });
 
 
+test("repository inspection checkpoints are revalidated against the current Worker report contract before resume", () => {
+  assert.match(runnerSource, /savedCheckpoint\.phase === "result_ready" && task\.actionType === "inspect_repository"/);
+  assert.match(runnerSource, /report\?\.type === "inspect_repository"/);
+  assert.match(runnerSource, /bounded_read_only_repository_inspection/);
+  assert.match(runnerSource, /analysisValid/);
+  assert.match(runnerSource, /Ignoring stale repository-inspection checkpoint/);
+  assert.ok(runnerSource.indexOf("Ignoring stale repository-inspection checkpoint") < runnerSource.indexOf("Resuming task " + '" + task.id'));
+});
+
 test("repository inspection performs bounded evidence-backed Workers AI semantic analysis", () => {
   assert.match(workerSource, /path === "\/agent\/v1\/repository\/analyze"/);
   assert.match(workerSource, /ownerOrchestrationRoute = .*repository\/analyze/);
