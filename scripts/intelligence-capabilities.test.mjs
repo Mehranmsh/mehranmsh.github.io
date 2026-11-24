@@ -35,6 +35,14 @@ test("Workers AI inference failures expose only bounded sanitized diagnostics to
   assert.doesNotMatch(runnerSource, /console\.log\([^\n]*payload\.diagnostic[^\n]*requestBody/);
 });
 
+test("persistent Workers AI inference 503 failures are not automatically retried", () => {
+  assert.match(runnerSource, /const isWorkersAIInferenceFailure = error\?\.safeDiagnostic\?\.stage === "workers_ai_inference"/);
+  assert.match(runnerSource, /retryable = !isWorkersAIInferenceFailure && \(/);
+  assert.match(runnerSource, /Workers AI inference failure is recorded as non-retryable/);
+  assert.match(runnerSource, /error\?\.name === "TimeoutError" \|\| error\?\.name === "AbortError"/);
+  assert.match(runnerSource, /Number\(error\?\.status\) === 503/);
+});
+
 test("bounded inspection serialization preserves a schema-valid semantic analysis", () => {
   const serializerStart = runnerSource.indexOf("function serializeBoundedResult");
   const serializerEnd = runnerSource.indexOf('for (let count = 0;', serializerStart);
