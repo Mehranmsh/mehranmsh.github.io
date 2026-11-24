@@ -353,7 +353,8 @@ test("isolated test workflow runs one fixed suite without secrets or network acc
     "./intelligence-private-patch-store.mjs",
     "./intelligence-patch-generation.mjs",
     "./intelligence-patch-generation-service.mjs",
-    "./intelligence-capabilities.mjs"
+    "./intelligence-capabilities.mjs",
+    "./intelligence-ai-quota.mjs"
   ]);
   for (const forbidden of [
     ["process", ".", "env"].join(""),
@@ -1421,6 +1422,8 @@ test("Cloudflare AI diagnostics distinguish budget reservation failures from inf
   assert.match(cloudflare, /await env\.AI\.run\(model/);
   assert.match(workerSource, /stage: provider === "cloudflare" \? "inference" : "provider_request"/);
   assert.match(cloudflare, /reason:"daily_quota_circuit_open"/);
+  assert.match(workerSource, /function isWorkersAIDailyQuotaCircuitOpen\(attemptedAt, now = Date\.now\(\)\)/);
+  assert.match(workerSource, /Date\.UTC\(date\.getUTCFullYear\(\), date\.getUTCMonth\(\), date\.getUTCDate\(\) \+ 1\)/);
   assert.match(cloudflare, /isWorkersAIDailyQuotaCircuitOpen\(exhausted\?\.attempted_at\)/);
   assert.doesNotMatch(cloudflare, /24 \* 60 \* 60 \* 1000/);
   assert.match(workerSource, /used up your daily free allocation of 10,000 neurons/);
