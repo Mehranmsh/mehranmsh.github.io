@@ -200,12 +200,13 @@ export async function generatePatchArtifact({
   baseSha,
   objective,
   reserveBudget,
+  runAI,
   fetchImpl = fetch,
   now = () => new Date().toISOString(),
   proposalId = () => crypto.randomUUID()
 } = {}) {
-  if (!env || !env.AI || typeof env.AI.run !== "function") return fail("ai_unavailable");
-  if (typeof reserveBudget !== "function") return fail("budget_guard_unavailable");
+  if (!env || (!runAI && (!env.AI || typeof env.AI.run !== "function"))) return fail("ai_unavailable");
+  if (!runAI && typeof reserveBudget !== "function") return fail("budget_guard_unavailable");
   if (typeof baseSha !== "string" || !/^[a-f0-9]{40}$/.test(baseSha)) return fail("invalid_base_sha");
 
   const mainCommit = await fetchCurrentMainCommit(fetchImpl);
@@ -228,32 +229,54 @@ export async function generatePatchArtifact({
   const prompt = buildPatchGenerationPrompt({ baseSha, objective, source });
   if (!prompt.ok) return prompt;
 
-  let budget;
-  try {
-    budget = await reserveBudget(100);
-  } catch {
-    return fail("ai_budget_guard_failed");
-  }
-  if (!budget?.allowed) return fail("ai_budget_exhausted");
+  let raw = "";
+  let selectedModel = MODEL;
+  let selectedProvider = "cloudflare";
+  if (typeof runAI === "function") {
+    let inference;
+    try {
+      inference = await runAI({
+        messages: [
+          { role: "system", content: prompt.system },
+          { role: "user", content: prompt.user }
+        ],
+        maxTokens: 2200,
+        temperature: 0.1
+      });
+    } catch {
+      return fail("model_request_failed");
+    }
+    if (!inference?.ok) return fail(inference?.code || "model_request_failed");
+    raw = inference.text;
+    selectedModel = typeof inference.model === "string" ? inference.model : MODEL;
+    selectedProvider = typeof inference.provider === "string" ? inference.provider : "unknown";
+  } else {
+    let budget;
+    try {
+      budget = await reserveBudget(100);
+    } catch {
+      return fail("ai_budget_guard_failed");
+    }
+    if (!budget?.allowed) return fail("ai_budget_exhausted");
 
-  let modelResult;
-  try {
-    modelResult = await env.AI.run(MODEL, {
-      messages: [
-        { role: "system", content: prompt.system },
-        { role: "user", content: prompt.user }
-      ],
-      max_tokens: 2200,
-      temperature: 0.1
-    });
-  } catch {
-    return fail("model_request_failed");
+    let modelResult;
+    try {
+      modelResult = await env.AI.run(MODEL, {
+        messages: [
+          { role: "system", content: prompt.system },
+          { role: "user", content: prompt.user }
+        ],
+        max_tokens: 2200,
+        temperature: 0.1
+      });
+    } catch {
+      return fail("model_request_failed");
+    }
+    if (Array.isArray(modelResult?.errors) && modelResult.errors.length) {
+      return fail("model_returned_error");
+    }
+    raw = extractModelText(modelResult);
   }
-  if (Array.isArray(modelResult?.errors) && modelResult.errors.length) {
-    return fail("model_returned_error");
-  }
-
-  const raw = extractModelText(modelResult);
   if (!raw || raw.length > 24000) return fail("model_output_invalid");
   let generated;
   try {
@@ -316,7 +339,8 @@ export async function generatePatchArtifact({
     artifact: artifact.artifact,
     artifactSha256: artifact.artifactSha256,
     validation: validated,
-    model: MODEL,
+    model: selectedModel,
+    provider: selectedProvider,
     mode: "generate_validate_only"
   };
 }

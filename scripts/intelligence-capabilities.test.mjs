@@ -1338,3 +1338,59 @@ test("patch application is in-memory only and rejects stale or non-append-only p
   });
   assert.equal(rejected.ok, false);
 });
+
+
+test("patch generation uses the approved provider router without a second budget reservation", async () => {
+  const source = "const original = true;\n";
+  const baseSha = "c".repeat(40);
+  let routedCalls = 0;
+  let legacyBudgetCalls = 0;
+  const fetchImpl = async url => {
+    const value = String(url);
+    if (value.startsWith("https://api.github.com/")) {
+      return value.endsWith("/git/ref/heads/main")
+        ? Response.json({ object: { sha: baseSha } })
+        : Response.json({ sha: baseSha });
+    }
+    if (value.endsWith("/commits/main.atom")) {
+      return new Response("<feed><entry><id>tag:github.com,2008:Grit::Commit/" + baseSha + "</id></entry></feed>", { status: 200 });
+    }
+    return new Response(source, { status: 200 });
+  };
+  const result = await generatePatchArtifact({
+    env: {},
+    baseSha,
+    objective: "Add regression coverage through the approved AI provider router",
+    reserveBudget: async () => { legacyBudgetCalls++; return { allowed: true }; },
+    runAI: async ({ messages, maxTokens, temperature }) => {
+      routedCalls++;
+      assert.equal(messages.length, 2);
+      assert.equal(maxTokens, 2200);
+      assert.equal(temperature, 0.1);
+      return {
+        ok: true,
+        provider: "cloudflare",
+        model: "approved-test-model",
+        text: JSON.stringify({
+          summary: "Add a regression test for approved provider routing",
+          diff: [
+            "--- a/scripts/intelligence-capabilities.test.mjs",
+            "+++ b/scripts/intelligence-capabilities.test.mjs",
+            "@@ -1,0 +2,1 @@",
+            '+test("provider router path", () => {});',
+            ""
+          ].join("\n")
+        })
+      };
+    },
+    fetchImpl,
+    now: () => "2026-11-24T12:00:00.000Z",
+    proposalId: () => "22345678-1234-4234-8234-123456789abc"
+  });
+  assert.equal(result.ok, true);
+  assert.equal(result.provider, "cloudflare");
+  assert.equal(result.model, "approved-test-model");
+  assert.equal(routedCalls, 1);
+  assert.equal(legacyBudgetCalls, 0);
+  assert.equal(result.validation.deletions, 0);
+});
