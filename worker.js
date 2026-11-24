@@ -5503,7 +5503,8 @@ export async function persistIntelligencePackageReport(env, packageId, snapshot)
       return await operation();
     } catch (error) {
       const message = String(error?.message || "");
-      if (/^report_[a-z0-9_]{1,64}$/.test(message)) throw error;
+      if (/^report_[a-z0-9_]{1,64}$/.test(message) ||
+          message.startsWith("Existing private report ")) throw error;
       throw new Error("report_" + name + "_failed");
     }
   }
