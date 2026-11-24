@@ -1281,9 +1281,9 @@ test("Intelligence mission planner creates a bounded deterministic fallback when
 
   const plannerEnd = workerSource.indexOf("\nexport function verifyIntelligenceReport", helperEnd);
   const planner = workerSource.slice(helperEnd, plannerEnd);
-  assert.match(planner, /ai_binding_unavailable/);
-  assert.match(planner, /daily_ai_budget_unavailable/);
-  assert.match(planner, /ai_inference_failed/);
+  assert.match(planner, /ai_providers_unavailable/);
+  assert.match(planner, /runIntelligenceAI/);
+  assert.match(planner, /workersBudgetCredits: 25/);
   assert.match(planner, /ai_response_invalid_json/);
   assert.match(planner, /ai_plan_validation_failed/);
   assert.match(planner, /SELECT id,status FROM intelligence_work_packages WHERE idempotency_key=\?/);
