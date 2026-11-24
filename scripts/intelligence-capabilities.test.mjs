@@ -614,6 +614,39 @@ test("generated patches accept only pure additions at exact end-of-file", () => 
   assert.equal(result.mode, "append_only_validate_only");
 });
 
+test("append-only hunk canonicalizer removes unchanged model context and rebuilds exact counts", () => {
+  const path = "scripts/intelligence-capabilities.test.mjs";
+  const generated = [
+    `--- a/${path}`,
+    `+++ b/${path}`,
+    "@@ -98,4 +98,5 @@",
+    " const before = true;",
+    " const unchanged = 1;",
+    "+test(\\"context-heavy model output is canonicalized\\", () => {});",
+    " const after = false;",
+    " const final = true;",
+    ""
+  ].join("\\n");
+  const canonical = canonicalizeAppendOnlyHunkHeader(generated, 100);
+  assert.equal(canonical, [
+    `--- a/${path}`,
+    `+++ b/${path}`,
+    "@@ -100,0 +101,1 @@",
+    "+test(\\"context-heavy model output is canonicalized\\", () => {});",
+    ""
+  ].join("\\n"));
+  const validated = validateGeneratedPatch({
+    baseSha: "d".repeat(40),
+    sourceLineCount: 100,
+    summary: "Canonicalize a context-heavy append-only model patch",
+    diff: canonical
+  });
+  assert.equal(validated.ok, true);
+  assert.equal(validated.additions, 1);
+  assert.equal(validated.deletions, 0);
+  assert.equal(canonicalizeAppendOnlyHunkHeader(generated.replace(" const unchanged = 1;", "-const deleted = 1;"), 100), generated.replace(" const unchanged = 1;", "-const deleted = 1;"));
+});
+
 test("generated patch validator rejects replacements, non-EOF hunks, and extra files", () => {
   const path = "scripts/intelligence-capabilities.test.mjs";
   const replacement = [
