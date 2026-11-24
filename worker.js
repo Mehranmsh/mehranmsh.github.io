@@ -7345,6 +7345,9 @@ export default {
             env,
             baseSha:body.baseSha,
             objective:body.objective.trim(),
+            // Retain the reservation hook for deterministic Worker test hooks and legacy callers.
+            // Production inference uses runIntelligenceAI, which owns its own reservation lifecycle.
+            reserveBudget:credits => reserveSocialWorkersAIBudget(env,credits,"intelligence"),
             runAI: async ({ messages, maxTokens, temperature }) => {
               try {
                 const routed = await runIntelligenceAI(env, {
