@@ -100,6 +100,24 @@ jobs:
                   if (!response.ok) {
                     const failure = new Error(`Agent API HTTP ${response.status}: ${String(payload.error || "request failed").slice(0,180)}`);
                     failure.status = response.status;
+                    if (payload.diagnostic && typeof payload.diagnostic === "object" && !Array.isArray(payload.diagnostic)) {
+                      const shape = payload.diagnostic.shape;
+                      if (payload.diagnostic.stage === "generated_diff_validation" && shape && typeof shape === "object") {
+                        failure.safeDiagnostic = {
+                          stage: "generated_diff_validation",
+                          reason: String(shape.reason || "unknown").slice(0, 80),
+                          lineCount: Number.isInteger(shape.lineCount) ? shape.lineCount : null,
+                          exactPath: shape.exactPath === true,
+                          thirdLineLooksLikeHunk: shape.thirdLineLooksLikeHunk === true,
+                          additions: Number.isInteger(shape.additions) ? shape.additions : null,
+                          deletions: Number.isInteger(shape.deletions) ? shape.deletions : null,
+                          contexts: Number.isInteger(shape.contexts) ? shape.contexts : null,
+                          blankPayloadLines: Number.isInteger(shape.blankPayloadLines) ? shape.blankPayloadLines : null,
+                          metadataLines: Number.isInteger(shape.metadataLines) ? shape.metadataLines : null,
+                          canonicalizerApplied: payload.diagnostic.canonicalizerApplied === true
+                        };
+                      }
+                    }
                     throw failure;
                   }
                   return payload;
@@ -799,6 +817,7 @@ jobs:
                   Number(error?.status) === 409 && /already in progress|concurrently reserved/i.test(String(error?.message || "")));
               const diagnostic = String(error?.message || error).slice(0,300);
               console.log(`Bounded task diagnostic (${task.actionType}): ${diagnostic}`);
+              if (error?.safeDiagnostic) console.log("Bounded patch-shape diagnostic: " + JSON.stringify(error.safeDiagnostic));
               result = `Bounded runner failed: ${diagnostic}`;
             }
             recordTiming(`task_execute:${task.actionType}`, executionStartedAt);
