@@ -433,9 +433,21 @@ async function runIntelligenceAI(env, options) {
         return {result:{response:content,tool_calls:choice?.tool_calls || []},provider,model,attempts};
       }
     } catch (error) {
-      const status = Number(error?.status || 0);
-      attempts.push({provider,reason:status===429?"quota_or_rate_limit":status===401||status===403?"authentication_failed":"provider_error"});
-      console.warn("INTELLIGENCE_AI_PROVIDER_FAILED",JSON.stringify({provider,status,reason:attempts[attempts.length-1].reason}));
+      const status = Number(error?.status ?? error?.cause?.status ?? 0);
+      const details = safeWorkersAIErrorDetails(error);
+      const attempt = {
+        provider,
+        reason:status===429?"quota_or_rate_limit":status===401||status===403?"authentication_failed":"provider_error",
+        status: Number.isInteger(status) ? status : 0,
+        errorName: details.name, errorCode: details.code, errorMessage: details.message,
+        causeName: details.causeName, causeMessage: details.causeMessage
+      };
+      attempts.push(attempt);
+      console.warn("INTELLIGENCE_AI_PROVIDER_FAILED",JSON.stringify({
+        provider,status:attempt.status,reason:attempt.reason,errorName:attempt.errorName,
+        errorCode:attempt.errorCode,errorMessage:attempt.errorMessage,
+        causeName:attempt.causeName,causeMessage:attempt.causeMessage
+      }));
     }
   }
   const summary = attempts.map(item=>item.provider+":"+item.reason).join(",");
@@ -6096,6 +6108,7 @@ async function planIntelligenceMission(env, input) {
   } catch (err) {
     const diagnostic = safeWorkersAIErrorDetails(err);
     const providerAttempts = Array.isArray(err?.providerAttempts) ? err.providerAttempts : [];
+    await recordIntelligenceAIProviderDiagnostics(env, traceId, providerAttempts);
     const noProviderConfigured = providerAttempts.length > 0 && providerAttempts.every(item => item.reason === "not_configured");
     const onlyQuotaBlocked = providerAttempts.length > 0 && providerAttempts.every(item => ["daily_quota","quota_or_rate_limit"].includes(item.reason));
     const failureReason = noProviderConfigured ? "ai_binding_unavailable" : onlyQuotaBlocked ? "daily_ai_budget_unavailable" : "ai_inference_failed";
@@ -6683,6 +6696,42 @@ async function triggerIntelligenceRunner(env) {
   } catch (err) {
     await recordIntelligenceRunnerDispatch(env,0,"dispatch_network_error");
     console.warn("INTELLIGENCE_RUNNER_DISPATCH_DEFERRED","network_error");
+    return false;
+  }
+}
+
+async function ensureIntelligenceAIProviderDiagnostics(env) {
+  await env.DB.prepare(`
+    CREATE TABLE IF NOT EXISTS intelligence_ai_provider_diagnostics(
+      id INTEGER PRIMARY KEY AUTOINCREMENT, trace_id TEXT NOT NULL, attempted_at TEXT NOT NULL,
+      provider TEXT NOT NULL, reason TEXT NOT NULL, model TEXT NOT NULL DEFAULT '',
+      error_name TEXT NOT NULL DEFAULT '', error_code TEXT NOT NULL DEFAULT '', http_status INTEGER,
+      error_message TEXT NOT NULL DEFAULT '', cause_name TEXT NOT NULL DEFAULT '', cause_message TEXT NOT NULL DEFAULT ''
+    )
+  `).run();
+  await env.DB.prepare("CREATE INDEX IF NOT EXISTS idx_intelligence_ai_provider_diagnostics_time ON intelligence_ai_provider_diagnostics(attempted_at DESC)").run();
+}
+async function recordIntelligenceAIProviderDiagnostics(env, traceId, attempts, model = "") {
+  if (!env?.DB || !Array.isArray(attempts) || !attempts.length) return false;
+  try {
+    await ensureIntelligenceAIProviderDiagnostics(env);
+    const now = new Date().toISOString();
+    const statements = attempts.map(item => env.DB.prepare(`
+      INSERT INTO intelligence_ai_provider_diagnostics(
+        trace_id,attempted_at,provider,reason,model,error_name,error_code,http_status,error_message,cause_name,cause_message
+      ) VALUES(?,?,?,?,?,?,?,?,?,?,?)
+    `).bind(
+      String(traceId || "").slice(0,100),now,String(item?.provider || "unknown").slice(0,40),
+      String(item?.reason || "unknown").slice(0,60),String(item?.model || model || "").slice(0,120),
+      String(item?.errorName || "").slice(0,100),String(item?.errorCode || "").slice(0,100),
+      Number.isInteger(item?.status) ? item.status : null,String(item?.errorMessage || "").slice(0,220),
+      String(item?.causeName || "").slice(0,100),String(item?.causeMessage || "").slice(0,220)
+    ));
+    await env.DB.batch(statements);
+    await env.DB.prepare("DELETE FROM intelligence_ai_provider_diagnostics WHERE id NOT IN (SELECT id FROM intelligence_ai_provider_diagnostics ORDER BY id DESC LIMIT 50)").run();
+    return true;
+  } catch (diagnosticError) {
+    console.error("INTELLIGENCE_AI_DIAGNOSTICS_WRITE_FAILED",String(diagnosticError?.message || "database_error").slice(0,120));
     return false;
   }
 }
@@ -7780,6 +7829,7 @@ export default {
         let privateInbox = null;
         let runner = null;
         let runnerDispatch = null;
+        let aiProvider = null;
         try {
           if (env.DB) {
             await env.DB.prepare("SELECT 1 AS test").first();
@@ -7817,6 +7867,23 @@ export default {
               if (dispatch) runnerDispatch = {attemptedAt:dispatch.attempted_at,httpStatus:Number(dispatch.http_status||0),outcome:dispatch.outcome};
             } catch {}
             try {
+              await ensureIntelligenceAIProviderDiagnostics(env);
+              const latestAI = await env.DB.prepare(`
+                SELECT trace_id,attempted_at,provider,reason,model,error_name,error_code,http_status,error_message,cause_name,cause_message
+                FROM intelligence_ai_provider_diagnostics ORDER BY id DESC LIMIT 1
+              `).first();
+              if (latestAI) aiProvider = {
+                traceId:latestAI.trace_id,attemptedAt:latestAI.attempted_at,
+                provider:latestAI.provider,reason:latestAI.reason,model:latestAI.model || null,
+                errorName:latestAI.error_name || null,errorCode:latestAI.error_code || null,
+                httpStatus:latestAI.http_status===null?null:Number(latestAI.http_status),
+                errorMessage:latestAI.error_message || null,causeName:latestAI.cause_name || null,
+                causeMessage:latestAI.cause_message || null
+              };
+            } catch {
+              // AI provider diagnostics are initialized on the first recorded failure.
+            }
+            try {
               const inbox = await env.DB.prepare(
                 "SELECT last_checked_at,last_status,scanned_count,imported_count,rejected_count,last_rejection_code,last_error_code FROM intelligence_inbox_diagnostics WHERE id=1"
               ).first();
@@ -7843,7 +7910,8 @@ export default {
           scheduler,
           privateInbox,
           runner,
-          runnerDispatch
+          runnerDispatch,
+          aiProvider
         });
       }
 
