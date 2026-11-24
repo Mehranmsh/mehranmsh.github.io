@@ -7095,7 +7095,7 @@ export default {
           }
           const unsupportedMagicNumberFindings = analysis.findings.filter(item =>
             /magic number/i.test(item.title) &&
-            item.evidence.some(ev => /\\b(?:const|let|var)\\s+[A-Z][A-Z0-9_]*\\s*=/.test(ev.quote))
+            item.evidence.some(ev => /\b(?:const|let|var)\s+[A-Z][A-Z0-9_]*\\s*=/.test(ev.quote))
           );
           if (unsupportedMagicNumberFindings.length) {
             analysis.findings = analysis.findings.filter(item => !unsupportedMagicNumberFindings.includes(item));
