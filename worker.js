@@ -7437,6 +7437,7 @@ export default {
             diffSha256:confirmed.diff_sha256,status:confirmed.status
           },stored.alreadyExists ? 200 : 201);
         }
+        // Expose proposal diffs only to the authenticated runner after both private storage and D1 agree.
         if (path === "/agent/v1/patch-proposals/artifact" && method === "GET") {
           const artifactPath = url.searchParams.get("path") || "";
           const artifactSha256 = url.searchParams.get("artifactSha256") || "";
