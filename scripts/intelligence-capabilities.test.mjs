@@ -47,6 +47,8 @@ test("persistent Workers AI inference 503 failures are not automatically retried
   assert.match(runnerSource, /Workers AI inference failure is recorded as non-retryable/);
   assert.match(runnerSource, /error\?\.name === "TimeoutError" \|\| error\?\.name === "AbortError"/);
   assert.match(runnerSource, /Number\(error\?\.status\) === 503/);
+  assert.match(runnerSource, /maxNetworkAttempts = path === "\/agent\/v1\/repository\/analyze" \? 1 : 3/);
+  assert.match(runnerSource, /attempt === maxNetworkAttempts - 1/);
 });
 
 test("bounded inspection serialization preserves a schema-valid semantic analysis", () => {
