@@ -743,6 +743,17 @@ jobs:
               throw new Error("Stored task checkpoint is not valid JSON; refusing to silently restart the task.");
             }
             let checkpointMatchesCurrentSchema = true;
+            if (savedCheckpoint.phase === "result_ready") {
+              const checkpointResult = typeof savedCheckpoint.result === "string" ? savedCheckpoint.result : "";
+              const checkpointDigest = typeof savedCheckpoint.resultSha256 === "string" ? savedCheckpoint.resultSha256 : "";
+              checkpointMatchesCurrentSchema = checkpointResult.length > 0 &&
+                checkpointResult.length <= 3000 &&
+                /^[a-f0-9]{64}$/.test(checkpointDigest) &&
+                createHash("sha256").update(checkpointResult).digest("hex") === checkpointDigest;
+              if (!checkpointMatchesCurrentSchema) {
+                console.log("Ignoring result checkpoint whose content digest is missing or invalid.");
+              }
+            }
             if (savedCheckpoint.phase === "result_ready" && task.actionType === "inspect_repository") {
               try {
                 const report = JSON.parse(savedCheckpoint.result || "null");
@@ -781,7 +792,7 @@ jobs:
                     item.regressionTests.every(item => typeof item === "string" && item.length <= 300)) &&
                   Array.isArray(analysis.limitations) && analysis.limitations.length <= 5 &&
                   analysis.limitations.every(item => typeof item === "string" && item.length <= 300);
-                checkpointMatchesCurrentSchema = report?.type === "inspect_repository" &&
+                checkpointMatchesCurrentSchema = checkpointMatchesCurrentSchema && report?.type === "inspect_repository" &&
                   report?.mode === "bounded_read_only_repository_inspection" &&
                   report?.repository === "Mehranmsh/mehranmsh.github.io" &&
                   typeof report?.commitSha === "string" && /^[a-f0-9]{40}$/i.test(report.commitSha) &&
@@ -798,7 +809,7 @@ jobs:
             if (savedCheckpoint.phase === "result_ready" && task.actionType === "source_security_audit") {
               try {
                 const checkpointReport = JSON.parse(savedCheckpoint.result || "null");
-                checkpointMatchesCurrentSchema = checkpointReport?.type === "source_security_audit" &&
+                checkpointMatchesCurrentSchema = checkpointMatchesCurrentSchema && checkpointReport?.type === "source_security_audit" &&
                   checkpointReport?.mode === "deterministic_read_only_static_audit";
               } catch {
                 checkpointMatchesCurrentSchema = false;
@@ -814,7 +825,7 @@ jobs:
                 const expectedDigest = createHash("sha256")
                   .update(String(patchReport?.baseSha || "") + "\n" + String(payload?.objective || "").trim())
                   .digest("base64url");
-                checkpointMatchesCurrentSchema = patchReport?.type === "propose_code_patch" &&
+                checkpointMatchesCurrentSchema = checkpointMatchesCurrentSchema && patchReport?.type === "propose_code_patch" &&
                   patchReport?.requestId === task.id &&
                   /^[a-f0-9]{40}$/.test(patchReport?.baseSha || "") &&
                   savedCheckpoint.baseSha === patchReport.baseSha &&
