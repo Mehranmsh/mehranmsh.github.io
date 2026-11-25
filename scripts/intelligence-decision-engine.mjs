@@ -1,11 +1,17 @@
+import { buildDecisionCriteriaWithApprovedPreferences } from "./intelligence-preference-governance.mjs";
 const MAX_OPTIONS=50, MAX_CRITERIA=30;
 const clean=(v,n=120)=>typeof v==="string"?v.trim().slice(0,n):"";
 const finite=(v,min,max)=>Number.isFinite(v)&&v>=min&&v<=max;
 /** Compare explicitly scored alternatives. Advisory only; never authorizes or executes actions. */
 export function evaluateIntelligenceOptions(options, criteria, settings={}) {
- const empty={rankedOptions:[],excludedOptions:[],reviewRequired:[],diagnostics:{advisoryOnly:true,decisionMade:false,executionPerformed:false}};
+ const empty={rankedOptions:[],excludedOptions:[],reviewRequired:[],diagnostics:{advisoryOnly:true,decisionMade:false,executionPerformed:false,preferencesApplied:false}};
  if(!Array.isArray(options)||!Array.isArray(criteria)) return empty;
- const owner=clean(settings.ownerUid), boundedCriteria=criteria.slice(0,MAX_CRITERIA).filter(c=>c&&typeof c==="object"&&clean(c.key)&&finite(c.weight,0,100)&&(c.direction==="higher"||c.direction==="lower"));
+ const owner=clean(settings.ownerUid);
+ const preferenceResult=buildDecisionCriteriaWithApprovedPreferences(criteria,settings.approvedPreferenceProfile,{
+  ownerUid:owner,allowApprovedPreferences:settings.allowApprovedPreferences===true
+ });
+ const effectiveCriteria=preferenceResult.criteria;
+ const boundedCriteria=effectiveCriteria.slice(0,MAX_CRITERIA).filter(c=>c&&typeof c==="object"&&clean(c.key)&&finite(c.weight,0,100)&&(c.direction==="higher"||c.direction==="lower"));
  const totalWeight=boundedCriteria.reduce((n,c)=>n+c.weight,0);
  if(!owner||!boundedCriteria.length||!totalWeight) return empty;
  const excludedOptions=[],reviewRequired=[],rankedOptions=[];
@@ -29,5 +35,5 @@ export function evaluateIntelligenceOptions(options, criteria, settings={}) {
   if(needsReview) reviewRequired.push({option_id:item.option_id,reasons:[...(coverage<1?["incomplete_scoring"]:[]),...(unknownConstraints.length?["unconfirmed_constraints"]:[]),...(option.high_impact===true?["high_impact"]:[])]});
  }
  rankedOptions.sort((a,b)=>(b.score??-1)-(a.score??-1)||a.option_id.localeCompare(b.option_id));
- return {rankedOptions,excludedOptions,reviewRequired,diagnostics:{advisoryOnly:true,decisionMade:false,executionPerformed:false,inspectedOptions:Math.min(options.length,MAX_OPTIONS),omittedOptions:Math.max(0,options.length-MAX_OPTIONS),criteriaUsed:boundedCriteria.length}};
+ return {rankedOptions,excludedOptions,reviewRequired,diagnostics:{advisoryOnly:true,decisionMade:false,executionPerformed:false,inspectedOptions:Math.min(options.length,MAX_OPTIONS),omittedOptions:Math.max(0,options.length-MAX_OPTIONS),criteriaUsed:boundedCriteria.length,preferencesApplied:preferenceResult.diagnostics.preferencesApplied===true,adjustedCriteria:preferenceResult.diagnostics.adjustedCriteria||0}};
 }
