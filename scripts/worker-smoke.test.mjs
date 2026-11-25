@@ -2908,6 +2908,17 @@ test("MCP work-package validation rejects arbitrary actions, forward dependencie
   assert.equal(validateIntelligenceWorkPackage({ ...base, idempotencyKey: "short" }).ok, false);
 });
 
+test("Intelligence chat applies a bounded answer gate and self-review policy", () => {
+  const chatStart = workerSource.indexOf('if (path === "/intelligence/chat" && method === "POST")');
+  const chatEnd = workerSource.indexOf('if (path === "/admin/overview" && method === "GET")', chatStart);
+  const chat = workerSource.slice(chatStart, chatEnd);
+  assert.match(workerSource, /normalizeIntelligenceAnswer/);
+  assert.match(chat, /quality pass: identify the actual goal/);
+  assert.match(chat, /checkedReply=normalizeIntelligenceAnswer\(reply\)/);
+  assert.match(chat, /checkedSynthesis=normalizeIntelligenceAnswer\(synthesizedText\)/);
+  assert.match(chat, /bounded_output_v1/);
+});
+
 test("private Intelligence runner inline JavaScript parses as an ES module", () => {
   const marker = "node --input-type=module <<'NODE'";
   const markerAt = runnerSource.indexOf(marker);
