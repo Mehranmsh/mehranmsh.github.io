@@ -2690,6 +2690,12 @@ test("MEHRAN INTELLIGENCE owner notification outbox is authenticated and lease-b
   assert.ok(route.includes('const ownerOrchestrationRoute ='), "owner orchestration routes must be explicitly separated");
   assert.ok(route.includes('path === "/agent/v1/missions/plan" && method === "POST"'), "mission planning must require the separate owner orchestration identity");
   assert.ok(route.includes('path === "/agent/v1/work-packages" && method === "POST"'));
+  assert.ok(route.includes('path === "/agent/v1/work-packages/scope-diagnostics" && method === "GET"'), "scope diagnostics must be an explicit owner-only GET route");
+  assert.ok(route.includes('packages: {') && route.includes('aggregateOnly: true') && route.includes('reviewRequiredCount'), "scope diagnostics must return bounded aggregate counts only");
+  assert.ok(route.includes("json_each(CASE WHEN json_valid(scope_json) THEN scope_json ELSE '{}' END,'$.allowedActions')"), "scope diagnostics must safely classify malformed or missing legacy scope JSON");
+  assert.ok(route.includes("GROUP BY status ORDER BY status LIMIT 20"), "scope diagnostics must bound grouped output");
+  assert.ok(route.includes("const ownerOrchestrationRoute =") && route.includes('path === "/agent/v1/work-packages/scope-diagnostics" && method === "GET"'), "scope diagnostics must use owner orchestration authentication");
+
   assert.ok(route.includes('path.startsWith("/agent/v1/work-packages/") && method === "GET"'));
   assert.ok(route.includes('path.startsWith("/agent/v1/notifications/") && method === "POST"'), "notification delivery must require the separate owner orchestration identity");
   assert.ok(route.includes('status IN (\'pending\',\'retry_wait\')'));
