@@ -725,6 +725,63 @@ input:focus,textarea:focus,select:focus,button:focus-visible,a:focus-visible{out
 @media(max-width:700px){.main{padding:18px 14px 92px}.topbar{margin-bottom:21px}.hero{border-radius:19px;padding:23px 19px}.grid{gap:11px}.card{padding:16px;border-radius:14px}.panel{padding:16px}.page-heading{margin-bottom:20px}.page-heading h1{font-size:27px}.section-title{margin-top:23px}}
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}}
 </style>
+
+<style id="mehran-social-identity-v1">
+/* SOCIAL: distinct editorial social-network identity */
+#page-social{--soc-bg:#100d18;--soc-panel:#191424;--soc-panel2:#211a2d;--soc-line:#382a45;--soc-text:#fff7fb;--soc-muted:#b7a8bb;--soc-pink:#ff6fae;--soc-violet:#a98bff;--soc-orange:#ffb36b;color:var(--soc-text)}
+#page-social .social-shell{max-width:1160px;margin:0 auto;padding:clamp(12px,2.2vw,26px);border:1px solid rgba(255,111,174,.19);border-radius:26px;background:radial-gradient(ellipse at 12% 0%,rgba(169,139,255,.13),transparent 34%),radial-gradient(ellipse at 92% 4%,rgba(255,111,174,.11),transparent 28%),var(--soc-bg);box-shadow:0 24px 80px rgba(0,0,0,.28)}
+#page-social .social-top{padding:8px 4px 22px;border-bottom:1px solid rgba(255,255,255,.07)}
+#page-social .social-brand{font-size:27px;font-weight:950;letter-spacing:-1.5px;color:#fff}
+#page-social .social-brand span{color:var(--soc-pink)}
+#page-social .social-top-actions{gap:9px}
+#page-social .social-top-actions button{width:42px;height:42px;border-radius:15px;background:#211a2d;border:1px solid #44314f;color:#ffe9f4;font-size:18px;transition:.2s}
+#page-social .social-top-actions button:hover{background:#38243d;border-color:var(--soc-pink);transform:translateY(-2px)}
+#page-social .social-tabs{display:flex;gap:7px;padding:15px 0 19px;overflow-x:auto;scrollbar-width:thin;scrollbar-color:#68445f transparent}
+#page-social .social-tab{flex:0 0 auto;border:1px solid transparent;border-radius:999px;padding:10px 15px;background:transparent;color:#c4b4c8;font-weight:750;font-size:12px;white-space:nowrap;transition:.2s}
+#page-social .social-tab:hover{background:#261c30;color:#fff;border-color:#49334f}
+#page-social .social-tab.active{background:linear-gradient(115deg,#ff6fae,#a98bff);border-color:transparent;color:#1b1020;box-shadow:0 7px 22px rgba(255,111,174,.2)}
+#page-social .social-view{max-width:900px;margin:0 auto}
+#page-social .social-view#social-feed{max-width:780px}
+#page-social .section-title{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:22px 0 14px}
+#page-social .section-title h2{font-size:20px;letter-spacing:-.5px;color:#fff;margin:0}
+#page-social .small-text{color:var(--soc-muted)}
+#page-social .panel,#page-social .social-card,#page-social .card{background:linear-gradient(145deg,#211a2d,#181321);border:1px solid rgba(255,255,255,.085);border-radius:19px;box-shadow:0 12px 34px rgba(0,0,0,.17)}
+#page-social .social-card{padding:18px;margin:13px 0}
+#page-social .btn{border:0;border-radius:12px;background:linear-gradient(110deg,#ff6fae,#b18cff);color:#211323;font-weight:850;box-shadow:0 7px 20px rgba(255,111,174,.16)}
+#page-social .btn.secondary{background:#2a2034;color:#f8eefa;border:1px solid #4a3653;box-shadow:none}
+#page-social .search-box,#page-social input:not([type=checkbox]):not([type=radio]),#page-social textarea,#page-social select{background:#120f1b;border:1px solid #493750;border-radius:13px;color:#fff7fb;padding:12px 14px}
+#page-social input:focus,#page-social textarea:focus,#page-social select:focus{outline:2px solid rgba(255,111,174,.28);border-color:#ff83b8}
+#page-social .story-row{display:flex;gap:15px;overflow-x:auto;padding:13px 2px 18px;scrollbar-width:thin}
+#page-social .story-row>*{flex:0 0 auto}
+#page-social .notice,#page-social .empty{border-radius:15px;background:#211a2b;border:1px solid #48354e;color:#d6c5d8;padding:14px}
+#page-social .profile-identity-card{overflow:hidden;border-radius:24px;background:#1b1525;border:1px solid #4a3452;box-shadow:0 20px 55px rgba(0,0,0,.24)}
+#page-social .profile-cover-art{min-height:170px;background:radial-gradient(circle at 20% 30%,rgba(255,179,107,.55),transparent 24%),radial-gradient(circle at 78% 12%,rgba(169,139,255,.65),transparent 30%),linear-gradient(115deg,#5a2850,#282044 55%,#24182f)}
+#page-social .profile-cover-art:after{content:"";display:block;height:100%;min-height:170px;background:linear-gradient(0deg,rgba(17,12,24,.5),transparent 65%)}
+#page-social .profile-content-card{background:#1b1525;border:1px solid #403047;border-radius:20px;padding:19px;margin-top:16px}
+#page-social .profile-kicker{color:#ff9bc5;letter-spacing:2px;font-size:9px;font-weight:900}
+#page-social .social-chat-app{border:1px solid #49354f;border-radius:20px;overflow:hidden;background:#171220}
+#page-social .social-chat-app>*{border-color:#392b42}
+#page-social .social-view img{border-radius:13px}
+#page-social .social-view button{transition:filter .18s,transform .18s}
+#page-social .social-view button:active{transform:scale(.98)}
+@media(max-width:650px){#page-social .social-shell{padding:12px;border-radius:18px}#page-social .social-top{padding-bottom:15px}#page-social .social-brand{font-size:23px}#page-social .social-tab{padding:9px 12px;font-size:11px}#page-social .section-title h2{font-size:18px}#page-social .social-card{padding:14px}}
+/* Intelligence is a private operations room, not a public-facing app theme */
+#page-intelligence{--ops-bg:#0b121b;--ops-panel:#111d29;--ops-line:#294252;--ops-cyan:#65d8ce;--ops-blue:#7ba8ff;color:#e9f4f5}
+#page-intelligence .page-heading h1{letter-spacing:-1px;font-size:clamp(28px,3vw,38px)}
+#page-intelligence .page-heading p{color:#91aab4}
+#page-intelligence .panel{background:linear-gradient(145deg,#132330,#101a25);border:1px solid rgba(101,216,206,.15);border-radius:17px;box-shadow:0 16px 42px rgba(0,0,0,.18);padding:22px;margin-bottom:16px}
+#page-intelligence .card{background:#0d1822;border:1px solid #263d4b;border-radius:14px}
+#page-intelligence .eyebrow{color:#73d9d0;letter-spacing:1.8px}
+#page-intelligence .stat{color:#efffff;font-variant-numeric:tabular-nums}
+#page-intelligence .btn{background:linear-gradient(110deg,#55c9bd,#6e9df3);border:0;color:#07171b;border-radius:9px;font-weight:850}
+#page-intelligence .btn.secondary{background:#172a36;border:1px solid #365666;color:#c8e7e7}
+#page-intelligence .field input,#page-intelligence .field textarea,#page-intelligence .field select{background:#09131d;border:1px solid #2c4857;color:#eaf7f7;border-radius:9px}
+#page-intelligence .notice{background:#10242d;border:1px solid #2d5960;color:#b8d8d8;border-radius:11px}
+#page-intelligence .empty{background:#0e1b26;border:1px dashed #365363;border-radius:12px;color:#9bb8bd}
+#page-intelligence .intelligence-stats .card{position:relative;overflow:hidden}
+#page-intelligence .intelligence-stats .card:after{content:"";position:absolute;right:-25px;top:-30px;width:90px;height:90px;border-radius:50%;background:rgba(101,216,206,.055)}
+@media(max-width:650px){#page-intelligence .panel{padding:15px}}
+</style>
 </head>
 <body>
 <div class="app">
