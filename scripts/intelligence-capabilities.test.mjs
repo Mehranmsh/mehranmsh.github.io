@@ -1308,7 +1308,7 @@ test("repository inventory is independent from the optional semantic analysis en
   assert.match(inspect, /analysisMode === "semantic"/);
   assert.match(inspect, /repository\/analyze/);
   assert.match(inspect, /analysisEvidence/);
-  assert.match(inspect, /analysis: \{/);
+  assert.match(inspect, /let analysis = \{/);
   assert.match(inspect, /Deterministic repository inventory completed/);
   assert.match(workerSource, /Do not call a named constant a magic number/);
   assert.match(workerSource, /Do not label a Firebase Web API key/);
