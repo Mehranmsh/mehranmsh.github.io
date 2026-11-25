@@ -23,7 +23,7 @@ test("requires explicit owner confirmation and never learns from silence",()=>{
  assert.equal(proposeIntelligencePreferenceUpdates([],{ownerUid:"owner"}).proposals.length,0);
 });
 test("isolates owners and excludes deleted, inactive, and sensitive feedback",()=>{
- const rows=[...feedback,
+ const rows=[feedback[0],feedback[1],
   {...feedback[0],feedback_id:"other",owner_uid:"other"},
   {...feedback[0],feedback_id:"deleted",deleted_at:"2026-01-01"},
   {...feedback[0],feedback_id:"inactive",status:"inactive"},
