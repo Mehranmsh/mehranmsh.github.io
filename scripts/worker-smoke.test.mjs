@@ -46,7 +46,6 @@ const routinePlannerSource = (await readFile(new URL("./intelligence-routine-pla
 const retryPolicySource = (await readFile(new URL("./intelligence-retry-policy.mjs", import.meta.url), "utf8"))
   .replace("export function planIntelligenceRetry", "function planIntelligenceRetry");
 const feedbackLearningSource = (await readFile(new URL("./intelligence-feedback-learning.mjs", import.meta.url), "utf8"))
-  .replace("export function proposeIntelligencePreferenceUpdates", "function proposeIntelligencePreferenceUpdates")
   .replaceAll("BLOCKED_SENSITIVITY", "FEEDBACK_LEARNING_BLOCKED_SENSITIVITY")
   .replace("const clean=", "const cleanFeedbackLearning=")
   .replaceAll("clean(", "cleanFeedbackLearning(");
