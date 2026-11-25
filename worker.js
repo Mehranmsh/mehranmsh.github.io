@@ -377,7 +377,7 @@ async function runIntelligenceAI(env, options) {
     try {
       if (provider === "cloudflare") {
         if (!env.AI || typeof env.AI.run !== "function") { attempts.push({provider, reason:"not_configured"}); continue; }
-        const configuredModel = cleanText(env.MEHRAN_INTELLIGENCE_MODEL, 120);
+        const configuredModel = cleanText(options.model || env.MEHRAN_INTELLIGENCE_MODEL, 120);
         // JSON Mode must use a model explicitly verified for structured responses; do not let an env override silently select an incompatible model.
         const model = options.jsonMode ? DEFAULT_INTELLIGENCE_MODEL : (configuredModel || DEFAULT_INTELLIGENCE_MODEL);
         if (env.DB) {
@@ -9784,7 +9784,7 @@ export default {
         };
         try {
           const routed = await runIntelligenceAI(env,{
-            messages,tools,toolChoice:"auto",maxTokens:900,temperature:0.2,cloudflareReservation:300
+            messages,tools,toolChoice:"auto",model:"@cf/meta/llama-3.3-70b-instruct-fp8-fast",maxTokens:900,temperature:0.2,cloudflareReservation:300
           });
           const result = routed.result;
           const toolCalls = Array.isArray(result?.tool_calls) ? result.tool_calls.slice(0,2) : [];
