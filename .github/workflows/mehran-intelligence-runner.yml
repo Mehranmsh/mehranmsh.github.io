@@ -409,9 +409,11 @@ jobs:
                 throw new Error("Inspection task payload is not valid JSON.");
               }
               const paths = payload.paths;
+              const analysisMode = payload.analysisMode || "inventory";
               if (!Array.isArray(paths) || paths.length < 1 || paths.length > 6 ||
-                  new Set(paths).size !== paths.length || paths.some(path => typeof path !== "string" || !allowedPaths.has(path))) {
-                throw new Error("Inspection paths are outside the exact read-only allowlist.");
+                  new Set(paths).size !== paths.length || paths.some(path => typeof path !== "string" || !allowedPaths.has(path)) ||
+                  !["inventory", "semantic"].includes(analysisMode)) {
+                throw new Error("Inspection paths or analysis mode are outside the exact read-only allowlist.");
               }
               const headers = {
                 "Accept": "application/vnd.github+json",
@@ -426,7 +428,31 @@ jobs:
               const commit = await commitResponse.json();
               if (typeof commit.sha !== "string" || !/^[a-f0-9]{40}$/i.test(commit.sha)) throw new Error("GitHub returned an invalid main commit SHA.");
               const files = [];
+              const analysisEvidence = [];
               let totalBytes = 0;
+              const redactExcerpt = value => String(value)
+                .replace(/((?:api[_-]?key|secret|password|token|authorization)\s*[:=]\s*["'`])[^"'`]{8,}(["'`])/gi, "$1[REDACTED]$2")
+                .replace(/Bearer\s+[A-Za-z0-9._~-]{12,}/gi, "Bearer [REDACTED]");
+              const makeEvidenceExcerpt = source => {
+                const sourceLines = source.split(/\r\n|\n|\r/);
+                const selected = new Set();
+                const relevant = /intelligence|task|claim|lease|dependenc|checkpoint|idempot|retry|work.?package|report|runner|approval|module|adapter|localStorage|indexedDB|studio|audio|upload|storage|migration|session|security|quota/i;
+                for (let index = 0; index < sourceLines.length && selected.size < 34; index++) {
+                  if (!relevant.test(sourceLines[index])) continue;
+                  for (let offset = Math.max(0, index - 2); offset <= Math.min(sourceLines.length - 1, index + 2); offset++) {
+                    selected.add(offset);
+                  }
+                }
+                if (!selected.size) for (let index = 0; index < Math.min(12, sourceLines.length); index++) selected.add(index);
+                const ordered = [...selected].sort((a,b) => a-b);
+                let excerpt = "";
+                for (const index of ordered) {
+                  const line = `L${index + 1}: ${redactExcerpt(sourceLines[index])}`;
+                  if ((excerpt + (excerpt ? "\n" : "") + line).length > 2700) break;
+                  excerpt += (excerpt ? "\n" : "") + line;
+                }
+                return excerpt.slice(0, 2800);
+              };
               for (const path of paths) {
                 const apiPath = path.split("/").map(encodeURIComponent).join("/");
                 const response = await fetch(`https://api.github.com/repos/${repository}/contents/${apiPath}?ref=${commit.sha}`, {
@@ -460,28 +486,55 @@ jobs:
                   lineCount: source.length ? source.split(/\r\n|\n|\r/).length : 0,
                   symbols: [...symbols].map(symbol => symbol.slice(0, 60))
                 });
-
+                if (analysisMode === "semantic") {
+                  const excerpt = makeEvidenceExcerpt(source);
+                  if (excerpt.trim()) analysisEvidence.push({ path, sha: file.sha, excerpt });
+                }
+              }
+              let analysis = {
+                summary: "Deterministic repository inventory completed. No semantic AI analysis was requested or required.",
+                findings: [],
+                limitations: [
+                  "This task verifies bounded file metadata and declaration names only; it does not perform semantic code review.",
+                  "Source files were read from one immutable main commit and were not executed."
+                ]
+              };
+              let analysisModel = null;
+              if (analysisMode === "semantic") {
+                if (!analysisEvidence.length) throw new Error("No bounded source excerpts were available for semantic analysis.");
+                const analyzed = await request("/agent/v1/repository/analyze", {
+                  method: "POST",
+                  body: JSON.stringify({
+                    commitSha: commit.sha,
+                    focus: String(task.description || "Review the supplied source for concrete correctness, security, data-integrity, authorization, and reliability defects.").slice(0, 800),
+                    files: analysisEvidence
+                  })
+                }, ownerHeaders, 90000);
+                if (analyzed.success !== true || analyzed.commitSha !== commit.sha ||
+                    !analyzed.analysis || typeof analyzed.analysis.summary !== "string" ||
+                    !Array.isArray(analyzed.analysis.findings) || !Array.isArray(analyzed.analysis.limitations)) {
+                  throw new Error("Semantic analysis endpoint returned an incomplete or mismatched report.");
+                }
+                analysis = analyzed.analysis;
+                analysisModel = typeof analyzed.model === "string" ? analyzed.model.slice(0, 120) : null;
               }
               return {
                 type: task.actionType,
                 generatedAt: new Date().toISOString(),
                 mode: "bounded_read_only_repository_inspection",
+                analysisMode,
+                ...(analysisModel ? { analysisModel } : {}),
                 repository,
                 commitSha: commit.sha,
                 summary: { filesInspected: files.length, totalBytes },
                 files,
-                analysis: {
-                  summary: "Deterministic repository inventory completed. No semantic AI analysis was requested or required.",
-                  findings: [],
-                  limitations: [
-                    "This task verifies bounded file metadata and declaration names only; it does not perform semantic code review.",
-                    "Source files were read from one immutable main commit and were not executed."
-                  ]
-                },
+                analysis,
                 limitations: [
-                  "This task inventories bounded file metadata and declaration names only; it is not a semantic code review.",
-                  "Repository content was treated as untrusted data and was never executed or followed as instructions.",
-                  "No tests or code changes are claimed by this inventory task."
+                  "Source files were read from one immutable main commit and were not executed.",
+                  analysisMode === "semantic"
+                    ? "Semantic findings are limited to the bounded excerpts supplied to the AI analyzer; unselected source context may be relevant."
+                    : "This inventory-only mode does not perform semantic code review.",
+                  "Repository content was treated as untrusted data and never followed as instructions."
                 ]
               };
             }
