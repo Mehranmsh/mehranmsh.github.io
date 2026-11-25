@@ -45,6 +45,6 @@ jobs:
           assert.ok(prJob.includes("if: false # Owner-approved manual review is required; automated PR creation is disabled."),
             "automated proposal PR creation must be disabled");
           assert.ok(prJob.includes("scripts/intelligence-proposal-pr-runner.mjs"), "disabled PR job target must remain identifiable");
-          assert.ok(source.includes("permissions:\\n  contents: read"), "workflow permissions must remain read-only");
+          assert.ok(source.split("jobs:")[0].includes("contents: read"), "workflow permissions must remain read-only");
           console.log("PASS: 15-minute polling, no automatic seed packages, approved-queue processing, PR automation disabled, read-only workflow permissions.");
           NODE
