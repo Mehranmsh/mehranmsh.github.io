@@ -17,9 +17,10 @@ const patchStoreImport = 'import { storePrivatePatchArtifact, verifyPrivatePatch
 const patchGenerationImport = 'import { extractPatchModelText, generatePatchArtifact } from "./scripts/intelligence-patch-generation-service.mjs";';
 const inboxSchemaImport = 'import { validatePrivateIntelligenceMission } from "./scripts/intelligence-inbox-schema.mjs";';
 const routinePlannerImport = 'import { buildDeterministicRoutinePlan } from "./scripts/intelligence-routine-planner.mjs";';
+const memoryRankingImport = 'import { selectMemoryContext } from "./scripts/intelligence-memory-ranking.mjs";';
 if (!workerSource.includes(capabilityImport) || !workerSource.includes(patchStoreImport) ||
     !workerSource.includes(patchGenerationImport) || !workerSource.includes(inboxSchemaImport) ||
-    !workerSource.includes(routinePlannerImport)) {
+    !workerSource.includes(routinePlannerImport) || !workerSource.includes(memoryRankingImport)) {
   throw new Error("Worker capability, patch storage, or private inbox schema imports were not found");
 }
 const policySource = await readFile(new URL("./intelligence-patch-policy.mjs", import.meta.url), "utf8");
@@ -28,6 +29,8 @@ const patchStoreSource = await readFile(new URL("./intelligence-private-patch-st
 const patchGenerationPromptSource = await readFile(new URL("./intelligence-patch-generation.mjs", import.meta.url), "utf8");
 const patchGenerationServiceSource = await readFile(new URL("./intelligence-patch-generation-service.mjs", import.meta.url), "utf8");
 const inboxSchemaSource = await readFile(new URL("./intelligence-inbox-schema.mjs", import.meta.url), "utf8");
+const memoryRankingSource = (await readFile(new URL("./intelligence-memory-ranking.mjs", import.meta.url), "utf8"))
+  .replace("export function selectMemoryContext", "function selectMemoryContext");
 const routinePlannerSource = (await readFile(new URL("./intelligence-routine-planner.mjs", import.meta.url), "utf8"))
   .replace("export function buildDeterministicRoutinePlan", "function buildDeterministicRoutinePlan");
 const moduleUrl = source => "data:text/javascript;base64," + Buffer.from(source).toString("base64");
@@ -79,8 +82,9 @@ const workerRest = workerSource.replace(capabilityImport, "")
   .replace(patchStoreImport, "")
   .replace(patchGenerationImport, "")
   .replace(inboxSchemaImport, "")
-  .replace(routinePlannerImport, "");
-const workerSourceForTest = routinePlannerSource + `\nimport { storePrivatePatchArtifact, verifyPrivatePatchArtifactAtPath, getPrivatePatchArtifactPath, getVerifiedPrivatePatchArtifactAtPath } from "${patchStoreTestUrl}";
+  .replace(routinePlannerImport, "")
+  .replace(memoryRankingImport, "");
+const workerSourceForTest = memoryRankingSource + "\n" + routinePlannerSource + `\nimport { storePrivatePatchArtifact, verifyPrivatePatchArtifactAtPath, getPrivatePatchArtifactPath, getVerifiedPrivatePatchArtifactAtPath } from "${patchStoreTestUrl}";
 import { generatePatchArtifact } from "${patchGenerationTestUrl}";
 import { validatePrivateIntelligenceMission } from "${inboxSchemaUrl}";
 const INTELLIGENCE_ACTION_TYPES = ${JSON.stringify(INTELLIGENCE_ACTION_TYPES)};
