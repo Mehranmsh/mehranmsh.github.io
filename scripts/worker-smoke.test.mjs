@@ -500,6 +500,8 @@ test("Agent runner verifies durable result checkpoint digests before resuming wo
   assert.match(runnerSource, /createHash\("sha256"\)\.update\(checkpointResult\)\.digest\("hex"\) === checkpointDigest/);
   assert.match(runnerSource, /checkpointMatchesCurrentSchema = checkpointMatchesCurrentSchema &&/);
   assert.match(runnerSource, /Ignoring result checkpoint whose content digest is missing or invalid/);
+  assert.match(runnerSource, /import \{ verifyIntelligenceResultCheckpoint \} from "\.\/scripts\/intelligence-checkpoint\.mjs"/);
+  assert.match(runnerSource, /verifyIntelligenceResultCheckpoint\(savedCheckpoint, \{ maxResultChars: 3000 \}\)/);
 });
 
 test("Agent patch proposal runner checkpoints an immutable base and submits a stable task request ID", () => {
