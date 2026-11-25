@@ -353,6 +353,7 @@ test("isolated test workflow runs one fixed suite without secrets or network acc
     "./intelligence-private-patch-store.mjs",
     "./intelligence-patch-generation.mjs",
     "./intelligence-patch-generation-service.mjs",
+    "./intelligence-ai-quota.mjs",
     "./intelligence-capabilities.mjs"
   ]);
   for (const forbidden of [
@@ -1427,7 +1428,8 @@ test("Cloudflare AI diagnostics distinguish budget reservation failures from inf
   assert.match(cloudflare, /await env\.AI\.run\(model/);
   assert.match(workerSource, /stage: provider === "cloudflare" \? "inference" : "provider_request"/);
   assert.match(cloudflare, /reason:"daily_quota_circuit_open"/);
-  assert.match(cloudflare, /24 \* 60 \* 60 \* 1000/);
+  assert.match(cloudflare, /isWorkersAIDailyQuotaCircuitOpen\(exhausted\?\.attempted_at\)/);
+  assert.doesNotMatch(cloudflare, /24 \* 60 \* 60 \* 1000/);
   assert.match(workerSource, /used up your daily free allocation of 10,000 neurons/);
   assert.match(workerSource, /daily_quota_circuit_open/);
   assert.match(workerSource, /quotaRelevantAttempts/);
@@ -1459,5 +1461,8 @@ test("Workers AI daily quota circuit resets at Cloudflare UTC midnight", () => {
   assert.equal(isWorkersAIDailyQuotaCircuitOpen("not-a-timestamp", Date.parse("2026-11-25T00:00:00.000Z")), false);
   assert.match(workerSource, /function isWorkersAIDailyQuotaCircuitOpen\(attemptedAt, now = Date\.now\(\)\)/);
   assert.match(workerSource, /isWorkersAIDailyQuotaCircuitOpen\(exhausted\?\.attempted_at\)/);
-  assert.doesNotMatch(workerSource, /24 \* 60 \* 60 \* 1000/);
+  const cloudflareStart = workerSource.indexOf('if (provider === "cloudflare")');
+  const cloudflareEnd = workerSource.indexOf('if (provider === "groq")', cloudflareStart);
+  const cloudflare = workerSource.slice(cloudflareStart, cloudflareEnd);
+  assert.doesNotMatch(cloudflare, /24 \* 60 \* 60 \* 1000/);
 });
