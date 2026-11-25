@@ -107,6 +107,8 @@ jobs:
         run: node --check scripts/intelligence-feedback-learning.mjs && node --test scripts/intelligence-feedback-learning.test.mjs
       - name: Run Intelligence feedback review bridge tests
         run: node --check scripts/intelligence-feedback-review.mjs && node --test scripts/intelligence-feedback-review.test.mjs
+      - name: Run Intelligence preference governance tests
+        run: node --check scripts/intelligence-preference-governance.mjs && node --test scripts/intelligence-preference-governance.test.mjs
       - name: Run Intelligence report finalization safety tests
         run: node --check scripts/intelligence-report-finalization.mjs && node --test scripts/intelligence-report-finalization.test.mjs
 
