@@ -5449,17 +5449,6 @@ async function ensureIntelligenceProtocolTables(env) {
     )
   `).run();
   await env.DB.prepare(`
-    CREATE TRIGGER IF NOT EXISTS intelligence_mission_generator_lock_guard
-    BEFORE INSERT ON intelligence_work_packages
-    WHEN EXISTS (
-      SELECT 1 FROM intelligence_mission_generator_lock
-      WHERE id=1 AND status='reserved' AND package_id <> NEW.id
-    )
-    BEGIN
-      SELECT RAISE(ABORT, 'Intelligence mission generator reservation is active');
-    END
-  `).run();
-  await env.DB.prepare(`
     CREATE TABLE IF NOT EXISTS intelligence_work_packages(
       id TEXT PRIMARY KEY,
       idempotency_key TEXT NOT NULL UNIQUE,
@@ -5474,6 +5463,17 @@ async function ensureIntelligenceProtocolTables(env) {
       created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
       updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
     )
+  `).run();
+  await env.DB.prepare(`
+    CREATE TRIGGER IF NOT EXISTS intelligence_mission_generator_lock_guard
+    BEFORE INSERT ON intelligence_work_packages
+    WHEN EXISTS (
+      SELECT 1 FROM intelligence_mission_generator_lock
+      WHERE id=1 AND status='reserved' AND package_id <> NEW.id
+    )
+    BEGIN
+      SELECT RAISE(ABORT, 'Intelligence mission generator reservation is active');
+    END
   `).run();
   try { await env.DB.prepare("ALTER TABLE intelligence_work_packages ADD COLUMN request_hash TEXT NOT NULL DEFAULT ''").run(); } catch {}
   try { await env.DB.prepare("ALTER TABLE intelligence_work_packages ADD COLUMN owner_uid TEXT").run(); } catch {}
