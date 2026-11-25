@@ -229,7 +229,10 @@ test("health endpoint exposes only bounded private inbox diagnostics", async () 
 test("MEHRAN module registry endpoint is owner-only and never claims live health", () => {
   assert.match(workerSource, /path === "\/agent\/v1\/modules\/registry" && method === "GET"/);
   assert.match(workerSource, /const ownerOrchestrationRoute = .*modules\/registry/s);
+  const agentStart = workerSource.indexOf('if (path.startsWith("/agent/v1/"))');
+  const authGuard = workerSource.indexOf('if (mismatch !== 0) return error(ownerOrchestrationRoute ? "Owner orchestration authentication required."', agentStart);
   const start = workerSource.indexOf('if (path === "/agent/v1/modules/registry" && method === "GET")');
+  assert.ok(agentStart >= 0 && authGuard > agentStart && start > authGuard, "module registry must be dispatched only after owner authentication");
   const end = workerSource.indexOf('if (path === "/agent/v1/ai-diagnostics/archive"', start);
   assert.ok(start >= 0 && end > start, "owner-only module registry route must exist");
   const route = workerSource.slice(start, end);
