@@ -1,11 +1,23 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { canonicalizeAppendOnlyHunkHeader, generatePatchArtifact, inspectGeneratedDiffShape, normalizeGeneratedDiff } from "./intelligence-patch-generation-service.mjs";
+import { canonicalizeAppendOnlyHunkHeader, extractPatchModelText, generatePatchArtifact, inspectGeneratedDiffShape, normalizeGeneratedDiff } from "./intelligence-patch-generation-service.mjs";
 import { buildPatchGenerationPrompt } from "./intelligence-patch-generation.mjs";
 
 const baseSha = "a".repeat(40);
 const currentSha = "b".repeat(40);
 const env = { AI: { run: async () => { throw new Error("AI must not run in lookup tests"); } } };
+
+test("Workers AI JSON Mode object responses are normalized into JSON text", () => {
+  const payload = { summary: "Add a regression test", diff: "--- a/file\\n+++ b/file\\n" };
+  assert.equal(extractPatchModelText({ response: payload }), JSON.stringify(payload));
+});
+
+test("patch model response extraction preserves text and output_text fallbacks", () => {
+  assert.equal(extractPatchModelText({ response: "{\\"summary\\":\\"ok\\"}" }), "{\\"summary\\":\\"ok\\"}");
+  assert.equal(extractPatchModelText({ output_text: "{\\"summary\\":\\"fallback\\"}" }), "{\\"summary\\":\\"fallback\\"}");
+  assert.equal(extractPatchModelText({ response: ["not", "an", "object"] }), "");
+  assert.equal(extractPatchModelText(null), "");
+});
  
 test("patch generation preserves only safe structural diagnostics for empty model output", async () => {
   const result = await generatePatchArtifact({
