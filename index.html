@@ -960,6 +960,75 @@ input:focus,textarea:focus,select:focus,button:focus-visible,a:focus-visible{out
  #page-ai #imageStudioPanel{padding:14px}
 }
 </style>
+
+<style id="mehran-ai-studio-redesign-v1">
+/* MEHRAN AI Studio: distinct workspace architecture, preserving existing controls and routes. */
+#page-ai{max-width:1600px;margin:0 auto}
+#page-ai>.page-heading{position:relative;padding:clamp(22px,3vw,38px);margin-bottom:15px;border:1px solid #29435f;border-radius:22px;overflow:hidden;background:linear-gradient(105deg,#0d1b2d 0%,#122b45 58%,#14243c 100%)}
+#page-ai>.page-heading:after{content:"✳";position:absolute;right:5%;top:-35px;font-size:170px;line-height:1;color:#72cfff;opacity:.07;pointer-events:none}
+#page-ai>.page-heading h1{font-size:clamp(27px,4vw,42px);letter-spacing:-1.5px;margin:0 0 7px}
+#page-ai>.page-heading p{max-width:650px;margin:0;color:#a9bfd5;line-height:1.65}
+#page-ai .ai-navigation{display:flex;gap:8px;width:max-content;max-width:100%;padding:6px;margin:0 0 18px;border:1px solid #29435d;border-radius:14px;background:#091421}
+#page-ai .ai-nav-btn{padding:12px 19px;border-radius:10px;font-size:12px;letter-spacing:.2px}
+#page-ai .ai-nav-btn.active{background:linear-gradient(120deg,#17618a,#294d7d);box-shadow:0 5px 18px #06101d;border-color:#4d9ac0}
+#page-ai #social-ai.active{display:grid;grid-template-columns:minmax(0,1fr) minmax(285px,.68fr);grid-template-rows:auto auto auto;gap:15px;align-items:start}
+#page-ai #social-ai>.section-title{grid-column:1/-1;margin:0;padding:0 2px 4px}
+#page-ai #social-ai>.section-title h2{font-size:12px;letter-spacing:2px;color:#7dd7fa}
+#page-ai #social-ai>.panel:first-of-type{grid-column:1;grid-row:2 / span 2;min-width:0;padding:clamp(14px,2vw,24px);border-radius:20px;background:linear-gradient(155deg,#12263c,#0b1726 72%);box-shadow:0 18px 45px #02081255}
+#page-ai #social-ai>#assistantTaskPlanner{grid-column:2;grid-row:2;margin:0!important;padding:20px;border-radius:20px;background:linear-gradient(145deg,#17283d,#101b2a)}
+#page-ai #social-ai>#imageStudioPanel{grid-column:2;grid-row:3;margin:0!important;padding:20px;border-radius:20px;background:linear-gradient(145deg,#17283d,#101b2a)}
+#page-ai #social-ai>.panel:first-of-type>.notice:first-child{padding:13px 15px;border:1px solid #315675;border-radius:13px;background:#11263a}
+#page-ai .ai-quick-start{padding:16px;margin:15px 0;border:1px solid #29435e;border-radius:16px;background:#0a1726}
+#page-ai .ai-quick-heading{display:flex;align-items:baseline;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:12px}
+#page-ai .ai-quick-heading strong{font-size:13px;color:#eaf6ff}
+#page-ai .ai-quick-grid{grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+#page-ai .ai-quick-grid button{min-height:100px;padding:12px;border-radius:13px;background:linear-gradient(145deg,#162c43,#102033);border-color:#29445e;transition:transform .18s,border-color .18s,background .18s}
+#page-ai .ai-quick-grid button:hover{transform:translateY(-3px);border-color:#55b9e4;background:linear-gradient(145deg,#1a3b58,#132940)}
+#page-ai .ai-quick-grid button>span{font-size:21px;color:#7ddcff}
+#page-ai .ai-quick-grid button strong{font-size:12px}
+#page-ai .ai-quick-grid button small{font-size:10px}
+#page-ai #assistantStatus{padding:10px 12px;border-radius:11px;border:1px solid #29445e;background:#0a1725;color:#a9c9df}
+#page-ai .panel:first-of-type .field{margin:12px 0;padding:12px;border-radius:13px;background:#0a1725;border:1px solid #243c55}
+#page-ai .panel:first-of-type .field label{color:#9bc9e4;font-size:11px;letter-spacing:.5px}
+#page-ai .panel:first-of-type .field select{margin:7px 0;width:100%;background:#14263a;color:#edf7ff;border:1px solid #36536f;border-radius:10px;padding:11px}
+#page-ai #assistantProviderStatus{padding:0 4px;color:#a8c3d8}
+#page-ai #assistantMessages{min-height:300px!important;max-height:520px!important;border-radius:16px!important;background:radial-gradient(ellipse at 50% 0%,#142b42,#091421 72%)!important;border-color:#29435d!important}
+#page-ai .assistant-composer-wrap{position:sticky;bottom:10px;padding:8px;border:1px solid #31516e;border-radius:17px;background:#0b1828;box-shadow:0 12px 35px #02081288;z-index:3}
+#page-ai .assistant-composer{border:0!important;background:transparent!important}
+#page-ai #assistantInput{min-height:44px}
+#page-ai #assistantSendBtn{min-width:84px;border-radius:11px}
+#page-ai #assistantTaskPlanner .section-title,#page-ai #imageStudioPanel .section-title{align-items:flex-start}
+#page-ai #assistantTaskPlanner h3,#page-ai #imageStudioPanel h3{font-size:17px}
+#page-ai #assistantTaskPlanResult,#page-ai #assistantTaskHistory{overflow-wrap:anywhere}
+#page-ai #imageStudioPanel .field{background:transparent;border:0;padding:0}
+#page-ai #imageStudioPanel textarea{min-height:125px;background:#0a1725;border:1px solid #34506a;border-radius:12px;color:#eff8ff;padding:12px}
+#page-ai #social-prompt-creator.active{display:grid;grid-template-columns:minmax(260px,.72fr) minmax(0,1.28fr);gap:15px;align-items:start}
+#page-ai #social-prompt-creator>.section-title{grid-column:1/-1;margin:0;padding:0 2px 4px}
+#page-ai #social-prompt-creator>.prompt-hero{grid-column:1/-1;padding:clamp(20px,3vw,34px);border-radius:20px;background:linear-gradient(115deg,#10253a,#173657 65%,#14263d);border:1px solid #315675}
+#page-ai #social-prompt-creator>.prompt-hero h3{font-size:clamp(23px,3vw,34px);max-width:650px}
+#page-ai #social-prompt-creator>.prompt-gallery{grid-column:1/-1;padding:20px;border-radius:18px}
+#page-ai #social-prompt-creator .prompt-gallery-grid{grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:13px}
+#page-ai #social-prompt-creator .prompt-template{overflow:hidden;border:1px solid #29435e;border-radius:15px;background:#0c1928;padding:10px}
+#page-ai #social-prompt-creator .prompt-template-media{border-radius:10px;overflow:hidden}
+#page-ai #social-prompt-creator .prompt-template button{margin-top:9px}
+@media(max-width:900px){
+ #page-ai #social-ai.active{grid-template-columns:minmax(0,1fr) minmax(245px,.72fr)}
+ #page-ai .ai-quick-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media(max-width:680px){
+ #page-ai>.page-heading{padding:22px 18px;border-radius:17px}
+ #page-ai .ai-navigation{width:100%}
+ #page-ai .ai-nav-btn{flex:1;padding:11px 8px;font-size:11px}
+ #page-ai #social-ai.active{display:flex;flex-direction:column;gap:13px}
+ #page-ai #social-ai>.section-title,#page-ai #social-ai>.panel:first-of-type,#page-ai #social-ai>#assistantTaskPlanner,#page-ai #social-ai>#imageStudioPanel{width:100%;box-sizing:border-box}
+ #page-ai #assistantMessages{min-height:230px!important;max-height:420px!important}
+ #page-ai #social-prompt-creator.active{display:flex;flex-direction:column;gap:13px}
+ #page-ai #social-prompt-creator>*{width:100%;box-sizing:border-box}
+ #page-ai #social-prompt-creator .prompt-gallery-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media(max-width:390px){#page-ai .ai-quick-grid{grid-template-columns:repeat(2,minmax(0,1fr))}#page-ai #social-prompt-creator .prompt-gallery-grid{grid-template-columns:1fr}}
+</style>
+
 </head>
 <body>
 <div class="app">
