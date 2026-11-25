@@ -116,3 +116,13 @@ test("dangerous capability verbs require approval, not only a write suffix", () 
   assert.equal(resolveModuleCapability("msh_core", "diagnostics.run").ok, true);
   assert.equal(resolveModuleCapability("platform_audit", "audit.events.write").code, "approval_required");
 });
+
+test("health report never claims healthy when required dependencies were not checked", () => {
+  const report = buildModuleHealthReport({
+    social: { status: "healthy" }
+  });
+  const social = report.modules.find(item => item.id === "social");
+  assert.equal(social.status, "not_checked");
+  assert.deepEqual(social.dependenciesNotChecked, ["platform_auth", "platform_database", "platform_audit"]);
+  assert.equal(report.ok, true);
+});
