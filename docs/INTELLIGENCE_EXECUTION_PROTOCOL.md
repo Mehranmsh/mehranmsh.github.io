@@ -58,7 +58,7 @@ The registry stores executor identities as an explicit list. The GitHub Runner's
 
 ## Owner-only module registry diagnostics
 
-The Worker exposes `GET /agent/v1/modules/registry` behind the owner orchestration identity. It returns the static module registry, registry-integrity result, dependency-first integration plans, and explicit conservative labels (`registry_declared`, `not_checked`). It does not probe module services, read module user data, or claim that any adapter is live. The ordinary agent token is not accepted for this route. This endpoint is a first authenticated bridge between MEHRAN INTELLIGENCE and the central MSH module map; real service adapters and independent health observations remain separate implementation tasks.
+The Worker exposes `GET /agent/v1/modules/registry` behind the owner orchestration identity. It returns the static module registry, registry-integrity result, dependency-first integration plans, and explicit conservative labels (`registry_declared`, `not_checked`). It does not probe module services, read module user data, or claim live health. The current Worker wires two bounded read-only capabilities through the adapter runtime: `msh_core.projects.read` and `social.social.metrics.read`; Studio/Music and MEHRAN AI still need service-specific adapters. The ordinary agent token is not accepted for this route. This endpoint is the authenticated bridge between MEHRAN INTELLIGENCE and the central MSH module map; independent health observations remain separate implementation tasks.
 
 ## Planning and dependency rules
 
