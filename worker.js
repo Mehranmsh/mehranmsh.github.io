@@ -5480,6 +5480,40 @@ async function ensureIntelligenceMemoryTables(env) {
   await env.DB.prepare("CREATE INDEX IF NOT EXISTS idx_intelligence_chat_history ON intelligence_chat_turns(owner_uid,session_key,created_at)").run();
 }
 
+
+async function ensureIntelligencePreferenceTables(env) {
+  await ensureIntelligenceMemoryTables(env);
+  await env.DB.prepare(`
+    CREATE TABLE IF NOT EXISTS intelligence_preference_proposals(
+      id TEXT PRIMARY KEY,
+      owner_uid TEXT NOT NULL,
+      target_key TEXT NOT NULL,
+      recommendation TEXT NOT NULL CHECK(recommendation IN ('increase_preference','decrease_preference')),
+      proposal_key TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','decided','cancelled')),
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(owner_uid,id)
+    )
+  `).run();
+  await env.DB.prepare("CREATE INDEX IF NOT EXISTS idx_intelligence_preference_pending ON intelligence_preference_proposals(owner_uid,status,created_at)").run();
+  await env.DB.prepare(`
+    CREATE TABLE IF NOT EXISTS intelligence_preference_decisions(
+      decision_id TEXT PRIMARY KEY,
+      owner_uid TEXT NOT NULL,
+      actor_uid TEXT NOT NULL,
+      proposal_id TEXT NOT NULL,
+      proposal_key TEXT NOT NULL,
+      target_key TEXT NOT NULL,
+      recommendation TEXT NOT NULL CHECK(recommendation IN ('increase_preference','decrease_preference')),
+      decision TEXT NOT NULL CHECK(decision IN ('accepted','rejected')),
+      explicit_confirmation INTEGER NOT NULL CHECK(explicit_confirmation=1),
+      decided_at TEXT NOT NULL,
+      FOREIGN KEY(owner_uid,proposal_id) REFERENCES intelligence_preference_proposals(owner_uid,id)
+    )
+  `).run();
+  await env.DB.prepare("CREATE INDEX IF NOT EXISTS idx_intelligence_preference_decisions_owner ON intelligence_preference_decisions(owner_uid,decided_at)").run();
+}
+
 async function appendIntelligenceChatTurn(env, ownerUid, sessionKey, role, content) {
   const safeContent = String(content || "").slice(0,4000);
   if (!safeContent) return;
@@ -9648,6 +9682,114 @@ export default {
         await writeAdminAudit(env,admin,"collaboration_task_updated","intelligence_task",id,JSON.stringify({status:body.status}));
         const row=await env.DB.prepare("SELECT * FROM intelligence_tasks WHERE id=?").bind(id).first();
         return json({success:true,task:formatIntelligenceTask(row)});
+      }
+
+
+      if (path === "/intelligence/preferences" && method === "GET") {
+        const admin = await verifyAdmin(request, env);
+        if (!admin) return error("Admin authentication required", 403);
+        await ensureIntelligencePreferenceTables(env);
+        const [pendingRows, decisionRows] = await Promise.all([
+          env.DB.prepare("SELECT id,target_key,recommendation,proposal_key,created_at FROM intelligence_preference_proposals WHERE owner_uid=? AND status='pending' ORDER BY created_at DESC LIMIT 100").bind(admin.uid).all(),
+          env.DB.prepare("SELECT decision_id,owner_uid,actor_uid,proposal_key,target_key,recommendation,decision,explicit_confirmation,decided_at FROM intelligence_preference_decisions WHERE owner_uid=? ORDER BY decided_at DESC LIMIT 1000").bind(admin.uid).all()
+        ]);
+        const history = (decisionRows.results || []).map(row => ({
+          record_type:"intelligence_preference_decision",decision_id:row.decision_id,owner_uid:row.owner_uid,
+          actor_uid:row.actor_uid,proposal_key:row.proposal_key,target_key:row.target_key,
+          recommendation:row.recommendation,decision:row.decision,explicit_confirmation:row.explicit_confirmation===1,
+          decided_at:row.decided_at
+        }));
+        const latest = new Map();
+        for (const row of history) {
+          const previous = latest.get(row.proposal_key);
+          if (!previous || Date.parse(row.decided_at)>Date.parse(previous.decided_at)) latest.set(row.proposal_key,row);
+        }
+        const latestDecisions = [...latest.values()].sort((a,b)=>a.proposal_key.localeCompare(b.proposal_key));
+        const approvedPreferences = latestDecisions.filter(row=>row.decision==="accepted").map(row=>({
+          target_key:row.target_key,recommendation:row.recommendation,proposal_key:row.proposal_key,
+          approved_by_owner:true,decision_id:row.decision_id,decided_at:row.decided_at,read_only:true
+        }));
+        const rejectedDecisions = latestDecisions.filter(row=>row.decision==="rejected").map(row=>({
+          target_key:row.target_key,recommendation:row.recommendation,decision_id:row.decision_id,decided_at:row.decided_at
+        }));
+        return json({success:true,pending:(pendingRows.results||[]),history:history.slice(0,100),
+          approvedPreferenceProfile:{ownerUid:admin.uid,approvedPreferences,rejectedDecisions,
+            diagnostics:{ownerScoped:true,advisoryOnly:true,preferencesChanged:false,applied:false}}});
+      }
+
+      if (path === "/intelligence/preferences/proposals" && method === "POST") {
+        const admin = await verifyAdmin(request, env);
+        if (!admin) return error("Admin authentication required", 403);
+        if (!await checkRateLimit(env, request, "intelligence-preference-proposal", 30, 3600, 900, admin.uid)) {
+          return error("Too many preference proposals. Try again later.", 429);
+        }
+        const body = await readBody(request);
+        if (!body) return error("Invalid request body", 400);
+        const targetKey = cleanText(body.targetKey, 80).toLowerCase();
+        const recommendation = body.recommendation;
+        if (!/^[a-z0-9][a-z0-9._:-]{1,79}$/.test(targetKey) ||
+            !["increase_preference","decrease_preference"].includes(recommendation)) {
+          return error("Invalid preference proposal.", 400);
+        }
+        await ensureIntelligencePreferenceTables(env);
+        const memory = await env.DB.prepare(
+          "SELECT memory_key FROM intelligence_memory_items WHERE owner_uid=? AND memory_key=? AND category IN ('preference','decision') LIMIT 1"
+        ).bind(admin.uid,targetKey).first();
+        if (!memory) return error("An active owner preference or decision memory is required.", 409);
+        const existing = await env.DB.prepare(
+          "SELECT id,target_key,recommendation,proposal_key,created_at FROM intelligence_preference_proposals WHERE owner_uid=? AND target_key=? AND recommendation=? AND status='pending' LIMIT 1"
+        ).bind(admin.uid,targetKey,recommendation).first();
+        if (existing) return json({success:true,proposal:existing,duplicate:true});
+        const count = await env.DB.prepare(
+          "SELECT COUNT(*) AS total FROM intelligence_preference_proposals WHERE owner_uid=? AND status='pending'"
+        ).bind(admin.uid).first();
+        if (Number(count?.total||0)>=100) return error("Pending preference review queue is full.", 429);
+        const id = crypto.randomUUID();
+        const proposalKey = JSON.stringify([targetKey,recommendation]);
+        await env.DB.prepare(
+          "INSERT INTO intelligence_preference_proposals(id,owner_uid,target_key,recommendation,proposal_key) VALUES(?,?,?,?,?)"
+        ).bind(id,admin.uid,targetKey,recommendation,proposalKey).run();
+        await writeAdminAudit(env,admin,"intelligence_preference_proposal_created","intelligence_preference_proposal",id,
+          JSON.stringify({targetKey,recommendation}));
+        return json({success:true,proposal:{id,target_key:targetKey,recommendation,proposal_key:proposalKey,status:"pending"},duplicate:false},201);
+      }
+
+      if (path === "/intelligence/preferences/decisions" && method === "POST") {
+        const admin = await verifyAdmin(request, env);
+        if (!admin) return error("Admin authentication required", 403);
+        if (!await checkRateLimit(env, request, "intelligence-preference-decision", 20, 3600, 1800, admin.uid)) {
+          return error("Too many preference decisions. Try again later.", 429);
+        }
+        const body = await readBody(request);
+        if (!body) return error("Invalid request body", 400);
+        const proposalId = cleanText(body.proposalId, 80);
+        const choice = body.decision;
+        if (!/^[0-9a-f-]{36}$/i.test(proposalId) || !["accepted","rejected"].includes(choice) ||
+            body.explicitConfirmation !== true) {
+          return error("Explicit owner confirmation is required.", 400);
+        }
+        await ensureIntelligencePreferenceTables(env);
+        const proposal = await env.DB.prepare(
+          "SELECT id,target_key,recommendation,proposal_key FROM intelligence_preference_proposals WHERE id=? AND owner_uid=? AND status='pending' LIMIT 1"
+        ).bind(proposalId,admin.uid).first();
+        if (!proposal) return error("Pending owner preference proposal was not found.", 404);
+        const decisionId = crypto.randomUUID();
+        const decidedAt = new Date().toISOString();
+        try {
+          await env.DB.batch([
+            env.DB.prepare("INSERT INTO intelligence_preference_decisions(decision_id,owner_uid,actor_uid,proposal_id,proposal_key,target_key,recommendation,decision,explicit_confirmation,decided_at) VALUES(?,?,?,?,?,?,?,?,1,?)")
+              .bind(decisionId,admin.uid,admin.uid,proposal.id,proposal.proposal_key,proposal.target_key,proposal.recommendation,choice,decidedAt),
+            env.DB.prepare("UPDATE intelligence_preference_proposals SET status='decided' WHERE id=? AND owner_uid=? AND status='pending'")
+              .bind(proposal.id,admin.uid)
+          ]);
+        } catch (writeError) {
+          console.error("INTELLIGENCE_PREFERENCE_DECISION_WRITE_FAILED",String(writeError?.message||"database_error").slice(0,160));
+          return error("Could not record the preference decision. No preference was applied.",500);
+        }
+        await writeAdminAudit(env,admin,"intelligence_preference_decision_recorded","intelligence_preference_proposal",proposal.id,
+          JSON.stringify({decisionId,decision:choice,targetKey:proposal.target_key}));
+        return json({success:true,decision:{decisionId,proposalId:proposal.id,decision:choice,decidedAt},
+          preferencesChanged:false,applied:false});
       }
 
       if (path === "/intelligence/memory" && method === "GET") {
