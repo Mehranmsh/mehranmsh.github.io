@@ -13,6 +13,50 @@
  #patternStudio .step-grid{display:grid;grid-template-columns:repeat(16,minmax(0,1fr));gap:4px;margin-top:7px}#patternStudio .step-cell{min-width:0;padding:8px 0;border:1px solid var(--line);border-radius:6px;background:var(--surface2);color:var(--muted);font-size:10px;cursor:pointer}#patternStudio .step-cell.active{background:var(--accent);border-color:var(--accent);color:#06131f;font-weight:800}@media(max-width:680px){#patternStudio .step-grid{gap:2px}#patternStudio .step-cell{padding:7px 0;font-size:9px}}
  .experience-mode{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin:0 0 14px;padding:10px 12px;border:1px solid var(--line);border-radius:12px;background:var(--surface2);color:var(--muted);font-size:12px}.experience-mode>div{display:flex;gap:6px;flex-wrap:wrap}.experience-mode button{border:1px solid var(--line);background:transparent;color:var(--muted);border-radius:8px;padding:8px 11px;font:inherit;cursor:pointer}.experience-mode button[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:#06131f;font-weight:700}section[data-experience-mode="smart"] details[data-advanced-panel]{display:none}section[data-experience-mode="pro"] details[data-advanced-panel]{display:block} .piano-roll-scroll{overflow-x:auto;margin-top:10px;padding-bottom:6px}.piano-roll-grid{display:grid;grid-template-columns:42px repeat(16,22px);gap:3px;min-width:max-content;align-items:center}.piano-roll-grid .piano-note-label{font-size:10px;color:var(--muted);text-align:right;padding-right:5px}.piano-roll-grid .piano-step-cell{height:22px;min-width:0;padding:0;border:1px solid var(--line);border-radius:4px;background:var(--surface2);cursor:pointer}.piano-roll-grid .piano-step-cell.active{background:var(--accent);border-color:var(--accent);box-shadow:inset 0 0 0 1px rgba(0,0,0,.15)}.piano-roll-grid .piano-step-cell.selected-step{outline:2px solid var(--text);outline-offset:1px}.piano-roll-grid .piano-note-label.octave-mark{font-weight:800;color:var(--text);padding-top:5px}.piano-roll-grid .piano-step-head{font-size:9px;color:var(--muted);text-align:center}
 </style>
+
+<style id="mehran-music-studio-visual-identity">
+/* MEHRAN MUSIC STUDIO: warm analog-console atmosphere with DAW-inspired surfaces. */
+:root{color-scheme:dark;--bg:#0d1014;--panel:#171b20;--panel2:#20252b;--line:#343b43;--accent:#e6a45e;--cyan:#73d5c1;--blue:#8bb9d8;--text:#f5f0e8;--muted:#a6a39c;--green:#79c9a8;--surface2:#20252b}
+body{background:radial-gradient(ellipse at 72% -8%,rgba(176,111,57,.2),transparent 38%),radial-gradient(ellipse at 0 65%,rgba(67,132,124,.08),transparent 32%),#0d1014;color:#f5f0e8}
+.app{background:transparent}
+aside{background:linear-gradient(180deg,#171a1d,#111519);border-right:1px solid rgba(224,170,111,.17)}
+.brand-mark{background:linear-gradient(145deg,#f0bb78,#a96738);color:#1c130b;box-shadow:0 8px 25px rgba(198,125,66,.2)}
+.brand strong{letter-spacing:1.2px}.brand small{color:#d5a36d;letter-spacing:3px}
+.nav button{border:1px solid transparent;border-radius:10px;color:#b7b2a9}
+.nav button:hover{background:#27251f;border-color:rgba(224,170,111,.16);color:#fff}
+.nav button.active{background:linear-gradient(100deg,rgba(192,127,68,.23),rgba(192,127,68,.07));border-color:rgba(224,170,111,.22);color:#ffe0b7;box-shadow:inset 3px 0 #e6a45e}
+.side-note{border-top-color:rgba(224,170,111,.16);color:#938f87}
+main{max-width:1600px;padding:28px clamp(16px,3vw,42px) 70px}
+.top{padding-bottom:16px;border-bottom:1px solid rgba(224,170,111,.14)}
+.status,.tag{border-color:rgba(224,170,111,.23);background:rgba(177,116,63,.1);color:#e6b47f}
+.hero{position:relative;overflow:hidden;border:1px solid rgba(232,169,104,.28);border-radius:24px;background:radial-gradient(circle at 82% 15%,rgba(232,169,104,.18),transparent 30%),linear-gradient(120deg,#30251d,#1c2023 58%,#172329);box-shadow:0 22px 60px rgba(0,0,0,.28);padding:clamp(27px,4vw,48px)}
+.hero:after{content:"";position:absolute;right:-80px;bottom:-170px;width:380px;height:380px;border:1px solid rgba(232,169,104,.13);border-radius:50%;box-shadow:0 0 0 34px rgba(232,169,104,.025),0 0 0 72px rgba(232,169,104,.018);pointer-events:none}
+.hero h1{font-size:clamp(31px,4vw,48px);letter-spacing:-1.2px}.hero p{max-width:630px;color:#c2b8aa;line-height:1.9}
+.hero-mark{color:rgba(236,177,112,.14)}
+.panel{background:linear-gradient(155deg,#1b2025,#151a1f);border-color:rgba(205,166,121,.15);border-radius:17px;box-shadow:0 12px 35px rgba(0,0,0,.15)}
+.tile{background:linear-gradient(150deg,#202326,#171c20);border:1px solid rgba(205,166,121,.16);border-radius:16px;transition:transform .18s,border-color .18s,box-shadow .18s}
+.tile:hover{transform:translateY(-2px);border-color:rgba(232,169,104,.38);box-shadow:0 14px 30px rgba(0,0,0,.2)}
+.tile .ico{background:linear-gradient(145deg,rgba(232,169,104,.2),rgba(92,159,145,.12));border:1px solid rgba(232,169,104,.16);border-radius:13px;color:#f1bd83}
+.btn{background:linear-gradient(110deg,#e7ad6b,#bf7744);color:#20140b;border:0;border-radius:10px;font-weight:800;box-shadow:0 6px 18px rgba(184,116,59,.15)}
+.btn.secondary{background:#272c30;border:1px solid rgba(205,166,121,.2);color:#e9dfd1;box-shadow:none}
+input,select,textarea{background:#10161b!important;border-color:#394047!important;color:#f4eee4!important;border-radius:9px}
+input:focus,select:focus,textarea:focus{border-color:#d99a5d!important;box-shadow:0 0 0 3px rgba(217,154,93,.15)!important}
+.notice{background:rgba(39,46,48,.72);border-color:rgba(123,177,160,.18);color:#c6c4bb;border-radius:12px}
+.project,.projects .project{background:#1d2428;border-color:rgba(205,166,121,.14);border-radius:12px}
+.step-cell.active,.piano-roll-grid .piano-step-cell.active{background:#e6a45e;border-color:#f2c18c;box-shadow:0 0 12px rgba(230,164,94,.22)}
+.experience-mode{background:#1b2225;border-color:rgba(205,166,121,.2)}
+.experience-mode button[aria-pressed="true"]{background:#d99a5d;border-color:#d99a5d;color:#1b130b}
+#patternStudio,#patternStudio .panel{background:linear-gradient(145deg,#171f22,#11191d);border-color:rgba(116,188,169,.2)}
+#patternStudio .step-cell.active{background:#76cbb7;border-color:#a1ead8;color:#10201d}
+#patternStudio .piano-roll-grid .piano-step-cell.active{background:#76cbb7;border-color:#a1ead8}
+#mixingConsole,#mixConsole,.mixer,.track,.track-row{background:#171d21;border-color:rgba(128,164,158,.18)}
+#view-compose .panel,#view-arrangement .panel,#view-mix .panel{border-top:2px solid rgba(117,190,169,.25)}
+#view-lyrics textarea{font-family:Georgia,serif;line-height:2}
+#view-overview .section-head{margin-top:28px}
+#view-overview #simpleStudioStart{border-top:2px solid rgba(230,164,94,.42)}
+@media(max-width:850px){aside{background:#15191c}.nav button{white-space:nowrap}}
+@media(max-width:520px){.hero{border-radius:18px}.panel{padding:15px}.tile{border-radius:14px}}
+</style>
 </head>
 <body>
 <div class="app">
