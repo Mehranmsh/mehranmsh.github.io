@@ -493,6 +493,15 @@ test("patch proposal task reports are independently verified and bound to privat
   assert.equal(verifyIntelligenceReport("propose_code_patch", { ...report, validationMode: "apply_patch" }).passed, false);
 });
 
+test("Agent runner verifies durable result checkpoint digests before resuming work", () => {
+  assert.match(runnerSource, /checkpointResult\.length > 0/);
+  assert.match(runnerSource, /checkpointResult\.length <= 3000/);
+  assert.match(runnerSource, /checkpointDigest\) &&/);
+  assert.match(runnerSource, /createHash\("sha256"\)\.update\(checkpointResult\)\.digest\("hex"\) === checkpointDigest/);
+  assert.match(runnerSource, /checkpointMatchesCurrentSchema = checkpointMatchesCurrentSchema &&/);
+  assert.match(runnerSource, /Ignoring result checkpoint whose content digest is missing or invalid/);
+});
+
 test("Agent patch proposal runner checkpoints an immutable base and submits a stable task request ID", () => {
   assert.match(runnerSource, /if \(task\.actionType === "propose_code_patch"\)/);
   assert.match(runnerSource, /\/agent\/v1\/patch-proposals\/generate/);
