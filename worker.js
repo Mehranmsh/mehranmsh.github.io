@@ -8064,7 +8064,7 @@ export default {
           ];
           for (const item of normalized) {
             statements.push(env.DB.prepare("INSERT INTO intelligence_tasks(id,title,description,assigned_to,priority,status,requires_approval,result_text,created_by,action_type,action_payload,work_package_id,max_attempts) VALUES(?,?,?,'mehran_intelligence',?,'queued',0,'','mehran_intelligence',?,?,?,3)")
-               .bind(packageId + ":" + item.taskId,item.title,item.description,priority,item.actionType,JSON.stringify({sourceTaskId:item.taskId,...(item.paths?{paths:item.paths}:{}),...(item.baseSha?{baseSha:item.baseSha}:{})}),packageId));
+               .bind(packageId + ":" + item.taskId,item.title,item.description,priority,item.actionType,JSON.stringify({sourceTaskId:item.taskId,...(item.paths?{paths:item.paths,analysisMode:item.analysisMode || "inventory"}:{}),...(item.baseSha?{baseSha:item.baseSha}:{})}),packageId));
             for (const dependency of item.dependencies) {
               statements.push(env.DB.prepare("INSERT INTO intelligence_task_dependencies(task_id,depends_on_task_id) VALUES(?,?)").bind(packageId + ":" + item.taskId,packageId + ":" + dependency));
             }
