@@ -2818,7 +2818,7 @@ test("routine read-only missions are classified before any AI memory or inferenc
   assert.match(classifier, /بررسی سلامت/);
   assert.match(classifier, /بررسی امنیت/);
   assert.match(planner, /const deterministicPlan = buildDeterministicRoutinePlan\(mission\)/);
-  assert.match(planner, /return createDeterministicRoutinePackage\(env, mission, idempotencyKey, input\?\.ownerUid, deterministicPlan\)/);
+  assert.match(planner, /return createDeterministicRoutinePackage\\(env, mission, idempotencyKey, input\\?\\.ownerUid, deterministicPlan(?:, input\\?\\.generatorReservation \\|\\| null)?\\)/);
   assert.ok(planner.indexOf("buildDeterministicRoutinePlan(mission)") < planner.indexOf("await ensureIntelligenceMemoryTables(env)"), "routine tasks must bypass memory reads and AI planning");
   assert.match(workerSource, /aiInferenceUsed: false/);
   assert.match(workerSource, /deterministic_rules_v1/);
@@ -3287,7 +3287,7 @@ function makeClaimLifecycleDb({ synchronizeCandidateReads = false, expireDuringC
         },
         async run() {
           // Schema setup is intentionally a no-op in this in-memory fake.
-          if (/^\s*(CREATE TABLE|CREATE INDEX|ALTER TABLE)/i.test(sql)) return { meta: { changes: 0 } };
+          if (/^\s*(CREATE TABLE|CREATE INDEX|CREATE TRIGGER|ALTER TABLE)/i.test(sql)) return { meta: { changes: 0 } };
           if (sql.includes("claim_expired_max_attempts")) {
             if (state.expired && state.row.status === "in_progress" &&
                 Number(state.row.attempts) >= Number(state.row.max_attempts)) {
