@@ -3180,12 +3180,12 @@ test("Agent task claim tokens fence checkpoint and result commits to the current
   assert.match(schedulerRecovery, /SET status=\?,agent_claimed_at=NULL,agent_claim_token_hash=''/);
   assert.match(schedulerRecovery, /WHERE id=\? AND status='in_progress' AND agent_claimed_at IS NOT NULL AND datetime\(agent_claimed_at\)<datetime\('now','-15 minutes'\)/,
     "scheduler recovery must re-check stale ownership atomically before revoking a claim");
-  assert.match(schedulerRecovery, /json_each\\(wp\\.scope_json, '\$\\.allowedActions'\\)/,
+  assert.ok(schedulerRecovery.includes("json_each(wp.scope_json, '$.allowedActions')"),
     "scheduled recovery must exclude package tasks without explicit action authorization");
   const schedulerClaimStart = workerSource.indexOf('const claimed = await env.DB.prepare(', schedulerRecoveryEnd);
   const schedulerClaimEnd = workerSource.indexOf('if (!Number(claimed?.meta?.changes || 0)) continue;', schedulerClaimStart);
   const schedulerClaim = workerSource.slice(schedulerClaimStart, schedulerClaimEnd);
-  assert.match(schedulerClaim, /json_each\\(wp\\.scope_json, '\$\\.allowedActions'\\)/,
+  assert.ok(schedulerClaim.includes("json_each(wp.scope_json, '$.allowedActions')"),
     "scheduled claim must atomically enforce the package action scope");
   assert.ok(claimRoute.includes("work_package_id IS NULL OR EXISTS (SELECT 1 FROM intelligence_work_packages wp, json_each(wp.scope_json, '$.allowedActions')"),
     "agent claim and stale-retry recovery must reject package tasks without explicit action authorization");
