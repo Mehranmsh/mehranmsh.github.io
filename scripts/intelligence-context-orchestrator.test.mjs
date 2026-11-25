@@ -151,3 +151,32 @@ test("coordinates owner-authenticated plan history and keeps it read-only", () =
   assert.equal(result.diagnostics.planHistoryRevisions, 2);
   assert.deepEqual(revisions, before);
 });
+
+
+test("coordinates plan outcome learning only from explicitly owner-confirmed observations", () => {
+  const revisions = [
+    { owner_uid: "owner-a", revision_id: "r1", version: 1, created_at: "2026-11-20T10:00:00Z", change_reason: "initial", tasks: [{ task_id: "build", title: "Build", priority: "normal" }] },
+    { owner_uid: "owner-a", revision_id: "r2", version: 2, created_at: "2026-11-21T10:00:00Z", change_reason: "priority raised", tasks: [{ task_id: "build", title: "Build", priority: "high" }] },
+    { owner_uid: "owner-a", revision_id: "r3", version: 3, created_at: "2026-11-22T10:00:00Z", change_reason: "priority lowered", tasks: [{ task_id: "build", title: "Build", priority: "low" }] },
+    { owner_uid: "owner-a", revision_id: "r4", version: 4, created_at: "2026-11-23T10:00:00Z", change_reason: "priority raised again", tasks: [{ task_id: "build", title: "Build", priority: "high" }] }
+  ];
+  const planProgressEvents = [2, 3, 4].map((version, index) => ({
+    owner_uid: "owner-a", actor_uid: "owner-a", explicit_confirmation: true,
+    event_id: "event-" + version, revision_id: "r" + version, task_id: "build",
+    progress_state: "completed", occurred_at: "2026-11-2" + (version + 2) + "T12:00:00Z"
+  }));
+  const result = buildIntelligenceContextSnapshot([base("safe")], {
+    ownerUid: "owner-a", actorUid: "owner-a", planRevisions: revisions, planProgressEvents
+  });
+  const pattern = result.planLearning.patterns.find(item => item.signature === "priority_changed");
+  assert.equal(pattern.status, "repeated_association");
+  assert.equal(pattern.observations, 3);
+  assert.equal(result.planLearning.diagnostics.causalClaims, false);
+  assert.equal(result.planLearning.diagnostics.preferencesChanged, false);
+  assert.equal(result.diagnostics.planLearningObservations, 3);
+  const unauthenticated = buildIntelligenceContextSnapshot([base("safe")], {
+    ownerUid: "owner-a", actorUid: "attacker", planRevisions: revisions, planProgressEvents
+  });
+  assert.equal(unauthenticated.planLearning.diagnostics.ownerScoped, false);
+  assert.equal(unauthenticated.planLearning.observations.length, 0);
+});
