@@ -8145,101 +8145,18 @@ export default {
 
       if (path === "/health" && method === "GET") {
         let database = false;
-        let scheduler = null;
-        let privateInbox = null;
-        let runner = null;
-        let runnerDispatch = null;
-        let aiProvider = null;
-        let aiProviderAttempts = [];
         try {
           if (env.DB) {
             await env.DB.prepare("SELECT 1 AS test").first();
             database = true;
-            try {
-              const latest = await env.DB.prepare(
-                "SELECT started_at,finished_at,status,processed_count,completed_count,blocked_count FROM intelligence_scheduler_runs ORDER BY started_at DESC LIMIT 1"
-              ).first();
-              if (latest) scheduler = {
-                lastStartedAt: latest.started_at || null,
-                lastFinishedAt: latest.finished_at || null,
-                lastStatus: latest.status || "unknown",
-                processed: Number(latest.processed_count || 0),
-                completed: Number(latest.completed_count || 0),
-                blocked: Number(latest.blocked_count || 0)
-              };
-            } catch {
-              // Scheduler history may not exist yet on a fresh database.
-            }
-            try {
-              await ensureIntelligenceRunnerTelemetryTable(env);
-              const row = await env.DB.prepare("SELECT run_id,phase,status,started_at,heartbeat_at,finished_at,duration_ms,timing_json,error_code FROM intelligence_runner_telemetry WHERE id=1").first();
-              if (row) {
-                const ageSeconds = Math.max(0,Math.floor((Date.now()-Date.parse(row.heartbeat_at))/1000));
-                let timings = [];
-                try { timings = JSON.parse(row.timing_json || "[]"); } catch {}
-                runner = {runId:row.run_id,phase:row.phase,status:row.status,startedAt:row.started_at||null,
-                  heartbeatAt:row.heartbeat_at,finishedAt:row.finished_at||null,durationMs:row.duration_ms===null?null:Number(row.duration_ms),
-                  heartbeatAgeSeconds:ageSeconds,health:row.phase==="started" && ageSeconds>900?"stale":row.phase==="started"?"running":row.phase==="failed"?"failed":"idle",
-                  timingSamples:Array.isArray(timings)?timings.slice(0,30):[],errorCode:row.error_code||null};
-              }
-            } catch {}
-            try {
-              const dispatch = await env.DB.prepare("SELECT attempted_at,http_status,outcome FROM intelligence_runner_dispatch WHERE id=1").first();
-              if (dispatch) runnerDispatch = {attemptedAt:dispatch.attempted_at,httpStatus:Number(dispatch.http_status||0),outcome:dispatch.outcome};
-            } catch {}
-            try {
-              await ensureIntelligenceAIProviderDiagnostics(env);
-              const latestTrace = await env.DB.prepare(
-                "SELECT trace_id FROM intelligence_ai_provider_diagnostics ORDER BY id DESC LIMIT 1"
-              ).first();
-              if (latestTrace?.trace_id) {
-                const latestRows = await env.DB.prepare(`
-                  SELECT trace_id,attempted_at,provider,reason,model,error_name,error_code,http_status,error_message,cause_name,cause_message
-                  FROM intelligence_ai_provider_diagnostics WHERE trace_id=?
-                  ORDER BY CASE WHEN provider='cloudflare' THEN 0 ELSE 1 END,id DESC LIMIT 4
-                `).bind(latestTrace.trace_id).all();
-                aiProviderAttempts = (latestRows.results || []).map(row => ({
-                  traceId:row.trace_id,attemptedAt:row.attempted_at,
-                  provider:row.provider,reason:row.reason,model:row.model || null,
-                  errorName:row.error_name || null,errorCode:row.error_code || null,
-                  httpStatus:row.http_status===null?null:Number(row.http_status),
-                  causeName:row.cause_name || null
-                }));
-                aiProvider = aiProviderAttempts.find(item => item.provider === "cloudflare") || aiProviderAttempts[0] || null;
-              }
-            } catch {
-              // AI provider diagnostics are initialized on the first recorded failure.
-            }
-            try {
-              const inbox = await env.DB.prepare(
-                "SELECT last_checked_at,last_status,scanned_count,imported_count,rejected_count,last_rejection_code,last_error_code FROM intelligence_inbox_diagnostics WHERE id=1"
-              ).first();
-              if (inbox) privateInbox = {
-                lastCheckedAt: inbox.last_checked_at || null,
-                lastStatus: inbox.last_status || "unknown",
-                scanned: Number(inbox.scanned_count || 0),
-                imported: Number(inbox.imported_count || 0),
-                rejected: Number(inbox.rejected_count || 0),
-                lastRejectionCode: inbox.last_rejection_code || null,
-                lastErrorCode: inbox.last_error_code || null
-              };
-            } catch {
-              // Inbox diagnostics may not exist until the first scheduled scan.
-            }
           }
         } catch {}
-
+        // Public health is intentionally minimal. Operational telemetry belongs behind owner authentication.
         return json({
           status: "online",
           service: "MEHRAN MSH AUTH",
           version: "5.9",
-          database,
-          scheduler,
-          privateInbox,
-          runner,
-          runnerDispatch,
-          aiProvider,
-          aiProviderAttempts
+          database
         });
       }
 
