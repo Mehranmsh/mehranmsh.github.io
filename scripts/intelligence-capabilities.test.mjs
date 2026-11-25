@@ -316,7 +316,8 @@ test("private runner processes queued work without automatically seeding baselin
   assert.match(runnerSource, /request\("\/agent\/v1\/tasks\/next"\)/);
   assert.match(runnerSource, /Automatic baseline, AI self-improvement, and fixed-test package seeding is intentionally disabled/);
   assert.ok(runnerSource.includes('cron: "*/15 * * * *"'));
-  assert.match(runnerSource, /create-review-pr-from-verified-patch:[\s\S]*?if: false/);
+  assert.doesNotMatch(runnerSource, /create-review-pr-from-verified-patch/);
+  assert.doesNotMatch(runnerSource, /contents: write|pull-requests: write/);
 });
 
 
@@ -1504,7 +1505,7 @@ test("routine missions are routed through the deterministic planner before any A
 test("runner disables automatic self-improvement planning and proposal PR creation", () => {
   assert.doesNotMatch(runnerSource, /request\("\/agent\/v1\/missions\/plan"/);
   assert.doesNotMatch(runnerSource, /mehran-intelligence-self-improvement-v3-/);
-  const prJob = runnerSource.slice(runnerSource.indexOf("  create-review-pr-from-verified-patch:"));
-  assert.ok(prJob.includes("if: false # Owner-approved manual review is required; automated PR creation is disabled."));
+  assert.doesNotMatch(runnerSource, /create-review-pr-from-verified-patch/);
+  assert.doesNotMatch(runnerSource, /contents: write|pull-requests: write/);
 });
 
