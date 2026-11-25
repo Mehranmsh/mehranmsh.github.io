@@ -7,6 +7,7 @@ on:
     paths:
       - ".github/workflows/mehran-intelligence-runner.yml"
       - ".github/workflows/intelligence-runner-policy-check.yml"
+      - "scripts/intelligence-capabilities.test.mjs"
 
 permissions:
   contents: read
@@ -48,3 +49,5 @@ jobs:
           assert.ok(source.split("jobs:")[0].includes("contents: read"), "workflow permissions must remain read-only");
           console.log("PASS: 15-minute polling, no automatic seed packages, approved-queue processing, PR automation disabled, read-only workflow permissions.");
           NODE
+      - name: Run Intelligence capability regression tests
+        run: node --test --test-reporter=tap scripts/intelligence-capabilities.test.mjs
