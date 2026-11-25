@@ -4429,9 +4429,9 @@ const prevMe=window.socialMe;window.socialMe=async function(){await prevMe();soc
  aiPage.querySelectorAll("[data-ai-view]").forEach(b=>b.addEventListener("click",()=>window.switchAI(b.dataset.aiView)));
  const sidebar=document.querySelector(".sidebar .nav-btn[data-page='social']");
  const addNav=(container,name,label,icon,after,hidden=false,mobile=false)=>{if(!container||container.querySelector('[data-page="'+name+'"]'))return;const b=document.createElement("button");b.className=mobile?"":"nav-btn";b.dataset.page=name;b.hidden=hidden;b.innerHTML=mobile?'<span>'+icon+'</span>'+label:'<span class="nav-icon">'+icon+'</span>'+label;b.addEventListener("click",()=>showPage(name));(after||container.lastElementChild)?.insertAdjacentElement("afterend",b);};
- if(sidebar){addNav(sidebar.parentElement,"ai","AI","✧",sidebar);const aiNav=sidebar.parentElement.querySelector('[data-page="ai"]');addNav(sidebar.parentElement,"projects","Projects","◇",aiNav);const projectNav=sidebar.parentElement.querySelector('[data-page="projects"]');addNav(sidebar.parentElement,"intelligence","Intelligence","⌘",projectNav,true);}
+ if(sidebar){addNav(sidebar.parentElement,"ai","AI","✧",sidebar);const aiNav=sidebar.parentElement.querySelector('[data-page="ai"]');addNav(sidebar.parentElement,"projects","Projects","◇",aiNav);}
  const mobile=document.querySelector(".mobile-nav [data-page='social']");
- if(mobile){addNav(mobile.parentElement,"ai","AI","✧",mobile,false,true);const aiMobile=mobile.parentElement.querySelector('[data-page="ai"]');addNav(mobile.parentElement,"projects","Projects","◇",aiMobile,false,true);const projectMobile=mobile.parentElement.querySelector('[data-page="projects"]');addNav(mobile.parentElement,"intelligence","Intel","⌘",projectMobile,true,true);}
+ if(mobile){addNav(mobile.parentElement,"ai","AI","✧",mobile,false,true);const aiMobile=mobile.parentElement.querySelector('[data-page="ai"]');addNav(mobile.parentElement,"projects","Projects","◇",aiMobile,false,true);}
  document.querySelectorAll('.social-tabs [data-social="ai"],.social-tabs [data-social="studios"],.social-tabs [data-social="prompt-creator"]').forEach(b=>b.remove());
  const feed=document.getElementById("social-feed");
  if(feed){const promo=[...feed.children].find(el=>(el.textContent||"").includes("Turn it into a professional prompt"));promo?.remove();}
