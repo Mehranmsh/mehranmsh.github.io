@@ -89,9 +89,10 @@ const workerRest = workerSource.replace(capabilityImport, "")
   .replace(patchGenerationImport, "")
   .replace(inboxSchemaImport, "")
   .replace(routinePlannerImport, "")
-  .replace(memoryRankingImport, "")\n  .replace(answerQualityImport, "")
+  .replace(memoryRankingImport, "")
+  .replace(answerQualityImport, "")
   .replace(retryPolicyImport, "");
-const workerSourceForTest = memoryRankingSource + "\n" + routinePlannerSource + `\nimport { storePrivatePatchArtifact, verifyPrivatePatchArtifactAtPath, getPrivatePatchArtifactPath, getVerifiedPrivatePatchArtifactAtPath } from "${patchStoreTestUrl}";
+const workerSourceForTest = memoryRankingSource + "\n" + routinePlannerSource + "\n" + retryPolicySource + `\nimport { storePrivatePatchArtifact, verifyPrivatePatchArtifactAtPath, getPrivatePatchArtifactPath, getVerifiedPrivatePatchArtifactAtPath } from "${patchStoreTestUrl}";
 import { generatePatchArtifact } from "${patchGenerationTestUrl}";
 import { validatePrivateIntelligenceMission } from "${inboxSchemaUrl}";
 const INTELLIGENCE_ACTION_TYPES = ${JSON.stringify(INTELLIGENCE_ACTION_TYPES)};
