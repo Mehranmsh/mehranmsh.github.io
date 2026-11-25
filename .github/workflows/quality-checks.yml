@@ -112,9 +112,6 @@ jobs:
       - name: Run Intelligence plan outcome learning tests
         run: node --check scripts/intelligence-plan-learning.mjs && node --test scripts/intelligence-plan-learning.test.mjs
 
-      - name: Run Intelligence plan outcome learning tests
-        run: node --check scripts/intelligence-plan-learning.mjs && node --test scripts/intelligence-plan-learning.test.mjs
-
       - name: Run Intelligence decision engine tests
         run: node --check scripts/intelligence-decision-engine.mjs && node --test scripts/intelligence-decision-engine.test.mjs
       - name: Run Intelligence feedback learning tests
