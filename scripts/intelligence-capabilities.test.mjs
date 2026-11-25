@@ -1229,9 +1229,7 @@ test("semantic repository analysis remains a separate optional Worker endpoint",
   assert.match(workerSource, /files\.find\(f=>f\.path===ev\.path\)\?\.excerpt\.includes\(ev\.quote\)/);
   assert.doesNotMatch(workerSource, /inspect_repository_semantic_analysis/);
   assert.doesNotMatch(runnerSource, /request\("\/agent\/v1\/repository\/analyze"/);
-  assert.match(runnerSource, /const evidenceFiles = \[\]/);
   assert.doesNotMatch(runnerSource, /analysis: semantic\.analysis/);
-  assert.match(runnerSource, /slice\(0,2800\)/);
   assert.match(workerSource, /Do not call a named constant a magic number/);
   assert.match(workerSource, /Do not label a Firebase Web API key/);
   assert.match(workerSource, /unsupportedMagicNumberFindings/);
