@@ -77,28 +77,59 @@ export function buildIntelligenceGoalLifecycle(records, proposedTasks, progressE
   }
 
   const taskIds = new Set(acceptedTaskProposals.map(task => task.task_id));
-  const events = progressEvents.slice(0, maxItems).filter(event =>
+  const candidateEvents = progressEvents.slice(0, maxItems).filter(event =>
     event && typeof event === "object" && !Array.isArray(event) &&
-    event.owner_uid === ownerUid && event.actor_uid === ownerUid &&
+    event.owner_uid === ownerUid && event.actor_uid === actorUid &&
     event.explicit_confirmation === true && VALID_PROGRESS.has(String(event.progress_state || "").toLowerCase()) &&
     clean(event.event_id, 120) && taskIds.has(clean(event.task_id, 120)) &&
     timestamp(event.occurred_at) !== null
   );
-  const uniqueEvents = new Map();
-  for (const event of events) {
+  const seenEventIds = new Set();
+  const uniqueEvents = [];
+  const ignoredEventReasons = [];
+  for (const event of candidateEvents) {
     const eventId = clean(event.event_id, 120);
-    if (!uniqueEvents.has(eventId)) uniqueEvents.set(eventId, event);
+    if (seenEventIds.has(eventId)) {
+      ignoredEventReasons.push({ event_id: eventId, reason: "duplicate_event_id" });
+      continue;
+    }
+    seenEventIds.add(eventId);
+    uniqueEvents.push(event);
   }
-  const orderedEvents = [...uniqueEvents.values()].sort((a, b) =>
+  const orderedEvents = uniqueEvents.sort((a, b) =>
     timestamp(a.occurred_at) - timestamp(b.occurred_at) ||
     clean(a.event_id, 120).localeCompare(clean(b.event_id, 120))
   );
   const latestByTask = new Map();
-  for (const event of orderedEvents) latestByTask.set(clean(event.task_id, 120), event);
-  const taskStates = [...latestByTask.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([taskId, event]) => ({
-    task_id: taskId, state: String(event.progress_state).toLowerCase(),
-    event_id: clean(event.event_id, 120), occurred_at: new Date(timestamp(event.occurred_at)).toISOString(),
-    owner_confirmed: true
+  const acceptedEvents = [];
+  for (const event of orderedEvents) {
+    const taskId = clean(event.task_id, 120);
+    const previous = latestByTask.get(taskId);
+    const nextState = String(event.progress_state).toLowerCase();
+    const completionRegression = previous?.state === "completed" && nextState !== "completed";
+    const validCorrection = event.explicit_correction === true &&
+      event.correction_of_event_id === previous?.event_id &&
+      event.correction_confirmed_by_owner === true &&
+      event.actor_uid === ownerUid;
+    if (completionRegression && !validCorrection) {
+      ignoredEventReasons.push({ event_id: clean(event.event_id, 120), reason: "completion_regression_requires_owner_correction" });
+      continue;
+    }
+    const accepted = {
+      event_id: clean(event.event_id, 120),
+      task_id: taskId,
+      state: nextState,
+      occurred_at: new Date(timestamp(event.occurred_at)).toISOString(),
+      owner_confirmed: true,
+      correction: completionRegression && validCorrection
+    };
+    latestByTask.set(taskId, accepted);
+    acceptedEvents.push(accepted);
+  }
+  const taskStates = [...latestByTask.values()].sort((a, b) => a.task_id.localeCompare(b.task_id)).map(item => ({
+    task_id: item.task_id, state: item.state,
+    event_id: item.event_id, occurred_at: item.occurred_at,
+    owner_confirmed: true, correction: item.correction
   }));
   const stateByTask = new Map(taskStates.map(item => [item.task_id, item.state]));
   const plans = [];
@@ -141,8 +172,10 @@ export function buildIntelligenceGoalLifecycle(records, proposedTasks, progressE
     acceptedTaskProposals,
     rejectedTaskProposals,
     progress: {
-      acceptedEvents: orderedEvents.length,
-      ignoredEvents: Math.max(0, progressEvents.length - orderedEvents.length),
+      acceptedEvents: acceptedEvents.length,
+      ignoredEvents: Math.max(0, progressEvents.length - acceptedEvents.length),
+      ignoredEventReasons: ignoredEventReasons.slice(0, maxItems),
+      acceptedEventHistory: acceptedEvents.slice(-maxItems),
       taskStates
     },
     executionPlans: plans,
