@@ -1163,32 +1163,20 @@ input:focus,textarea:focus,select:focus,button:focus-visible,a:focus-visible{out
 
 <section class="page" id="page-social">
 <div class="social-shell">
-<div class="social-top"><div class="social-brand">SOC<span>IAL</span></div><div class="social-top-actions"><button title="Search" onclick="switchSocial('explore')">⌕</button><button title="Community" aria-label="Community" onclick="switchSocial('messages')">✉</button><button title="Notifications" onclick="switchSocial('notifications')" style="position:relative">♡<span id="notificationBadge" style="display:none;position:absolute;top:-5px;right:-5px;background:#ff667d;color:#fff;border-radius:10px;padding:2px 5px;font-size:9px;line-height:1.2">0</span></button><button title="Sign in / Register" id="socialTopAuth">⇥</button></div></div>
-<div class="social-tabs">
-<button type="button" class="social-tab active" data-social="feed" onclick="window.switchSocial('feed');return false;">⌂ Home</button><button type="button" class="social-tab" data-social="reels" onclick="window.switchSocial('reels');return false;">▣ Reels</button><button type="button" class="social-tab" data-social="messages" onclick="window.switchSocial('messages');return false;">👥 Community</button><button type="button" class="social-tab" data-social="settings" onclick="window.switchSocial('settings');return false;">⚙ Settings</button><button type="button" class="social-tab" data-social="profile" onclick="window.switchSocial('profile');return false;">◉ Profile</button><button type="button" class="social-tab" data-social="studios" onclick="window.switchSocial('studios');return false;">✧ Creative Studios</button><button type="button" class="social-tab" data-social="explore" onclick="window.switchSocial('explore');return false;">⌕ Explore</button>
-</div>
+<header class="social-top"><div class="social-brand">SOC<span>IAL</span><small>YOUR SPACE</small></div><div class="social-top-actions"><button title="Search" aria-label="Explore" onclick="switchSocial('explore')">⌕</button><button title="Community" aria-label="Community" onclick="switchSocial('messages')">✉</button><button title="Notifications" aria-label="Notifications" onclick="switchSocial('notifications')" style="position:relative">♡<span id="notificationBadge" style="display:none;position:absolute;top:-5px;right:-5px;background:#ff667d;color:#fff;border-radius:10px;padding:2px 5px;font-size:9px;line-height:1.2">0</span></button><button title="Sign in / Register" id="socialTopAuth">⇥</button></div></header>
+<nav class="social-tabs" aria-label="SOCIAL navigation">
+<button type="button" class="social-tab active" data-social="feed" onclick="window.switchSocial('feed');return false;"><span>⌂</span>Home</button><button type="button" class="social-tab" data-social="explore" onclick="window.switchSocial('explore');return false;"><span>⌕</span>Explore</button><button type="button" class="social-tab" data-social="reels" onclick="window.switchSocial('reels');return false;"><span>▣</span>Reels</button><button type="button" class="social-tab" data-social="messages" onclick="window.switchSocial('messages');return false;"><span>✉</span>Messages</button><button type="button" class="social-tab" data-social="profile" onclick="window.switchSocial('profile');return false;"><span>◉</span>Profile</button><button type="button" class="social-tab" data-social="studios" onclick="window.switchSocial('studios');return false;"><span>✧</span>Studios</button><button type="button" class="social-tab" data-social="settings" onclick="window.switchSocial('settings');return false;"><span>⚙</span>Settings</button>
+</nav>
 
-<div class="social-view active" id="social-feed">
-<div class="social-welcome-hero">
- <div class="social-welcome-copy"><span class="social-welcome-kicker"><i></i> YOUR COMMUNITY, YOUR SPACE</span><h1>Make connections.<br><em>Share what moves you.</em></h1><p>A place for your ideas, moments, conversations and creative world.</p><div class="social-welcome-actions"><button class="social-primary-action" type="button" onclick="openCreate()">＋ Create a post</button><button class="social-ghost-action" type="button" onclick="switchSocial('explore')">Discover SOCIAL <b>↗</b></button></div></div>
- <div class="social-welcome-art" aria-hidden="true"><div class="social-art-ring ring-one"></div><div class="social-art-ring ring-two"></div><div class="social-art-ring ring-three"></div><div class="social-art-core"><span>SO</span><b>CIAL</b><i>✦</i></div><span class="social-art-float float-a">CREATE</span><span class="social-art-float float-b">CONNECT</span><span class="social-art-float float-c">INSPIRE</span></div>
- <div class="social-welcome-foot"><span>01 <b>COMMUNITY</b></span><span>YOUR VOICE BELONGS HERE</span></div>
-</div>
-<div class="social-feed-layout">
+<main class="social-view active" id="social-feed">
  <div class="social-feed-main">
-  <div class="social-compose-prompt"><div class="social-compose-avatar">M</div><div class="social-compose-copy"><strong>Something on your mind?</strong><span>Share a thought, a photo or a moment with your community.</span></div><button type="button" onclick="openCreate()" aria-label="Create a post">＋</button></div>
-  <div class="story-row" id="storiesRow" aria-label="Stories"></div>
-  <div class="social-feed-heading"><div><span class="social-section-kicker">THE COMMUNITY</span><h2>Your Feed</h2></div><span class="social-feed-count" id="feedCount">0 posts</span></div>
+  <div class="social-feed-heading"><div><span class="social-section-kicker">A LITTLE SPACE FOR YOU</span><h1>Your world, in one feed.</h1><p>Moments, ideas and people worth keeping up with.</p></div><button class="social-primary-action" type="button" onclick="openCreate()">＋ Create post</button></div>
+  <div class="social-compose-prompt"><div class="social-compose-avatar">M</div><div class="social-compose-copy"><strong>What would you like to share?</strong><span>A thought, a photo, a video or a small moment.</span></div><button type="button" onclick="openCreate()" aria-label="Create a post">＋</button></div>
+  <section class="social-stories-section"><div class="social-mini-heading"><span>STORIES</span><small>Moments that disappear</small></div><div class="story-row" id="storiesRow" aria-label="Stories"></div></section>
+  <div class="social-feed-heading social-feed-list-heading"><div><span class="social-section-kicker">YOUR COMMUNITY</span><h2>Latest posts</h2></div><span class="social-feed-count" id="feedCount">0 posts</span></div>
   <div id="feedList"></div>
  </div>
- <aside class="social-discovery-rail">
-  <section class="social-rail-card social-rail-profile"><span class="social-rail-eyebrow">YOUR SPACE</span><div class="social-rail-profile-art"><span>✦</span></div><h3>Your SOCIAL profile</h3><p>Give your profile a personality and let people discover your world.</p><button type="button" onclick="switchSocial('profile')">Open profile <b>↗</b></button></section>
-  <section class="social-rail-card"><div class="social-rail-heading"><span class="social-rail-eyebrow">FIND YOUR PEOPLE</span><span>✧</span></div><button class="social-rail-link" type="button" onclick="switchSocial('explore')"><i>⌕</i><span><b>Explore</b><small>Discover people and ideas</small></span><em>↗</em></button><button class="social-rail-link" type="button" onclick="switchSocial('messages')"><i>✉</i><span><b>Community</b><small>Chats, groups and channels</small></span><em>↗</em></button><button class="social-rail-link" type="button" onclick="switchSocial('reels')"><i>▶</i><span><b>Reels</b><small>Short video moments</small></span><em>↗</em></button></section>
-  <section class="social-rail-note"><span>✦</span><div><b>Make it yours.</b><p>Follow what inspires you. Share what matters. Build your corner of SOCIAL.</p></div></section>
-  <div class="social-rail-footer">MEHRAN MSH <span>·</span> SOCIAL EXPERIENCE</div>
- </aside>
-</div>
-</div>
+</main>
 
 <div class="social-view" id="social-explore"><div class="section-title"><h2>Explore people & posts</h2><span class="small-text">Search SOCIAL community</span></div><input class="search-box" id="exploreSearch" placeholder="Search people, posts, groups and channels..."><div id="searchResults"></div><div id="exploreGrid" class="explore-grid"></div><div id="exploreEmpty" class="empty">Search for people or topics to discover the community.</div></div>
 
@@ -5011,4 +4999,50 @@ const prevMe=window.socialMe;window.socialMe=async function(){await prevMe();soc
 @media(max-width:820px){#page-social .social-shell{grid-template-columns:1fr}#page-social .social-top{grid-column:1;grid-row:1;border-radius:24px 24px 0 0}#page-social .social-tabs{grid-column:1;grid-row:2;position:sticky;top:0;z-index:8;flex-direction:row;overflow-x:auto;padding:8px 10px;border-right:0;border-bottom:1px solid var(--sx-line);border-radius:0;background:rgba(8,20,34,.96);backdrop-filter:blur(16px);scrollbar-width:none}#page-social .social-tabs:before{display:none}#page-social .social-tab{width:auto;min-height:40px;flex:0 0 auto;padding:9px 12px}#page-social .social-view{grid-column:1;grid-row:3;padding:15px}#page-social .social-feed-layout{grid-template-columns:minmax(0,1fr) 220px}}
 @media(max-width:620px){#page-social .social-welcome-hero{grid-template-columns:1fr;min-height:330px;padding:24px 20px 48px}#page-social .social-welcome-art{position:absolute;right:-30px;top:30px;width:180px;opacity:.58}#page-social .social-welcome-copy{max-width:82%}#page-social .social-welcome-copy h1{font-size:29px}#page-social .social-welcome-copy p{font-size:11px}#page-social .social-welcome-foot{right:16px;left:16px;font-size:7px}#page-social .social-feed-layout{grid-template-columns:1fr}#page-social .social-discovery-rail{position:static;grid-template-columns:repeat(2,minmax(0,1fr))}#page-social .social-rail-profile{grid-column:1/-1}#page-social .social-rail-note,#page-social .social-rail-footer{grid-column:1/-1}#page-social .social-view{padding:11px}#page-social .social-top{padding:13px 15px}#page-social .social-brand{font-size:22px}#page-social .social-top-actions button{width:36px;height:36px}#page-social .social-compose-prompt{padding:10px}#page-social .social-compose-copy span{max-width:200px}}
 @media(prefers-reduced-motion:reduce){#page-social .ring-one{animation:none}#page-social .social-tab,#page-social .social-primary-action,#page-social .social-ghost-action{transition:none}}
+</style>
+
+
+<style id="msh-social-structural-redesign-v2">
+/* Layout-only refresh: retain the existing SOCIAL blue/black palette. */
+#page-social .social-shell{display:block;max-width:1160px;margin:0 auto;border-radius:22px;overflow:hidden}
+#page-social .social-top{display:flex;align-items:center;justify-content:space-between;min-height:68px;padding:12px 24px;margin:0;border-radius:0}
+#page-social .social-brand{display:flex;align-items:baseline;gap:10px}
+#page-social .social-brand small{font-size:9px;letter-spacing:2px;font-weight:800;opacity:.58}
+#page-social .social-tabs{position:static;display:flex;align-items:center;justify-content:center;gap:6px;margin:0;padding:8px 16px;overflow-x:auto;border-radius:0;border-left:0;border-right:0}
+#page-social .social-tabs:before{display:none}
+#page-social .social-tab{display:inline-flex;align-items:center;justify-content:center;gap:8px;width:auto;min-height:38px;padding:8px 14px;flex:0 0 auto}
+#page-social .social-tab>span{font-size:16px;line-height:1}
+#page-social .social-view{padding:clamp(18px,3vw,34px) 16px 42px}
+#page-social #social-feed{max-width:850px;margin:0 auto}
+#page-social .social-feed-main{width:100%;max-width:760px;margin:0 auto}
+#page-social .social-feed-heading{display:flex;align-items:center;justify-content:space-between;gap:14px;margin:0 0 18px;padding:0 0 17px;border:0}
+#page-social .social-feed-heading h1{margin:7px 0 5px;font-size:clamp(25px,3.5vw,36px);letter-spacing:-1.2px}
+#page-social .social-feed-heading p{margin:0;opacity:.7;font-size:12px}
+#page-social .social-feed-heading .social-primary-action{flex:0 0 auto}
+#page-social .social-compose-prompt{margin:0 0 22px;padding:13px 16px}
+#page-social .social-stories-section{margin:0 0 24px;padding:13px 15px 2px;border:1px solid var(--sx-line);border-radius:16px;background:rgba(9,25,40,.35)}
+#page-social .social-mini-heading{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:0 3px 7px}
+#page-social .social-mini-heading span{font-size:9px;font-weight:900;letter-spacing:1.8px}
+#page-social .social-mini-heading small{font-size:9px;opacity:.55}
+#page-social .story-row{padding:8px 2px 14px}
+#page-social .social-feed-list-heading{margin:0 0 14px;padding-bottom:12px;border-bottom:1px solid var(--sx-line)}
+#page-social .social-feed-list-heading h2{margin:5px 0 0;font-size:21px}
+#page-social #feedList{display:grid;gap:18px}
+#page-social #feedList>*{border-radius:17px}
+#page-social .social-welcome-hero,#page-social .social-discovery-rail{display:none!important}
+#page-social #social-explore,#page-social #social-reels,#page-social #social-profile,#page-social #social-messages,#page-social #social-settings,#page-social #social-studios{max-width:1000px;margin:0 auto}
+@media(max-width:620px){
+ #page-social .social-top{padding:11px 14px}
+ #page-social .social-brand{font-size:21px}
+ #page-social .social-brand small{display:none}
+ #page-social .social-tabs{justify-content:flex-start;padding:7px 9px}
+ #page-social .social-tab{padding:8px 11px;font-size:11px}
+ #page-social .social-view{padding:18px 10px 30px}
+ #page-social .social-feed-heading{align-items:flex-start}
+ #page-social .social-feed-heading h1{font-size:25px}
+ #page-social .social-feed-heading p{max-width:220px;line-height:1.6}
+ #page-social .social-feed-heading .social-primary-action{min-height:38px;padding:0 10px;font-size:10px}
+ #page-social .social-compose-prompt{gap:9px;padding:11px}
+ #page-social .social-stories-section{padding:11px 10px 1px}
+}
 </style>
