@@ -37,7 +37,7 @@ test("latest explicit rejection revokes an earlier approval in the exported prof
 });
 test("isolates owners and excludes malformed, unconfirmed, and sensitive ledger rows",()=>{
  const good=recordIntelligencePreferenceDecision(proposals,[],decision(),{ownerUid:"owner"}).ledger[0];
- const rows=[good,{...good,decision_id:"foreign",owner_uid:"other",actor_uid:"other"},
+ const rows=[good,{...good,decision_id:"foreign",owner_uid:"other",actor_uid:"owner"},
   {...good,decision_id:"implicit",explicit_confirmation:false},
   {...good,decision_id:"secret",sensitivity:"credential"}];
  assert.equal(buildApprovedPreferenceProfile(rows,{ownerUid:"owner"}).approvedPreferences.length,1);
