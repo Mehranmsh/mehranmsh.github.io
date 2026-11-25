@@ -3191,9 +3191,7 @@ test("Agent task claim tokens fence checkpoint and result commits to the current
     "agent claim and stale-retry recovery must reject package tasks without explicit action authorization");
   assert.match(claimRoute, /agent_claim_token_hash='',last_error_code='claim_expired_max_attempts'/);
   assert.match(claimRoute, /agent_claim_token_hash='',last_error_code='claim_expired_retry'/);
-  const schedulerClaimStart = workerSource.indexOf('const claimed = await env.DB.prepare(', schedulerRecoveryEnd);
-  const schedulerClaimEnd = workerSource.indexOf('if (!Number(claimed?.meta?.changes || 0)) continue;', schedulerClaimStart);
-  assert.match(workerSource.slice(schedulerClaimStart, schedulerClaimEnd), /agent_claim_token_hash=''/);
+  assert.match(schedulerClaim, /agent_claim_token_hash=''/);
   assert.match(runnerSource, /claimToken: task\.claimToken/);
   const runnerLogLines = runnerSource.split("\n").filter(line => /console\.(?:log|error|warn)\(/.test(line));
   assert.ok(runnerLogLines.length > 0, "runner should retain bounded operational diagnostics");
