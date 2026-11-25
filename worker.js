@@ -3,6 +3,7 @@ import { INTELLIGENCE_ACTION_TYPES, PREAPPROVED_INTELLIGENCE_ACTION_TYPES } from
 import { storePrivatePatchArtifact, verifyPrivatePatchArtifactAtPath, getPrivatePatchArtifactPath, getVerifiedPrivatePatchArtifactAtPath } from "./scripts/intelligence-private-patch-store.mjs";
 import { extractPatchModelText, generatePatchArtifact } from "./scripts/intelligence-patch-generation-service.mjs";
 import { validatePrivateIntelligenceMission } from "./scripts/intelligence-inbox-schema.mjs";
+import { selectMemoryContext } from "./scripts/intelligence-memory-ranking.mjs";
 
 function nextWorkersAIDailyResetAt(attemptedAt) {
   const timestamp = typeof attemptedAt === "number" ? attemptedAt : Date.parse(attemptedAt);
@@ -9631,10 +9632,10 @@ export default {
         const priorTurnsResult = await env.DB.prepare("SELECT role,content FROM intelligence_chat_turns WHERE owner_uid=? AND session_key=? ORDER BY created_at DESC,rowid DESC LIMIT 16").bind(admin.uid,sessionKey).all();
         const priorTurns = (priorTurnsResult.results || []).reverse();
         const [memoryResult,activeTaskResult] = await Promise.all([
-          env.DB.prepare("SELECT memory_key,category,content,importance,updated_at FROM intelligence_memory_items WHERE owner_uid=? ORDER BY updated_at DESC,importance DESC LIMIT 24").bind(admin.uid).all(),
+          env.DB.prepare("SELECT owner_uid,memory_key,category,content,importance,source,updated_at FROM intelligence_memory_items WHERE owner_uid=? ORDER BY importance DESC,updated_at DESC LIMIT 60").bind(admin.uid).all(),
           env.DB.prepare("SELECT t.id,t.title,t.description,t.status,t.action_type,t.work_package_id,t.checkpoint_json,t.attempts,t.max_attempts,t.next_attempt_at,t.last_error_code,t.updated_at,wp.title AS package_title,wp.objective AS package_objective,wp.status AS package_status FROM intelligence_tasks t LEFT JOIN intelligence_work_packages wp ON wp.id=t.work_package_id WHERE t.status IN ('queued','accepted','in_progress','retry_wait','blocked','awaiting_approval') AND ((wp.owner_uid=? AND t.work_package_id IS NOT NULL) OR (t.work_package_id IS NULL AND t.created_by=?)) ORDER BY CASE t.status WHEN 'in_progress' THEN 0 WHEN 'retry_wait' THEN 1 WHEN 'accepted' THEN 2 WHEN 'queued' THEN 3 ELSE 4 END,t.updated_at DESC LIMIT 12").bind(admin.uid,admin.username).all()
         ]);
-        const persistentMemory = memoryResult.results || [];
+        const persistentMemory = selectMemoryContext(memoryResult.results || [], { ownerUid: admin.uid, query: question, maxItems: 14, maxChars: 6500, maxItemChars: 1000 });
         const activeMissions = (activeTaskResult.results || []).map(task => {
           let checkpoint = {};
           try { checkpoint = JSON.parse(task.checkpoint_json || "{}"); } catch {}
