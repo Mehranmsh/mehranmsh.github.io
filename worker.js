@@ -5937,6 +5937,12 @@ export function validateIntelligenceWorkPackage(input) {
   }
   if (!["low", "normal", "high"].includes(priority)) return fail("Invalid work package priority.");
   if (!scopeJson || scopeJson.length > 4000) return fail("Work package scope exceeds the 4 KB limit.");
+  const globalAllowedActions = ["service_health_report", "repository_quality_check", "source_security_audit", "inspect_repository", "run_repository_tests", "propose_code_patch"];
+  const scopedActionsDeclared = Object.hasOwn(scope, "allowedActions");
+  const scopedActions = scope.allowedActions;
+  if (scopedActionsDeclared && (!Array.isArray(scopedActions) || scopedActions.length < 1 || scopedActions.length > globalAllowedActions.length || new Set(scopedActions).size !== scopedActions.length || scopedActions.some(action => typeof action !== "string" || !globalAllowedActions.includes(action)))) {
+    return fail("Work package scope.allowedActions must be a unique, non-empty subset of the bounded capability allowlist.");
+  }
   const normalized = [];
   const known = new Set();
   for (let index = 0; index < tasks.length; index++) {
@@ -5953,7 +5959,7 @@ export function validateIntelligenceWorkPackage(input) {
     const patchObjective = actionType === "propose_code_patch" ? item?.objective : undefined;
     const validPatchObjective = actionType !== "propose_code_patch" || (typeof patchObjective === "string" && patchObjective.trim().length >= 12 && patchObjective.length <= 800);
     if (!taskId || !/^[A-Za-z0-9._:-]{1,80}$/.test(taskId) || known.has(taskId) || !taskTitle ||
-        !["service_health_report", "repository_quality_check", "source_security_audit", "inspect_repository", "run_repository_tests", "propose_code_patch"].includes(actionType) || !validInspectPaths || !validTestBaseSha || !validPatchObjective || (actionType !== "inspect_repository" && Object.hasOwn(item || {}, "paths")) || (actionType !== "run_repository_tests" && Object.hasOwn(item || {}, "baseSha")) || (actionType !== "propose_code_patch" && Object.hasOwn(item || {}, "objective")) || dependencies.length > 10) {
+        !globalAllowedActions.includes(actionType) || (scopedActionsDeclared && !scopedActions.includes(actionType)) || !validInspectPaths || !validTestBaseSha || !validPatchObjective || (actionType !== "inspect_repository" && Object.hasOwn(item || {}, "paths")) || (actionType !== "run_repository_tests" && Object.hasOwn(item || {}, "baseSha")) || (actionType !== "propose_code_patch" && Object.hasOwn(item || {}, "objective")) || dependencies.length > 10) {
       return fail("Invalid task definition or action outside the bounded capability allowlist.");
     }
     if (new Set(dependencies).size !== dependencies.length ||
