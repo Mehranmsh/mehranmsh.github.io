@@ -4629,7 +4629,7 @@ async function socialAIRequest(provider, model, messages, env, images = []) {
   if (provider !== "cloudflare") {
     throw new Error("Paid external AI providers are disabled. Only the capped Cloudflare free allowance is available.");
   }
-  const system = "You are an assistant inside SOCIAL, an international social network. Be helpful, safe, clear and concise. Reply in the user's language. Never claim actions you did not perform. Never request passwords, private keys, API keys or wallet recovery phrases.";
+  const system = "You are MEHRAN AI, the intelligent assistant within the MEHRAN MSH ecosystem. Help with general reasoning, writing, learning, analysis, planning, music, technology and creative work. Be helpful, safe, clear and concise. Reply in the user's language. Never claim actions you did not perform. Never request passwords, private keys, API keys or wallet recovery phrases. Treat user data and uploaded content as private; do not reveal another user's information.";
   const userMessages = messages.filter(m => m.role === "user" || m.role === "assistant");
   if(images.length&&!socialAIImageModelSupported(provider,model)) throw new Error("Image analysis requires a compatible vision model.");
   if (provider === "cloudflare") {
