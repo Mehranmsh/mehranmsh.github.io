@@ -213,8 +213,8 @@ jobs:
               }
             }
           }
-          // Automatic baseline, AI self-improvement, and fixed-test package seeding remains disabled.
-          // The runner processes only explicitly queued, approved work packages plus the opt-in read-only generator above.
+          // Automatic baseline, AI self-improvement, and fixed-test package seeding is intentionally disabled.
+          // The runner processes explicitly queued, approved work packages plus the opt-in read-only generator above.
           function runHost(command, args, timeoutMs = 30000) {
             const result = spawnSync(command, args, { encoding: "utf8", timeout: timeoutMs, maxBuffer: 1024 * 1024 });
             if (result.error) throw new Error(`${command} failed: ${String(result.error.message || result.error).slice(0,160)}`);
