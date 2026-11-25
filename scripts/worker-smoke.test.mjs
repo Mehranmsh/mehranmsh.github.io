@@ -2818,7 +2818,7 @@ test("routine read-only missions are classified before any AI memory or inferenc
   assert.match(classifier, /بررسی سلامت/);
   assert.match(classifier, /بررسی امنیت/);
   assert.match(planner, /const deterministicPlan = buildDeterministicRoutinePlan\(mission\)/);
-  assert.match(planner, /return createDeterministicRoutinePackage\\(env, mission, idempotencyKey, input\\?\\.ownerUid, deterministicPlan(?:, input\\?\\.generatorReservation \\|\\| null)?\\)/);
+  assert.match(planner, /return createDeterministicRoutinePackage\(env, mission, idempotencyKey, input\?\.ownerUid, deterministicPlan(?:, input\?\.generatorReservation \|\| null)?\)/);
   assert.ok(planner.indexOf("buildDeterministicRoutinePlan(mission)") < planner.indexOf("await ensureIntelligenceMemoryTables(env)"), "routine tasks must bypass memory reads and AI planning");
   assert.match(workerSource, /aiInferenceUsed: false/);
   assert.match(workerSource, /deterministic_rules_v1/);
