@@ -2784,7 +2784,7 @@ test("MEHRAN INTELLIGENCE owner notification outbox is authenticated and lease-b
 
 test("MEHRAN INTELLIGENCE propagates terminal dependency failures and prevents zombie queued tasks", () => {
   assert.match(workerSource, /async function blockIntelligenceTasksWithTerminalDependencies\(env, packageId\)/);
-  assert.match(workerSource, /parent\.status IN \('blocked','failed','cancelled'\)/);
+  assert.ok(workerSource.includes("parent.status IN ('blocked','failed','cancelled')"), "cancelled prerequisites must be terminal too");
   assert.match(workerSource, /last_error_code='dependency_terminal'/);
   assert.match(workerSource, /event_type,from_status,to_status,actor,details_json\) SELECT \?,\?,\?, 'dependency_blocked'/);
   assert.match(workerSource, /await blockIntelligenceTasksWithTerminalDependencies\(env, packageId\)/);
