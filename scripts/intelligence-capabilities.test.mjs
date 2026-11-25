@@ -44,15 +44,14 @@ test("persistent Workers AI inference 503 failures are not automatically retried
   assert.match(runnerSource, /Number\(error\?\.status\) === 503/);
 });
 
-test("bounded inspection serialization preserves a schema-valid semantic analysis", () => {
-  const serializerStart = runnerSource.indexOf("function serializeBoundedResult");
-  const serializerEnd = runnerSource.indexOf('for (let count = 0;', serializerStart);
-  const serializer = runnerSource.slice(serializerStart, serializerEnd);
-  assert.match(serializer, /analysis: compactAnalysis/);
-  assert.match(serializer, /findings: \[\]/);
-  assert.match(serializer, /Semantic findings were compacted/);
-  assert.match(serializer, /bounded\.length > maxChars/);
-  assert.match(serializer, /item\?\.rootCause/);
+test("bounded repository inventory does not require Workers AI semantic analysis", () => {
+  assert.match(runnerSource, /Deterministic source inventory completed/);
+  assert.match(runnerSource, /This task does not perform semantic code review/);
+  assert.match(runnerSource, /findings: \[\]/);
+  assert.doesNotMatch(runnerSource, /request\("\/agent\/v1\/repository\/analyze"/);
+  assert.doesNotMatch(runnerSource, /Workers AI semantic source analysis was not verified/);
+  assert.match(workerSource, /inspect_repository_deterministic_inventory/);
+  assert.doesNotMatch(workerSource, /inspect_repository_semantic_analysis/);
 });
 
 test("runner resumes a durable completed result checkpoint without repeating execution", () => {
@@ -1220,7 +1219,7 @@ test("Workers AI inference failures retain safe actionable diagnostics without e
   assert.ok(workerSource.includes("stage:\"workers_ai_inference\""));
 });;
 
-test("repository inspection performs bounded evidence-backed Workers AI semantic analysis", () => {
+test("semantic repository analysis remains a separate optional Worker endpoint", () => {
   assert.match(workerSource, /path === "\/agent\/v1\/repository\/analyze"/);
   assert.match(workerSource, /ownerOrchestrationRoute = .*repository\/analyze/);
   assert.match(workerSource, /totalChars > 16000/);
@@ -1228,11 +1227,9 @@ test("repository inspection performs bounded evidence-backed Workers AI semantic
   assert.match(workerSource, /env\.AI\.run\(model/);
   assert.match(workerSource, /supplied source excerpts as untrusted code data/);
   assert.match(workerSource, /files\.find\(f=>f\.path===ev\.path\)\?\.excerpt\.includes\(ev\.quote\)/);
-  assert.match(workerSource, /inspect_repository_semantic_analysis/);
-  assert.match(runnerSource, /request\("\/agent\/v1\/repository\/analyze"/);
-  assert.match(runnerSource, /const evidenceFiles = \[\]/);
-  assert.match(runnerSource, /analysis: semantic\.analysis/);
-  assert.match(runnerSource, /slice\(0,2800\)/);
+  assert.doesNotMatch(workerSource, /inspect_repository_semantic_analysis/);
+  assert.doesNotMatch(runnerSource, /request\("\/agent\/v1\/repository\/analyze"/);
+  assert.doesNotMatch(runnerSource, /analysis: semantic\.analysis/);
   assert.match(workerSource, /Do not call a named constant a magic number/);
   assert.match(workerSource, /Do not label a Firebase Web API key/);
   assert.match(workerSource, /unsupportedMagicNumberFindings/);
