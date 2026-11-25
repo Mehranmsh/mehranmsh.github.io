@@ -120,12 +120,13 @@ export const INTELLIGENCE_CAPABILITIES = Object.freeze({
   }),
   create_pull_request: freezeCapability({
     id: "create_pull_request",
-    status: "planned",
+    status: "active",
     permissionTier: "branch_scoped_write",
+    executionMode: "verified_proposal_outbox",
     executors: ["github_actions_runner"],
     requiresApproval: false,
     autonomous: true,
-    description: "Create a review-only PR from a tested, isolated Intelligence branch; merge and deployment remain owner-controlled.",
+    description: "Create a draft review PR only from a verified private proposal after append-only validation and isolated tests; never merge or deploy.",
     inputSchema: {
       required: ["branch", "title", "headSha"],
       properties: {
