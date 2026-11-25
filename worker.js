@@ -6484,6 +6484,7 @@ export function verifyIntelligenceReport(actionType, report) {
       Array.isArray(analysis.limitations) && analysis.limitations.length <= 5 &&
       analysis.limitations.every(item => typeof item === "string" && item.length <= 300);
     if (report.mode !== "bounded_read_only_repository_inspection" ||
+        (report.analysisMode !== undefined && !["inventory", "semantic"].includes(report.analysisMode)) ||
         report.repository !== "Mehranmsh/mehranmsh.github.io" ||
         typeof report.commitSha !== "string" || !/^[a-f0-9]{40}$/i.test(report.commitSha) ||
         !validFiles || totalBytes > 750000 ||
