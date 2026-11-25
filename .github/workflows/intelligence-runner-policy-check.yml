@@ -41,13 +41,11 @@ jobs:
 
           assert.ok(source.includes('request("/agent/v1/tasks/next")'),
             "runner must continue processing explicitly queued tasks");
-          const prJob = source.slice(source.indexOf("  create-review-pr-from-verified-patch:"));
-          assert.ok(prJob.startsWith("  create-review-pr-from-verified-patch:"), "PR job must remain inspectable");
-          assert.ok(prJob.includes("if: false # Owner-approved manual review is required; automated PR creation is disabled."),
-            "automated proposal PR creation must be disabled");
-          assert.ok(prJob.includes("scripts/intelligence-proposal-pr-runner.mjs"), "disabled PR job target must remain identifiable");
+          assert.equal(source.includes("create-review-pr-from-verified-patch"), false, "write-capable proposal PR job must be removed");
+          assert.equal(source.includes("contents: write"), false, "runner must not request repository write access");
+          assert.equal(source.includes("pull-requests: write"), false, "runner must not request PR write access");
           assert.ok(source.split("jobs:")[0].includes("contents: read"), "workflow permissions must remain read-only");
-          console.log("PASS: 15-minute polling, no automatic seed packages, approved-queue processing, PR automation disabled, read-only workflow permissions.");
+          console.log("PASS: 15-minute polling, no automatic seed packages, approved-queue processing, PR write job removed, read-only workflow permissions.");
           NODE
       - name: Run Intelligence capability regression tests
         run: node --test --test-reporter=tap scripts/intelligence-capabilities.test.mjs
