@@ -325,7 +325,7 @@ body[data-theme="light"]{--bg:#f2f6fc;--panel:#ffffff;--panel2:#eaf0f8;--line:#d
 /* Keep focus styling; the full-card native input overlay is defined below. */
 #page-social label.file-dropzone:focus-within{outline:3px solid rgba(50,210,255,.2)!important}
 
-/* SOCIAL AI attachment composer */
+/* MEHRAN AI attachment composer */
 #page-social .assistant-composer-wrap{position:relative;margin-top:12px}
 #page-social .assistant-composer{display:flex;align-items:center;gap:9px;padding:8px;border:1px solid rgba(74,170,220,.28);border-radius:19px;background:linear-gradient(135deg,rgba(11,26,46,.98),rgba(12,19,34,.98));box-shadow:0 8px 28px rgba(0,0,0,.18)}
 #page-social .assistant-composer>input{flex:1;min-width:0;border:0!important;background:transparent!important;box-shadow:none!important;padding:12px 7px!important;color:#eef8ff!important;outline:none!important}
@@ -781,6 +781,79 @@ input:focus,textarea:focus,select:focus,button:focus-visible,a:focus-visible{out
 #page-dashboard .home-enter{min-width:190px;min-height:48px;border-radius:13px;background:linear-gradient(110deg,#53d8e9,#4d83ff);box-shadow:0 10px 28px rgba(52,139,211,.2)}
 @media(max-width:700px){#page-social .social-shell{border-radius:18px}#page-social .social-tabs{overflow-x:auto}#page-social .social-tab{white-space:nowrap;padding:9px 11px}#page-dashboard .home-identity{padding-top:42px}#page-dashboard .home-portrait{border-radius:26px}}
 </style>
+
+<style id="mehran-full-product-page-system">
+/* MSH product-wide visual language: each workspace has its own visual grammar. */
+.sidebar{background:linear-gradient(180deg,#0b1421,#080e18);border-right:1px solid rgba(93,178,219,.16)}
+.brand-logo{background:linear-gradient(145deg,#55d9ec,#477cff);color:#07121e;box-shadow:0 8px 24px rgba(59,163,224,.2)}
+.brand-name{letter-spacing:1.5px}.brand-sub{letter-spacing:2.4px;color:#6e9fbd}
+.nav-label{color:#57718a;letter-spacing:2px}
+.nav-btn{border:1px solid transparent;border-radius:11px;transition:background .18s,border-color .18s,color .18s}
+.nav-btn:hover{background:rgba(64,132,183,.11);border-color:rgba(93,178,219,.15)}
+.nav-btn.active{background:linear-gradient(100deg,rgba(53,190,218,.16),rgba(57,111,206,.1));border-color:rgba(86,199,225,.2);color:#e5f8ff;box-shadow:inset 3px 0 #5bd5e8}
+.topbar{padding:0 0 15px;border-bottom:1px solid rgba(104,153,190,.13)}
+.page{animation:mshPageIn .24s ease both}
+@keyframes mshPageIn{from{opacity:.65;transform:translateY(5px)}to{opacity:1;transform:translateY(0)}}
+.page-heading{margin-bottom:25px}
+.page-heading h1{letter-spacing:-.8px;font-size:clamp(26px,3vw,36px)}
+.page-heading p{max-width:680px;color:#91a8c0;line-height:1.8}
+#page-dashboard.active{background:radial-gradient(ellipse at 50% 12%,rgba(43,112,179,.16),transparent 48%),#070b13}
+#page-dashboard .home-identity{max-width:940px;margin:0 auto;padding:clamp(38px,8vh,92px) 22px 50px;text-align:center}
+#page-dashboard .home-brand{font-size:12px;letter-spacing:5px;color:#80dff0;font-weight:900}
+#page-dashboard .home-portrait{width:clamp(112px,16vw,158px);height:clamp(112px,16vw,158px);object-fit:cover;border-radius:32px;border:1px solid rgba(100,211,241,.34);box-shadow:0 18px 55px rgba(0,0,0,.35);margin:28px auto 22px}
+#page-dashboard .home-name{font-size:clamp(30px,5.5vw,54px);letter-spacing:1px;font-weight:850}
+#page-dashboard .home-slogan{gap:10px;flex-wrap:wrap;justify-content:center;margin:15px 0 32px}
+#page-dashboard .home-slogan span{padding:8px 12px;border:1px solid rgba(99,177,216,.18);border-radius:99px;background:rgba(15,30,48,.62);font-size:9px;letter-spacing:1.3px;color:#a9c5dc}
+#page-dashboard .home-hub-title{font-size:clamp(22px,3vw,30px);letter-spacing:-.5px}
+#page-dashboard .home-description{max-width:570px;margin:12px auto 24px;color:#9db2c8;line-height:1.9}
+#page-dashboard .home-enter{min-width:190px;min-height:48px;border-radius:13px;background:linear-gradient(110deg,#53d8e9,#4d83ff);box-shadow:0 10px 28px rgba(52,139,211,.2)}
+#page-user{--user-accent:#58c8d8}
+#page-user .card{background:linear-gradient(145deg,#122638,#0e1b2a);border:1px solid rgba(91,190,208,.18);border-radius:17px}
+#page-user .panel{background:linear-gradient(145deg,#112536,#0d1928);border:1px solid rgba(91,190,208,.17);border-radius:18px}
+#page-user .stat{color:#83e3e8}
+#page-projects{--project-accent:#8b9dff}
+#page-projects .panel{background:linear-gradient(145deg,#171e35,#10182a);border:1px solid rgba(135,151,255,.2);border-radius:18px}
+#page-projects .card{background:linear-gradient(145deg,#202744,#151e34);border-color:rgba(135,151,255,.16)}
+#page-projects .btn:not(.secondary){background:linear-gradient(110deg,#8295ff,#6476d8)}
+#page-services{--service-accent:#66d5b1}
+#page-services .panel,#page-services .card,#page-services .feature{background:linear-gradient(145deg,#122b2b,#101d25);border:1px solid rgba(103,214,179,.17);border-radius:18px}
+#page-services .btn:not(.secondary){background:linear-gradient(110deg,#64d6b1,#399d9b);color:#071b19}
+#page-intelligence{--intel-accent:#64c8ff}
+#page-intelligence .panel{background:linear-gradient(150deg,#102238,#0b1728);border:1px solid rgba(91,177,232,.2);border-radius:18px}
+#page-intelligence .card{background:linear-gradient(145deg,#152d45,#102033);border-color:rgba(91,177,232,.16)}
+#page-intelligence .stat{color:#8bdcff}
+#page-admin{--admin-accent:#9eafc4}
+#page-admin .panel{background:linear-gradient(150deg,#182231,#101824);border:1px solid rgba(144,166,194,.18);border-radius:16px}
+#page-admin .card{background:linear-gradient(145deg,#202c3b,#151e2b);border-color:rgba(144,166,194,.16)}
+#page-admin .notice.warn{background:rgba(113,79,39,.14);border-color:rgba(222,169,91,.24)}
+/* AI gets a real standalone product workspace, separate from SOCIAL. */
+#page-ai{--ai-accent:#a88bff}
+#page-ai .ai-hero{padding:clamp(20px,3vw,32px);border:1px solid rgba(158,132,255,.23);border-radius:22px;background:radial-gradient(ellipse at 85% 0%,rgba(142,103,255,.2),transparent 36%),linear-gradient(130deg,#211b38,#121a2b 60%,#102130);margin-bottom:18px}
+#page-ai .ai-kicker{font-size:10px;letter-spacing:2px;color:#b6a2ff;font-weight:900}
+#page-ai .ai-hero h1{font-size:clamp(27px,4vw,39px);margin:9px 0}
+#page-ai .ai-hero p{max-width:720px;color:#b9b3cb;line-height:1.8}
+#page-ai .ai-tabs{display:flex;gap:7px;overflow-x:auto;padding:0 0 13px;margin-bottom:17px;border-bottom:1px solid rgba(165,144,219,.17);scrollbar-width:none}
+#page-ai .ai-tabs::-webkit-scrollbar{display:none}
+#page-ai .ai-tab{white-space:nowrap;border:1px solid rgba(165,144,219,.16);border-radius:12px;background:#171b2b;color:#a9a4bd;padding:10px 15px;font-size:12px;font-weight:800}
+#page-ai .ai-tab.active{background:linear-gradient(110deg,rgba(138,104,237,.27),rgba(72,146,196,.15));border-color:rgba(174,145,255,.42);color:#f1ebff;box-shadow:inset 0 -2px #a88bff}
+#page-ai .ai-view{display:none;animation:mshPageIn .2s ease}
+#page-ai .ai-view.active{display:block}
+#page-ai .panel,#page-ai .social-card{background:linear-gradient(150deg,#171c2e,#101a2a);border:1px solid rgba(154,139,207,.17);border-radius:18px}
+#page-ai .btn:not(.secondary){background:linear-gradient(110deg,#9c82ff,#5b9fe0)}
+#page-ai input:not([type=file]),#page-ai textarea,#page-ai select{background:#0d1422;border-color:rgba(160,145,207,.22);color:#f1edff}
+#page-ai input:focus,#page-ai textarea:focus,#page-ai select:focus{border-color:#a88bff;box-shadow:0 0 0 3px rgba(168,139,255,.13)}
+#page-ai #assistantMessages{background:linear-gradient(155deg,#111b2d,#0d1422);border-color:rgba(160,145,207,.2)}
+#page-ai #assistantInput{min-height:48px;border-radius:14px}
+#page-ai #social-prompt-creator .prompt-hero{background:radial-gradient(ellipse at 10% 0%,rgba(151,119,255,.18),transparent 48%),linear-gradient(135deg,#201b38,#101a2d);border-color:rgba(168,139,255,.28)}
+#page-ai #social-prompt-creator .prompt-kicker{color:#b6a2ff}
+#page-ai #social-prompt-creator .prompt-template{background:linear-gradient(145deg,#1d2035,#111b2b);border-color:rgba(168,139,255,.18)}
+#page-ai #social-prompt-creator .prompt-template:hover{border-color:rgba(168,139,255,.5)}
+#page-ai #social-prompt-creator .prompt-folder{background:linear-gradient(145deg,#201e38,#111b2b);border-color:rgba(168,139,255,.22)}
+#page-ai #social-prompt-creator .prompt-folder-icon{background:#302751;color:#c9b8ff}
+#page-ai #social-prompt-creator .prompt-category-chip.active{background:linear-gradient(110deg,#4b3b80,#244d71);border-color:#a88bff}
+#page-social .social-tabs [data-social="ai"],#page-social .social-tabs [data-social="studios"],#page-social .social-tabs [data-social="prompt-creator"]{display:none!important}
+@media(max-width:700px){#page-dashboard .home-identity{padding-top:42px}#page-dashboard .home-portrait{border-radius:26px}#page-ai .ai-tabs{margin-right:-3px;margin-left:-3px}#page-ai .ai-tab{padding:10px 12px}}
+</style>
 </head>
 <body>
 <div class="app">
@@ -827,11 +900,11 @@ input:focus,textarea:focus,select:focus,button:focus-visible,a:focus-visible{out
 <div class="social-shell">
 <div class="social-top"><div class="social-brand">SOC<span>IAL</span></div><div class="social-top-actions"><button title="Search" onclick="switchSocial('explore')">⌕</button><button title="Community" aria-label="Community" onclick="switchSocial('messages')">✉</button><button title="Notifications" onclick="switchSocial('notifications')" style="position:relative">♡<span id="notificationBadge" style="display:none;position:absolute;top:-5px;right:-5px;background:#ff667d;color:#fff;border-radius:10px;padding:2px 5px;font-size:9px;line-height:1.2">0</span></button><button title="Sign in / Register" id="socialTopAuth">⇥</button></div></div>
 <div class="social-tabs">
-<button type="button" class="social-tab active" data-social="feed" onclick="window.switchSocial('feed');return false;">⌂ Home</button><button type="button" class="social-tab" data-social="reels" onclick="window.switchSocial('reels');return false;">▣ Reels</button><button type="button" class="social-tab" data-social="messages" onclick="window.switchSocial('messages');return false;">👥 Community</button><button type="button" class="social-tab" data-social="settings" onclick="window.switchSocial('settings');return false;">⚙ Settings</button><button type="button" class="social-tab" data-social="profile" onclick="window.switchSocial('profile');return false;">◉ Profile</button><button type="button" class="social-tab" data-social="prompt-creator" onclick="window.switchSocial('prompt-creator');return false;">✦ Prompt Creator</button><button type="button" class="social-tab" data-social="studios" onclick="window.switchSocial('studios');return false;">✧ Creative Studios</button><button type="button" class="social-tab" data-social="explore" onclick="window.switchSocial('explore');return false;">⌕ Explore</button><button type="button" class="social-tab" data-social="ai" onclick="window.switchSocial('ai');return false;">✧ SOCIAL AI</button>
+<button type="button" class="social-tab active" data-social="feed" onclick="window.switchSocial('feed');return false;">⌂ Home</button><button type="button" class="social-tab" data-social="reels" onclick="window.switchSocial('reels');return false;">▣ Reels</button><button type="button" class="social-tab" data-social="messages" onclick="window.switchSocial('messages');return false;">👥 Community</button><button type="button" class="social-tab" data-social="settings" onclick="window.switchSocial('settings');return false;">⚙ Settings</button><button type="button" class="social-tab" data-social="profile" onclick="window.switchSocial('profile');return false;">◉ Profile</button><button type="button" class="social-tab" data-social="prompt-creator" onclick="window.switchAI('prompts');return false;">✦ Prompt Creator</button><button type="button" class="social-tab" data-social="studios" onclick="window.switchAI('studios');return false;">✧ Creative Studios</button><button type="button" class="social-tab" data-social="explore" onclick="window.switchSocial('explore');return false;">⌕ Explore</button><button type="button" class="social-tab" data-social="ai" onclick="window.switchAI('assistant');return false;">✧ MEHRAN AI</button>
 </div>
 
 <div class="social-view active" id="social-feed">
-<div class="panel" style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:14px"><div><strong>Have an idea? Turn it into a professional prompt.</strong><div class="small-text">No prompt-writing skills required.</div></div><button class="btn" onclick="switchSocial('prompt-creator')">✦ Create a prompt</button></div>
+<div class="panel" style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:14px"><div><strong>Have an idea? Turn it into a professional prompt.</strong><div class="small-text">No prompt-writing skills required.</div></div><button class="btn" onclick="switchAI('prompts')">✦ Create a prompt</button></div>
 <div class="story-row" id="storiesRow" aria-label="Stories"></div>
 <div class="section-title"><h2>Your Feed</h2><span class="small-text" id="feedCount">0 posts</span></div>
 <div id="feedList"></div>
@@ -931,7 +1004,7 @@ input:focus,textarea:focus,select:focus,button:focus-visible,a:focus-visible{out
 
 </div>
 
-<div class="social-view" id="social-ai"><div class="section-title"><h2>SOCIAL AI</h2><span class="small-text">AI execution workspace</span></div><div class="panel"><div class="notice" style="margin-bottom:12px"><strong>Your AI workspace</strong><p class="small-text" style="margin:6px 0 0">Send a request directly, or bring a ready-made text prompt from Prompt Creator. SOCIAL AI is the place where the selected AI model processes your request. Image understanding and image generation require compatible vision/image models and are not enabled just by choosing a provider.</p></div><p id="assistantStatus" class="notice">Checking AI providers...</p><div class="field"><label for="assistantProviderSelect">AI workspace</label><select id="assistantProviderSelect"><option value="central">Central Assistant · Auto</option><option value="openai">OpenAI</option><option value="gemini">Google Gemini</option><option value="cloudflare">Cloudflare AI</option><option value="groq">Groq</option></select><small class="small-text">Central Assistant selects an available provider. Image analysis is available with configured OpenAI GPT-4.1 mini or Gemini 2.5 Flash. Each provider keeps a separate conversation. Audio, video and document analysis are not connected yet.</small></div><div id="assistantProviderStatus" class="small-text" style="margin:8px 0"></div><div id="assistantMessages" class="social-card" style="min-height:180px;max-height:420px;overflow:auto;margin:12px 0"><div class="empty">Your SOCIAL AI conversation will appear here.</div></div><div class="assistant-composer-wrap">
+<div class="social-view" id="social-ai"><div class="section-title"><h2>MEHRAN AI</h2><span class="small-text">AI execution workspace</span></div><div class="panel"><div class="notice" style="margin-bottom:12px"><strong>Your AI workspace</strong><p class="small-text" style="margin:6px 0 0">Send a request directly, or bring a ready-made text prompt from Prompt Creator. MEHRAN AI is the place where the selected AI model processes your request. Image understanding and image generation require compatible vision/image models and are not enabled just by choosing a provider.</p></div><p id="assistantStatus" class="notice">Checking AI providers...</p><div class="field"><label for="assistantProviderSelect">AI workspace</label><select id="assistantProviderSelect"><option value="central">Central Assistant · Auto</option><option value="openai">OpenAI</option><option value="gemini">Google Gemini</option><option value="cloudflare">Cloudflare AI</option><option value="groq">Groq</option></select><small class="small-text">Central Assistant selects an available provider. Image analysis is available with configured OpenAI GPT-4.1 mini or Gemini 2.5 Flash. Each provider keeps a separate conversation. Audio, video and document analysis are not connected yet.</small></div><div id="assistantProviderStatus" class="small-text" style="margin:8px 0"></div><div id="assistantMessages" class="social-card" style="min-height:180px;max-height:420px;overflow:auto;margin:12px 0"><div class="empty">Your MEHRAN AI conversation will appear here.</div></div><div class="assistant-composer-wrap">
 <div id="assistantAttachmentPreview" class="assistant-attachment-preview" hidden></div>
 <div class="assistant-composer">
 <div class="assistant-attach-wrap"><button type="button" class="assistant-attach-btn" id="assistantAttachBtn" aria-label="Attach media" aria-expanded="false" title="Attach image, audio, video or file" onclick="socialToggleAttachMenu()">＋</button>
@@ -942,7 +1015,7 @@ input:focus,textarea:focus,select:focus,button:focus-visible,a:focus-visible{out
 <button type="button" class="assistant-attach-option" disabled><span class="assistant-attach-icon video">▶</span><span><strong>Video</strong><small>Coming soon</small></span><b>·</b></button>
 <button type="button" class="assistant-attach-option" disabled><span class="assistant-attach-icon file">▤</span><span><strong>Document</strong><small>Coming soon</small></span><b>·</b></button>
 <div class="assistant-attach-footnote">Choose a file from your device</div></div></div>
-<input id="assistantInput" maxlength="4000" placeholder="Message SOCIAL AI..." autocomplete="off"><button class="btn" id="assistantSendBtn">Send</button></div>
+<input id="assistantInput" maxlength="4000" placeholder="Message MEHRAN AI..." autocomplete="off"><button class="btn" id="assistantSendBtn">Send</button></div>
 <input class="assistant-hidden-file" id="assistantImageFile" type="file" accept="image/*" multiple onchange="socialPickAssistantFiles(event,'image')">
 <input class="assistant-hidden-file" id="assistantAudioFile" type="file" accept="audio/*" multiple onchange="socialPickAssistantFiles(event,'audio')">
 <input class="assistant-hidden-file" id="assistantVideoFile" type="file" accept="video/*" multiple onchange="socialPickAssistantFiles(event,'video')">
@@ -963,19 +1036,19 @@ input:focus,textarea:focus,select:focus,button:focus-visible,a:focus-visible{out
   <div class="notice" style="margin:0"><strong>One workspace, clear limits.</strong><p class="small-text" style="margin:6px 0 0">Image generation is the only creative generation engine currently connected. The other studios can prepare detailed prompts now, but they will not pretend to generate media until a real model, a verified free allowance and a hard stop-before-billing guard are connected.</p></div>
  </div>
  <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px">
-  <article class="social-card" style="padding:18px"><div style="font-size:27px">▧</div><h3>Image Studio</h3><p class="small-text">Generate and edit images with the existing image model and daily safety limit.</p><span class="badge-soon" style="display:inline-block;margin:6px 0 12px">CONNECTED</span><button class="btn small" type="button" onclick="switchSocial('ai');setTimeout(()=>document.getElementById('imageStudioPanel')?.scrollIntoView({block:'start',behavior:'smooth'}),80)">Open Image Studio</button></article>
+  <article class="social-card" style="padding:18px"><div style="font-size:27px">▧</div><h3>Image Studio</h3><p class="small-text">Generate and edit images with the existing image model and daily safety limit.</p><span class="badge-soon" style="display:inline-block;margin:6px 0 12px">CONNECTED</span><button class="btn small" type="button" onclick="switchAI('assistant');setTimeout(()=>document.getElementById('imageStudioPanel')?.scrollIntoView({block:'start',behavior:'smooth'}),80)">Open Image Studio</button></article>
   <article class="social-card" style="padding:18px"><div style="font-size:27px">♫</div><h3>Music Studio</h3><p class="small-text">Song concepts, lyrics, melodies, beats, arrangements and production briefs.</p><span class="badge-soon" style="display:inline-block;margin:6px 0 12px">PROMPT WORKSPACE</span><button class="btn small" type="button" onclick="socialOpenStudioPrompt('music')">Create music prompt</button></article>
   <article class="social-card" style="padding:18px"><div style="font-size:27px">▶</div><h3>Video Studio</h3><p class="small-text">Video concepts, scripts, scene breakdowns, shot lists and motion directions.</p><span class="badge-soon" style="display:inline-block;margin:6px 0 12px">PROMPT WORKSPACE</span><button class="btn small" type="button" onclick="socialOpenStudioPrompt('video')">Create video prompt</button></article>
   <article class="social-card" style="padding:18px"><div style="font-size:27px">🎙</div><h3>Voice Studio</h3><p class="small-text">Voiceover scripts, narration direction, pronunciation and audio production briefs.</p><span class="badge-soon" style="display:inline-block;margin:6px 0 12px">PROMPT WORKSPACE</span><button class="btn small" type="button" onclick="socialOpenStudioPrompt('voice')">Create voice prompt</button></article>
   <article class="social-card" style="padding:18px"><div style="font-size:27px">✎</div><h3>Writing Studio</h3><p class="small-text">Lyrics, poetry, stories, captions, articles and structured writing.</p><span class="badge-soon" style="display:inline-block;margin:6px 0 12px">PROMPT WORKSPACE</span><button class="btn small" type="button" onclick="socialOpenStudioPrompt('writing')">Start writing prompt</button></article>
   <article class="social-card" style="padding:18px"><div style="font-size:27px">✧</div><h3>Design Studio</h3><p class="small-text">Brand identity, logos, posters, social graphics and visual design briefs.</p><span class="badge-soon" style="display:inline-block;margin:6px 0 12px">PROMPT WORKSPACE</span><button class="btn small" type="button" onclick="socialOpenStudioPrompt('design')">Create design prompt</button></article>
-  <article class="social-card" style="padding:18px"><div style="font-size:27px">✦</div><h3>AI Assistant</h3><p class="small-text">General questions, planning, analysis and help with creative workflows.</p><span class="badge-soon" style="display:inline-block;margin:6px 0 12px">CONNECTED CHAT</span><button class="btn small" type="button" onclick="switchSocial('ai')">Open SOCIAL AI</button></article>
+  <article class="social-card" style="padding:18px"><div style="font-size:27px">✦</div><h3>AI Assistant</h3><p class="small-text">General questions, planning, analysis and help with creative workflows.</p><span class="badge-soon" style="display:inline-block;margin:6px 0 12px">CONNECTED CHAT</span><button class="btn small" type="button" onclick="switchAI('assistant')">Open MEHRAN AI</button></article>
  </div>
  <div class="panel" style="margin-top:16px"><h3>Shared safety policy</h3><p class="small-text">Before any new media model is enabled, its real free quota must be measured, reserved atomically and stopped before the limit. No paid fallback, automatic top-up or hidden retry is allowed. Each studio will show its own remaining allowance when its engine is connected.</p></div>
 </div>
 <div class="social-view" id="social-prompt-creator">
 <div class="section-title"><h2>✦ PROMPT CREATOR</h2><span class="small-text">Prompt writing only · no AI execution here</span></div>
-<div class="panel prompt-hero"><div class="prompt-kicker">PREPARE THE REQUEST · THEN RUN IT IN SOCIAL AI</div><h3>Tell us what you want the AI to do.</h3><p class="small-text">Prompt Creator turns your instructions into a clear, detailed text prompt. It does not analyze or generate images and does not run an AI model. When ready, send the prompt to SOCIAL AI for execution by an available model.</p></div>
+<div class="panel prompt-hero"><div class="prompt-kicker">PREPARE THE REQUEST · THEN RUN IT IN MEHRAN AI</div><h3>Tell us what you want the AI to do.</h3><p class="small-text">Prompt Creator turns your instructions into a clear, detailed text prompt. It does not analyze or generate images and does not run an AI model. When ready, send the prompt to MEHRAN AI for execution by an available model.</p></div>
 <div class="panel prompt-gallery">
 <div class="section-title" style="margin-top:0"><div><h3>🔥 Popular prompt ideas</h3><span class="small-text">A curated starter gallery based on common creative requests</span></div></div>
 <p class="small-text">Choose an idea to load it into Prompt Creator, then customize it. These are starter templates, not live community rankings.</p>
@@ -1087,7 +1160,7 @@ input:focus,textarea:focus,select:focus,button:focus-visible,a:focus-visible{out
 <div class="form-grid"><div class="field"><label for="pcLanguage">Prompt language</label><select id="pcLanguage"><option value="English">English</option><option value="Persian">Persian (فارسی)</option><option value="Both">English + Persian</option></select></div><div class="field"><label for="pcDetail">Detail level</label><select id="pcDetail"><option value="professional">Professional</option><option value="advanced">Highly detailed</option><option value="simple">Simple and concise</option></select></div></div>
 <div class="field"><label for="pcConstraints">Important details or things to avoid (optional)</label><textarea id="pcConstraints" maxlength="1500" rows="2" placeholder="e.g. keep the face natural, no logos, avoid exaggerated colors..."></textarea></div>
 <button class="btn" id="pcGenerateBtn" onclick="socialCreatePrompt()">Create my prompt ✨</button></div>
-<div class="panel" id="pcResultPanel"><div class="section-title" style="margin-top:0"><h3>Your generated prompt</h3><span class="small-text" id="pcResultMeta">Ready when you are</span></div><textarea id="pcOutput" rows="12" maxlength="12000" placeholder="Your professional prompt will appear here..." aria-label="Generated prompt"></textarea><div class="prompt-actions"><button class="btn secondary" id="pcCopyBtn" onclick="socialCopyPrompt()" disabled>Copy prompt</button><button class="btn" id="pcSendBtn" onclick="socialSendPromptToAI()" disabled>Open in SOCIAL AI ↗</button></div><p class="small-text">This is a text-only prompt builder. Nothing is executed here. Use “Open in SOCIAL AI” to hand the finished prompt to an available AI model.</p></div></div>
+<div class="panel" id="pcResultPanel"><div class="section-title" style="margin-top:0"><h3>Your generated prompt</h3><span class="small-text" id="pcResultMeta">Ready when you are</span></div><textarea id="pcOutput" rows="12" maxlength="12000" placeholder="Your professional prompt will appear here..." aria-label="Generated prompt"></textarea><div class="prompt-actions"><button class="btn secondary" id="pcCopyBtn" onclick="socialCopyPrompt()" disabled>Copy prompt</button><button class="btn" id="pcSendBtn" onclick="socialSendPromptToAI()" disabled>Open in MEHRAN AI ↗</button></div><p class="small-text">This is a text-only prompt builder. Nothing is executed here. Use “Open in MEHRAN AI” to hand the finished prompt to an available AI model.</p></div></div>
 <div class="social-view" id="social-notifications">
 <div class="panel">
 <div class="section-title" style="margin-top:0"><h2>Notifications</h2><button class="btn secondary small" id="markAllNotificationsRead" onclick="markAllNotificationsRead()">Mark all as read</button></div>
@@ -1325,11 +1398,11 @@ function socialOpenStudioPrompt(type){
  if(goal)goal.value=item.goal;
  if(style)style.value=item.style;
  if(tool)tool.value=item.tool;
- switchSocial("prompt-creator");
+ switchAI("prompts");
  const heading=$("pcGoal");if(heading){heading.focus();heading.scrollIntoView({block:"center",behavior:"smooth"});}
 }
 function switchSocial(name){
- const allowed=new Set(["feed","prompt-creator","studios","explore","reels","messages","ai","profile","settings","notifications"]);
+ const allowed=new Set(["feed","explore","reels","messages","profile","settings","notifications"]);
  if(!allowed.has(name))return;
  $("page-social")?.classList.toggle("chat-mode",name==="messages");
  document.querySelectorAll(".social-tab").forEach(b=>b.classList.toggle("active",b.dataset.social===name));
@@ -3391,7 +3464,7 @@ function socialSelectedAIProvider(){return $("assistantProviderSelect")?.value||
 function socialAIProviderName(key){return ({central:"Central Assistant",openai:"OpenAI",gemini:"Google Gemini",cloudflare:"Cloudflare AI",groq:"Groq"})[key]||key;}
 async function socialLoadAssistant(){
  const status=$("assistantStatus"),box=$("assistantMessages"),send=$("assistantSendBtn"),provider=socialSelectedAIProvider();
- if(!socialUser){status.textContent="Sign in to use SOCIAL AI.";send.disabled=true;box.innerHTML='<div class="empty">Sign in to start your private AI conversations.</div>';return;}
+ if(!socialUser){status.textContent="Sign in to use MEHRAN AI.";send.disabled=true;box.innerHTML='<div class="empty">Sign in to start your private AI conversations.</div>';return;}
  send.disabled=true;status.textContent="Checking AI providers...";
  try{
   const [state,history]=await Promise.all([socialRequest("/assistant/status"),socialRequest("/assistant/history?provider="+encodeURIComponent(provider))]);
@@ -3559,7 +3632,7 @@ async function socialDownloadGeneratedImage(){
  const file=socialGeneratedImageFile||new File([socialGeneratedImageBlob],"social-ai-image.png",{type:socialGeneratedImageBlob.type||"image/png"});
  try{
   if(navigator.share&&navigator.canShare&&navigator.canShare({files:[file]})){
-   await navigator.share({files:[file],title:"SOCIAL AI image"});
+   await navigator.share({files:[file],title:"MEHRAN AI image"});
    const status=$("imageStudioSaveStatus");if(status)status.textContent="Choose Save or Files in the sharing menu to keep the image.";
    return;
   }
@@ -3590,7 +3663,7 @@ function socialShowAssistantError(error){
  if(!panel){
   panel=document.createElement("section");panel.id="assistantPersistentError";
   panel.style.cssText="position:fixed;z-index:9999;left:12px;right:12px;bottom:18px;max-height:55vh;overflow:auto;background:#24131c;border:1px solid #a84a63;border-radius:14px;padding:14px;color:#ffe8ee;box-shadow:0 12px 40px #000b;direction:ltr;text-align:left";
-  panel.innerHTML='<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:9px"><strong style="font-size:13px">SOCIAL AI error</strong><button type="button" id="assistantErrorClose" style="background:#44202c;color:#fff;border:1px solid #98506a;border-radius:8px;padding:6px 10px">Close</button></div><pre id="assistantErrorText" style="white-space:pre-wrap;overflow-wrap:anywhere;font:12px/1.6 monospace;margin:0 0 12px"></pre><button type="button" id="assistantErrorCopy" style="background:#1a6680;color:white;border:0;border-radius:8px;padding:9px 13px;font-weight:700">Copy error</button>';
+  panel.innerHTML='<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:9px"><strong style="font-size:13px">MEHRAN AI error</strong><button type="button" id="assistantErrorClose" style="background:#44202c;color:#fff;border:1px solid #98506a;border-radius:8px;padding:6px 10px">Close</button></div><pre id="assistantErrorText" style="white-space:pre-wrap;overflow-wrap:anywhere;font:12px/1.6 monospace;margin:0 0 12px"></pre><button type="button" id="assistantErrorCopy" style="background:#1a6680;color:white;border:0;border-radius:8px;padding:9px 13px;font-weight:700">Copy error</button>';
   document.body.appendChild(panel);
   panel.querySelector("#assistantErrorClose").onclick=()=>panel.remove();
   panel.querySelector("#assistantErrorCopy").onclick=async()=>{
@@ -3748,7 +3821,7 @@ function socialCreatePrompt(){
  $("pcOutput").value=prompt;$("pcResultMeta").textContent="Created · "+prompt.length+" characters";$("pcCopyBtn").disabled=false;$("pcSendBtn").disabled=false;$("pcResultPanel").scrollIntoView({behavior:"smooth",block:"nearest"});
 }
 async function socialCopyPrompt(){const value=$("pcOutput").value;if(!value)return;try{await navigator.clipboard.writeText(value);toast("Prompt copied.");}catch(e){$("pcOutput").focus();$("pcOutput").select();try{document.execCommand("copy");toast("Prompt copied.");}catch(_){toast("Select and copy the prompt manually.");}}}
-function socialSendPromptToAI(){const value=$("pcOutput").value.trim();if(!value)return;switchSocial("ai");const input=$("assistantInput");if(input){input.value=value;input.focus();}toast("Prompt transferred to SOCIAL AI. Review it, then press Send to run it.");}
+function socialSendPromptToAI(){const value=$("pcOutput").value.trim();if(!value)return;switchAI("assistant");const input=$("assistantInput");if(input){input.value=value;input.focus();}toast("Prompt transferred to MEHRAN AI. Review it, then press Send to run it.");}
 async function socialLoadBots(){if(!socialUser){$("botsList").textContent="Sign in to create bots.";return}try{const d=await socialRequest("/bots");$("botsList").innerHTML=(d.bots||[]).map(b=>'<div class="chat-conversation-row"><div class="chat-row-avatar">B</div><div class="chat-row-content"><div class="chat-row-top"><strong>'+sx(b.name)+'</strong><span class="chat-row-time">@'+sx(b.username)+'</span></div><div class="chat-row-preview">'+sx(b.description||"SOCIAL bot account")+' · '+(Number(b.is_active)===1?"Active":"Inactive")+'</div><div class="project-actions"><button class="btn secondary small" data-bot-rotate="'+sx(b.id)+'" '+(Number(b.is_active)===1?"":"disabled")+'>Rotate token</button><button class="btn secondary small" data-bot-delete="'+sx(b.id)+'">Delete bot</button></div></div></div>').join("")||'<div class="empty">No bots created yet.</div>';}catch(e){$("botsList").textContent=e.message}}
 async function socialRotateBot(id){if(!id||!confirm("Rotate this bot token? The old token will stop working immediately."))return;try{const d=await socialRequest("/bots/"+encodeURIComponent(id)+"/rotate-token",{method:"POST"});$("botTokenNotice").classList.remove("hidden");$("botTokenNotice").innerHTML='<strong>Bot token rotated.</strong><p>The previous token is now invalid. Copy and store this new token. It will not be shown again.</p><code>'+sx(d.token)+'</code> <button class="btn secondary small" id="copyBotTokenBtn">Copy token</button>';$("botTokenNotice").dataset.botToken=d.token;toast("Bot token rotated.");}catch(e){toast(e.message)}}
 async function socialDeleteBot(id){if(!id||!confirm("Permanently delete this bot and revoke its token?"))return;try{await socialRequest("/bots/"+encodeURIComponent(id),{method:"DELETE"});toast("Bot deleted and its token revoked.");await socialLoadBots();}catch(e){toast(e.message)}}
@@ -4316,5 +4389,49 @@ const prevMe=window.socialMe;window.socialMe=async function(){await prevMe();soc
 
 
 
+
+<script id="mehran-ai-module-relocation">
+(function(){
+ const main=document.querySelector(".main");
+ const social=document.getElementById("page-social");
+ if(!main||!social||document.getElementById("page-ai"))return;
+ const aiPage=document.createElement("section");
+ aiPage.className="page";aiPage.id="page-ai";
+ aiPage.innerHTML='<div class="ai-hero"><div class="ai-kicker">MEHRAN MSH · INTELLIGENCE TOOLS</div><h1>MEHRAN AI</h1><p>Your creative and thinking workspace. Chat with available AI providers, create images, explore specialist studios and build reusable prompts. Each tool shows its real connection and limits.</p></div><nav class="ai-tabs" aria-label="AI workspaces"><button class="ai-tab active" type="button" data-ai-view="assistant">✧ AI Assistant</button><button class="ai-tab" type="button" data-ai-view="image">▧ Image Studio</button><button class="ai-tab" type="button" data-ai-view="studios">◈ Creative Studios</button><button class="ai-tab" type="button" data-ai-view="prompts">✦ Prompt Lab</button></nav>';
+ const views=[
+  [document.getElementById("social-ai"),"assistant"],
+  [document.getElementById("social-studios"),"studios"],
+  [document.getElementById("social-prompt-creator"),"prompts"]
+ ];
+ const workspace=document.createElement("div");workspace.className="ai-workspace";
+ views.forEach(([el])=>{if(!el)return;el.classList.remove("social-view");el.classList.add("ai-view");workspace.appendChild(el);});
+ const imagePanel=document.getElementById("imageStudioPanel");
+ if(imagePanel){const imageView=document.createElement("div");imageView.id="ai-image";imageView.className="ai-view";imageView.innerHTML='<div class="section-title"><div><h2>Image Studio</h2><span class="small-text">Image generation and reference-based editing</span></div><span class="pill">CREATIVE ENGINE</span></div>';imageView.appendChild(imagePanel);workspace.appendChild(imageView);}
+ aiPage.appendChild(workspace);
+ const admin=document.getElementById("page-admin");
+ if(admin?.parentNode===main)main.insertBefore(aiPage,admin);else main.appendChild(aiPage);
+ window.switchAI=function(name){
+  const allowed=new Set(["assistant","image","studios","prompts"]);
+  if(!allowed.has(name))return;
+  aiPage.querySelectorAll(".ai-view").forEach(v=>v.classList.toggle("active",v.id===(name==="assistant"?"social-ai":name==="image"?"ai-image":name==="studios"?"social-studios":"social-prompt-creator")));
+  aiPage.querySelectorAll(".ai-tab").forEach(b=>b.classList.toggle("active",b.dataset.aiView===name));
+  window.__mehranAIView=name;
+  if(name==="assistant"&&typeof socialLoadAssistant==="function")socialLoadAssistant();
+  if(name==="prompts")document.getElementById("pcGoal")?.focus({preventScroll:true});
+  if(name==="image")document.getElementById("imageStudioPrompt")?.focus({preventScroll:true});
+ };
+ aiPage.querySelectorAll("[data-ai-view]").forEach(b=>b.addEventListener("click",()=>window.switchAI(b.dataset.aiView)));
+ const sidebar=document.querySelector(".sidebar .nav-btn[data-page='social']");
+ if(sidebar&&!document.querySelector(".sidebar [data-page='ai']")){const b=document.createElement("button");b.className="nav-btn";b.dataset.page="ai";b.innerHTML='<span class="nav-icon">✧</span>AI';b.addEventListener("click",()=>showPage("ai"));sidebar.insertAdjacentElement("afterend",b);}
+ const mobile=document.querySelector(".mobile-nav [data-page='social']");
+ if(mobile&&!document.querySelector(".mobile-nav [data-page='ai']")){const b=document.createElement("button");b.dataset.page="ai";b.innerHTML='<span>✧</span>AI';b.addEventListener("click",()=>showPage("ai"));mobile.insertAdjacentElement("afterend",b);}
+ document.querySelectorAll('.social-tabs [data-social="ai"],.social-tabs [data-social="studios"],.social-tabs [data-social="prompt-creator"]').forEach(b=>b.remove());
+ const feed=document.getElementById("social-feed");
+ if(feed){const promo=[...feed.children].find(el=>(el.textContent||"").includes("Turn it into a professional prompt"));promo?.remove();}
+ window.switchAI("assistant");
+ const originalShowPage=window.showPage;
+ window.showPage=function(name){originalShowPage(name);if(name==="ai")window.switchAI(window.__mehranAIView||"assistant");};
+})();
+</script>
 </body>
 </html>
