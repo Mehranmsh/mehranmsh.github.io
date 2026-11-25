@@ -84,7 +84,7 @@ test("a newer explicit decision supersedes the older decision without deleting h
     })
   ];
   const relations = analyzeMemoryRelations(memories);
-  assert.equal(relations.supersededKeys.has("owner-1\\u0000ui-theme-old"), true);
+  assert.equal(relations.supersededKeys.has(JSON.stringify(["owner-1", "ui-theme-old"])), true);
   const selected = selectMemoryContext(memories, { ownerUid: "owner-1", now, query: "interface theme" });
   assert.deepEqual(selected.map(item => item.memory_key), ["ui-theme-new"]);
   assert.equal(memories.length, 2, "history remains untouched");
