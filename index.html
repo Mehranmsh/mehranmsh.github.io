@@ -1266,7 +1266,7 @@ input:focus,textarea:focus,select:focus,button:focus-visible,a:focus-visible{out
 </section>
 
 <section class="page" id="page-ai">
-<div class="page-heading"><h1>MEHRAN AI</h1><p>Intelligent tools, private AI conversations and a professional prompt workspace.</p></div>
+<div class="page-heading ai-page-heading"><div><span class="ai-page-kicker">YOUR INTELLIGENCE WORKSPACE</span><h1>MEHRAN AI</h1><p>Intelligent tools, private AI conversations and a professional prompt workspace.</p></div><div class="ai-page-actions"><button class="btn ai-enter-btn" type="button" onclick="switchAIView('workspace');document.getElementById('social-ai').scrollIntoView({behavior:'smooth',block:'start'});">✧ Enter AI Workspace <span aria-hidden="true">↗</span></button><button class="btn secondary" type="button" onclick="switchAIView('prompt-creator');document.getElementById('social-prompt-creator').scrollIntoView({behavior:'smooth',block:'start'});">✦ Prompt Creator</button></div></div>
 <div class="ai-navigation" role="tablist" aria-label="AI workspace">
 <button type="button" class="ai-nav-btn active" data-ai-view="workspace" onclick="switchAIView('workspace')">✧ AI Workspace</button>
 <button type="button" class="ai-nav-btn" data-ai-view="prompt-creator" onclick="switchAIView('prompt-creator')">✦ Prompt Creator</button>
@@ -4806,4 +4806,30 @@ const prevMe=window.socialMe;window.socialMe=async function(){await prevMe();soc
  #page-ai .ai-quick-grid button{min-height:84px}
 }
 @media(prefers-reduced-motion:reduce){#page-services .service-tile{transition:none}#page-services .service-tile:hover{transform:none}}
+</style>
+
+
+<style id="msh-social-ai-entry-and-social-refresh">
+#page-ai>.ai-page-heading{display:flex;align-items:center;justify-content:space-between;gap:22px}
+#page-ai .ai-page-kicker{display:block;margin-bottom:8px;color:#72d9ef;font-size:10px;font-weight:850;letter-spacing:.18em}
+#page-ai .ai-page-actions{position:relative;z-index:1;display:flex;gap:9px;flex-wrap:wrap;align-items:center}
+#page-ai .ai-enter-btn{min-height:48px;padding:0 19px;background:linear-gradient(115deg,#087eaa,#1761a0);border:1px solid rgba(126,228,246,.45);box-shadow:0 10px 28px rgba(0,105,150,.22);white-space:nowrap}
+#page-ai .ai-enter-btn span{margin-left:10px;font-size:17px}
+#page-social .social-shell{max-width:1120px;margin:0 auto}
+#page-social .social-top{position:relative;padding:17px 20px;margin-bottom:13px;border:1px solid rgba(91,178,210,.2);border-radius:18px;background:linear-gradient(105deg,#10283e,#0a1728 72%);box-shadow:0 12px 32px rgba(0,0,0,.12)}
+#page-social .social-brand{font-size:25px;letter-spacing:-.06em;font-weight:900}
+#page-social .social-brand span{color:#5bd4ed}
+#page-social .social-top-actions button{width:40px;height:40px;border:1px solid rgba(106,191,220,.2);border-radius:12px;background:#122b40;color:#e8f8ff}
+#page-social .social-tabs{position:sticky;top:8px;z-index:5;display:flex;gap:7px;overflow-x:auto;padding:8px;margin:0 0 18px;border:1px solid rgba(94,178,210,.2);border-radius:15px;background:rgba(7,19,33,.94);backdrop-filter:blur(14px);scrollbar-width:thin}
+#page-social .social-tab{flex:0 0 auto;padding:11px 15px;border:1px solid transparent;border-radius:10px;background:transparent;color:#a9bdcf;font-weight:750;white-space:nowrap}
+#page-social .social-tab.active{background:linear-gradient(120deg,#12415a,#14536a);border-color:rgba(90,210,232,.4);color:#effcff}
+#page-social .social-view>.panel,#page-social .social-view .panel{border-radius:17px}
+#page-social #social-feed>.panel:first-child{background:linear-gradient(110deg,#122d43,#0b1929);border:1px solid rgba(94,184,214,.22)}
+#page-social .story-row{padding:12px 4px 18px;gap:14px}
+#page-social #feedList{display:grid;gap:15px}
+#page-social #feedList>.panel,#page-social #feedList>.social-post,#page-social #feedList>article{overflow:hidden;border:1px solid rgba(99,177,208,.17);border-radius:18px;background:linear-gradient(145deg,#102238,#0a1726)}
+#page-social #social-explore,#page-social #social-reels,#page-social #social-profile,#page-social #social-messages{padding:clamp(12px,2.5vw,22px);border:1px solid rgba(91,177,210,.17);border-radius:20px;background:rgba(8,21,36,.48)}
+#page-social .profile-identity-card{overflow:hidden;border-radius:22px;border:1px solid rgba(91,177,210,.25);background:#0c1d30}
+@media(max-width:700px){#page-ai>.ai-page-heading{align-items:flex-start;flex-direction:column}#page-ai .ai-page-actions{width:100%}#page-ai .ai-page-actions button{flex:1}#page-social .social-top{padding:13px}#page-social .social-tabs{top:4px}}
+@media(prefers-reduced-motion:reduce){#page-social .social-tabs{scroll-behavior:auto}}
 </style>
