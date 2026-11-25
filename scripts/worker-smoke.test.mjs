@@ -429,6 +429,11 @@ test("work-package action types must stay within the declared per-package scope"
   assert.equal(validateIntelligenceWorkPackage({
     ...base, tasks: [{ ...base.tasks[0], dependsOn: [] }]
   }).ok, true, "an explicitly empty dependency list is valid");
+  const routeStart = workerSource.indexOf('if (path === "/agent/v1/work-packages" && method === "POST")');
+  const routeEnd = workerSource.indexOf('if (path === "/agent/v1/notifications/status"', routeStart);
+  const creationRoute = workerSource.slice(routeStart, routeEnd);
+  assert.match(creationRoute, /const validDependencies = !Object\.hasOwn\(item \|\| \{\}, "dependsOn"\) \|\| Array\.isArray\(item\.dependsOn\)/);
+  assert.match(creationRoute, /!validDependencies/);
 });
 
 test("proposal-only work-package tasks require a bounded objective", () => {
