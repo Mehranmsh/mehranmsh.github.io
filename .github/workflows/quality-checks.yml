@@ -53,6 +53,21 @@ jobs:
       - name: Run syntax checks
         run: python scripts/quality-check.py
 
+      - name: Verify runner package tracking declaration
+        run: |
+          node --input-type=module <<'NODE'
+          import { readFileSync } from "node:fs";
+          import assert from "node:assert/strict";
+          const source = readFileSync(".github/workflows/mehran-intelligence-runner.yml", "utf8");
+          assert.match(source, /const packageIds = new Set\(\);/,
+            "runner must initialize packageIds as a Set before task processing");
+          assert.match(source, /packageIds\.add\(task\.workPackageId\)/,
+            "claimed work packages must be tracked");
+          assert.match(source, /packageIds\.size/,
+            "finalization must check the tracked package set");
+          console.log("PASS: packageIds is initialized as a Set and supports claim/finalization use.");
+          NODE
+
       - name: Run Worker smoke tests
         run: node --test scripts/worker-smoke.test.mjs
 
