@@ -69,6 +69,8 @@ jobs:
           // Keep a safety margin for durable result submission and private report finalization.
           const taskExecutionDeadline = tickStartedAt + 7 * 60 * 1000;
           const timingSamples = [];
+          // Track claimed work packages for bounded finalization after task processing.
+          const packageIds = new Set();
           let requestSequence = 0;
           const traceRunId = String(process.env.GITHUB_RUN_ID || "local").replace(/[^A-Za-z0-9._:-]/g, "").slice(0, 40);
           function recordTiming(name, startedAt) {
