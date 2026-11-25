@@ -6119,6 +6119,7 @@ export function validateIntelligenceWorkPackage(input) {
     const taskTitle = cleanText(item?.title, 160);
     const description = cleanText(item?.description, 1500);
     const actionType = cleanText(item?.actionType, 80);
+    const validDependencies = !Object.hasOwn(item || {}, "dependsOn") || Array.isArray(item.dependsOn);
     const dependencies = Array.isArray(item?.dependsOn) ? item.dependsOn : [];
     const paths = actionType === "inspect_repository" ? item?.paths : undefined;
     const validInspectPaths = actionType !== "inspect_repository" || (Array.isArray(paths) && paths.length >= 1 && paths.length <= 6 && new Set(paths).size === paths.length && paths.every(path => typeof path === "string" && INTELLIGENCE_INSPECT_ALLOWED_PATHS.includes(path)));
@@ -6127,7 +6128,7 @@ export function validateIntelligenceWorkPackage(input) {
     const patchObjective = actionType === "propose_code_patch" ? item?.objective : undefined;
     const validPatchObjective = actionType !== "propose_code_patch" || (typeof patchObjective === "string" && patchObjective.trim().length >= 12 && patchObjective.length <= 800);
     if (!taskId || !/^[A-Za-z0-9._:-]{1,80}$/.test(taskId) || known.has(taskId) || !taskTitle ||
-        !globalAllowedActions.includes(actionType) || (scopedActionsDeclared && !scopedActions.includes(actionType)) || !validInspectPaths || !validTestBaseSha || !validPatchObjective || (actionType !== "inspect_repository" && Object.hasOwn(item || {}, "paths")) || (actionType !== "run_repository_tests" && Object.hasOwn(item || {}, "baseSha")) || (actionType !== "propose_code_patch" && Object.hasOwn(item || {}, "objective")) || dependencies.length > 10) {
+        !globalAllowedActions.includes(actionType) || (scopedActionsDeclared && !scopedActions.includes(actionType)) || !validDependencies || !validInspectPaths || !validTestBaseSha || !validPatchObjective || (actionType !== "inspect_repository" && Object.hasOwn(item || {}, "paths")) || (actionType !== "run_repository_tests" && Object.hasOwn(item || {}, "baseSha")) || (actionType !== "propose_code_patch" && Object.hasOwn(item || {}, "objective")) || dependencies.length > 10) {
       return fail("Invalid task definition or action outside the bounded capability allowlist.");
     }
     if (new Set(dependencies).size !== dependencies.length ||
@@ -8140,12 +8141,13 @@ export default {
             const taskTitle = cleanText(item?.title,160);
             const description = cleanText(item?.description,1500);
             const actionType = cleanText(item?.actionType,80);
+            const validDependencies = !Object.hasOwn(item || {}, "dependsOn") || Array.isArray(item.dependsOn);
             const dependencies = Array.isArray(item?.dependsOn) ? item.dependsOn : [];
             const paths = actionType === "inspect_repository" ? item?.paths : undefined;
             const validInspectPaths = actionType !== "inspect_repository" || (Array.isArray(paths) && paths.length >= 1 && paths.length <= 6 && new Set(paths).size === paths.length && paths.every(path => typeof path === "string" && INTELLIGENCE_INSPECT_ALLOWED_PATHS.includes(path)));
             const baseSha = actionType === "run_repository_tests" ? item?.baseSha : undefined;
             const validTestBaseSha = actionType !== "run_repository_tests" || (typeof baseSha === "string" && /^[a-f0-9]{40}$/.test(baseSha));
-            if (!taskId || !/^[A-Za-z0-9._:-]{1,80}$/.test(taskId) || known.has(taskId) || !taskTitle || !["service_health_report","repository_quality_check","source_security_audit","inspect_repository","run_repository_tests"].includes(actionType) || !validInspectPaths || !validTestBaseSha || (actionType !== "inspect_repository" && Object.hasOwn(item || {}, "paths")) || (actionType !== "run_repository_tests" && Object.hasOwn(item || {}, "baseSha")) || dependencies.length > 10) {
+            if (!taskId || !/^[A-Za-z0-9._:-]{1,80}$/.test(taskId) || known.has(taskId) || !taskTitle || !["service_health_report","repository_quality_check","source_security_audit","inspect_repository","run_repository_tests"].includes(actionType) || !validDependencies || !validInspectPaths || !validTestBaseSha || (actionType !== "inspect_repository" && Object.hasOwn(item || {}, "paths")) || (actionType !== "run_repository_tests" && Object.hasOwn(item || {}, "baseSha")) || dependencies.length > 10) {
               return error("Invalid task definition or action outside the read-only allowlist.",400);
             }
             if (new Set(dependencies).size !== dependencies.length || dependencies.some(dep => typeof dep !== "string" || !known.has(dep))) {
