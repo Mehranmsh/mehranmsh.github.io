@@ -5870,8 +5870,7 @@ async function refreshIntelligenceWorkPackageSnapshot(env, packageId) {
     : hasRunnableQueued ? "queued"
     : (counts.blocked || counts.failed || counts.cancelled || counts.awaitingApproval || counts.blockedDependencies) ? "attention_required"
     : "queued";
-  const reportIsQuiescent = counts.inProgress === 0 && counts.retryWaiting === 0 &&
-    counts.awaitingApproval === 0 && counts.queued <= counts.blockedDependencies;
+  const reportIsQuiescent = isIntelligenceReportQuiescent(counts);
   const report = {status,counts,generatedAt:new Date().toISOString()};
   if ((pkg.status || "queued") !== status) {
     const details = JSON.stringify({fromStatus:pkg.status || "queued",toStatus:status,counts});
@@ -7189,6 +7188,16 @@ async function ingestGitHubIntelligenceInbox(env) {
   return imported;
 }
 
+function isIntelligenceReportQuiescent(counts) {
+  if (!counts || typeof counts !== "object" || Array.isArray(counts)) return false;
+  const fields = ["inProgress", "retryWaiting", "awaitingApproval", "queued", "blockedDependencies"];
+  if (fields.some(key => !Number.isSafeInteger(counts[key]) || counts[key] < 0)) return false;
+  return counts.inProgress === 0 &&
+    counts.retryWaiting === 0 &&
+    counts.awaitingApproval === 0 &&
+    counts.queued <= counts.blockedDependencies;
+}
+
 export default {
   async scheduled(controller, env, ctx) {
     // Fast lane: poll only the private owner inbox on intervening minutes.
@@ -8005,6 +8014,7 @@ export default {
           }
           const blockedDependencies = await env.DB.prepare("SELECT COUNT(*) AS total FROM intelligence_task_dependencies d JOIN intelligence_tasks child ON child.id=d.task_id JOIN intelligence_tasks parent ON parent.id=d.depends_on_task_id WHERE child.work_package_id=? AND child.status IN ('queued','accepted','retry_wait') AND parent.status IN ('blocked','failed')").bind(packageId).first();
           counts.blockedDependencies = Number(blockedDependencies?.total || 0);
+          const reportIsQuiescent = isIntelligenceReportQuiescent(counts);
           const status = counts.completed === counts.total ? "completed" : (counts.blocked || counts.failed || counts.awaitingApproval || counts.blockedDependencies) ? "attention_required" : counts.inProgress ? "in_progress" : counts.retryWaiting && !counts.queued ? "waiting_retry" : "queued";
           const report = {status,counts,generatedAt:new Date().toISOString()};
           const eventRows = events.results || [];
@@ -8027,7 +8037,7 @@ export default {
             await env.DB.prepare("UPDATE intelligence_work_packages SET status=?,report_json=?,updated_at=CURRENT_TIMESTAMP WHERE id=?").bind(status,JSON.stringify(report),packageId).run();
           }
           let reportStorage = null;
-          if (["completed","attention_required"].includes(status)) {
+          if (["completed","attention_required"].includes(status) && reportIsQuiescent) {
             try {
               reportStorage = await persistIntelligencePackageReport(env, packageId, report);
             } catch (err) {

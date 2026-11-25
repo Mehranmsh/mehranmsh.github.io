@@ -1221,7 +1221,7 @@ test("package report snapshots wait until runnable sibling tasks are quiescent",
   assert.match(snapshot, /else if \(row\.status === "cancelled"\) counts\.cancelled \+= n/);
   assert.match(snapshot, /counts\.inProgress \? "in_progress"/);
   assert.match(snapshot, /counts\.queued > counts\.blockedDependencies/);
-  assert.match(snapshot, /reportIsQuiescent = counts\.inProgress === 0/);
+  assert.match(snapshot, /reportIsQuiescent = isIntelligenceReportQuiescent\(counts\)/);
   assert.match(snapshot, /includes\(status\) && reportIsQuiescent/);
 });
 
