@@ -254,7 +254,7 @@ test("MEHRAN module registry endpoint is owner-only and never claims live health
   assert.match(route, /: "registry_declared"/);
   assert.match(route, /liveHealth: "not_checked"/);
   assert.match(route, /adapterCoverage: "partial"/);
-  assert.ok(route.includes("msh_core.projects.read") && route.includes("social.social.metrics.read") && route.includes("studio_music.studio.health.read"));
+  assert.ok(route.includes("msh_core.projects.read") && route.includes("social.social.metrics.read") && route.includes("studio_music.studio.health.read") && route.includes("mehran_ai.ai.health.read") && route.includes("mehran_ai.ai.quota.read"));
   assert.match(route, /"partially_wired"/);
   assert.match(route, /does not probe module services or claim live health/);
 });
@@ -283,9 +283,28 @@ test("owner can retrieve the validated module registry and partial adapter cover
   assert.deepEqual(studio.wiredCapabilities, ["studio.health.read"]);
   assert.equal(core.liveHealth, "not_checked");
   assert.equal(payload.runtime.adapterCoverage, "partial");
-  assert.deepEqual(payload.runtime.wiredCapabilities, ["msh_core.projects.read", "social.social.metrics.read", "studio_music.studio.health.read"]);
+  assert.deepEqual(payload.runtime.wiredCapabilities, ["msh_core.projects.read", "social.social.metrics.read", "studio_music.studio.health.read", "mehran_ai.ai.health.read", "mehran_ai.ai.quota.read"]);
   assert.equal(studio.liveHealth, "not_checked");
 });
+
+test("MEHRAN AI diagnostics use read-only health and quota capabilities", () => {
+  const start = workerSource.indexOf('if (/^(وضعیتهوشمصنوعی|وضعیتهوش|aihealth|aistatus|aiquota)$/u.test(lightweightMessage))');
+  const end = workerSource.indexOf('if (/^(وضعیتاستودیو|استودیواستاتوس|studiohealth|studiostatus)$/u.test(lightweightMessage))', start);
+  assert.ok(start >= 0 && end > start, "MEHRAN AI diagnostics branch must exist");
+  const route = workerSource.slice(start, end);
+  assert.ok(route.includes('moduleId: "mehran_ai"'));
+  assert.ok(route.includes('"ai.health.read"'));
+  assert.ok(route.includes('"ai.quota.read"'));
+  assert.ok(route.includes("cloudflareWorkersAI"));
+  assert.ok(route.includes("intelligence_reserved"));
+  assert.ok(route.includes("secretsExposed: false"));
+  assert.ok(route.includes('liveProviderProbe: "not_performed"'));
+  assert.equal(route.includes("env.OPENAI_API_KEY"), true);
+  assert.equal(route.includes("JSON.stringify(env"), false);
+  assert.equal(route.includes("env.AI.run"), false);
+});
+
+
 
 test("Studio status adapter reports browser-local storage without claiming project access", () => {
   const start = workerSource.indexOf('if (/^(وضعیتاستودیو|استودیواستاتوس|studiohealth|studiostatus)$/u.test(lightweightMessage))');
