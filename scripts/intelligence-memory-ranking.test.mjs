@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { analyzeMemoryRelations, selectMemoryContext } from "./intelligence-memory-ranking.mjs";
+import { analyzeMemoryRelations, selectMemoryContext, selectMemoryContextWithGraph } from "./intelligence-memory-ranking.mjs";
 
 const now = Date.parse("2026-11-25T12:00:00.000Z");
 const record = (key, category, content, extra = {}) => ({
@@ -134,4 +134,24 @@ test("unconfirmed model-suggested relations cannot rewrite owner memory", () => 
   const selected = selectMemoryContext(memories, { ownerUid: "owner-1", now });
   assert.equal(selected.length, 2);
   assert.ok(selected.every(item => item.relation_status === "current"));
+});
+
+
+test("combined memory context returns a bounded owner-scoped graph without changing ranking", () => {
+  const memories = [
+    record("project-a", "project", "Build project A", {
+      related_keys: ["goal-a"], relation_confirmed: true, relation_confirmed_by: "owner-1"
+    }),
+    record("goal-a", "goal", "Finish the first milestone"),
+    record("foreign", "goal", "Private foreign memory", { owner_uid: "owner-2" })
+  ];
+  const ordinary = selectMemoryContext(memories, { ownerUid: "owner-1", now, query: "project" });
+  const combined = selectMemoryContextWithGraph(memories, {
+    ownerUid: "owner-1", now, query: "project", graphMaxNodes: 1, graphMaxEdges: 1
+  });
+  assert.deepEqual(combined.memories, ordinary);
+  assert.deepEqual(combined.graph.nodes.map(node => node.id), ["goal-a"]);
+  assert.equal(combined.graph.diagnostics.omittedNodes, 1);
+  assert.equal(combined.graph.edges.length, 0);
+  assert.ok(!combined.graph.nodes.some(node => node.id === "foreign"));
 });
