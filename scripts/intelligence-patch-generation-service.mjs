@@ -246,7 +246,11 @@ export async function generatePatchArtifact({
     } catch {
       return fail("model_request_failed");
     }
-    if (!inference?.ok) return fail(inference?.code || "model_request_failed");
+    if (!inference?.ok) return {
+      ok: false,
+      code: inference?.code || "model_request_failed",
+      ...(inference?.diagnostic && typeof inference.diagnostic === "object" ? { diagnostic: inference.diagnostic } : {})
+    };
     raw = inference.text;
     selectedModel = typeof inference.model === "string" ? inference.model : MODEL;
     selectedProvider = typeof inference.provider === "string" ? inference.provider : "unknown";
@@ -277,7 +281,11 @@ export async function generatePatchArtifact({
     }
     raw = extractModelText(modelResult);
   }
-  if (!raw || raw.length > 24000) return fail("model_output_invalid");
+  if (!raw || raw.length > 24000) return {
+    ok: false,
+    code: "model_output_invalid",
+    diagnostic: { stage: "model_response_extraction", responsePresent: !!raw, responseLength: raw.length, responseLimit: 24000 }
+  };
   let generated;
   try {
     generated = JSON.parse(extractJsonObject(raw));
