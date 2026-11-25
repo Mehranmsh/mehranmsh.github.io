@@ -60,7 +60,7 @@ test("bounded inspection serialization preserves a schema-valid semantic analysi
   assert.match(serializer, /item\?\.rootCause/);
 });
 
-test("repository inventory is deterministic and never depends on Workers AI", () => {
+test("repository inspection keeps deterministic inventory as default and gates semantic AI analysis explicitly", () => {
   const inspectStart = runnerSource.indexOf('if (task.actionType === "inspect_repository")');
   const inspectEnd = runnerSource.indexOf('if (task.actionType === "source_security_audit")', inspectStart);
   assert.ok(inspectStart >= 0 && inspectEnd > inspectStart);
@@ -69,12 +69,17 @@ test("repository inventory is deterministic and never depends on Workers AI", ()
   assert.match(inspect, /blobSha: file\.sha/);
   assert.match(inspect, /lineCount:/);
   assert.match(inspect, /symbols:/);
+  assert.match(inspect, /const analysisMode = payload\.analysisMode \|\| "inventory"/);
+  assert.match(inspect, /if \(analysisMode === "semantic"\)/);
+  assert.match(inspect, /request\("\/agent\/v1\/repository\/analyze"/);
+  assert.match(inspect, /redactExcerpt/);
+  assert.match(inspect, /analysisMode,/);
   assert.match(inspect, /Deterministic repository inventory completed/);
   assert.ok(inspect.includes('"scripts/intelligence-module-registry.mjs"'));
   assert.ok(inspect.includes('"scripts/intelligence-module-registry.test.mjs"'));
   assert.ok(inspect.includes('"scripts/intelligence-module-adapter.mjs"'));
   assert.ok(inspect.includes('"scripts/intelligence-module-adapter.test.mjs"'));
-  assert.doesNotMatch(inspect, /repository\/analyze|runIntelligenceAI|MEHRAN_ORCHESTRATOR_TOKEN/);
+  assert.doesNotMatch(inspect, /runIntelligenceAI|MEHRAN_ORCHESTRATOR_TOKEN/);
   assert.match(workerSource, /inspect_repository_inventory_only/);
   assert.match(workerSource, /inspect_repository_schema/);
 });
@@ -1300,7 +1305,9 @@ test("repository inventory is independent from the optional semantic analysis en
   const inspectEnd = runnerSource.indexOf('if (task.actionType === "source_security_audit")', inspectStart);
   assert.ok(inspectStart >= 0 && inspectEnd > inspectStart);
   const inspect = runnerSource.slice(inspectStart, inspectEnd);
-  assert.doesNotMatch(inspect, /repository\/analyze|runIntelligenceAI|evidenceFiles|semantic\.analysis/);
+  assert.match(inspect, /analysisMode === "semantic"/);
+  assert.match(inspect, /repository\/analyze/);
+  assert.match(inspect, /analysisEvidence/);
   assert.match(inspect, /analysis: \{/);
   assert.match(inspect, /Deterministic repository inventory completed/);
   assert.match(workerSource, /Do not call a named constant a magic number/);
