@@ -6,6 +6,40 @@ import { buildPatchGenerationPrompt } from "./intelligence-patch-generation.mjs"
 const baseSha = "a".repeat(40);
 const currentSha = "b".repeat(40);
 const env = { AI: { run: async () => { throw new Error("AI must not run in lookup tests"); } } };
+ 
+test("patch generation preserves only safe structural diagnostics for empty model output", async () => {
+  const result = await generatePatchArtifact({
+    env,
+    baseSha,
+    objective: "Add a focused regression test for a verified edge case",
+    runAI: async () => ({
+      ok: false,
+      code: "model_output_invalid",
+      diagnostic: {
+        stage: "worker_response_extraction",
+        resultType: "object",
+        resultKeys: ["response"],
+        responseType: "undefined",
+        responseLength: null
+      }
+    }),
+    fetchImpl: async url => {
+      if (String(url).includes("/commits/main")) return Response.json({ sha: baseSha });
+      if (String(url).includes("/git/ref/heads/main")) return Response.json({ object: { sha: baseSha } });
+      return new Response(
+        `<feed><entry><id>tag:github.com,2008:Grit::Commit/${baseSha}</id></entry></feed>`,
+        { status: 200 }
+      );
+    }
+  });
+  assert.equal(result.ok, false);
+  assert.equal(result.code, "model_output_invalid");
+  assert.equal(result.diagnostic.stage, "worker_response_extraction");
+  assert.deepEqual(result.diagnostic.resultKeys, ["response"]);
+  assert.equal(Object.hasOwn(result.diagnostic, "raw"), false);
+  assert.equal(Object.hasOwn(result.diagnostic, "prompt"), false);
+});
+
 
 test("patch generation verifies the immutable base using concurrent independent GitHub refs", async () => {
   let calls = 0;
