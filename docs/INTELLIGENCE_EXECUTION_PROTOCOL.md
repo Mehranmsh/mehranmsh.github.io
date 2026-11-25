@@ -163,6 +163,10 @@ This is a runtime foundation, not the complete protocol and not yet production-a
 
 Do not describe the protocol as active until the acceptance criteria have passed in an end-to-end test. Keep public GitHub intake limited to non-sensitive signals. Do not expand unrelated company modules as part of this work.
 
+### Optional semantic repository analysis
+
+Repository inspection remains inventory-only by default and consumes no AI inference. A private inbox mission may explicitly set `analysis_mode: "semantic"`; the Worker validates that opt-in and carries the mode in the immutable task payload. The fixed Runner then reads only exact allowlisted files at one immutable `main` commit, extracts bounded excerpts, redacts common credential-shaped values, and submits those excerpts plus a bounded mission focus to the owner-authenticated `/agent/v1/repository/analyze` endpoint. The analyzer treats source as untrusted data, requires every finding quote to match a supplied excerpt, and returns evidence-backed findings and limitations. Each semantic analysis reserves 500 units from the existing Intelligence AI budget; provider/budget failures block the task rather than silently downgrading it to an inventory report. The Worker rejects a result or resumed checkpoint whose analysis mode differs from the task's stored request. This remains read-only and does not execute source code or apply recommendations.
+
 ### Runner claim fencing
 
 Every task claim now receives a fresh 256-bit random claim token. The runner receives the raw token only in the authenticated claim response; D1 stores only its SHA-256 hash. Checkpoint and result commits must present the token, and the Worker compares its hash against the current claim in both the read and conditional update. When a claim expires, is retried, or reaches a terminal result, the stored hash is cleared. A later runner claim replaces it with a new hash, so an older runner cannot checkpoint or commit a result after ownership has changed. This is a fencing mechanism, not a lease-renewal system: the existing 15-minute claim expiry remains, and long-running work must fail closed if its claim expires.
