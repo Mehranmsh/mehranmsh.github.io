@@ -3505,6 +3505,7 @@ async function socialLoadAssistant(){
   $("assistantProviderStatus").textContent=socialAIProvidersCache.map(p=>p.name+": "+(p.configured?"Connected":"Not configured")+(p.vision?" · Image analysis":"")).join(" · ");
   box.innerHTML=(history.messages||[]).map(m=>'<div class="chat-bubble '+(m.role==="user"?"mine":"")+'"><strong dir="auto">'+(m.role==="user"?"You":socialAIProviderName(m.provider_key||provider))+'</strong><div dir="auto" style="white-space:pre-wrap;unicode-bidi:plaintext;text-align:start">'+sx(m.content)+'</div></div>').join("")||'<div class="empty">Start a conversation with '+sx(socialAIProviderName(provider))+'.</div>';
   box.scrollTop=box.scrollHeight;send.disabled=provider==="central"?!ready.length:!selected?.configured;
+  socialLoadAssistantTasks();
  }catch(e){status.textContent=e.message;send.disabled=true;}
 }
 async function socialUploadAssistantImage(file){
