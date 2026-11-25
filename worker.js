@@ -4,6 +4,7 @@ import { storePrivatePatchArtifact, verifyPrivatePatchArtifactAtPath, getPrivate
 import { extractPatchModelText, generatePatchArtifact } from "./scripts/intelligence-patch-generation-service.mjs";
 import { validatePrivateIntelligenceMission } from "./scripts/intelligence-inbox-schema.mjs";
 import { selectMemoryContext } from "./scripts/intelligence-memory-ranking.mjs";
+// Shared owner-scoped feedback analysis; Worker persists proposals but never applies them.
 import { buildIntelligenceFeedbackReview } from "./scripts/intelligence-feedback-review.mjs";
 import { normalizeIntelligenceAnswer } from "./scripts/intelligence-answer-quality.mjs";
 import { planIntelligenceRetry } from "./scripts/intelligence-retry-policy.mjs";
