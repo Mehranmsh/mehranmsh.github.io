@@ -121,3 +121,17 @@ test("memory relations never cross owner boundaries", () => {
   const relations = analyzeMemoryRelations(memories);
   assert.equal(relations.conflictedKeys.size, 0);
 });
+
+
+test("unconfirmed model-suggested relations cannot rewrite owner memory", () => {
+  const memories = [
+    record("decision-old", "decision", "Keep the interface dark", { updated_at: "2026-11-20T12:00:00.000Z" }),
+    record("decision-new", "decision", "Change the interface to bright", {
+      updated_at: "2026-11-24T12:00:00.000Z", supersedes_key: "decision-old",
+      conflicts_with: ["decision-old"], relation_confirmed: true, relation_confirmed_by: "assistant"
+    })
+  ];
+  const selected = selectMemoryContext(memories, { ownerUid: "owner-1", now });
+  assert.equal(selected.length, 2);
+  assert.ok(selected.every(item => item.relation_status === "current"));
+});
