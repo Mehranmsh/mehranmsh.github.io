@@ -26,13 +26,9 @@ jobs:
           import { readFileSync } from "node:fs";
           import assert from "node:assert/strict";
 
-          const path = ".github/workflows/mehran-intelligence-runner.yml";
-          const source = readFileSync(path, "utf8");
-
-          assert.match(source, /cron:\s*"\\*\\/15 \\* \\* \\* \\*"/,
-            "runner must poll at the reduced 15-minute interval");
-          assert.doesNotMatch(source, /cron:\s*"\\*\\/5 \\* \\* \\* \\*"/,
-            "five-minute polling must remain disabled");
+          const source = readFileSync(".github/workflows/mehran-intelligence-runner.yml", "utf8");
+          assert.ok(source.includes('cron: "*/15 * * * *"'), "15-minute polling must be configured");
+          assert.equal(source.includes('cron: "*/5 * * * *"'), false, "five-minute polling must remain disabled");
 
           for (const key of [
             "mehran-intelligence-repo-inspection-v2-",
@@ -42,18 +38,13 @@ jobs:
             assert.equal(source.includes(key), false, "automatic package seeding remains: " + key);
           }
 
-          assert.match(source, /request\("\/agent\/v1\/tasks\/next"\)/,
+          assert.ok(source.includes('request("/agent/v1/tasks/next")'),
             "runner must continue processing explicitly queued tasks");
-
           const prJob = source.slice(source.indexOf("  create-review-pr-from-verified-patch:"));
-          assert.ok(prJob.startsWith("  create-review-pr-from-verified-patch:"),
-            "proposal PR job must remain visible for policy inspection");
-          assert.match(prJob, /\n    if: false\b/,
+          assert.ok(prJob.startsWith("  create-review-pr-from-verified-patch:"), "PR job must remain inspectable");
+          assert.ok(prJob.includes("if: false # Owner-approved manual review is required; automated PR creation is disabled."),
             "automated proposal PR creation must be disabled");
-          assert.match(prJob, /scripts\/intelligence-proposal-pr-runner\.mjs/,
-            "disabled PR job target must remain identifiable");
-
-          assert.match(source, /permissions:\s*\n  contents: read/,
-            "workflow-level permissions must remain read-only");
+          assert.ok(prJob.includes("scripts/intelligence-proposal-pr-runner.mjs"), "disabled PR job target must remain identifiable");
+          assert.ok(source.includes("permissions:\\n  contents: read"), "workflow permissions must remain read-only");
           console.log("PASS: 15-minute polling, no automatic seed packages, approved-queue processing, PR automation disabled, read-only workflow permissions.");
           NODE
