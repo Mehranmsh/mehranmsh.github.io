@@ -1165,7 +1165,7 @@ input:focus,textarea:focus,select:focus,button:focus-visible,a:focus-visible{out
 <div class="social-shell">
 <header class="social-top"><div class="social-brand">SOC<span>IAL</span><small>YOUR SPACE</small></div><div class="social-top-actions"><button title="Search" aria-label="Explore" onclick="switchSocial('explore')">⌕</button><button title="Community" aria-label="Community" onclick="switchSocial('messages')">✉</button><button title="Notifications" aria-label="Notifications" onclick="switchSocial('notifications')" style="position:relative">♡<span id="notificationBadge" style="display:none;position:absolute;top:-5px;right:-5px;background:#ff667d;color:#fff;border-radius:10px;padding:2px 5px;font-size:9px;line-height:1.2">0</span></button><button title="Sign in / Register" id="socialTopAuth">⇥</button></div></header>
 <nav class="social-tabs" aria-label="SOCIAL navigation">
-<button type="button" class="social-tab active" data-social="feed" onclick="window.switchSocial('feed');return false;"><span>⌂</span>Home</button><button type="button" class="social-tab" data-social="explore" onclick="window.switchSocial('explore');return false;"><span>⌕</span>Explore</button><button type="button" class="social-tab" data-social="reels" onclick="window.switchSocial('reels');return false;"><span>▣</span>Reels</button><button type="button" class="social-tab" data-social="messages" onclick="window.switchSocial('messages');return false;"><span>✉</span>Messages</button><button type="button" class="social-tab" data-social="profile" onclick="window.switchSocial('profile');return false;"><span>◉</span>Profile</button><button type="button" class="social-tab" data-social="studios" onclick="window.switchSocial('studios');return false;"><span>✧</span>Studios</button><button type="button" class="social-tab" data-social="settings" onclick="window.switchSocial('settings');return false;"><span>⚙</span>Settings</button>
+<button type="button" class="social-tab active" data-social="feed" onclick="window.switchSocial('feed');return false;"><span>⌂</span>Home</button><button type="button" class="social-tab" data-social="explore" onclick="window.switchSocial('explore');return false;"><span>⌕</span>Explore</button><button type="button" class="social-tab" data-social="reels" onclick="window.switchSocial('reels');return false;"><span>▣</span>Reels</button><button type="button" class="social-tab" data-social="messages" onclick="window.switchSocial('messages');return false;"><span>✉</span>Messages</button><button type="button" class="social-tab" data-social="profile" onclick="window.switchSocial('profile');return false;"><span>◉</span>Profile</button><button type="button" class="social-tab" data-social="settings" onclick="window.switchSocial('settings');return false;"><span>⚙</span>Settings</button>
 </nav>
 
 <main class="social-view active" id="social-feed">
@@ -1272,22 +1272,6 @@ input:focus,textarea:focus,select:focus,button:focus-visible,a:focus-visible{out
 </div>
 
 
-<div class="social-view" id="social-studios">
- <div class="section-title"><div><h2>✧ Creative Studios</h2><span class="small-text">A home for creative AI tools across image, music, video, voice and design</span></div></div>
- <div class="panel" style="margin-bottom:16px">
-  <div class="notice" style="margin:0"><strong>One workspace, clear limits.</strong><p class="small-text" style="margin:6px 0 0">Image generation is the only creative generation engine currently connected. The other studios can prepare detailed prompts now, but they will not pretend to generate media until a real model, a verified free allowance and a hard stop-before-billing guard are connected.</p></div>
- </div>
- <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px">
-  <article class="social-card" style="padding:18px"><div style="font-size:27px">▧</div><h3>Image Studio</h3><p class="small-text">Generate and edit images with the existing image model and daily safety limit.</p><span class="badge-soon" style="display:inline-block;margin:6px 0 12px">CONNECTED</span><button class="btn small" type="button" onclick="showPage('ai');switchAIView('workspace');setTimeout(()=>document.getElementById('imageStudioPanel')?.scrollIntoView({block:'start',behavior:'smooth'}),80)">Open Image Studio</button></article>
-  <article class="social-card" style="padding:18px"><div style="font-size:27px">♫</div><h3>Music Studio</h3><p class="small-text">Song concepts, lyrics, melodies, beats, arrangements and production briefs.</p><span class="badge-soon" style="display:inline-block;margin:6px 0 12px">PROMPT WORKSPACE</span><button class="btn small" type="button" onclick="socialOpenStudioPrompt('music')">Create music prompt</button></article>
-  <article class="social-card" style="padding:18px"><div style="font-size:27px">▶</div><h3>Video Studio</h3><p class="small-text">Video concepts, scripts, scene breakdowns, shot lists and motion directions.</p><span class="badge-soon" style="display:inline-block;margin:6px 0 12px">PROMPT WORKSPACE</span><button class="btn small" type="button" onclick="socialOpenStudioPrompt('video')">Create video prompt</button></article>
-  <article class="social-card" style="padding:18px"><div style="font-size:27px">🎙</div><h3>Voice Studio</h3><p class="small-text">Voiceover scripts, narration direction, pronunciation and audio production briefs.</p><span class="badge-soon" style="display:inline-block;margin:6px 0 12px">PROMPT WORKSPACE</span><button class="btn small" type="button" onclick="socialOpenStudioPrompt('voice')">Create voice prompt</button></article>
-  <article class="social-card" style="padding:18px"><div style="font-size:27px">✎</div><h3>Writing Studio</h3><p class="small-text">Lyrics, poetry, stories, captions, articles and structured writing.</p><span class="badge-soon" style="display:inline-block;margin:6px 0 12px">PROMPT WORKSPACE</span><button class="btn small" type="button" onclick="socialOpenStudioPrompt('writing')">Start writing prompt</button></article>
-  <article class="social-card" style="padding:18px"><div style="font-size:27px">✧</div><h3>Design Studio</h3><p class="small-text">Brand identity, logos, posters, social graphics and visual design briefs.</p><span class="badge-soon" style="display:inline-block;margin:6px 0 12px">PROMPT WORKSPACE</span><button class="btn small" type="button" onclick="socialOpenStudioPrompt('design')">Create design prompt</button></article>
-  <article class="social-card" style="padding:18px"><div style="font-size:27px">✦</div><h3>AI Assistant</h3><p class="small-text">General questions, planning, analysis and help with creative workflows.</p><span class="badge-soon" style="display:inline-block;margin:6px 0 12px">CONNECTED CHAT</span><button class="btn small" type="button" onclick="showPage('ai')">Open MEHRAN AI</button></article>
- </div>
- <div class="panel" style="margin-top:16px"><h3>Shared safety policy</h3><p class="small-text">Before any new media model is enabled, its real free quota must be measured, reserved atomically and stopped before the limit. No paid fallback, automatic top-up or hidden retry is allowed. Each studio will show its own remaining allowance when its engine is connected.</p></div>
-</div>
 
 <div class="social-view" id="social-notifications">
 <div class="panel">
@@ -1348,6 +1332,7 @@ input:focus,textarea:focus,select:focus,button:focus-visible,a:focus-visible{out
 <div class="ai-navigation" role="tablist" aria-label="AI workspace">
 <button type="button" class="ai-nav-btn active" data-ai-view="workspace" onclick="switchAIView('workspace')">✧ AI Workspace</button>
 <button type="button" class="ai-nav-btn" data-ai-view="prompt-creator" onclick="switchAIView('prompt-creator')">✦ Prompt Creator</button>
+<button type="button" class="ai-nav-btn" data-ai-view="studios" onclick="switchAIView('studios')">✧ Creative Studios</button>
 </div>
 <div class="ai-view active" id="social-ai"><div class="section-title"><h2>MEHRAN AI</h2><span class="small-text">AI execution workspace</span></div><div class="panel"><div class="notice" style="margin-bottom:12px"><strong>Your AI workspace</strong><p class="small-text" style="margin:6px 0 0">Send a request directly, or bring a ready-made text prompt from Prompt Creator. MEHRAN AI is the place where the selected AI model processes your request. Image understanding and image generation require compatible vision/image models and are not enabled just by choosing a provider.</p></div><div class="ai-signin-gate" id="aiSignInGate" hidden>
 <div><strong>Sign in to use MEHRAN AI</strong><p class="small-text">Your private AI conversations use the same secure account as SOCIAL.</p></div>
@@ -1513,6 +1498,23 @@ input:focus,textarea:focus,select:focus,button:focus-visible,a:focus-visible{out
 <div class="field"><label for="pcConstraints">Important details or things to avoid (optional)</label><textarea id="pcConstraints" maxlength="1500" rows="2" placeholder="e.g. keep the face natural, no logos, avoid exaggerated colors..."></textarea></div>
 <button class="btn" id="pcGenerateBtn" onclick="socialCreatePrompt()">Create my prompt ✨</button></div>
 <div class="panel" id="pcResultPanel"><div class="section-title" style="margin-top:0"><h3>Your generated prompt</h3><span class="small-text" id="pcResultMeta">Ready when you are</span></div><textarea id="pcOutput" rows="12" maxlength="12000" placeholder="Your professional prompt will appear here..." aria-label="Generated prompt"></textarea><div class="prompt-actions"><button class="btn secondary" id="pcCopyBtn" onclick="socialCopyPrompt()" disabled>Copy prompt</button><button class="btn" id="pcSendBtn" onclick="socialSendPromptToAI()" disabled>Open in MEHRAN AI ↗</button></div><p class="small-text">This is a text-only prompt builder. Nothing is executed here. Use “Open in MEHRAN AI” to hand the finished prompt to an available AI model.</p></div></div>
+<div class="ai-view" id="ai-studios">
+ <div class="section-title"><div><h2>✧ Creative Studios</h2><span class="small-text">A home for creative AI tools across image, music, video, voice and design</span></div></div>
+ <div class="panel" style="margin-bottom:16px">
+  <div class="notice" style="margin:0"><strong>One workspace, clear limits.</strong><p class="small-text" style="margin:6px 0 0">Image generation is the only creative generation engine currently connected. The other studios can prepare detailed prompts now, but they will not pretend to generate media until a real model, a verified free allowance and a hard stop-before-billing guard are connected.</p></div>
+ </div>
+ <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px">
+  <article class="social-card" style="padding:18px"><div style="font-size:27px">▧</div><h3>Image Studio</h3><p class="small-text">Generate and edit images with the existing image model and daily safety limit.</p><span class="badge-soon" style="display:inline-block;margin:6px 0 12px">CONNECTED</span><button class="btn small" type="button" onclick="showPage('ai');switchAIView('workspace');setTimeout(()=>document.getElementById('imageStudioPanel')?.scrollIntoView({block:'start',behavior:'smooth'}),80)">Open Image Studio</button></article>
+  <article class="social-card" style="padding:18px"><div style="font-size:27px">♫</div><h3>Music Studio</h3><p class="small-text">Song concepts, lyrics, melodies, beats, arrangements and production briefs.</p><span class="badge-soon" style="display:inline-block;margin:6px 0 12px">PROMPT WORKSPACE</span><button class="btn small" type="button" onclick="socialOpenStudioPrompt('music')">Create music prompt</button></article>
+  <article class="social-card" style="padding:18px"><div style="font-size:27px">▶</div><h3>Video Studio</h3><p class="small-text">Video concepts, scripts, scene breakdowns, shot lists and motion directions.</p><span class="badge-soon" style="display:inline-block;margin:6px 0 12px">PROMPT WORKSPACE</span><button class="btn small" type="button" onclick="socialOpenStudioPrompt('video')">Create video prompt</button></article>
+  <article class="social-card" style="padding:18px"><div style="font-size:27px">🎙</div><h3>Voice Studio</h3><p class="small-text">Voiceover scripts, narration direction, pronunciation and audio production briefs.</p><span class="badge-soon" style="display:inline-block;margin:6px 0 12px">PROMPT WORKSPACE</span><button class="btn small" type="button" onclick="socialOpenStudioPrompt('voice')">Create voice prompt</button></article>
+  <article class="social-card" style="padding:18px"><div style="font-size:27px">✎</div><h3>Writing Studio</h3><p class="small-text">Lyrics, poetry, stories, captions, articles and structured writing.</p><span class="badge-soon" style="display:inline-block;margin:6px 0 12px">PROMPT WORKSPACE</span><button class="btn small" type="button" onclick="socialOpenStudioPrompt('writing')">Start writing prompt</button></article>
+  <article class="social-card" style="padding:18px"><div style="font-size:27px">✧</div><h3>Design Studio</h3><p class="small-text">Brand identity, logos, posters, social graphics and visual design briefs.</p><span class="badge-soon" style="display:inline-block;margin:6px 0 12px">PROMPT WORKSPACE</span><button class="btn small" type="button" onclick="socialOpenStudioPrompt('design')">Create design prompt</button></article>
+  <article class="social-card" style="padding:18px"><div style="font-size:27px">✦</div><h3>AI Assistant</h3><p class="small-text">General questions, planning, analysis and help with creative workflows.</p><span class="badge-soon" style="display:inline-block;margin:6px 0 12px">CONNECTED CHAT</span><button class="btn small" type="button" onclick="showPage('ai')">Open MEHRAN AI</button></article>
+ </div>
+ <div class="panel" style="margin-top:16px"><h3>Shared safety policy</h3><p class="small-text">Before any new media model is enabled, its real free quota must be measured, reserved atomically and stopped before the limit. No paid fallback, automatic top-up or hidden retry is allowed. Each studio will show its own remaining allowance when its engine is connected.</p></div>
+</div>
+
 </section>
 
 <section class="page" id="page-admin"><div class="page-heading"><h1>Admin</h1><p>Account and ecosystem administration.</p></div><div class="notice warn">Administrative tools are restricted to authorized accounts. Access is determined by the authentication service, not by this page's interface.</div><div class="panel"><div class="section-title"><div><h2>Intelligence</h2><div class="small-text">Private analysis and AI workspace for the administrator.</div></div><button class="btn" type="button" onclick="showPage('intelligence')">Open Intelligence</button></div></div><div class="panel"><h3>System Overview</h3><div class="grid"><div class="card"><div class="eyebrow">AUTH SERVICE</div><div class="stat" id="adminAuthStatus">Checking</div><div class="stat-label">Worker connection</div></div><div class="card"><div class="eyebrow">DATABASE</div><div class="stat" id="adminDbStatus">Checking</div><div class="stat-label">Database response</div></div><div class="card"><div class="eyebrow">SESSION</div><div class="stat" id="adminSession">Guest</div><div class="stat-label">Current session</div></div></div></div><div class="panel"><div class="section-title"><h2>Dashboard</h2><button class="btn secondary small" id="refreshAdminOverview">Refresh</button></div><div class="grid admin-stats"><div class="card"><div class="eyebrow">TOTAL USERS</div><div class="stat" id="admTotalUsers">—</div></div><div class="card"><div class="eyebrow">ACTIVE USERS</div><div class="stat" id="admActiveUsers">—</div></div><div class="card"><div class="eyebrow">NEW USERS · 7 DAYS</div><div class="stat" id="admNewUsers">—</div></div><div class="card"><div class="eyebrow">POSTS</div><div class="stat" id="admPosts">—</div></div><div class="card"><div class="eyebrow">OPEN REPORTS</div><div class="stat" id="admOpenReports">—</div></div><div class="card"><div class="eyebrow">ACTIVE SESSIONS</div><div class="stat" id="admSessions">—</div></div></div><div id="adminOverviewMessage" class="notice">Dashboard data has not been loaded.</div></div>
@@ -1729,15 +1731,16 @@ function mehranAIStartTask(kind){
  input.setSelectionRange(input.value.length,input.value.length);
 }
 function switchAIView(name){
- const allowed=new Set(["workspace","prompt-creator"]);
+ const allowed=new Set(["workspace","prompt-creator","studios"]);
  if(!allowed.has(name))return;
- document.querySelectorAll("#page-ai .ai-view").forEach(view=>view.classList.toggle("active",view.id===(name==="workspace"?"social-ai":"social-prompt-creator")));
+ const target={workspace:"social-ai","prompt-creator":"social-prompt-creator",studios:"ai-studios"}[name];
+ document.querySelectorAll("#page-ai .ai-view").forEach(view=>view.classList.toggle("active",view.id===target));
  document.querySelectorAll("#page-ai [data-ai-view]").forEach(button=>button.classList.toggle("active",button.dataset.aiView===name));
  if(name==="workspace")socialLoadAssistant();
  if(name==="prompt-creator")$("pcGoal")?.focus();
 }
 function switchSocial(name){
- const allowed=new Set(["feed","studios","explore","reels","messages","profile","settings","notifications"]);
+ const allowed=new Set(["feed","explore","reels","messages","profile","settings","notifications"]);
  if(!allowed.has(name))return;
  $("page-social")?.classList.toggle("chat-mode",name==="messages");
  document.querySelectorAll(".social-tab").forEach(b=>b.classList.toggle("active",b.dataset.social===name));
@@ -5218,4 +5221,19 @@ const prevMe=window.socialMe;window.socialMe=async function(){await prevMe();soc
  #page-social .profile-stat-strip strong{font-size:15px}
  #page-social .profile-stat-strip span{font-size:9px}
 }
+</style>
+
+
+<style id="msh-ai-creative-studios-v1">
+#page-ai #ai-studios{max-width:1100px;margin:0 auto}
+#page-ai #ai-studios>.section-title{margin:0 0 18px;padding-bottom:14px;border-bottom:1px solid var(--ai-line)}
+#page-ai #ai-studios>.panel{padding:18px}
+#page-ai #ai-studios>.grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
+#page-ai #ai-studios .social-card{display:flex;flex-direction:column;align-items:flex-start;min-height:220px;padding:20px!important}
+#page-ai #ai-studios .social-card>div:first-child{display:grid;place-items:center;width:44px;height:44px;margin-bottom:13px;border:1px solid var(--ai-line);border-radius:14px;background:rgba(76,133,190,.12);font-size:24px!important}
+#page-ai #ai-studios .social-card h3{margin:0 0 8px;color:#edf3ff;font-size:16px}
+#page-ai #ai-studios .social-card p{flex:1;color:#9aabc4;font-size:12px;line-height:1.7}
+#page-ai #ai-studios .social-card .btn{margin-top:12px}
+@media(max-width:800px){#page-ai #ai-studios>.grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:560px){#page-ai #ai-studios>.grid{grid-template-columns:1fr}#page-ai #ai-studios .social-card{min-height:190px}}
 </style>
