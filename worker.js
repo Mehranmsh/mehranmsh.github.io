@@ -7832,6 +7832,14 @@ export default {
           const scope = body?.scope && typeof body.scope === "object" && !Array.isArray(body.scope) ? body.scope : {};
           const scopeJson = JSON.stringify(scope);
           if (!scopeJson || scopeJson.length > 4000) return error("Work package scope exceeds the 4 KB limit.",400);
+          const packageAllowedActions = scope.allowedActions;
+          const packageActionAllowlist = ["service_health_report","repository_quality_check","source_security_audit","inspect_repository","run_repository_tests","propose_code_patch"];
+          if (!Array.isArray(packageAllowedActions) || packageAllowedActions.length < 1 || packageAllowedActions.length > packageActionAllowlist.length ||
+              new Set(packageAllowedActions).size !== packageAllowedActions.length ||
+              packageAllowedActions.some(action => typeof action !== "string" || !packageActionAllowlist.includes(action)) ||
+              tasks.some(task => !packageAllowedActions.includes(cleanText(task?.actionType,80)))) {
+            return error("Work package scope.allowedActions must explicitly authorize every task using a unique bounded action list.",400);
+          }
           if (!idempotencyKey || !/^[A-Za-z0-9._:-]{8,120}$/.test(idempotencyKey) || !title || !tasks.length || tasks.length > 20) {
             return error("A valid idempotencyKey, title, and 1-20 tasks are required.",400);
           }
