@@ -16,9 +16,10 @@ test("records an explicit owner approval without applying or changing preference
  assert.equal(profile.approvedPreferences[0].read_only,true);
 });
 test("rejects implicit, foreign, malformed, or unqueued decisions",()=>{
- for(const d of [decision({explicit_confirmation:false}),decision({actor_uid:"other"}),decision({decision:"maybe"}),decision({decided_at:"bad"})]){
+ for(const d of [decision({explicit_confirmation:false}),decision({decision:"maybe"}),decision({decided_at:"bad"})]){
   assert.equal(recordIntelligencePreferenceDecision(proposals,[],d,{ownerUid:"owner",actorUid:"owner"}).ledger.length,0);
  }
+ assert.equal(recordIntelligencePreferenceDecision(proposals,[],decision(),{ownerUid:"owner",actorUid:"other"}).ledger.length,0);
  assert.equal(recordIntelligencePreferenceDecision([],[],decision(),{ownerUid:"owner",actorUid:"owner"}).ledger.length,0);
 });
 test("rejects duplicate event IDs and never mutates caller data",()=>{
