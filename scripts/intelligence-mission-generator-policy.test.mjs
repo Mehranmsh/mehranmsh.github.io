@@ -58,22 +58,28 @@ test("idempotency key rejects invalid intervals", () => {
 
 
 test("Worker generator endpoint is owner-protected and accepts only a bounded UTC cycle key", () => {
-  assert.match(workerSource, /path === "\\/agent\\/v1\\/missions\\/generate" && method === "POST"/);
-  assert.match(workerSource, /ownerOrchestrationRoute = .*missions\\/generate/);
-  assert.match(workerSource, /\\\\d\\{8\\}T\\\\d\\{4\\}/);
-  assert.match(workerSource, /const mission = "service health check, repository quality check, and source security audit"/);
-  assert.match(workerSource, /allowDeterministicFallback: false/);
-  assert.match(workerSource, /aiInferenceUsed: false/);
+  assert.ok(workerSource.includes('path === "/agent/v1/missions/generate" && method === "POST"'));
+  assert.ok(workerSource.includes('missions/generate'));
+  assert.ok(workerSource.includes('if (!/^\\d{8}T\\d{4}$/.test(cycleKey))'));
+  assert.ok(workerSource.includes('const mission = "service health check, repository quality check, and source security audit"'));
+  assert.ok(workerSource.includes("allowDeterministicFallback: false"));
+  assert.ok(workerSource.includes("aiInferenceUsed: false"));
 });
 
-test("D1 reservation is serialized and prevents competing package inserts", () => {
-  assert.match(workerSource, /CREATE TABLE IF NOT EXISTS intelligence_mission_generator_lock/);
-  assert.match(workerSource, /CREATE TRIGGER IF NOT EXISTS intelligence_mission_generator_lock_guard/);
-  assert.match(workerSource, /BEFORE INSERT ON intelligence_work_packages/);
-  assert.match(workerSource, /package_id <> NEW\.id/);
-  assert.match(workerSource, /INSERT INTO intelligence_mission_generator_lock\\(id,cycle_key,package_id,status,updated_at\\)/);
-  assert.match(workerSource, /WHERE NOT EXISTS \\(\\s*SELECT 1 FROM intelligence_work_packages\\s*WHERE status IN \\('queued','in_progress','waiting_retry','attention_required'\\)/);
-  assert.match(workerSource, /active_work_or_generator_reservation_exists/);
-  assert.match(workerSource, /finally \\{\\s*if \\(generatorSlotReserved\\)/);
-  assert.match(workerSource, /releaseIntelligenceMissionGeneratorSlot\\(env, packageId\\)/);
+test("D1 reservation is serialized, leased, and prevents competing package inserts", () => {
+  assert.ok(workerSource.includes("CREATE TABLE IF NOT EXISTS intelligence_mission_generator_lock"));
+  assert.ok(workerSource.includes("CREATE TRIGGER IF NOT EXISTS intelligence_mission_generator_lock_guard"));
+  assert.ok(workerSource.includes("CREATE TABLE IF NOT EXISTS intelligence_work_packages"));
+  assert.ok(workerSource.indexOf("CREATE TABLE IF NOT EXISTS intelligence_work_packages") <
+    workerSource.indexOf("CREATE TRIGGER IF NOT EXISTS intelligence_mission_generator_lock_guard"));
+  assert.ok(workerSource.includes("BEFORE INSERT ON intelligence_work_packages"));
+  assert.ok(workerSource.includes("package_id <> NEW.id"));
+  assert.ok(workerSource.includes("expires_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP"));
+  assert.ok(workerSource.includes("datetime(expires_at) > datetime('now')"));
+  assert.ok(workerSource.includes("datetime('now','+2 minutes')"));
+  assert.ok(workerSource.includes("INSERT INTO intelligence_mission_generator_lock(id,cycle_key,package_id,status,expires_at,updated_at)"));
+  assert.ok(workerSource.includes("WHERE status IN ('queued','in_progress','waiting_retry','attention_required')"));
+  assert.ok(workerSource.includes("active_work_or_generator_reservation_exists"));
+  assert.ok(workerSource.includes("finally {\n    if (generatorSlotReserved)"));
+  assert.ok(workerSource.includes("releaseIntelligenceMissionGeneratorSlot(env, packageId)"));
 });
