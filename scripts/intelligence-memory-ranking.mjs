@@ -47,7 +47,7 @@ function queryTokens(value) {
 
 function containsSensitivePersonalData(value) {
   const text = String(value || "").toLowerCase();
-  return /(?:\\b(?:password|passphrase|api[_ -]?key|private[_ -]?key|seed phrase|recovery phrase|mnemonic)\\b|\\b(?:wallet|bank|card)\\s+(?:address|balance|number|details|credentials)\\b|\\b(?:my|personal)\\s+(?:wallet|bank|account|balance|transactions?)\\b|\\b(?:credit|debit)\\s+card\\b)/i.test(text);
+  return /(?:\b(?:password|passphrase|api[_ -]?key|private[_ -]?key|seed phrase|recovery phrase|mnemonic)\b|\b(?:wallet|bank|card)\s+(?:address|balance|number|details|credentials)\b|\b(?:my|personal)\s+(?:wallet|bank|account|balance|transactions?)\b|\b(?:credit|debit)\s+card\b)/i.test(text);
 }
 
 function relevanceScore(record, query) {
@@ -101,7 +101,8 @@ export function selectMemoryContext(records, options = {}) {
     const trust = record.source === "project_baseline" || record.source === "owner_confirmed"
       ? 1 : finiteUnit(record.source_trust, 0.5);
     const recency = recencyScore(updatedAt, now);
-    const baseScore = (importance * 0.35) + (confidence * 0.25) + (trust * 0.20) + (recency * 0.20);\n    const relevance = relevanceScore(record, query);\n    const score = query.size ? (baseScore * 0.75) + (relevance * 0.25) : baseScore;
+    const baseScore = (importance * 0.35) + (confidence * 0.25) + (trust * 0.20) + (recency * 0.20);
+    const relevance = relevanceScore(record, query);\n    const score = query.size ? (baseScore * 0.75) + (relevance * 0.25) : baseScore;
 
     candidates.push({
       memory_key: key,
