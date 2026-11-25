@@ -301,6 +301,26 @@ test("admin overview rejects requests without a verified admin session", async (
   assert.match(payload.error, /Admin authentication required/);
 });
 
+
+test("persistent preference governance routes are owner-authenticated, bounded, and read-only", () => {
+  const start=workerSource.indexOf('if (path === "/intelligence/preferences" && method === "GET")');
+  const proposal=workerSource.indexOf('if (path === "/intelligence/preferences/proposals" && method === "POST")');
+  const decision=workerSource.indexOf('if (path === "/intelligence/preferences/decisions" && method === "POST")');
+  const memory=workerSource.indexOf('if (path === "/intelligence/memory" && method === "GET")');
+  assert.ok(start>=0&&proposal>start&&decision>proposal&&memory>decision);
+  const routes=workerSource.slice(start,memory);
+  assert.equal((routes.match(/verifyAdmin\(request, env\)/g)||[]).length,3);
+  assert.match(routes,/WHERE owner_uid=\? AND status='pending'/);
+  assert.match(routes,/WHERE owner_uid=\? AND memory_key=\? AND category IN \('preference','decision'\)/);
+  assert.match(routes,/body\.explicitConfirmation !== true/);
+  assert.match(routes,/\.bind\(decisionId,admin\.uid,admin\.uid,/);
+  assert.match(routes,/preferencesChanged:false,applied:false/);
+  assert.doesNotMatch(routes,/body\.actorUid|body\.ownerUid/);
+  assert.match(workerSource,/CREATE UNIQUE INDEX IF NOT EXISTS idx_intelligence_preference_one_decision/);
+  assert.match(workerSource,/CREATE TABLE IF NOT EXISTS intelligence_preference_decisions/);
+  assert.match(workerSource,/CREATE TABLE IF NOT EXISTS intelligence_preference_proposals/);
+});
+
 test("MEHRAN INTELLIGENCE serves exact project and SOCIAL status queries without Workers AI", () => {
   const start = workerSource.indexOf('if (path === "/intelligence/chat" && method === "POST")');
   const end = workerSource.indexOf('if (path === "/admin/overview"', start);
