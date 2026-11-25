@@ -5445,6 +5445,7 @@ async function ensureIntelligenceProtocolTables(env) {
       cycle_key TEXT NOT NULL,
       package_id TEXT NOT NULL,
       status TEXT NOT NULL DEFAULT 'reserved',
+      expires_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
       updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
     )
   `).run();
@@ -5469,7 +5470,7 @@ async function ensureIntelligenceProtocolTables(env) {
     BEFORE INSERT ON intelligence_work_packages
     WHEN EXISTS (
       SELECT 1 FROM intelligence_mission_generator_lock
-      WHERE id=1 AND status='reserved' AND package_id <> NEW.id
+      WHERE id=1 AND status='reserved' AND datetime(expires_at) > datetime('now') AND package_id <> NEW.id
     )
     BEGIN
       SELECT RAISE(ABORT, 'Intelligence mission generator reservation is active');
@@ -5999,8 +6000,8 @@ async function reserveIntelligenceMissionGeneratorSlot(env, cycleKey, packageId)
     return { reserved: false, reason: "invalid_reservation_input" };
   }
   const result = await env.DB.prepare(`
-    INSERT INTO intelligence_mission_generator_lock(id,cycle_key,package_id,status,updated_at)
-    SELECT 1, ?, ?, 'reserved', CURRENT_TIMESTAMP
+    INSERT INTO intelligence_mission_generator_lock(id,cycle_key,package_id,status,expires_at,updated_at)
+    SELECT 1, ?, ?, 'reserved', datetime('now','+2 minutes'), CURRENT_TIMESTAMP
     WHERE NOT EXISTS (
       SELECT 1 FROM intelligence_work_packages
       WHERE status IN ('queued','in_progress','waiting_retry','attention_required')
@@ -6009,8 +6010,10 @@ async function reserveIntelligenceMissionGeneratorSlot(env, cycleKey, packageId)
       cycle_key=excluded.cycle_key,
       package_id=excluded.package_id,
       status='reserved',
+      expires_at=datetime('now','+2 minutes'),
       updated_at=CURRENT_TIMESTAMP
     WHERE intelligence_mission_generator_lock.status <> 'reserved'
+       OR datetime(intelligence_mission_generator_lock.expires_at) <= datetime('now')
       AND NOT EXISTS (
         SELECT 1 FROM intelligence_work_packages
         WHERE status IN ('queued','in_progress','waiting_retry','attention_required')
