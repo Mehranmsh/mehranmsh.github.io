@@ -1,3 +1,4 @@
+import { selectMemoryContext } from "./scripts/intelligence-memory-ranking.mjs";
 import { buildDeterministicRoutinePlan } from "./scripts/intelligence-routine-planner.mjs";
 import { INTELLIGENCE_ACTION_TYPES, PREAPPROVED_INTELLIGENCE_ACTION_TYPES } from "./scripts/intelligence-capabilities.mjs";
 import { storePrivatePatchArtifact, verifyPrivatePatchArtifactAtPath, getPrivatePatchArtifactPath, getVerifiedPrivatePatchArtifactAtPath } from "./scripts/intelligence-private-patch-store.mjs";
@@ -6266,8 +6267,22 @@ async function planIntelligenceMission(env, input) {
   }
   await ensureIntelligenceMemoryTables(env);
   await seedIntelligenceOwnerMemory(env,"mehran_intelligence");
-  const memoryRows = await env.DB.prepare("SELECT memory_key,category,content,importance,updated_at FROM intelligence_memory_items WHERE owner_uid=? ORDER BY updated_at DESC,importance DESC LIMIT 12").bind("mehran_intelligence").all();
-  const durableMemoryContext = (memoryRows.results || []).map(item => ({key:item.memory_key,category:item.category,content:String(item.content||"").slice(0,450),importance:Number(item.importance||3)}));
+  const memoryRows = await env.DB.prepare("SELECT owner_uid,memory_key,category,content,importance,source,updated_at FROM intelligence_memory_items WHERE owner_uid=? ORDER BY updated_at DESC,importance DESC LIMIT 100").bind("mehran_intelligence").all();
+  const durableMemoryContext = selectMemoryContext(memoryRows.results || [], {
+    ownerUid: "mehran_intelligence",
+    now: Date.now(),
+    maxItems: 12,
+    maxChars: 6000,
+    maxItemChars: 450
+  }).map(item => ({
+    key: item.memory_key,
+    category: item.memory_type,
+    content: item.content,
+    importance: item.importance,
+    confidence: item.confidence,
+    source: item.source,
+    updatedAt: item.updated_at
+  }));
   const model = cleanText(env.MEHRAN_INTELLIGENCE_MODEL, 120) || DEFAULT_INTELLIGENCE_MODEL;
   let selectedProvider = "unknown";
   let selectedModel = model;
