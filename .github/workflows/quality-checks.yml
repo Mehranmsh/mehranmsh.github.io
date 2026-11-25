@@ -88,5 +88,8 @@ jobs:
       - name: Run Intelligence autonomous verification and repair loop tests
         run: node --check scripts/intelligence-verification-loop.mjs && node --test scripts/intelligence-verification-loop.test.mjs
 
+      - name: Run Intelligence central module registry tests
+        run: node --check scripts/intelligence-module-registry.mjs && node --test scripts/intelligence-module-registry.test.mjs
+
       - name: Run local Music Studio control-plane tests
         run: python -m unittest discover -s engine -p 'test_*.py' -v
