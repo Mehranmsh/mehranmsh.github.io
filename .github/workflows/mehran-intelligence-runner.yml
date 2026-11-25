@@ -245,7 +245,7 @@ jobs:
                 "--cpus", "1", "--tmpfs", "/tmp:rw,noexec,nosuid,nodev,size=64m",
                 "--mount", `type=bind,src=${workspace},dst=/workspace,readonly`,
                 "--workdir", "/workspace", image, "sh", "-c",
-                "node --check worker.js && node --check scripts/intelligence-capabilities.mjs && node --check scripts/intelligence-module-registry.mjs && node --check scripts/intelligence-verification-loop.mjs && node --test --test-reporter=tap scripts/*.test.mjs"
+                "node --check worker.js && node --check scripts/intelligence-capabilities.mjs && node --check scripts/intelligence-module-registry.mjs && node --check scripts/intelligence-module-adapter.mjs && node --check scripts/intelligence-verification-loop.mjs && node --test --test-reporter=tap scripts/*.test.mjs"
               ];
               const result = spawnSync("docker", args, { encoding: "utf8", timeout: 240000, maxBuffer: 1024 * 1024 });
               const output = [result.stdout || "", result.stderr || ""].join("\n").slice(-24000);
@@ -396,6 +396,8 @@ jobs:
                 "scripts/intelligence-capabilities.mjs",
                 "scripts/intelligence-module-registry.mjs",
                 "scripts/intelligence-module-registry.test.mjs",
+                "scripts/intelligence-module-adapter.mjs",
+                "scripts/intelligence-module-adapter.test.mjs",
                 "scripts/intelligence-capabilities.test.mjs",
                 ".github/workflows/mehran-intelligence-runner.yml",
                 "docs/INTELLIGENCE_EXECUTION_PROTOCOL.md"
