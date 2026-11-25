@@ -850,6 +850,57 @@ input:focus,textarea:focus,select:focus,button:focus-visible,a:focus-visible{out
 @media(max-width:760px){.home-orbit-layout{grid-template-columns:1fr;gap:3px}.home-orbit-wheel{width:min(100%,320px)}.home-orbit-detail{text-align:center;padding:0 8px 10px}.home-orbit-detail p{min-height:0}.orbit-controls{justify-content:center}.orbit-hint{margin-top:13px}.services-masthead{grid-template-columns:1fr;min-height:0}.services-mast-copy{padding:28px 23px 8px}.services-mast-art{min-height:210px;margin-top:-8px}.services-art-orbit{width:230px;height:230px}.services-art-orbit.orbit-a{width:180px;height:180px}.services-art-orbit.orbit-b{width:290px;height:140px}.services-art-core{width:84px;height:84px;font-size:28px;border-radius:25px}.services-art-tag{font-size:7px}.services-showcase{gap:10px}.service-music,.service-instruments,.service-robotics{grid-column:span 3}.service-tile-visual{height:135px}.service-tile-copy{min-height:0}.projects-entry{align-items:flex-start;flex-wrap:wrap}.projects-entry-copy{min-width:calc(100% - 75px)}.projects-entry-button{margin-left:70px}}
 @media(max-width:470px){.service-social,.service-ai,.service-music,.service-instruments,.service-robotics{grid-column:span 6}.service-tile-visual{height:145px}.services-section-head h2{font-size:21px}.services-count{font-size:8px}.home-orbit-section{padding:23px 12px}.orbit-node{width:65px;height:65px;margin:-32.5px 0 0 -32.5px;border-radius:19px}.orbit-node span{font-size:20px}.orbit-node small{font-size:7px}}
 </style>
+<style id="msh-dashboard-editorial-redesign">
+#page-dashboard.active .home-identity{min-height:100svh;padding:26px clamp(20px,6vw,88px) 22px;display:flex;flex-direction:column;justify-content:space-between;background:radial-gradient(ellipse at 78% 45%,#173b5b 0%,#0b1728 42%,#060b14 78%);isolation:isolate}
+#page-dashboard.active .home-identity:before{content:"";position:absolute;inset:0;z-index:-1;background:linear-gradient(90deg,#060b14 0%,rgba(6,12,22,.97) 34%,rgba(6,12,22,.48) 66%,rgba(6,12,22,.08) 100%)}
+.home-hero-topline,.home-hero-footer{display:flex;align-items:center;justify-content:space-between;gap:14px;width:100%;position:relative;z-index:2}
+.home-hero-topline .home-brand{margin:0;color:#83dff5;font-size:11px;letter-spacing:4px}
+.home-edition,.home-hero-footer{font-size:8px;letter-spacing:2px;color:#7895b2}
+.home-hero-grid{width:min(100%,1250px);margin:auto;display:grid;grid-template-columns:minmax(0,1fr) minmax(300px,.92fr);align-items:center;gap:clamp(16px,4vw,70px)}
+.home-hero-copy{position:relative;z-index:3;padding:35px 0}
+.home-overline{display:flex;align-items:center;gap:9px;color:#8cb5d0;font-size:9px;letter-spacing:2.4px;font-weight:800;margin-bottom:20px}
+.home-overline i{width:7px;height:7px;border-radius:50%;background:#52e0bd;box-shadow:0 0 14px #52e0bd}
+#page-dashboard.active .home-name{font-size:clamp(39px,6.4vw,82px);line-height:.94;letter-spacing:-2px;margin:0 0 24px;font-weight:900}
+#page-dashboard.active .home-name span{color:#67d9f0}
+#page-dashboard.active .home-slogan{font-size:clamp(15px,2vw,23px);gap:7px;line-height:1.22;margin:0 0 24px}
+.home-intro-rule{width:58px;height:2px;background:linear-gradient(90deg,#5cdef2,transparent);margin:0 0 17px}
+#page-dashboard.active .home-hub-title{font-size:clamp(18px,2vw,23px);margin-bottom:8px}
+#page-dashboard.active .home-description{max-width:460px;font-size:13px;line-height:1.8}
+.home-hero-actions{display:flex;align-items:center;gap:20px;flex-wrap:wrap;margin-top:21px}
+#page-dashboard.active .home-enter{margin:0;min-width:180px;min-height:48px;border-radius:13px}
+.home-enter b{margin-left:12px}
+.home-quiet-link{border:0;background:transparent;color:#b7d6e8;font-size:11px;font-weight:800;padding:12px 0}
+.home-quiet-link span{color:#5ddcf2;margin-left:8px}
+.home-hero-visual{position:relative;min-height:min(70vh,690px);display:flex;align-items:center;justify-content:center}
+.home-portrait-frame{position:relative;width:min(100%,510px);height:min(70vh,690px);min-height:390px;overflow:hidden;border:1px solid #5bb9d344;border-radius:46% 46% 25px 25px;background:radial-gradient(ellipse at 50% 32%,#244a68,#0c1b2c 68%);box-shadow:0 25px 80px #0006}
+.home-portrait-frame:before{content:"";position:absolute;inset:14px;border:1px solid #b0eaff25;border-radius:46% 46% 16px 16px;z-index:1;pointer-events:none}
+#page-dashboard.active .home-portrait{position:absolute;z-index:0;inset:0;width:100%;height:100%;object-fit:contain;object-position:center bottom}
+.home-visual-stamp{position:absolute;right:-5px;bottom:11%;width:124px;height:124px;border-radius:50%;display:flex;flex-direction:column;align-items:center;justify-content:center;background:linear-gradient(145deg,#1c4d68,#102238);border:1px solid #65d8ee88;box-shadow:0 10px 40px #0008;transform:rotate(9deg)}
+.home-visual-stamp strong{font-size:31px;letter-spacing:2px;color:#78e5f6}.home-visual-stamp span{font-size:7px;letter-spacing:1.3px;color:#c0d9e9;margin-top:5px}
+.home-visual-index{position:absolute;left:-18px;top:23%;display:flex;align-items:center;gap:9px;writing-mode:vertical-rl;color:#7797b5;font-size:8px;letter-spacing:2px}
+.home-visual-index i{width:1px;height:48px;background:linear-gradient(#5bdcf1,transparent)}
+.home-hero-footer{padding-top:14px;border-top:1px solid #ffffff18}
+.home-hero-footer b{color:#58d9ef;margin:0 6px}
+@media(max-width:760px){
+ #page-dashboard.active .home-identity{min-height:auto;padding:20px 18px 18px;background:linear-gradient(180deg,#07101d,#0a1728 62%,#07101b)}
+ #page-dashboard.active .home-identity:before{background:linear-gradient(180deg,rgba(5,12,22,.08),rgba(5,12,22,.12) 35%,#07101d 100%)}
+ .home-edition{font-size:7px;letter-spacing:1px}
+ .home-hero-grid{grid-template-columns:1fr;gap:0}
+ .home-hero-visual{grid-row:1;min-height:48svh;margin:5px auto 0;width:min(100%,390px)}
+ .home-portrait-frame{height:48svh;min-height:270px;max-height:440px;width:100%;border-radius:46% 46% 20px 20px}
+ .home-visual-stamp{width:84px;height:84px;right:0;bottom:8%}
+ .home-visual-stamp strong{font-size:23px}.home-visual-stamp span{font-size:6px}
+ .home-visual-index{left:0;top:20%;font-size:7px}
+ .home-hero-copy{padding:18px 2px 25px}
+ .home-overline{font-size:8px;margin-bottom:13px}
+ #page-dashboard.active .home-name{font-size:clamp(35px,10vw,54px);margin-bottom:15px}
+ #page-dashboard.active .home-slogan{font-size:clamp(14px,4.2vw,19px);margin-bottom:17px}
+ #page-dashboard.active .home-description{font-size:12px}
+ .home-hero-actions{gap:15px;margin-top:17px}
+ .home-hero-footer{font-size:7px;letter-spacing:1px}
+}
+@media(max-width:380px){.home-edition{display:none}.home-hero-visual{min-height:43svh}.home-portrait-frame{height:43svh}.home-hero-footer span:last-child{display:none}}
+</style>
 </head>
 <body>
 <div class="app">
@@ -868,19 +919,26 @@ input:focus,textarea:focus,select:focus,button:focus-visible,a:focus-visible{out
 <header class="topbar"><div class="breadcrumb">MEHRAN MSH <span style="color:#405875">/</span> <span id="crumb">Dashboard</span></div><div class="top-actions"><span class="pill" id="connectionStatus">● Checking connection</span><button class="btn secondary small" id="languageBtn">EN / FA</button></div></header>
 
 <section class="page active" id="page-dashboard">
-<div class="home-identity">
-  <div class="home-brand">MEHRAN MSH</div>
-  <img class="home-portrait" src="/assets/mehran-portrait.jpg" alt="Mehran Sherafat">
-  <h1 class="home-name">MEHRAN SHERAFAT</h1>
-  <div class="home-slogan" aria-label="Built on Pi. Connected by Mehran. Independent in purpose.">
-    <span>BUILT ON PI</span>
-    <span>CONNECTED BY MEHRAN</span>
-    <span>INDEPENDENT IN PURPOSE</span>
+<section class="home-identity">
+ <div class="home-hero-topline"><span class="home-brand">MEHRAN MSH</span><span class="home-edition">PI NETWORK · DIGITAL ECOSYSTEM</span></div>
+ <div class="home-hero-grid">
+  <div class="home-hero-copy">
+   <div class="home-overline"><i></i> AN INDEPENDENT DIGITAL WORLD</div>
+   <h1 class="home-name">MEHRAN<br><span>SHERAFAT</span></h1>
+   <div class="home-slogan" aria-label="Built on Pi. Connected by Mehran. Independent in purpose."><span>BUILT ON PI</span><span>CONNECTED BY MEHRAN</span><span>INDEPENDENT IN PURPOSE</span></div>
+   <div class="home-intro-rule"></div>
+   <h2 class="home-hub-title" id="heroTitle">Central Ecosystem Hub</h2>
+   <p class="home-description" id="heroText">A connected home for digital products, creative technology, music, AI and robotics, built within the Pi Network ecosystem.</p>
+   <div class="home-hero-actions"><button class="btn home-enter" onclick="showPage('services')">Explore ecosystem <b>↗</b></button><button class="home-quiet-link" onclick="showPage('social')">Visit SOCIAL <span>↗</span></button></div>
   </div>
-  <h2 class="home-hub-title" id="heroTitle">Central Ecosystem Hub</h2>
-  <p class="home-description" id="heroText">Central hub for digital projects, technology, music, AI and robotics in the Pi Network ecosystem.</p>
-  <button class="btn home-enter" onclick="showPage('services')">Enter Ecosystem</button>
-</div>
+  <div class="home-hero-visual">
+   <div class="home-portrait-frame"><img class="home-portrait" src="/assets/mehran-portrait.jpg" alt="Mehran Sherafat"></div>
+   <div class="home-visual-stamp"><strong>MSH</strong><span>IDEAS INTO SYSTEMS</span></div>
+   <div class="home-visual-index"><span>01</span><i></i><span>ECOSYSTEM</span></div>
+  </div>
+ </div>
+ <div class="home-hero-footer"><span>CREATE <b>·</b> CONNECT <b>·</b> BUILD</span><span>DESIGNED TO GROW WITH PI</span></div>
+</section>
 <section class="home-orbit-section" aria-label="Explore MEHRAN services">
  <div class="home-orbit-heading"><span class="services-kicker">EXPLORE THE ECOSYSTEM</span><h2>Where do you want to go?</h2><p>Choose a destination. The wheel is yours to explore.</p></div>
  <div class="home-orbit-layout"><div class="home-orbit-wheel" id="homeOrbitWheel">
