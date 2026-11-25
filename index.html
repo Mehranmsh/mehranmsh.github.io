@@ -1623,6 +1623,8 @@ input:focus,textarea:focus,select:focus,button:focus-visible,a:focus-visible{out
 </form>
 <div class="section-title" style="margin-top:16px"><h3>Latest comparison</h3><span class="small-text" id="intelPlanHistoryCount">0 revisions</span></div>
 <div id="intelPlanHistoryComparison" class="card small-text">Plan history will appear after refresh.</div>
+<div class="section-title" style="margin-top:16px"><h3>Outcome learning</h3><span class="small-text">Confirmed observations only</span></div>
+<div id="intelPlanLearning" class="card small-text">Learning summary will appear after refresh.</div>
 <div class="section-title" style="margin-top:16px"><h3>Revision timeline</h3></div>
 <div id="intelPlanHistoryList" class="grid"><div class="empty">No saved plan revisions yet.</div></div>
 <div class="section-title" style="margin-top:16px"><h3>Confirm task outcomes</h3></div>
@@ -2868,6 +2870,25 @@ const previous=revisions[revisions.length-2]||null;
 const comparison=data.comparison?.comparison||null;
 count.textContent=revisions.length+" revisions";
 comparisonNode.replaceChildren();
+const learningNode=$("intelPlanLearning");
+if(learningNode){
+learningNode.replaceChildren();
+const learning=data.learning||{};
+const learningDiagnostics=learning.diagnostics||{};
+const note=document.createElement("p");note.className="small-text";
+note.textContent=(learningDiagnostics.observationsAccepted||0)+" owner-confirmed observations · "+(learningDiagnostics.minObservations||3)+" minimum per pattern. Associations are not proof of cause.";
+learningNode.appendChild(note);
+const patterns=Array.isArray(learning.patterns)?learning.patterns:[];
+if(!patterns.length){const empty=document.createElement("div");empty.className="empty";empty.textContent="No repeated plan-change patterns can be assessed yet. Record confirmed outcomes across revisions.";learningNode.appendChild(empty)}
+for(const pattern of patterns){
+const item=document.createElement("article");item.className="card";
+const heading=document.createElement("h3");heading.textContent=pattern.signature.replaceAll("_"," ");
+const detail=document.createElement("p");detail.className="small-text";
+detail.textContent=pattern.observations+" observations · "+pattern.outcomes.map(outcome=>outcome.state+": "+outcome.count).join(" · ");
+const statusLine=document.createElement("p");statusLine.className="small-text";statusLine.textContent=pattern.note;
+item.append(heading,detail,statusLine);learningNode.appendChild(item);
+}
+}
 if(comparison){
 const summary=document.createElement("div");
 summary.textContent="Version "+comparison.from_version+" → "+comparison.to_version+" · "+comparison.added.length+" added · "+comparison.removed.length+" removed · "+comparison.changed.length+" changed · order "+(comparison.orderChanged?"changed":"unchanged");
