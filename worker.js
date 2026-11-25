@@ -9613,7 +9613,7 @@ export default {
           const adapted = await dispatchModuleCapability({
             adapter: projectAdapter,
             capability: "projects.read",
-            input: { projects: rows.results || [] }
+            input: { projects: (rows.results || []).slice(0,20).map(project => ({ name: String(project.name || "بدون نام").slice(0,80), status: String(project.status || "نامشخص").slice(0,40) })) }
           });
           if (!adapted.ok) return error("MEHRAN MSH project adapter is unavailable.",503);
           const projects = adapted.result.projects;
