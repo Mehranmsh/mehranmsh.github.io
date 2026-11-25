@@ -7522,7 +7522,26 @@ export default {
                   cloudflareReservation: 100
                 });
                 const text = routed?.result?.response ?? routed?.result?.output_text ?? "";
-                if (typeof text !== "string" || !text.trim()) return { ok: false, code: "model_output_invalid" };
+                if (typeof text !== "string" || !text.trim()) {
+                  const modelResult = routed?.result;
+                  const responseValue = modelResult?.response;
+                  const outputTextValue = modelResult?.output_text;
+                  return {
+                    ok: false,
+                    code: "model_output_invalid",
+                    diagnostic: {
+                      stage: "worker_response_extraction",
+                      provider: typeof routed?.provider === "string" ? routed.provider : "unknown",
+                      model: typeof routed?.model === "string" ? routed.model : "unknown",
+                      resultType: Array.isArray(modelResult) ? "array" : typeof modelResult,
+                      resultKeys: modelResult && typeof modelResult === "object" ? Object.keys(modelResult).slice(0, 12) : [],
+                      responseType: Array.isArray(responseValue) ? "array" : typeof responseValue,
+                      responseLength: typeof responseValue === "string" ? responseValue.length : null,
+                      outputTextType: Array.isArray(outputTextValue) ? "array" : typeof outputTextValue,
+                      outputTextLength: typeof outputTextValue === "string" ? outputTextValue.length : null
+                    }
+                  };
+                }
                 return { ok: true, text, provider: routed.provider, model: routed.model };
               } catch {
                 return { ok: false, code: "model_request_failed" };
