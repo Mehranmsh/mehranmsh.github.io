@@ -23,6 +23,7 @@ const retryPolicyImport = 'import { planIntelligenceRetry } from "./scripts/inte
 const feedbackReviewImport = 'import { buildIntelligenceFeedbackReview } from "./scripts/intelligence-feedback-review.mjs";';
 const planHistoryImport = 'import { compareIntelligencePlanVersions } from "./scripts/intelligence-plan-history.mjs";';
 const planLearningImport = 'import { learnFromIntelligencePlanOutcomes } from "./scripts/intelligence-plan-learning.mjs";';
+const planLearningImport = 'import { learnFromIntelligencePlanOutcomes } from "./scripts/intelligence-plan-learning.mjs";';
 if (!workerSource.includes(capabilityImport) || !workerSource.includes(patchStoreImport) ||
     !workerSource.includes(patchGenerationImport) || !workerSource.includes(inboxSchemaImport) ||
     !workerSource.includes(routinePlannerImport) || !workerSource.includes(memoryRankingImport) || !workerSource.includes(answerQualityImport) || !workerSource.includes(retryPolicyImport) || !workerSource.includes(feedbackReviewImport) || !workerSource.includes(planHistoryImport) || !workerSource.includes(planLearningImport)) {
@@ -54,6 +55,8 @@ const feedbackLearningSource = (await readFile(new URL("./intelligence-feedback-
 const feedbackLearningUrl = moduleUrl(feedbackLearningSource);
 const planHistorySource = (await readFile(new URL("./intelligence-plan-history.mjs", import.meta.url), "utf8"))
   .replace("export function compareIntelligencePlanVersions", "function compareIntelligencePlanVersions");
+const planLearningSource = (await readFile(new URL("./intelligence-plan-learning.mjs", import.meta.url), "utf8"))
+  .replace("export function learnFromIntelligencePlanOutcomes", "function learnFromIntelligencePlanOutcomes");
 const planLearningSource = await readFile(new URL("./intelligence-plan-learning.mjs", import.meta.url), "utf8");
 const planLearningUrl = moduleUrl(planLearningSource);
 const feedbackReviewSource = (await readFile(new URL("./intelligence-feedback-review.mjs", import.meta.url), "utf8"))
@@ -161,6 +164,14 @@ async function request(path, { method = "GET", origin, headers = {}, body } = {}
     body: body === undefined ? undefined : JSON.stringify(body)
   }), env);
 }
+
+test("plan history learning is owner-scoped, advisory, and included in its read API", () => {
+  assert.match(workerSource, /learnFromIntelligencePlanOutcomes\(revisions,progressEvents/);
+  assert.match(workerSource, /return json\(\{success:true,revisions,comparison,learning,/);
+  assert.match(workerSource, /actorUid:admin\.uid/);
+  assert.match(workerSource, /preferencesChanged:false/);
+  assert.match(workerSource, /causalClaims:false/);
+});
 
 test("Workers AI quota circuit retries after a bounded cooldown", () => {
   const attemptedAt = Date.parse("2026-11-25T00:01:00.000Z");
