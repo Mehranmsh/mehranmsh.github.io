@@ -14,7 +14,7 @@ export function recordIntelligencePreferenceDecision(reviewableProposals, ledger
  const result=empty();
  if(!owner||!Array.isArray(reviewableProposals)||!Array.isArray(ledger)||!decision||typeof decision!=="object") return {...result,reason:"invalid_input"};
  const target=clean(decision.target_key), recommendation=clean(decision.recommendation);
- const choice=decision.decision, actor=clean(decision.actor_uid), id=clean(decision.decision_id);
+ const choice=decision.decision, actor=clean(options.actorUid), id=clean(decision.decision_id);
  const decidedAt=clean(decision.decided_at,64);
  if(!target||!["increase_preference","decrease_preference"].includes(recommendation)||
   !["accepted","rejected"].includes(choice)||actor!==owner||decision.explicit_confirmation!==true||
