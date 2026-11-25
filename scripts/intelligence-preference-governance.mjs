@@ -68,7 +68,7 @@ export function buildDecisionCriteriaWithApprovedPreferences(criteria, profile, 
  const owner=clean(options.ownerUid);
  const empty={criteria:Array.isArray(criteria)?criteria.map(item=>item&&typeof item==="object"?{...item}:item):[],
   diagnostics:{ownerOptInRequired:true,preferencesApplied:false,advisoryOnly:true}};
- if(!owner||options.allowApprovedPreferences!==true||!profile||profile.ownerUid!==owner||
+ if(!owner||clean(options.actorUid)!==owner||options.allowApprovedPreferences!==true||!profile||profile.ownerUid!==owner||
   !Array.isArray(profile.approvedPreferences)||!Array.isArray(criteria)) return empty;
  const influence=new Map();
  for(const item of profile.approvedPreferences) {
