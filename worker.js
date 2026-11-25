@@ -7529,7 +7529,7 @@ export default {
             modules,
             runtime: {
               adapterCoverage: "partial",
-              wiredCapabilities: ["msh_core.projects.read", "social.social.metrics.read", "studio_music.studio.health.read"],
+              wiredCapabilities: ["msh_core.projects.read", "social.social.metrics.read", "studio_music.studio.health.read", "mehran_ai.ai.health.read", "mehran_ai.ai.quota.read"],
               note: "Coverage metadata only. This endpoint does not probe module services or claim live health."
             }
           });
