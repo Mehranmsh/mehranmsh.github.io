@@ -31,6 +31,7 @@ test("in-progress, retry-waiting, or approval tasks prevent report finalization"
 test("missing, negative, or non-integer counters fail closed", () => {
   assert.equal(isIntelligenceReportQuiescent(null), false);
   assert.equal(isIntelligenceReportQuiescent({ ...quiet, queued: undefined }), false);
+  assert.equal(isIntelligenceReportQuiescent({ ...quiet, queued: null }), false);
   assert.equal(isIntelligenceReportQuiescent({ ...quiet, blockedDependencies: -1 }), false);
   assert.equal(isIntelligenceReportQuiescent({ ...quiet, inProgress: 0.5 }), false);
 });
