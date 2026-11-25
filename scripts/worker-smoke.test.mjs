@@ -282,6 +282,8 @@ test("owner can retrieve the validated module registry and partial adapter cover
   assert.equal(studio.integrationState, "registry_declared");
   assert.equal(core.liveHealth, "not_checked");
   assert.equal(payload.runtime.adapterCoverage, "partial");
+  assert.deepEqual(payload.runtime.wiredCapabilities, ["msh_core.projects.read", "social.social.metrics.read"]);
+  assert.equal(studio.liveHealth, "not_checked");
 });
 
 test("module registry route does not accept the ordinary agent token", async () => {
