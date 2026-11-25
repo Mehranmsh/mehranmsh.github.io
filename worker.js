@@ -6108,8 +6108,8 @@ export function validateIntelligenceWorkPackage(input) {
   const globalAllowedActions = ["service_health_report", "repository_quality_check", "source_security_audit", "inspect_repository", "run_repository_tests", "propose_code_patch"];
   const scopedActionsDeclared = Object.hasOwn(scope, "allowedActions");
   const scopedActions = scope.allowedActions;
-  if (scopedActionsDeclared && (!Array.isArray(scopedActions) || scopedActions.length < 1 || scopedActions.length > globalAllowedActions.length || new Set(scopedActions).size !== scopedActions.length || scopedActions.some(action => typeof action !== "string" || !globalAllowedActions.includes(action)))) {
-    return fail("Work package scope.allowedActions must be a unique, non-empty subset of the bounded capability allowlist.");
+  if (!scopedActionsDeclared || !Array.isArray(scopedActions) || scopedActions.length < 1 || scopedActions.length > globalAllowedActions.length || new Set(scopedActions).size !== scopedActions.length || scopedActions.some(action => typeof action !== "string" || !globalAllowedActions.includes(action))) {
+    return fail("Work package scope.allowedActions must explicitly authorize every task using a unique, non-empty bounded capability list.");
   }
   const normalized = [];
   const known = new Set();
