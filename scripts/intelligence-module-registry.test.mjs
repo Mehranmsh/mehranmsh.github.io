@@ -2,7 +2,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   listRegisteredModules, getRegisteredModule, discoverModuleManifest,
-  resolveModuleCapability, MODULE_REGISTRY_POLICY
+  resolveModuleCapability, MODULE_REGISTRY_POLICY, validateModuleRegistry,
+  getModuleIntegrationPlan, buildModuleHealthReport
 } from "./intelligence-module-registry.mjs";
 
 test("registry includes core and current modules plus shared platform services", () => {
@@ -70,4 +71,48 @@ test("registry policy keeps discovery, secrets and production deployment gated",
   assert.equal(MODULE_REGISTRY_POLICY.unknownModuleDefault, "deny");
   assert.equal(MODULE_REGISTRY_POLICY.secretsExposed, false);
   assert.equal(MODULE_REGISTRY_POLICY.productionDeployAutonomy, false);
+});
+
+test("registry integrity validates dependencies and the module graph", () => {
+  const result = validateModuleRegistry();
+  assert.equal(result.ok, true);
+  assert.equal(result.issues.length, 0);
+  assert.ok(result.moduleCount >= 9);
+});
+
+test("integration plan orders shared infrastructure before dependent modules", () => {
+  const plan = getModuleIntegrationPlan("social");
+  assert.equal(plan.ok, true);
+  assert.ok(plan.order.indexOf("platform_auth") < plan.order.indexOf("social"));
+  assert.ok(plan.order.indexOf("platform_database") < plan.order.indexOf("social"));
+  assert.ok(plan.order.indexOf("platform_audit") < plan.order.indexOf("social"));
+  assert.deepEqual(getModuleIntegrationPlan("future_robotics"), { ok: false, code: "module_not_active", order: [] });
+  assert.deepEqual(getModuleIntegrationPlan("not_registered"), { ok: false, code: "unknown_module", order: [] });
+});
+
+test("module health report marks dependent modules degraded when a dependency is unhealthy", () => {
+  const report = buildModuleHealthReport({
+    platform_database: { status: "unhealthy", checkedAt: "2026-11-25T12:00:00Z" },
+    social: { status: "healthy" }
+  });
+  const database = report.modules.find(item => item.id === "platform_database");
+  const social = report.modules.find(item => item.id === "social");
+  assert.equal(database.status, "unhealthy");
+  assert.equal(social.status, "degraded");
+  assert.ok(social.dependencyFailures.includes("platform_database"));
+  assert.equal(report.ok, false);
+});
+
+test("health report never promotes planned modules to active or healthy", () => {
+  const report = buildModuleHealthReport({
+    future_instruments: { status: "healthy" },
+    future_robotics: { status: "healthy" }
+  });
+  assert.equal(report.modules.find(item => item.id === "future_instruments").status, "planned");
+  assert.equal(report.modules.find(item => item.id === "future_robotics").status, "planned");
+});
+
+test("dangerous capability verbs require approval, not only a write suffix", () => {
+  assert.equal(resolveModuleCapability("msh_core", "diagnostics.run").ok, true);
+  assert.equal(resolveModuleCapability("platform_audit", "audit.events.write").code, "approval_required");
 });
