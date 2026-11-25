@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { selectMemoryContext } from "./intelligence-memory-ranking.mjs";
+import { analyzeMemoryRelations, selectMemoryContext } from "./intelligence-memory-ranking.mjs";
 
 const now = Date.parse("2026-11-25T12:00:00.000Z");
 const record = (key, category, content, extra = {}) => ({
@@ -73,4 +73,51 @@ test("personal credentials and financial details never enter model memory contex
   ];
   const selected = selectMemoryContext(memories, { ownerUid: "owner-1", now });
   assert.deepEqual(selected.map(item => item.memory_key), ["safe-pi-goal"]);
+});
+
+
+test("a newer explicit decision supersedes the older decision without deleting history", () => {
+  const memories = [
+    record("ui-theme-old", "decision", "Use a gold and black interface", { updated_at: "2026-11-20T12:00:00.000Z" }),
+    record("ui-theme-new", "decision", "Use a blue and black interface", {
+      updated_at: "2026-11-24T12:00:00.000Z", supersedes_key: "ui-theme-old"
+    })
+  ];
+  const relations = analyzeMemoryRelations(memories);
+  assert.equal(relations.supersededKeys.has("owner-1\\u0000ui-theme-old"), true);
+  const selected = selectMemoryContext(memories, { ownerUid: "owner-1", now, query: "interface theme" });
+  assert.deepEqual(selected.map(item => item.memory_key), ["ui-theme-new"]);
+  assert.equal(memories.length, 2, "history remains untouched");
+});
+
+test("an older or cross-owner record cannot supersede another owner's decision", () => {
+  const memories = [
+    record("current", "decision", "Current owner decision", { updated_at: "2026-11-24T12:00:00.000Z" }),
+    record("stale", "decision", "Stale attempted replacement", {
+      updated_at: "2026-11-20T12:00:00.000Z", supersedes_key: "current"
+    }),
+    record("foreign", "decision", "Foreign owner replacement", {
+      owner_uid: "owner-2", updated_at: "2026-11-25T11:00:00.000Z", supersedes_key: "current"
+    })
+  ];
+  const relations = analyzeMemoryRelations(memories);
+  assert.equal(relations.supersededKeys.size, 0);
+});
+
+test("explicit conflicts are surfaced instead of silently choosing a winner", () => {
+  const memories = [
+    record("choice-a", "decision", "Enable public registration", { conflicts_with: ["choice-b"] }),
+    record("choice-b", "decision", "Disable public registration")
+  ];
+  const selected = selectMemoryContext(memories, { ownerUid: "owner-1", now });
+  assert.deepEqual(selected.map(item => item.relation_status), ["conflict", "conflict"]);
+});
+
+test("memory relations never cross owner boundaries", () => {
+  const memories = [
+    record("private-a", "decision", "A private decision", { conflicts_with: ["private-b"] }),
+    record("private-b", "decision", "Another owner's decision", { owner_uid: "owner-2" })
+  ];
+  const relations = analyzeMemoryRelations(memories);
+  assert.equal(relations.conflictedKeys.size, 0);
 });
