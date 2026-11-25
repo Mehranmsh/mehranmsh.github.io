@@ -7434,9 +7434,10 @@ export default {
             "SELECT t.id,t.action_type,t.status,t.work_package_id,t.attempts,t.max_attempts FROM intelligence_tasks t WHERE t.requires_approval=0 AND t.assigned_to IN ('mehran_intelligence','shared') AND ((t.status IN ('queued','accepted') AND t.action_type IN ('project_status_report','social_metrics_report')) OR (t.work_package_id IS NOT NULL AND t.status IN ('queued','accepted','retry_wait') AND t.action_type IN ('service_health_report','repository_quality_check') AND EXISTS (SELECT 1 FROM intelligence_work_packages wp, json_each(CASE WHEN json_valid(wp.scope_json) THEN wp.scope_json ELSE '{}' END, '$.allowedActions') scoped WHERE wp.id=t.work_package_id AND scoped.value=t.action_type) AND COALESCE(t.attempts,0)<COALESCE(t.max_attempts,3) AND (t.next_attempt_at IS NULL OR datetime(t.next_attempt_at)<=datetime('now')) AND NOT EXISTS (SELECT 1 FROM intelligence_task_dependencies d JOIN intelligence_tasks p ON p.id=d.depends_on_task_id WHERE d.task_id=t.id AND p.status<>'completed'))) ORDER BY CASE t.priority WHEN 'high' THEN 0 WHEN 'normal' THEN 1 ELSE 2 END,CASE WHEN t.work_package_id IS NOT NULL AND EXISTS (SELECT 1 FROM intelligence_tasks prior WHERE prior.work_package_id=t.work_package_id AND prior.status='completed') THEN 0 ELSE 1 END,t.created_at ASC LIMIT 1"
           ).first();
           if (!candidate) break;
+          const claimTokenHash = await sha256(crypto.randomUUID());
           const claimed = await env.DB.prepare(
-            "UPDATE intelligence_tasks SET status='in_progress',attempts=CASE WHEN work_package_id IS NOT NULL THEN COALESCE(attempts,0)+1 ELSE attempts END,agent_claimed_at=CURRENT_TIMESTAMP,agent_claim_token_hash='',updated_at=CURRENT_TIMESTAMP WHERE id=? AND status=? AND requires_approval=0 AND assigned_to IN ('mehran_intelligence','shared') AND (action_type IN ('project_status_report','social_metrics_report') OR (work_package_id IS NOT NULL AND action_type IN ('service_health_report','repository_quality_check') AND EXISTS (SELECT 1 FROM intelligence_work_packages wp, json_each(CASE WHEN json_valid(wp.scope_json) THEN wp.scope_json ELSE '{}' END, '$.allowedActions') scoped WHERE wp.id=intelligence_tasks.work_package_id AND scoped.value=intelligence_tasks.action_type)))"
-          ).bind(candidate.id,candidate.status).run();
+            "UPDATE intelligence_tasks SET status='in_progress',attempts=CASE WHEN work_package_id IS NOT NULL THEN COALESCE(attempts,0)+1 ELSE attempts END,agent_claimed_at=CURRENT_TIMESTAMP,agent_claim_token_hash=?,updated_at=CURRENT_TIMESTAMP WHERE id=? AND status=? AND requires_approval=0 AND assigned_to IN ('mehran_intelligence','shared') AND (action_type IN ('project_status_report','social_metrics_report') OR (work_package_id IS NOT NULL AND action_type IN ('service_health_report','repository_quality_check') AND EXISTS (SELECT 1 FROM intelligence_work_packages wp, json_each(CASE WHEN json_valid(wp.scope_json) THEN wp.scope_json ELSE '{}' END, '$.allowedActions') scoped WHERE wp.id=intelligence_tasks.work_package_id AND scoped.value=intelligence_tasks.action_type)))"
+          ).bind(claimTokenHash,candidate.id,candidate.status).run();
           if (!Number(claimed?.meta?.changes || 0)) continue;
           processed++;
           await env.DB.prepare("INSERT INTO intelligence_task_events(id,work_package_id,task_id,event_type,from_status,to_status,actor,details_json) VALUES(?,?,?,'task_claimed',?,'in_progress','scheduled_runner','{}')")
@@ -7490,8 +7491,8 @@ export default {
             if (!acceptance.passed) throw new Error("Acceptance verification failed: " + acceptance.checks.join(","));
             const resultText = JSON.stringify(report).slice(0,3000);
             const completion = await env.DB.batch([
-              env.DB.prepare("UPDATE intelligence_tasks SET status='completed',result_text=?,agent_claimed_at=NULL,next_attempt_at=NULL,last_error_code='',updated_at=CURRENT_TIMESTAMP WHERE id=? AND status='in_progress'").bind(resultText,candidate.id),
-              env.DB.prepare("INSERT INTO intelligence_task_events(id,work_package_id,task_id,event_type,from_status,to_status,actor,details_json) VALUES(?,?,?,'task_verified','in_progress','completed','scheduled_runner',?)")
+              env.DB.prepare("UPDATE intelligence_tasks SET status='completed',result_text=?,agent_claimed_at=NULL,agent_claim_token_hash='',next_attempt_at=NULL,last_error_code='',updated_at=CURRENT_TIMESTAMP WHERE id=? AND status='in_progress' AND agent_claim_token_hash=?").bind(resultText,candidate.id,claimTokenHash),
+              env.DB.prepare("INSERT INTO intelligence_task_events(id,work_package_id,task_id,event_type,from_status,to_status,actor,details_json) SELECT ?,?,?, 'task_verified','in_progress','completed','scheduled_runner',? WHERE changes()>0")
                 .bind(crypto.randomUUID(),candidate.work_package_id || null,candidate.id,JSON.stringify({resultLength:resultText.length,acceptanceChecks:acceptance.checks}))
             ]);
             if (!Number(completion?.[0]?.meta?.changes || 0)) throw new Error("Task claim changed before completion could be committed.");
@@ -7507,10 +7508,14 @@ export default {
             const retryDelaySeconds = retryable ? retryPlan.delaySeconds : 0;
             const nextAttemptAt = retryable ? retryPlan.nextAttemptAt : null;
             const nextStatus = retryable ? "retry_wait" : "blocked";
-            await env.DB.prepare("UPDATE intelligence_tasks SET status=?,result_text=?,agent_claimed_at=NULL,next_attempt_at=?,last_error_code=?,updated_at=CURRENT_TIMESTAMP WHERE id=? AND status='in_progress'").bind(nextStatus,resultText,nextAttemptAt,retryPlan.errorCode,candidate.id).run();
-            await env.DB.prepare("INSERT INTO intelligence_task_events(id,work_package_id,task_id,event_type,from_status,to_status,actor,details_json) VALUES(?,?,?,?,?,?, 'scheduled_runner',?)")
-              .bind(crypto.randomUUID(),candidate.work_package_id || null,candidate.id,retryable?"task_retry_scheduled":"task_blocked","in_progress",nextStatus,JSON.stringify({error:resultText.slice(0,500),retryable,retryDelaySeconds:retryable?retryDelaySeconds:0})).run();
-            if (!retryable) blocked++;
+            const failure = await env.DB.batch([
+              env.DB.prepare("UPDATE intelligence_tasks SET status=?,result_text=?,agent_claimed_at=NULL,agent_claim_token_hash='',next_attempt_at=?,last_error_code=?,updated_at=CURRENT_TIMESTAMP WHERE id=? AND status='in_progress' AND agent_claim_token_hash=?").bind(nextStatus,resultText,nextAttemptAt,retryPlan.errorCode,candidate.id,claimTokenHash),
+              env.DB.prepare("INSERT INTO intelligence_task_events(id,work_package_id,task_id,event_type,from_status,to_status,actor,details_json) SELECT ?,?,?,?,?,?, 'scheduled_runner',? WHERE changes()>0")
+                .bind(crypto.randomUUID(),candidate.work_package_id || null,candidate.id,retryable?"task_retry_scheduled":"task_blocked","in_progress",nextStatus,JSON.stringify({error:resultText.slice(0,500),retryable,retryDelaySeconds:retryable?retryDelaySeconds:0}))
+            ]);
+            const failureCommitted = Number(failure?.[0]?.meta?.changes || 0) > 0;
+            if (failureCommitted && !retryable) blocked++;
+            if (!failureCommitted) continue;
           }
           if (candidate.work_package_id) await refreshIntelligenceWorkPackageSnapshot(env,candidate.work_package_id);
         }
