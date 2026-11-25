@@ -806,10 +806,16 @@ jobs:
             if (savedCheckpoint.phase === "result_ready" && task.actionType === "inspect_repository") {
               try {
                 const report = JSON.parse(savedCheckpoint.result || "null");
+                const taskPayload = typeof task.actionPayload === "string" ? JSON.parse(task.actionPayload || "{}") : (task.actionPayload || {});
+                const expectedAnalysisMode = taskPayload.analysisMode || "inventory";
                 const allowedPaths = new Set([
                   "worker.js",
                   "scripts/intelligence-agent.mjs",
                   "scripts/intelligence-capabilities.mjs",
+                  "scripts/intelligence-module-registry.mjs",
+                  "scripts/intelligence-module-registry.test.mjs",
+                  "scripts/intelligence-module-adapter.mjs",
+                  "scripts/intelligence-module-adapter.test.mjs",
                   "scripts/intelligence-capabilities.test.mjs",
                   ".github/workflows/mehran-intelligence-runner.yml",
                   "docs/INTELLIGENCE_EXECUTION_PROTOCOL.md"
@@ -843,6 +849,7 @@ jobs:
                   analysis.limitations.every(item => typeof item === "string" && item.length <= 300);
                 checkpointMatchesCurrentSchema = report?.type === "inspect_repository" &&
                   report?.mode === "bounded_read_only_repository_inspection" &&
+                  (report?.analysisMode || "inventory") === expectedAnalysisMode &&
                   report?.repository === "Mehranmsh/mehranmsh.github.io" &&
                   typeof report?.commitSha === "string" && /^[a-f0-9]{40}$/i.test(report.commitSha) &&
                   filesValid && totalBytes <= 750000 &&
