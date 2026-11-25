@@ -9884,17 +9884,8 @@ export default {
         const createdAt = new Date().toISOString();
         try {
           await env.DB.prepare(
-            "INSERT INTO intelligence_plan_revisions(revision_id,owner_uid,version,change_reason,tasks_json,created_at) SELECT ?,?,?,?, ?,? WHERE NOT EXISTS (SELECT 1 FROM intelligence_plan_revisions WHERE owner_uid=? AND version=(SELECT COALESCE(MAX(version),0)+1 FROM intelligence_plan_revisions WHERE owner_uid=?))"
-          ).bind(revisionId,admin.uid,1,reason,JSON.stringify(tasks),createdAt,admin.uid,admin.uid).run();
-          const row = await env.DB.prepare(
-            "SELECT revision_id,version FROM intelligence_plan_revisions WHERE revision_id=? AND owner_uid=?"
-          ).bind(revisionId,admin.uid).first();
-          if (!row) {
-            const latest = await env.DB.prepare("SELECT COALESCE(MAX(version),0) AS version FROM intelligence_plan_revisions WHERE owner_uid=?").bind(admin.uid).first();
-            const version = Number(latest?.version||0)+1;
-            await env.DB.prepare("INSERT INTO intelligence_plan_revisions(revision_id,owner_uid,version,change_reason,tasks_json,created_at) VALUES(?,?,?,?,?,?)")
-              .bind(revisionId,admin.uid,version,reason,JSON.stringify(tasks),createdAt).run();
-          }
+            "INSERT INTO intelligence_plan_revisions(revision_id,owner_uid,version,change_reason,tasks_json,created_at) SELECT ?,?,COALESCE(MAX(version),0)+1,?,?,? FROM intelligence_plan_revisions WHERE owner_uid=?"
+          ).bind(revisionId,admin.uid,reason,JSON.stringify(tasks),createdAt,admin.uid).run();
         } catch (writeError) {
           console.error("INTELLIGENCE_PLAN_REVISION_WRITE_FAILED",String(writeError?.message||"database_error").slice(0,160));
           return error("Could not safely save this plan revision. Refresh history and try again.",409);
