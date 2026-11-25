@@ -1342,6 +1342,15 @@ test("scheduled Intelligence runner is single-flight, secret-backed and restrict
   assert.match(runner, /task\.status !== "in_progress"/);
   assert.match(runner, /task\.assignedTo/);
   assert.match(runner, /secrets\.MEHRAN_AGENT_TOKEN/);
+  assert.ok(runner.includes("secrets.MEHRAN_ORCHESTRATOR_TOKEN"));
+  assert.ok(runner.includes("vars.MEHRAN_MISSION_GENERATOR_ENABLED"));
+  assert.ok(runner.includes('GITHUB_EVENT_NAME === "schedule"'));
+  assert.ok(runner.includes('MEHRAN_MISSION_GENERATOR_ENABLED === "true"'));
+  assert.ok(runner.includes("orchestratorToken.length < 40"));
+  assert.ok(runner.includes('request("/agent/v1/missions/generate"'));
+  assert.ok(runner.includes("Math.floor(Date.now() / 900000) * 900000"));
+  assert.ok(runner.includes("Safely paused: active work or another generator reservation exists"));
+
   assert.match(runner, /service_health_report/);
   assert.match(runner, /repository_quality_check/);
   assert.match(runner, /status, result/);
@@ -2818,7 +2827,7 @@ test("routine read-only missions are classified before any AI memory or inferenc
   assert.match(classifier, /بررسی سلامت/);
   assert.match(classifier, /بررسی امنیت/);
   assert.match(planner, /const deterministicPlan = buildDeterministicRoutinePlan\(mission\)/);
-  assert.match(planner, /return createDeterministicRoutinePackage\(env, mission, idempotencyKey, input\?\.ownerUid, deterministicPlan\)/);
+  assert.match(planner, /return createDeterministicRoutinePackage\(env, mission, idempotencyKey, input\?\.ownerUid, deterministicPlan(?:, input\?\.generatorReservation \|\| null)?\)/);
   assert.ok(planner.indexOf("buildDeterministicRoutinePlan(mission)") < planner.indexOf("await ensureIntelligenceMemoryTables(env)"), "routine tasks must bypass memory reads and AI planning");
   assert.match(workerSource, /aiInferenceUsed: false/);
   assert.match(workerSource, /deterministic_rules_v1/);
@@ -3287,7 +3296,7 @@ function makeClaimLifecycleDb({ synchronizeCandidateReads = false, expireDuringC
         },
         async run() {
           // Schema setup is intentionally a no-op in this in-memory fake.
-          if (/^\s*(CREATE TABLE|CREATE INDEX|ALTER TABLE)/i.test(sql)) return { meta: { changes: 0 } };
+          if (/^\s*(CREATE TABLE|CREATE INDEX|CREATE TRIGGER|ALTER TABLE)/i.test(sql)) return { meta: { changes: 0 } };
           if (sql.includes("claim_expired_max_attempts")) {
             if (state.expired && state.row.status === "in_progress" &&
                 Number(state.row.attempts) >= Number(state.row.max_attempts)) {

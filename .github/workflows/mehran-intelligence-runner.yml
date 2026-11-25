@@ -38,6 +38,7 @@ jobs:
         env:
           MEHRAN_AGENT_TOKEN: ${{ secrets.MEHRAN_AGENT_TOKEN }}
           MEHRAN_ORCHESTRATOR_TOKEN: ${{ secrets.MEHRAN_ORCHESTRATOR_TOKEN }}
+          MEHRAN_MISSION_GENERATOR_ENABLED: ${{ vars.MEHRAN_MISSION_GENERATOR_ENABLED }}
           MEHRAN_AGENT_URL: https://mehran-msh-auth.mehran79mehran.workers.dev
           GITHUB_TOKEN: ${{ github.token }}
         run: |
@@ -81,6 +82,7 @@ jobs:
           }
           function timingRoute(path) {
             if (path === "/agent/v1/missions/plan") return "mission_plan";
+            if (path === "/agent/v1/missions/generate") return "mission_generate";
             if (path === "/agent/v1/repository/analyze") return "repository_analyze";
             if (path === "/agent/v1/tasks/next") return "task_claim";
             if (path.endsWith("/result")) return "task_result";
@@ -180,8 +182,39 @@ jobs:
             // Telemetry must never block mission execution during a rolling Worker deployment.
             console.log("Runner start telemetry temporarily unavailable; continuing work: " + String(error?.message || error).slice(0,160));
           }
+          // Mission generation is opt-in, scheduled-only, deterministic, read-only, and owner-token protected.
+          // The repository variable is intentionally absent/false by default.
+          if (process.env.GITHUB_EVENT_NAME === "schedule" &&
+              process.env.MEHRAN_MISSION_GENERATOR_ENABLED === "true") {
+            if (orchestratorToken.length < 40 || orchestratorToken.length > 200) {
+              console.log("[mission-generator] Disabled for this tick: owner orchestration token is unavailable.");
+            } else {
+              const cycleStart = new Date(Math.floor(Date.now() / 900000) * 900000);
+              const cycleKey = cycleStart.toISOString().replace(/[^0-9T]/g, "").slice(0, 13);
+              try {
+                const generated = await request("/agent/v1/missions/generate", {
+                  method: "POST",
+                  body: JSON.stringify({ cycleKey })
+                }, ownerHeaders, 12000);
+                console.log("[mission-generator] " + JSON.stringify({
+                  success: generated.success === true,
+                  duplicate: generated.duplicate === true,
+                  workPackageId: generated.workPackageId || null,
+                  status: generated.status || null,
+                  cycleKey
+                }));
+              } catch (error) {
+                if (error?.status === 409) {
+                  console.log("[mission-generator] Safely paused: active work or another generator reservation exists.");
+                } else {
+                  console.log("[mission-generator] This tick skipped without affecting queued task execution: " +
+                    String(error?.message || error).slice(0, 180));
+                }
+              }
+            }
+          }
           // Automatic baseline, AI self-improvement, and fixed-test package seeding is intentionally disabled.
-          // This runner now processes only explicitly queued, approved work packages.
+          // The runner processes explicitly queued, approved work packages plus the opt-in read-only generator above.
           function runHost(command, args, timeoutMs = 30000) {
             const result = spawnSync(command, args, { encoding: "utf8", timeout: timeoutMs, maxBuffer: 1024 * 1024 });
             if (result.error) throw new Error(`${command} failed: ${String(result.error.message || result.error).slice(0,160)}`);
