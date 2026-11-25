@@ -51,7 +51,7 @@ const feedbackLearningUrl = moduleUrl(feedbackLearningSource);
 const feedbackReviewSource = (await readFile(new URL("./intelligence-feedback-review.mjs", import.meta.url), "utf8"))
   .replace('from "./intelligence-feedback-learning.mjs"', 'from "' + feedbackLearningUrl + '"')
   .replace("export function buildIntelligenceFeedbackReview", "function buildIntelligenceFeedbackReview");
-const moduleUrl = source => "data:text/javascript;base64," + Buffer.from(source).toString("base64");
+function moduleUrl(source) { return "data:text/javascript;base64," + Buffer.from(source).toString("base64"); }
 const inboxSchemaUrl = moduleUrl(inboxSchemaSource);
 const policyUrl = moduleUrl(policySource);
 const artifactUrl = moduleUrl(artifactSource.replace(
