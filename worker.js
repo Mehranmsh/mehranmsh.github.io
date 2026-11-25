@@ -5,6 +5,7 @@ import { extractPatchModelText, generatePatchArtifact } from "./scripts/intellig
 import { validatePrivateIntelligenceMission } from "./scripts/intelligence-inbox-schema.mjs";
 import { selectMemoryContext } from "./scripts/intelligence-memory-ranking.mjs";
 import { normalizeIntelligenceAnswer } from "./scripts/intelligence-answer-quality.mjs";
+import { planIntelligenceRetry } from "./scripts/intelligence-retry-policy.mjs";
 
 function nextWorkersAIDailyResetAt(attemptedAt) {
   const timestamp = typeof attemptedAt === "number" ? attemptedAt : Date.parse(attemptedAt);
@@ -7497,11 +7498,16 @@ export default {
             completed++;
           } catch (err) {
             const resultText = ("Safe report execution failed: " + String(err?.message || err)).slice(0,3000);
-            const retryable = !!candidate.work_package_id && /timeout|abort|fetch failed|network|HTTP 5\d\d|temporarily unavailable|rate limit/i.test(resultText) && Number(candidate.attempts || 0) + 1 < Number(candidate.max_attempts || 3);
-            const retryDelaySeconds = Math.min(3600,30 * (2 ** Math.max(0,Number(candidate.attempts || 0))));
-            const nextAttemptAt = retryable ? new Date(Date.now() + retryDelaySeconds * 1000).toISOString() : null;
+            const retryPlan = planIntelligenceRetry({
+              attempts:Number(candidate.attempts || 0) + 1,
+              maxAttempts:Number(candidate.max_attempts || 3),
+              error:resultText
+            });
+            const retryable = !!candidate.work_package_id && retryPlan.retryable;
+            const retryDelaySeconds = retryable ? retryPlan.delaySeconds : 0;
+            const nextAttemptAt = retryable ? retryPlan.nextAttemptAt : null;
             const nextStatus = retryable ? "retry_wait" : "blocked";
-            await env.DB.prepare("UPDATE intelligence_tasks SET status=?,result_text=?,agent_claimed_at=NULL,next_attempt_at=?,last_error_code=?,updated_at=CURRENT_TIMESTAMP WHERE id=? AND status='in_progress'").bind(nextStatus,resultText,nextAttemptAt,retryable?"transient_execution_error":"execution_blocked",candidate.id).run();
+            await env.DB.prepare("UPDATE intelligence_tasks SET status=?,result_text=?,agent_claimed_at=NULL,next_attempt_at=?,last_error_code=?,updated_at=CURRENT_TIMESTAMP WHERE id=? AND status='in_progress'").bind(nextStatus,resultText,nextAttemptAt,retryPlan.errorCode,candidate.id).run();
             await env.DB.prepare("INSERT INTO intelligence_task_events(id,work_package_id,task_id,event_type,from_status,to_status,actor,details_json) VALUES(?,?,?,?,?,?, 'scheduled_runner',?)")
               .bind(crypto.randomUUID(),candidate.work_package_id || null,candidate.id,retryable?"task_retry_scheduled":"task_blocked","in_progress",nextStatus,JSON.stringify({error:resultText.slice(0,500),retryable,retryDelaySeconds:retryable?retryDelaySeconds:0})).run();
             if (!retryable) blocked++;
