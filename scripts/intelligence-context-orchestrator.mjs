@@ -132,11 +132,12 @@ export function buildIntelligenceContextSnapshot(records, options = {}) {
   }
   if (JSON.stringify(compact).length > limits.maxOutputChars) {
     return {
-      memories: [], graph: { nodes: [], edges: [], diagnostics: { outputBudgetTrimmed: true } },
-      projectDiagnostics: { staleRecords: [], blockedProjects: [], unknownDependencyStates: [], projectsMissingMetadata: [] },
-      executionPlan: { orderedTasks: [], blockedTasks: [], unresolvedTasks: [] },
-      preferenceProfile: { approvedPreferences: [], rejectedDecisions: [] },
-      diagnostics: { ownerScoped: true, advisoryOnly: true, memoryChanged: false, preferencesChanged: false, decisionMade: false, executionPerformed: false, outputTrimmed: true }
+      memories: [],
+      graph: { nodes: [], edges: [] },
+      projectDiagnostics: {},
+      executionPlan: {},
+      preferenceProfile: {},
+      diagnostics: { ownerScoped: true, advisoryOnly: true, outputTrimmed: true }
     };
   }
   return compact;
