@@ -44,6 +44,17 @@ test("persistent Workers AI inference 503 failures are not automatically retried
   assert.match(runnerSource, /Number\(error\?\.status\) === 503/);
 });
 
+test("bounded inspection serialization preserves a schema-valid semantic analysis", () => {
+  const serializerStart = runnerSource.indexOf("function serializeBoundedResult");
+  const serializerEnd = runnerSource.indexOf('for (let count = 0;', serializerStart);
+  const serializer = runnerSource.slice(serializerStart, serializerEnd);
+  assert.match(serializer, /analysis: compactAnalysis/);
+  assert.match(serializer, /findings: \[\]/);
+  assert.match(serializer, /Semantic findings were compacted/);
+  assert.match(serializer, /bounded\.length > maxChars/);
+  assert.match(serializer, /item\?\.rootCause/);
+});
+
 test("repository inventory is deterministic and never depends on Workers AI", () => {
   const inspectStart = runnerSource.indexOf('if (task.actionType === "inspect_repository")');
   const inspectEnd = runnerSource.indexOf('if (task.actionType === "source_security_audit")', inspectStart);
