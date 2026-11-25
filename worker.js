@@ -342,7 +342,7 @@ async function releaseSocialWorkersAIBudget(env, reservation) {
 
 
 const INTELLIGENCE_AI_PROVIDER_ORDER = Object.freeze(["cloudflare", "groq", "gemini", "openrouter"]);
-const DEFAULT_INTELLIGENCE_MODEL = "@cf/meta/llama-3.1-8b-instruct-fp8-fast";
+const DEFAULT_INTELLIGENCE_MODEL = "@cf/meta/llama-3.1-8b-instruct-fast";
 function intelligenceProviderError(provider, status, message) {
   const error = new Error(String(message || "Provider request failed").slice(0, 180));
   error.provider = provider;
