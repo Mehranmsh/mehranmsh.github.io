@@ -3195,9 +3195,10 @@ test("Agent task claim tokens fence checkpoint and result commits to the current
   const schedulerClaim = workerSource.slice(schedulerClaimStart, schedulerClaimEnd);
   assert.ok(schedulerClaim.includes("json_each(CASE WHEN json_valid(wp.scope_json) THEN wp.scope_json ELSE '{}' END, '$.allowedActions')"),
     "scheduled claim must atomically enforce the package action scope");
-  assert.ok(claimRoute.includes("work_package_id IS NULL OR EXISTS (SELECT 1 FROM intelligence_work_packages wp, json_each(CASE WHEN json_valid(wp.scope_json) THEN wp.scope_json ELSE '{}' END, '$.allowedActions')"
-  assert.ok(workerSource.includes("json_each(CASE WHEN json_valid(wp.scope_json) THEN wp.scope_json ELSE '{}' END, '$.allowedActions')"), "every package-bound runner guard must safely handle malformed legacy JSON");),
+  assert.ok(claimRoute.includes("work_package_id IS NULL OR EXISTS (SELECT 1 FROM intelligence_work_packages wp, json_each(CASE WHEN json_valid(wp.scope_json) THEN wp.scope_json ELSE '{}' END, '$.allowedActions')"),
     "agent claim and stale-retry recovery must reject package tasks without explicit action authorization");
+  assert.ok(workerSource.includes("json_each(CASE WHEN json_valid(wp.scope_json) THEN wp.scope_json ELSE '{}' END, '$.allowedActions')"),
+    "every package-bound runner guard must safely handle malformed legacy JSON");
   assert.match(claimRoute, /agent_claim_token_hash='',last_error_code='claim_expired_max_attempts'/);
   assert.match(claimRoute, /agent_claim_token_hash='',last_error_code='claim_expired_retry'/);
   assert.match(schedulerClaim, /agent_claim_token_hash=''/);
