@@ -325,7 +325,10 @@ test("persistent preference governance routes are owner-authenticated, bounded, 
 test("Intelligence preference governance UI uses explicit owner review actions", () => {
   assert.match(indexSource,/id="intelPreferenceProposalForm"/);
   assert.match(indexSource,/id="intelPreferencePendingList"/);
-  assert.match(indexSource,/id="intelPreferenceProfile"/);\n  assert.match(indexSource,/id="intelPreferenceFeedbackForm"/);\n  assert.match(indexSource,/api\\("\\/intelligence\\/preferences\\/feedback"/);\n  assert.match(indexSource,/api\\("\\/intelligence\\/preferences\\/review-feedback"/);
+  assert.match(indexSource,/id="intelPreferenceProfile"/);
+  assert.match(indexSource,/id="intelPreferenceFeedbackForm"/);
+  assert.match(indexSource,/api\("\/intelligence\/preferences\/feedback"/);
+  assert.match(indexSource,/api\("\/intelligence\/preferences\/review-feedback"/);
   assert.match(indexSource,/api\("\/intelligence\/preferences"/);
   assert.match(indexSource,/api\("\/intelligence\/preferences\/proposals"/);
   assert.match(indexSource,/api\("\/intelligence\/preferences\/decisions"/);
