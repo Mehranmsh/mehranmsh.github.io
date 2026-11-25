@@ -9764,14 +9764,14 @@ export default {
           "SELECT target_key,recommendation FROM intelligence_preference_proposals WHERE owner_uid=? AND status='pending'"
         ).bind(admin.uid).all();
         const existing = new Set((existingRows.results||[]).map(row=>JSON.stringify([row.target_key,row.recommendation])));
-        const inserts = [], proposals = [], processedTargets = new Set();
+        const inserts = [], proposals = [], processedFeedbackIds = new Set();
         let omitted = 0;
         let remaining = Math.max(0,100-Number(pendingCount?.total||0));
         for (const proposal of review.reviewableProposals) {
           const targetKey = proposal.target_key;
           const recommendation = proposal.recommendation;
           const key = JSON.stringify([targetKey,recommendation]);
-          if (existing.has(key)) { processedTargets.add(targetKey); continue; }
+          if (existing.has(key)) { for (const record of feedbackRecords) if (record.target_key===targetKey) processedFeedbackIds.add(record.feedback_id); continue; }
           if (remaining <= 0) { omitted++; continue; }
           const id = crypto.randomUUID(), proposalKey = key;
           inserts.push(env.DB.prepare(
@@ -9779,12 +9779,12 @@ export default {
           ).bind(id,admin.uid,targetKey,recommendation,proposalKey));
           proposals.push({id,target_key:targetKey,recommendation,observations:proposal.observations,
             confidence:proposal.confidence,status:"pending",approval_required:true,applied:false});
-          existing.add(key); processedTargets.add(targetKey); remaining--;
+          existing.add(key); for (const record of feedbackRecords) if (record.target_key===targetKey) processedFeedbackIds.add(record.feedback_id); remaining--;
         }
         const processedAt = new Date().toISOString();
-        const processUpdates = [...processedTargets].map(targetKey=>env.DB.prepare(
-          "UPDATE intelligence_feedback_records SET processed_at=? WHERE owner_uid=? AND target_key=? AND processed_at IS NULL"
-        ).bind(processedAt,admin.uid,targetKey));
+        const processUpdates = [...processedFeedbackIds].map(feedbackId=>env.DB.prepare(
+          "UPDATE intelligence_feedback_records SET processed_at=? WHERE owner_uid=? AND feedback_id=? AND processed_at IS NULL"
+        ).bind(processedAt,admin.uid,feedbackId));
         if (inserts.length || processUpdates.length) await env.DB.batch([...inserts,...processUpdates]);
         if (proposals.length) await writeAdminAudit(env,admin,"intelligence_preference_feedback_review_generated","intelligence_preference_proposal",admin.uid,
           JSON.stringify({created:proposals.length,unmatched:review.unmatchedProposals.length,omitted}));
