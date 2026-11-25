@@ -542,6 +542,8 @@ test("AI patch generation endpoint has a strict bounded request and storage-only
   assert.match(route, /reserveSocialWorkersAIBudget\(env,credits,"intelligence"\)/);
   assert.match(route, /runIntelligenceAI\(env,\s*\{\s*messages,\s*jsonMode: true,/,
     "patch generation must request structured JSON because its parser requires a JSON object");
+  assert.match(workerSource, /const DEFAULT_INTELLIGENCE_MODEL = "@cf\/meta\/llama-3\.1-8b-instruct-fast"/,
+    "the default Workers AI model must support JSON Mode");
   assert.match(route, /storePrivatePatchArtifact/);
   assert.match(route, /intelligence_patch_generation_requests/);
   assert.match(route, /verifyPrivatePatchArtifactAtPath/);
