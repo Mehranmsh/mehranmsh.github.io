@@ -362,6 +362,29 @@ test("Intelligence task listing repairs only stale approval labels on explicitly
   assert.ok(route.indexOf("UPDATE intelligence_tasks") < route.indexOf("SELECT * FROM intelligence_tasks"));
 });
 
+test("work-package action types must stay within the declared per-package scope", () => {
+  const base = {
+    idempotencyKey: "scope-check-2026-11-25-a1",
+    title: "Scoped capability validation",
+    objective: "Ensure task actions cannot exceed the package scope.",
+    scope: { mode: "read_only", allowedActions: ["service_health_report"] },
+    tasks: [{ taskId: "health", title: "Check health", actionType: "service_health_report" }]
+  };
+  assert.equal(validateIntelligenceWorkPackage(base).ok, true);
+  assert.equal(validateIntelligenceWorkPackage({
+    ...base, tasks: [{ ...base.tasks[0], actionType: "repository_quality_check" }]
+  }).ok, false);
+  assert.equal(validateIntelligenceWorkPackage({
+    ...base, scope: { ...base.scope, allowedActions: ["service_health_report", "service_health_report"] }
+  }).ok, false);
+  assert.equal(validateIntelligenceWorkPackage({
+    ...base, scope: { ...base.scope, allowedActions: ["shell_command"] }
+  }).ok, false);
+  assert.equal(validateIntelligenceWorkPackage({
+    ...base, scope: { ...base.scope, allowedActions: "service_health_report" }
+  }).ok, false);
+});
+
 test("proposal-only work-package tasks require a bounded objective", () => {
   const base = {
     idempotencyKey: "patch-proposal-queue-001",
