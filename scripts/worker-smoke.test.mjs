@@ -240,7 +240,9 @@ test("MEHRAN module registry endpoint is owner-only and never claims live health
   assert.match(route, /validateModuleRegistry/);
   assert.match(route, /integrationState: "registry_declared"/);
   assert.match(route, /liveHealth: "not_checked"/);
-  assert.match(route, /adaptersWired: false/);
+  assert.match(route, /adapterCoverage: "partial"/);
+  assert.match(route, /"msh_core\.projects\.read", "social\.social\.metrics\.read"/);
+  assert.match(route, /"partially_wired"/);
   assert.match(route, /does not probe module services or claim live health/);
 });
 
