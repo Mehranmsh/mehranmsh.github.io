@@ -3,8 +3,8 @@ import assert from "node:assert/strict";
 import { planIntelligenceRetry } from "./intelligence-retry-policy.mjs";
 
 test("transient network failures receive bounded exponential backoff", () => {
-  const first = planIntelligenceRetry({ attempts: 0, maxAttempts: 3, error: "fetch failed", now: 1000 });
-  const second = planIntelligenceRetry({ attempts: 1, maxAttempts: 3, error: "HTTP 503", now: 1000 });
+  const first = planIntelligenceRetry({ attempts: 1, maxAttempts: 3, error: "fetch failed", now: 1000 });
+  const second = planIntelligenceRetry({ attempts: 2, maxAttempts: 3, error: "HTTP 503", now: 1000 });
   assert.equal(first.retryable, true);
   assert.equal(first.delaySeconds, 30);
   assert.equal(second.delaySeconds, 60);
@@ -26,6 +26,6 @@ test("retry limit prevents another attempt", () => {
 });
 
 test("backoff is capped at one hour", () => {
-  const result = planIntelligenceRetry({ attempts: 10, maxAttempts: 20, error: "network error" });
+  const result = planIntelligenceRetry({ attempts: 11, maxAttempts: 20, error: "network error" });
   assert.equal(result.delaySeconds, 3600);
 });
