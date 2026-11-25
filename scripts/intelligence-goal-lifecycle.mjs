@@ -155,8 +155,21 @@ export function buildIntelligenceGoalLifecycle(records, proposedTasks, progressE
         approval_required: true, advisory_only: true
       });
     }
+    const completedTasks = tasks.filter(task => task.task_state === "completed").length;
+    const failedTasks = tasks.filter(task => task.task_state === "failed").length;
+    const blockedTasks = tasks.filter(task => task.task_state === "blocked").length;
+    const progressSummary = {
+      totalTasks: tasks.length,
+      completedTasks,
+      remainingTasks: Math.max(0, tasks.length - completedTasks),
+      failedTasks,
+      blockedTasks,
+      completionPercent: tasks.length ? Math.floor((completedTasks / tasks.length) * 100) : 0,
+      status: failedTasks || blockedTasks ? "needs_attention" : completedTasks === tasks.length ? "all_tasks_completed" : "in_progress"
+    };
     const planRecord = {
       goal_id: goal.goal_id,
+      progressSummary,
       orderedTasks: plan.orderedTasks,
       blockedTasks: plan.blockedTasks,
       heldTasks,
