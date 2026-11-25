@@ -1,5 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+
+const workerSource = readFileSync(new URL("../worker.js", import.meta.url), "utf8");
 import {
   MISSION_GENERATOR_POLICY,
   getMissionGeneratorDecision,
@@ -51,4 +54,26 @@ test("idempotency key is stable inside a 15-minute UTC bucket", () => {
 
 test("idempotency key rejects invalid intervals", () => {
   assert.throws(() => buildMissionGeneratorIdempotencyKey(new Date(), 0), TypeError);
+});
+
+
+test("Worker generator endpoint is owner-protected and accepts only a bounded UTC cycle key", () => {
+  assert.match(workerSource, /path === "\\/agent\\/v1\\/missions\\/generate" && method === "POST"/);
+  assert.match(workerSource, /ownerOrchestrationRoute = .*missions\\/generate/);
+  assert.match(workerSource, /!\\^\\\\d\\{8\\}T\\\\d\\{4\\}\\$/.source);
+  assert.match(workerSource, /const mission = "service health check, repository quality check, and source security audit"/);
+  assert.match(workerSource, /allowDeterministicFallback: false/);
+  assert.match(workerSource, /aiInferenceUsed: false/);
+});
+
+test("D1 reservation is serialized and prevents competing package inserts", () => {
+  assert.match(workerSource, /CREATE TABLE IF NOT EXISTS intelligence_mission_generator_lock/);
+  assert.match(workerSource, /CREATE TRIGGER IF NOT EXISTS intelligence_mission_generator_lock_guard/);
+  assert.match(workerSource, /BEFORE INSERT ON intelligence_work_packages/);
+  assert.match(workerSource, /package_id <> NEW\.id/);
+  assert.match(workerSource, /INSERT INTO intelligence_mission_generator_lock\\(id,cycle_key,package_id,status,updated_at\\)/);
+  assert.match(workerSource, /WHERE NOT EXISTS \\(\\s*SELECT 1 FROM intelligence_work_packages\\s*WHERE status IN \\('queued','in_progress','waiting_retry','attention_required'\\)/);
+  assert.match(workerSource, /active_work_or_generator_reservation_exists/);
+  assert.match(workerSource, /finally \\{\\s*if \\(generatorSlotReserved\\)/);
+  assert.match(workerSource, /releaseIntelligenceMissionGeneratorSlot\\(env, packageId\\)/);
 });
