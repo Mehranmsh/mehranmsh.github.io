@@ -1497,8 +1497,11 @@ test("patch generation uses the approved provider router without a second budget
 test("Cloudflare AI diagnostics distinguish budget reservation failures from inference failures", () => {
   assert.ok(workerSource.includes('const DEFAULT_INTELLIGENCE_MODEL = "@cf/meta/llama-3.1-8b-instruct-fast"'));
   assert.ok(workerSource.includes("const model = options.jsonMode ? DEFAULT_INTELLIGENCE_MODEL : (configuredModel || DEFAULT_INTELLIGENCE_MODEL)"));
-  assert.match(workerSource, /LIMIT 12"\)\.bind\("mehran_intelligence"\)/);
-  assert.match(workerSource, /content:String\(item\.content\|\|""\)\.slice\(0,450\)/);
+  assert.match(workerSource, /SELECT owner_uid,memory_key,category,content,importance,source,updated_at FROM intelligence_memory_items/);
+  assert.match(workerSource, /maxItems: 12/);
+  assert.match(workerSource, /maxChars: 6000/);
+  assert.match(workerSource, /maxItemChars: 450/);
+  assert.match(workerSource, /selectMemoryContext\\(memoryRows\\.results \\|\\| \\[\\]/);
   assert.match(workerSource, /jsonMode: true, temperature: 0, maxTokens: 1000, cloudflareReservation: 25/);
   assert.match(workerSource, /jsonMode:true,temperature:0,maxTokens:1500,cloudflareReservation:500/);
 
