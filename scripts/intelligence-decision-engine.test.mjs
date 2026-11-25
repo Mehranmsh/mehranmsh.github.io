@@ -32,7 +32,7 @@ test("decision engine consumes approved preference profile only after explicit o
  const recorded=recordIntelligencePreferenceDecision(proposals,[],{
   target_key:"quality",recommendation:"increase_preference",decision:"accepted",actor_uid:"owner",
   decision_id:"pref-1",decided_at:"2026-11-26T12:00:00.000Z",explicit_confirmation:true
- },{ownerUid:"owner"});
+ },{ownerUid:"owner",actorUid:"owner"});
  const profile=buildApprovedPreferenceProfile(recorded.ledger,{ownerUid:"owner"});
  const criteria=[{key:"quality",weight:50,direction:"higher"},{key:"cost",weight:50,direction:"higher"}];
  const options=[{id:"a",scores:{quality:5,cost:0}},{id:"b",scores:{quality:0,cost:5}}];
