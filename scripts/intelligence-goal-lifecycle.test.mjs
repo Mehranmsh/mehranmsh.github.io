@@ -74,6 +74,21 @@ test("is deterministic, bounded, and leaves all input records unchanged", () => 
   assert.equal(first.diagnostics.advisoryOnly, true);
 });
 
+test("calculates goal completion from accepted task states only", () => {
+  const result = buildIntelligenceGoalLifecycle([goal()], [
+    task("a"), task("b"), task("c")
+  ], [
+    event("done-a", "a", "completed"),
+    event("blocked-b", "b", "blocked")
+  ], { ownerUid: "owner-a", actorUid: "owner-a" });
+  const summary = result.executionPlans[0].progressSummary;
+  assert.deepEqual(summary, {
+    totalTasks: 3, completedTasks: 1, remainingTasks: 2,
+    failedTasks: 0, blockedTasks: 1, completionPercent: 33,
+    status: "needs_attention"
+  });
+});
+
 test("does not allow a later ordinary event to regress a completed task", () => {
   const result = buildIntelligenceGoalLifecycle([goal()], [task("release")], [
     event("complete-1", "release", "completed"),
