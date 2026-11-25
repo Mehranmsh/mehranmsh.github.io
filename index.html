@@ -1080,6 +1080,14 @@ input:focus,textarea:focus,select:focus,button:focus-visible,a:focus-visible{out
 <input class="assistant-hidden-file" id="assistantDocumentFile" type="file" accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv" multiple onchange="socialPickAssistantFiles(event,'file')">
 <p class="assistant-attach-note">Media preview is ready. AI media analysis will be enabled after the secure upload and model-processing connection is completed.</p></div></div>
 
+<div class="panel" id="assistantTaskPlanner" style="margin-top:16px">
+<div class="section-title"><div><h3>☷ Task Planner</h3><span class="small-text">Break complex goals into safe, reviewable steps</span></div><span class="small-text">PLAN ONLY</span></div>
+<p class="small-text">Uses the text in your message box to create a structured plan. It does not run commands, change files or perform external actions. Steps that change something are marked for your approval.</p>
+<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center"><button type="button" class="btn secondary" id="assistantCreatePlanBtn" onclick="socialCreateAssistantTaskPlan()">Create task plan</button><span id="assistantTaskPlanStatus" class="small-text" aria-live="polite"></span></div>
+<div id="assistantTaskPlanResult" style="margin-top:12px"></div>
+<div id="assistantTaskHistory" style="margin-top:12px"></div>
+</div>
+
 <div class="panel" id="imageStudioPanel" style="margin-top:18px">
 <div class="section-title" style="margin-top:0"><div><h3>✦ Image Studio</h3><span class="small-text">Free AI image generation and photo editing</span></div><span class="badge-soon">FLUX MODELS</span></div>
 <p class="small-text">Create from text with FLUX.1 SCHNELL, or upload a reference photo and add a prompt to edit and recreate the scene with FLUX.2 KLEIN 9B. Your reference photo is uploaded privately and processed by Cloudflare Workers AI. No external paid model or paid fallback is used. Both modes share Cloudflare's daily free AI allocation. On a Workers Paid account, usage above the free daily allowance can be billed; use Workers Free to avoid overage charges.</p>
@@ -3718,6 +3726,45 @@ async function socialSendAssistantMessage(){
 }
 
 
+let socialAssistantTasksCache=[];
+function socialRenderAssistantTask(task){
+ const plan=task.plan||task;
+ const steps=(plan.steps||[]).map(step=>'<li style="margin:10px 0"><strong>'+sx(step.title)+'</strong><p class="small-text" style="margin:4px 0">'+sx(step.details)+'</p><span class="small-text">'+sx(step.kind||"draft")+' · '+(step.approval_required?"Approval required":"No external change")+' · Not executed</span></li>').join("");
+ const risks=(plan.risks||[]).map(x=>'<li>'+sx(x)+'</li>').join("");
+ const done=(plan.done_when||[]).map(x=>'<li>'+sx(x)+'</li>').join("");
+ return '<article class="social-card"><h3>'+sx(plan.title||task.title||"Task plan")+'</h3><p>'+sx(plan.summary||"")+'</p><ol>'+steps+'</ol>'+(risks?'<strong>Risks to review</strong><ul>'+risks+'</ul>':'')+(done?'<strong>Completion checks</strong><ul>'+done+'</ul>':'')+'<p class="small-text" style="margin-top:12px">Plan saved privately. No steps have been executed.</p></article>';
+}
+async function socialCreateAssistantTaskPlan(){
+ const input=$("assistantInput"),button=$("assistantCreatePlanBtn"),status=$("assistantTaskPlanStatus"),result=$("assistantTaskPlanResult");
+ const goal=input?.value?.trim()||"";
+ if(!socialUser){toast("Sign in to create a private task plan.");return;}
+ if(goal.length<12){status.textContent="Write a task description of at least 12 characters in the message box first.";return;}
+ if(socialAssistantPendingFiles.length){status.textContent="Task planning currently uses text only. Remove the image attachment first.";return;}
+ button.disabled=true;status.textContent="Building a safe plan...";
+ try{
+  const data=await socialRequest("/assistant/tasks",{method:"POST",body:JSON.stringify({goal})});
+  result.innerHTML=socialRenderAssistantTask(data.task||{});
+  status.textContent="Plan created and saved privately.";
+  await socialLoadAssistantTasks();
+ }catch(e){status.textContent=e.message||"Could not create the plan.";socialShowAssistantError(e);}
+ finally{button.disabled=false;}
+}
+async function socialLoadAssistantTasks(){
+ const box=$("assistantTaskHistory");if(!box||!socialUser)return;
+ try{
+  const data=await socialRequest("/assistant/tasks");
+  socialAssistantTasksCache=data.tasks||[];
+  box.innerHTML=socialAssistantTasksCache.length?'<strong class="small-text">Recent saved plans</strong><div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px">'+socialAssistantTasksCache.map((task,index)=>'<button type="button" class="btn secondary small" data-ai-task-index="'+index+'">'+sx(task.title)+'</button>').join("")+'</div>':'';
+ }catch(e){box.textContent="Saved task plans could not be loaded.";}
+}
+function socialShowSavedAssistantTask(index){
+ const task=socialAssistantTasksCache[index];if(!task)return;
+ const result=$("assistantTaskPlanResult");if(result)result.innerHTML=socialRenderAssistantTask(task);
+}
+document.addEventListener("click",event=>{
+ const button=event.target.closest("[data-ai-task-index]");
+ if(button)socialShowSavedAssistantTask(Number(button.dataset.aiTaskIndex));
+});
 let socialAssistantPendingFiles=[];
 function socialToggleAttachMenu(){const menu=$("assistantAttachMenu"),btn=$("assistantAttachBtn");if(!menu||!btn)return;const open=menu.hidden;menu.hidden=!open;btn.setAttribute("aria-expanded",String(open));}
 function socialChooseAssistantFile(kind){const ids={image:"assistantImageFile",audio:"assistantAudioFile",video:"assistantVideoFile",file:"assistantDocumentFile"};const menu=$("assistantAttachMenu");if(menu)menu.hidden=true;const btn=$("assistantAttachBtn");if(btn)btn.setAttribute("aria-expanded","false");$(ids[kind])?.click();}
