@@ -4,7 +4,7 @@ const RELATION_FIELDS = Object.freeze({
   supports_keys: "supports",
   depends_on_keys: "depends_on"
 });
-const DEFAULT_LIMITS = Object.freeze({ maxNodes: 100, maxEdges: 200 });
+const GRAPH_DEFAULT_LIMITS = Object.freeze({ maxNodes: 100, maxEdges: 200 });
 
 function safeKey(value) {
   return typeof value === "string" ? value.trim().slice(0, 160) : "";
@@ -25,9 +25,9 @@ function isSafeRecord(record) {
 export function buildIntelligenceKnowledgeGraph(records, options = {}) {
   const ownerUid = typeof options.ownerUid === "string" ? options.ownerUid.trim() : "";
   const maxNodes = Number.isInteger(options.maxNodes) && options.maxNodes > 0
-    ? Math.min(options.maxNodes, 500) : DEFAULT_LIMITS.maxNodes;
+    ? Math.min(options.maxNodes, 500) : GRAPH_DEFAULT_LIMITS.maxNodes;
   const maxEdges = Number.isInteger(options.maxEdges) && options.maxEdges > 0
-    ? Math.min(options.maxEdges, 1000) : DEFAULT_LIMITS.maxEdges;
+    ? Math.min(options.maxEdges, 1000) : GRAPH_DEFAULT_LIMITS.maxEdges;
   if (!ownerUid || !Array.isArray(records)) {
     return { nodes: [], edges: [], diagnostics: { omittedNodes: 0, omittedEdges: 0, danglingReferences: 0, dependencyCycles: [] } };
   }
