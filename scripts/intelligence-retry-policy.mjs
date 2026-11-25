@@ -7,7 +7,7 @@ export function planIntelligenceRetry({ attempts = 0, maxAttempts = 3, error = "
   const delayCap = Math.max(delayBase, Number(maxDelaySeconds) || 3600);
   const retryableError = TRANSIENT_ERROR_PATTERN.test(String(error));
   const retryable = retryableError && used < limit;
-  const delaySeconds = retryable ? Math.min(delayCap, delayBase * (2 ** Math.min(10, used))) : 0;
+  const delaySeconds = retryable ? Math.min(delayCap, delayBase * (2 ** Math.min(10, Math.max(0, used - 1)))) : 0;
   const timestamp = Number(now);
   const nextAttemptAt = retryable && Number.isFinite(timestamp)
     ? new Date(timestamp + delaySeconds * 1000).toISOString()
