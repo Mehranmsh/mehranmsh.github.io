@@ -2554,8 +2554,8 @@ test("Production Intelligence scheduler runs only approved read-only reports and
   assert.ok(scheduledBody.includes("Recover abandoned package claims"), "scheduler must recover expired executor claims");
   assert.match(workerSource, /refreshIntelligenceWorkPackageSnapshot\(env,candidate\.work_package_id\)/);
   assert.match(workerSource, /refreshIntelligenceWorkPackageSnapshot\(env,stale\.work_package_id\)/);
-  assert.match(workerSource, /HTTP 5\\d\\d/);
-  assert.doesNotMatch(workerSource, /HTTP 5\\\\d\\\\d/);
+  assert.match(retryPolicySource, /HTTP 5\[0-9\]\{2\}/);
+  assert.match(retryPolicySource, /rate limit|429/);
   assert.ok(scheduledBody.includes("action_type IN ('project_status_report','social_metrics_report')"), "scheduler claim must use the same action allowlist as candidate selection");
   assert.ok(scheduledBody.includes("status='awaiting_approval' AND requires_approval=0"));
   const agentClaimStart = workerSource.indexOf('if (path === "/agent/v1/tasks/next" && method === "GET")');
