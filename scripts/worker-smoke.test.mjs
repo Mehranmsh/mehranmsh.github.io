@@ -2788,6 +2788,10 @@ test("MEHRAN INTELLIGENCE propagates terminal dependency failures and prevents z
   assert.match(workerSource, /last_error_code='dependency_terminal'/);
   assert.match(workerSource, /event_type,from_status,to_status,actor,details_json\) SELECT \?,\?,\?, 'dependency_blocked'/);
   assert.match(workerSource, /await blockIntelligenceTasksWithTerminalDependencies\(env, packageId\)/);
+  assert.match(workerSource, /for \(let pass = 0; pass < 20; pass\+\+\)/, "terminal dependency propagation must traverse bounded multi-level chains");
+  assert.match(workerSource, /parent\.status IN \\(\x27blocked\x27,\x27failed\x27,\x27cancelled\x27\\)/);
+  assert.match(workerSource, /else if \(task\.status === "cancelled"\) counts\.cancelled\+\+/);
+  assert.match(workerSource, /await blockIntelligenceTasksWithTerminalDependencies\(env, packageId\);\s*const pkg = await env\.DB\.prepare\("SELECT id,title/);
 });
 
 test("MEHRAN INTELLIGENCE scheduler executes only dependency-ready package tasks with bounded retries", () => {
