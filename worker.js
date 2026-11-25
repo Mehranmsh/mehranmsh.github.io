@@ -6777,7 +6777,7 @@ async function recordIntelligenceRunnerDispatch(env, statusCode, outcome) {
 async function triggerIntelligenceRunner(env) {
   const token = typeof env.MEHRAN_REPORTS_GITHUB_TOKEN === "string" ? env.MEHRAN_REPORTS_GITHUB_TOKEN.trim() : "";
   if (token.length < 20) {
-    await recordIntelligenceRunnerDispatch(env,0,"dispatch_token_unavailable");
+    await recordIntelligenceRunnerDispatch(env,0,"runner_dispatch_token_unavailable");
     return false;
   }
   try {
