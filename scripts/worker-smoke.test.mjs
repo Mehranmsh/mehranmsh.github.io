@@ -166,8 +166,8 @@ test("plan history learning is owner-scoped, advisory, and included in its read 
   assert.match(workerSource, /learnFromIntelligencePlanOutcomes\(revisions,progressEvents/);
   assert.match(workerSource, /return json\(\{success:true,revisions,comparison,learning,/);
   assert.match(workerSource, /actorUid:admin\.uid/);
-  assert.match(workerSource, /preferencesChanged:false/);
-  assert.match(workerSource, /causalClaims:false/);
+  assert.match(planLearningSource, /preferencesChanged: false/);
+  assert.match(planLearningSource, /causalClaims: false/);
 });
 
 test("Workers AI quota circuit retries after a bounded cooldown", () => {
