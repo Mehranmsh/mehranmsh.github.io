@@ -8,6 +8,7 @@ import { selectMemoryContext } from "./scripts/intelligence-memory-ranking.mjs";
 import { buildIntelligenceFeedbackReview } from "./scripts/intelligence-feedback-review.mjs";
 import { normalizeIntelligenceAnswer } from "./scripts/intelligence-answer-quality.mjs";
 import { planIntelligenceRetry } from "./scripts/intelligence-retry-policy.mjs";
+import { compareIntelligencePlanVersions } from "./scripts/intelligence-plan-history.mjs";
 
 function nextWorkersAIDailyResetAt(attemptedAt) {
   const timestamp = typeof attemptedAt === "number" ? attemptedAt : Date.parse(attemptedAt);
@@ -5530,6 +5531,36 @@ async function ensureIntelligencePreferenceTables(env) {
   await env.DB.prepare("CREATE INDEX IF NOT EXISTS idx_intelligence_feedback_owner_target ON intelligence_feedback_records(owner_uid,target_key,created_at)").run();
 }
 
+async function ensureIntelligencePlanHistoryTables(env) {
+  await ensureIntelligenceTaskTable(env);
+  await env.DB.prepare(`
+    CREATE TABLE IF NOT EXISTS intelligence_plan_revisions(
+      revision_id TEXT PRIMARY KEY,
+      owner_uid TEXT NOT NULL,
+      version INTEGER NOT NULL,
+      change_reason TEXT NOT NULL,
+      tasks_json TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      UNIQUE(owner_uid,version)
+    )
+  `).run();
+  await env.DB.prepare("CREATE INDEX IF NOT EXISTS idx_intelligence_plan_revisions_owner ON intelligence_plan_revisions(owner_uid,version DESC)").run();
+  await env.DB.prepare(`
+    CREATE TABLE IF NOT EXISTS intelligence_plan_progress_events(
+      event_id TEXT PRIMARY KEY,
+      owner_uid TEXT NOT NULL,
+      actor_uid TEXT NOT NULL,
+      revision_id TEXT NOT NULL,
+      task_id TEXT NOT NULL,
+      progress_state TEXT NOT NULL CHECK(progress_state IN ('pending','in_progress','completed','blocked','failed')),
+      explicit_confirmation INTEGER NOT NULL CHECK(explicit_confirmation=1),
+      occurred_at TEXT NOT NULL,
+      FOREIGN KEY(revision_id) REFERENCES intelligence_plan_revisions(revision_id)
+    )
+  `).run();
+  await env.DB.prepare("CREATE INDEX IF NOT EXISTS idx_intelligence_plan_events_owner_revision ON intelligence_plan_progress_events(owner_uid,revision_id,occurred_at)").run();
+}
+
 async function appendIntelligenceChatTurn(env, ownerUid, sessionKey, role, content) {
   const safeContent = String(content || "").slice(0,4000);
   if (!safeContent) return;
@@ -9792,6 +9823,123 @@ export default {
         return json({success:true,proposals,created:proposals.length,unmatched:review.unmatchedProposals.length,omitted,
           diagnostics:{ownerScoped:true,explicitFeedbackOnly:true,minimumObservations:2,dominanceThreshold:0.75,
             advisoryOnly:true,ownerApprovalRequired:true,memoryChanged:false,preferencesChanged:false,applied:false}});
+      }
+
+      if (path === "/intelligence/plan-history" && method === "GET") {
+        const admin = await verifyAdmin(request, env);
+        if (!admin) return error("Admin authentication required", 403);
+        await ensureIntelligencePlanHistoryTables(env);
+        const [revisionRows,eventRows] = await Promise.all([
+          env.DB.prepare("SELECT revision_id,owner_uid,version,change_reason,tasks_json,created_at FROM intelligence_plan_revisions WHERE owner_uid=? ORDER BY version DESC LIMIT 20").bind(admin.uid).all(),
+          env.DB.prepare("SELECT event_id,owner_uid,actor_uid,revision_id,task_id,progress_state,explicit_confirmation,occurred_at FROM intelligence_plan_progress_events WHERE owner_uid=? ORDER BY occurred_at ASC,event_id ASC LIMIT 500").bind(admin.uid).all()
+        ]);
+        const events = eventRows.results || [];
+        const revisions = (revisionRows.results || []).reverse().map(row => {
+          let tasks = [];
+          try { tasks = JSON.parse(row.tasks_json); } catch {}
+          const linked = events.filter(event => event.revision_id === row.revision_id);
+          return {
+            owner_uid:row.owner_uid,revision_id:row.revision_id,version:Number(row.version),
+            change_reason:row.change_reason,created_at:row.created_at,tasks,
+            source_event_ids:linked.map(event => event.event_id)
+          };
+        });
+        const progressEvents = events.map(event => ({
+          event_id:event.event_id,owner_uid:event.owner_uid,actor_uid:event.actor_uid,
+          task_id:event.task_id,progress_state:event.progress_state,
+          explicit_confirmation:Number(event.explicit_confirmation)===1,occurred_at:event.occurred_at
+        }));
+        const comparison = compareIntelligencePlanVersions(revisions,progressEvents,{ownerUid:admin.uid,actorUid:admin.uid});
+        return json({success:true,revisions,comparison,progressEvents:progressEvents.slice(-100),
+          diagnostics:{ownerScoped:true,immutableSnapshots:true,historyWritten:false,recordsChanged:false}});
+      }
+
+      if (path === "/intelligence/plan-history" && method === "POST") {
+        const admin = await verifyAdmin(request, env);
+        if (!admin) return error("Admin authentication required", 403);
+        if (!await checkRateLimit(env, request, "intelligence-plan-history-write", 10, 3600, 900, admin.uid)) {
+          return error("Plan history writes are temporarily rate-limited.", 429);
+        }
+        const body = await readBody(request);
+        if (!body || body.explicitConfirmation !== true) return error("Explicit owner confirmation is required to save a plan snapshot.", 400);
+        const reason = cleanText(body.changeReason, 500);
+        if (reason.length < 5) return error("A clear change reason of at least 5 characters is required.", 400);
+        await ensureIntelligencePlanHistoryTables(env);
+        const taskRows = await env.DB.prepare(
+          "SELECT id,title,priority,status FROM intelligence_tasks WHERE created_by=? ORDER BY created_at ASC,id ASC LIMIT 100"
+        ).bind(admin.uid).all();
+        const tasks = (taskRows.results || []).map(row => ({
+          task_id:String(row.id),
+          title:String(row.title || "").slice(0,200),
+          priority:["high","normal","low"].includes(String(row.priority).toLowerCase()) ? String(row.priority).toLowerCase() : "normal",
+          due_at:"",
+          depends_on_task_ids:[],
+          task_state:({
+            queued:"pending",pending:"pending",running:"in_progress",in_progress:"in_progress",
+            completed:"completed",blocked:"blocked",failed:"failed"
+          })[String(row.status).toLowerCase()] || "pending"
+        }));
+        if (!tasks.length) return error("There are no owner-created Intelligence tasks to snapshot yet.", 409);
+        const revisionId = crypto.randomUUID();
+        const createdAt = new Date().toISOString();
+        try {
+          await env.DB.prepare(
+            "INSERT INTO intelligence_plan_revisions(revision_id,owner_uid,version,change_reason,tasks_json,created_at) SELECT ?,?,?,?, ?,? WHERE NOT EXISTS (SELECT 1 FROM intelligence_plan_revisions WHERE owner_uid=? AND version=(SELECT COALESCE(MAX(version),0)+1 FROM intelligence_plan_revisions WHERE owner_uid=?))"
+          ).bind(revisionId,admin.uid,1,reason,JSON.stringify(tasks),createdAt,admin.uid,admin.uid).run();
+          const row = await env.DB.prepare(
+            "SELECT revision_id,version FROM intelligence_plan_revisions WHERE revision_id=? AND owner_uid=?"
+          ).bind(revisionId,admin.uid).first();
+          if (!row) {
+            const latest = await env.DB.prepare("SELECT COALESCE(MAX(version),0) AS version FROM intelligence_plan_revisions WHERE owner_uid=?").bind(admin.uid).first();
+            const version = Number(latest?.version||0)+1;
+            await env.DB.prepare("INSERT INTO intelligence_plan_revisions(revision_id,owner_uid,version,change_reason,tasks_json,created_at) VALUES(?,?,?,?,?,?)")
+              .bind(revisionId,admin.uid,version,reason,JSON.stringify(tasks),createdAt).run();
+          }
+        } catch (writeError) {
+          console.error("INTELLIGENCE_PLAN_REVISION_WRITE_FAILED",String(writeError?.message||"database_error").slice(0,160));
+          return error("Could not safely save this plan revision. Refresh history and try again.",409);
+        }
+        const saved = await env.DB.prepare("SELECT revision_id,version,created_at FROM intelligence_plan_revisions WHERE revision_id=? AND owner_uid=?")
+          .bind(revisionId,admin.uid).first();
+        if (!saved) return error("Plan revision could not be verified after saving.",500);
+        await writeAdminAudit(env,admin,"intelligence_plan_revision_saved","intelligence_plan_revision",revisionId,
+          JSON.stringify({version:Number(saved.version),taskCount:tasks.length,changeReason:reason}));
+        return json({success:true,revision:{revisionId:saved.revision_id,version:Number(saved.version),createdAt:saved.created_at,taskCount:tasks.length},
+          immutable:true,ownerConfirmed:true},201);
+      }
+
+      if (path === "/intelligence/plan-history/events" && method === "POST") {
+        const admin = await verifyAdmin(request, env);
+        if (!admin) return error("Admin authentication required", 403);
+        if (!await checkRateLimit(env, request, "intelligence-plan-history-event", 30, 3600, 900, admin.uid)) {
+          return error("Plan progress recording is temporarily rate-limited.", 429);
+        }
+        const body = await readBody(request);
+        const revisionId = cleanText(body?.revisionId,80);
+        const taskId = cleanText(body?.taskId,120);
+        const state = String(body?.progressState||"").toLowerCase();
+        if (!body || body.explicitConfirmation !== true ||
+            !/^[0-9a-f-]{36}$/i.test(revisionId) || !taskId ||
+            !["pending","in_progress","completed","blocked","failed"].includes(state)) {
+          return error("A valid revision, task, state and explicit owner confirmation are required.",400);
+        }
+        await ensureIntelligencePlanHistoryTables(env);
+        const revision = await env.DB.prepare(
+          "SELECT tasks_json FROM intelligence_plan_revisions WHERE revision_id=? AND owner_uid=?"
+        ).bind(revisionId,admin.uid).first();
+        if (!revision) return error("Owner plan revision not found.",404);
+        let tasks = [];
+        try { tasks = JSON.parse(revision.tasks_json); } catch {}
+        if (!Array.isArray(tasks) || !tasks.some(task => task.task_id === taskId)) {
+          return error("The task does not belong to this immutable plan revision.",409);
+        }
+        const eventId = crypto.randomUUID(), occurredAt = new Date().toISOString();
+        await env.DB.prepare(
+          "INSERT INTO intelligence_plan_progress_events(event_id,owner_uid,actor_uid,revision_id,task_id,progress_state,explicit_confirmation,occurred_at) VALUES(?,?,?,?,?,?,1,?)"
+        ).bind(eventId,admin.uid,admin.uid,revisionId,taskId,state,occurredAt).run();
+        await writeAdminAudit(env,admin,"intelligence_plan_progress_confirmed","intelligence_plan_progress_event",eventId,
+          JSON.stringify({revisionId,taskId,state}));
+        return json({success:true,event:{eventId,revisionId,taskId,state,occurredAt},ownerConfirmed:true,planChanged:false},201);
       }
 
       if (path === "/intelligence/preferences" && method === "GET") {
