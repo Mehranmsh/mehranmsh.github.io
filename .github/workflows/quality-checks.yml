@@ -92,6 +92,9 @@ jobs:
       - name: Run Intelligence memory relevance tests
         run: node --check scripts/intelligence-memory-ranking.mjs && node --test scripts/intelligence-memory-ranking.test.mjs
 
+      - name: Run unified Intelligence context orchestrator tests
+        run: node --check scripts/intelligence-context-orchestrator.mjs && node --test scripts/intelligence-context-orchestrator.test.mjs
+
       - name: Run Intelligence knowledge graph tests
         run: node --check scripts/intelligence-knowledge-graph.mjs && node --test scripts/intelligence-knowledge-graph.test.mjs
 
