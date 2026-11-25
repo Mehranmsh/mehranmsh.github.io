@@ -6,6 +6,11 @@ import { validatePrivateIntelligenceMission } from "./scripts/intelligence-inbox
 import { listRegisteredModules, validateModuleRegistry, getModuleIntegrationPlan } from "./scripts/intelligence-module-registry.mjs";
 import { createModuleAdapter, dispatchModuleCapability } from "./scripts/intelligence-module-adapter.mjs";
 
+const INTELLIGENCE_MODULE_WIRING = Object.freeze({
+  msh_core: Object.freeze(["projects.read"]),
+  social: Object.freeze(["social.metrics.read"])
+});
+
 function nextWorkersAIDailyResetAt(attemptedAt) {
   const timestamp = typeof attemptedAt === "number" ? attemptedAt : Date.parse(attemptedAt);
   if (!Number.isFinite(timestamp)) return null;
@@ -7502,20 +7507,28 @@ export default {
         await ensureIntelligenceProtocolTables(env);
         if (path === "/agent/v1/modules/registry" && method === "GET") {
           const integrity = validateModuleRegistry();
-          const modules = listRegisteredModules({ includePlanned: true }).map(module => ({
-            ...module,
-            integrationState: "registry_declared",
-            liveHealth: "not_checked",
-            integrationPlan: getModuleIntegrationPlan(module.id)
-          }));
+          const modules = listRegisteredModules({ includePlanned: true }).map(module => {
+            const wiredCapabilities = [...(INTELLIGENCE_MODULE_WIRING[module.id] || [])]
+              .filter(capability => module.capabilities.includes(capability));
+            return {
+              ...module,
+              integrationState: wiredCapabilities.length
+                ? (wiredCapabilities.length === module.capabilities.length ? "adapter_wired" : "partially_wired")
+                : "registry_declared",
+              wiredCapabilities,
+              liveHealth: "not_checked",
+              integrationPlan: getModuleIntegrationPlan(module.id)
+            };
+          });
           return json({
             success: true,
             generatedAt: new Date().toISOString(),
             registry: { ok: integrity.ok, moduleCount: integrity.moduleCount, issues: integrity.issues },
             modules,
             runtime: {
-              adaptersWired: false,
-              note: "Registry metadata only. This endpoint does not probe module services or claim live health."
+              adapterCoverage: "partial",
+              wiredCapabilities: ["msh_core.projects.read", "social.social.metrics.read"],
+              note: "Coverage metadata only. This endpoint does not probe module services or claim live health."
             }
           });
         }
