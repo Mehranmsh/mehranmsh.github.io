@@ -1613,6 +1613,21 @@ input:focus,textarea:focus,select:focus,button:focus-visible,a:focus-visible{out
 </div>
 <div class="section-title"><h2>Project data</h2><span class="small-text">Read-only technical view</span></div>
 <div id="intelligenceProjectsList" class="small-text">Project data will appear after a successful refresh.</div>
+
+<div class="panel" style="margin-top:18px">
+<div class="section-title"><div><h2>Preference governance</h2><div class="small-text">Review proposed changes to existing owner preferences. Nothing is applied automatically.</div></div><button class="btn secondary small" id="refreshIntelPreferencesBtn" type="button">Refresh</button></div>
+<form id="intelPreferenceProposalForm" class="card" autocomplete="off">
+<div class="field"><label for="intelPreferenceTarget">Existing preference memory key</label><input id="intelPreferenceTarget" maxlength="80" required value="owner_work_style" placeholder="e.g. owner_work_style"></div>
+<div class="field"><label for="intelPreferenceRecommendation">Proposed adjustment</label><select id="intelPreferenceRecommendation"><option value="increase_preference">Increase influence</option><option value="decrease_preference">Decrease influence</option></select></div>
+<button class="btn secondary small" id="intelPreferenceProposalSubmit" type="submit">Add to review queue</button>
+<div id="intelPreferenceProposalStatus" class="small-text" role="status" aria-live="polite">Only existing preference or decision memories can be reviewed.</div>
+</form>
+<div class="section-title" style="margin-top:16px"><h3>Pending owner review</h3><span class="small-text" id="intelPreferencePendingCount">0 pending</span></div>
+<div id="intelPreferencePendingList" class="grid"><div class="empty">No pending preference proposals.</div></div>
+<div class="section-title" style="margin-top:16px"><h3>Approved profile</h3></div>
+<div id="intelPreferenceProfile" class="small-text">Approved preferences will appear here.</div>
+<div id="intelPreferenceGovernanceStatus" class="notice" aria-live="polite">Preference decisions are stored in the protected MEHRAN MSH database.</div>
+</div>
 </details>
 </section>
 
@@ -2809,6 +2824,7 @@ $("intelActiveUsers").textContent=String(stats.activeUsers??0);
 $("intelOpenReports").textContent=String(stats.openReports??0);
 $("intelligenceProjectsList").innerHTML=list.length?'<div class="grid">'+list.map(p=>'<div class="card"><div class="eyebrow">PROJECT · '+escapeHTML(p.status||"Planned")+'</div><h3>'+escapeHTML(p.name||"Untitled project")+'</h3><p>'+escapeHTML(p.description||"No description provided.")+'</p><div class="small-text" style="margin-top:10px">Updated: '+escapeHTML(p.updatedAt||p.updated_at||"Not available")+'</div></div>').join("")+'</div>':'<div class="empty">No registered projects yet.</div>';
 await loadIntelligenceChatHistory();
+await loadPreferenceGovernance();
 message.textContent="Live company data loaded successfully. Updated "+new Date().toLocaleString()+".";
 message.className="notice success";
 }catch(error){
@@ -2818,6 +2834,75 @@ $("intelligenceProjectsList").textContent="Project information is unavailable un
 $("intelProjects").textContent=$("intelUsers").textContent=$("intelActiveUsers").textContent=$("intelOpenReports").textContent="—";
 }finally{$("refreshIntelligenceBtn").disabled=false;loadIntelligenceTasks()}
 }
+
+async function loadPreferenceGovernance(){
+const pendingList=$("intelPreferencePendingList"),profileNode=$("intelPreferenceProfile"),status=$("intelPreferenceGovernanceStatus");
+if(!pendingList||!profileNode||!status)return;
+status.textContent="Loading owner preference decisions...";
+status.className="notice";
+try{
+const data=await api("/intelligence/preferences");
+const pending=Array.isArray(data.pending)?data.pending:[];
+const profile=data.approvedPreferenceProfile||{};
+const approved=Array.isArray(profile.approvedPreferences)?profile.approvedPreferences:[];
+const rejected=Array.isArray(profile.rejectedDecisions)?profile.rejectedDecisions:[];
+$("intelPreferencePendingCount").textContent=pending.length+" pending";
+pendingList.replaceChildren();
+if(!pending.length){const empty=document.createElement("div");empty.className="empty";empty.textContent="No pending preference proposals.";pendingList.appendChild(empty)}
+for(const item of pending){
+const card=document.createElement("article");card.className="card";
+const heading=document.createElement("h3");heading.textContent=String(item.target_key||"Unknown preference");
+const detail=document.createElement("p");detail.className="small-text";detail.textContent=(item.recommendation==="increase_preference"?"Increase influence":"Decrease influence")+" · Awaiting your decision";
+const actions=document.createElement("div");actions.className="hero-actions";
+for(const choice of ["accepted","rejected"]){
+const button=document.createElement("button");button.type="button";button.className=choice==="accepted"?"btn":"btn secondary";
+button.textContent=choice==="accepted"?"Approve":"Reject";
+button.addEventListener("click",async()=>{
+if(!window.confirm((choice==="accepted"?"Approve":"Reject")+" this preference proposal? This decision will be recorded."))return;
+button.disabled=true;
+try{
+await api("/intelligence/preferences/decisions",{method:"POST",body:JSON.stringify({proposalId:item.id,decision:choice,explicitConfirmation:true})});
+status.textContent="Your "+choice+" decision has been recorded. No memory was modified.";
+status.className="notice success";
+await loadPreferenceGovernance();
+}catch(error){status.textContent="Decision could not be saved: "+error.message;status.className="notice warn";button.disabled=false}
+});
+actions.appendChild(button);
+}
+card.append(heading,detail,actions);pendingList.appendChild(card);
+}
+profileNode.replaceChildren();
+const summary=document.createElement("div");summary.textContent=approved.length+" approved · "+rejected.length+" rejected";profileNode.appendChild(summary);
+for(const item of approved){
+const line=document.createElement("div");line.className="small-text";line.textContent="✓ "+item.target_key+" · "+item.recommendation;profileNode.appendChild(line);
+}
+for(const item of rejected){
+const line=document.createElement("div");line.className="small-text";line.textContent="× "+item.target_key+" · rejected";profileNode.appendChild(line);
+}
+status.textContent="Preference governance loaded. Decisions are owner-scoped and do not directly modify memory.";
+status.className="notice success";
+}catch(error){
+status.textContent="Preference governance unavailable: "+error.message;
+status.className="notice warn";
+pendingList.replaceChildren();
+const empty=document.createElement("div");empty.className="empty";empty.textContent="Protected preference data could not be loaded.";pendingList.appendChild(empty);
+}
+}
+$("intelPreferenceProposalForm")?.addEventListener("submit",async event=>{
+event.preventDefault();
+const button=$("intelPreferenceProposalSubmit"),status=$("intelPreferenceProposalStatus");
+button.disabled=true;status.textContent="Checking the existing owner preference...";
+try{
+const targetKey=$("intelPreferenceTarget").value.trim();
+const recommendation=$("intelPreferenceRecommendation").value;
+const result=await api("/intelligence/preferences/proposals",{method:"POST",body:JSON.stringify({targetKey,recommendation})});
+status.textContent=result.duplicate?"This proposal is already waiting for review.":"Proposal added to the owner review queue.";
+await loadPreferenceGovernance();
+}catch(error){status.textContent="Could not create proposal: "+error.message}
+finally{button.disabled=false}
+});
+$("refreshIntelPreferencesBtn")?.addEventListener("click",loadPreferenceGovernance);
+
 async function loadIntelligenceChatHistory(){
 const container=$("intelConversation");if(!container)return;
 try{
