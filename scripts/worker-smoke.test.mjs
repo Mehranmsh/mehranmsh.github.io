@@ -358,9 +358,9 @@ test("Intelligence preference governance UI uses explicit owner review actions",
 test("owner-confirmed feedback is stored and converted into bounded review proposals without auto-application", () => {
   const feedback=workerSource.indexOf('if (path === "/intelligence/preferences/feedback" && method === "POST")');
   const review=workerSource.indexOf('if (path === "/intelligence/preferences/review-feedback" && method === "POST")');
-  const preferences=workerSource.indexOf('if (path === "/intelligence/preferences" && method === "GET")');
-  assert.ok(feedback>=0&&review>feedback&&preferences>review);
-  const routes=workerSource.slice(feedback,preferences);
+  const planHistory=workerSource.indexOf('if (path === "/intelligence/plan-history" && method === "GET")');
+  assert.ok(feedback>=0&&review>feedback&&planHistory>review);
+  const routes=workerSource.slice(feedback,planHistory);
   assert.equal((routes.match(/verifyAdmin\(request, env\)/g)||[]).length,2);
   assert.match(routes,/body\.explicitConfirmation !== true/);
   assert.match(routes,/feedback_confirmed|explicit_confirmation=1/);
