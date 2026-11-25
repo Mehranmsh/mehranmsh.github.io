@@ -8,7 +8,8 @@ import { createModuleAdapter, dispatchModuleCapability } from "./scripts/intelli
 
 const INTELLIGENCE_MODULE_WIRING = Object.freeze({
   msh_core: Object.freeze(["projects.read"]),
-  social: Object.freeze(["social.metrics.read"])
+  social: Object.freeze(["social.metrics.read"]),
+  studio_music: Object.freeze(["studio.health.read"])
 });
 
 function nextWorkersAIDailyResetAt(attemptedAt) {
@@ -7527,7 +7528,7 @@ export default {
             modules,
             runtime: {
               adapterCoverage: "partial",
-              wiredCapabilities: ["msh_core.projects.read", "social.social.metrics.read"],
+              wiredCapabilities: ["msh_core.projects.read", "social.social.metrics.read", "studio_music.studio.health.read"],
               note: "Coverage metadata only. This endpoint does not probe module services or claim live health."
             }
           });
@@ -9607,6 +9608,53 @@ export default {
               : "سلام. آماده‌ام؛ درخواست یا مسئله‌ات را بگو.";
           await appendIntelligenceChatTurn(env,admin.uid,sessionKey,"assistant",reply);
           return json({success:true,reply,usage:{aiRequests:0,reason:"deterministic_short_circuit"}});
+        }
+
+        // Studio project drafts and audio assets currently live in the owner's browser.
+        // Report this integration boundary without attempting to read local browser data.
+        if (/^(وضعیتاستودیو|استودیواستاتوس|studiohealth|studiostatus)$/u.test(lightweightMessage)) {
+          const studioAdapter = createModuleAdapter({
+            moduleId: "studio_music",
+            handlers: {
+              "studio.health.read": async status => ({
+                module: "studio_music",
+                integration: "partial",
+                projectMetadataStorage: status.projectMetadataStorage,
+                audioAssetStorage: status.audioAssetStorage,
+                crossDeviceTransfer: status.crossDeviceTransfer,
+                workerCanReadLocalProjects: false,
+                liveServiceProbe: "not_performed",
+                limitations: [
+                  "Studio project drafts are stored in browser localStorage.",
+                  "Imported audio assets are stored in browser IndexedDB.",
+                  "The Worker cannot inspect a user's local browser storage.",
+                  "The one-time transfer endpoint is for explicit user-initiated transfer, not background synchronization."
+                ]
+              })
+            }
+          });
+          const adapted = await dispatchModuleCapability({
+            adapter: studioAdapter,
+            capability: "studio.health.read",
+            input: {
+              projectMetadataStorage: "browser_localStorage",
+              audioAssetStorage: "browser_indexedDB",
+              crossDeviceTransfer: "user_initiated_one_time_code"
+            }
+          });
+          if (!adapted.ok) return error("Studio status adapter is unavailable.",503);
+          const studio = adapted.result;
+          const reply = [
+            "وضعیت STUDIO / Music:",
+            "• اتصال Intelligence: محدود و خواندنی",
+            "• محل ذخیره پروژه‌ها: حافظه محلی مرورگر",
+            "• محل ذخیره فایل‌های صوتی: IndexedDB مرورگر",
+            "• دسترسی Worker به پروژه‌های محلی: ندارد",
+            "• انتقال بین دستگاه‌ها: فقط با درخواست و کد یک‌بارمصرف کاربر",
+            "• بررسی زنده سرویس: انجام نشده"
+          ].join("\\n");
+          await appendIntelligenceChatTurn(env,admin.uid,sessionKey,"assistant",reply);
+          return json({success:true,reply,studio,usage:{aiRequests:0,reason:"deterministic_studio_integration_status"}});
         }
 
         // Exact, low-ambiguity operational queries use D1 directly instead of Workers AI.
