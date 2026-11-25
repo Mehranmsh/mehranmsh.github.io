@@ -2922,7 +2922,7 @@ test("MCP work-package validation accepts bounded read-only task plans", () => {
     title: "Protocol acceptance checks",
     objective: "Verify the private bridge foundation.",
     priority: "high",
-    scope: { modules: ["intelligence"], private: true },
+    scope: { modules: ["intelligence"], private: true, allowedActions: ["service_health_report", "repository_quality_check"] },
     tasks: [
       { taskId: "health", title: "Check service health", actionType: "service_health_report" },
       { taskId: "repo", title: "Check repository metadata", actionType: "repository_quality_check", dependsOn: ["health"] }
