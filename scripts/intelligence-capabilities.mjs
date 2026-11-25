@@ -224,7 +224,9 @@ function validateValue(value, rule) {
 export function validateIntelligenceCapabilityRequest(capabilityId, input) {
   const capability = getIntelligenceCapability(capabilityId);
   if (!capability) return { ok: false, code: "unknown_capability" };
-  if (capability.status !== "active" || !["read_only", "isolated_ci", "proposal_only"].includes(capability.permissionTier) || capability.executors.length === 0) {
+  const supportedPermissionTier = ["read_only", "isolated_ci", "proposal_only"].includes(capability.permissionTier)
+    || (capabilityId === "create_pull_request" && capability.permissionTier === "branch_scoped_write");
+  if (capability.status !== "active" || !supportedPermissionTier || capability.executors.length === 0) {
     return { ok: false, code: capability.status === "blocked" ? "capability_blocked" : "capability_not_implemented" };
   }
   if (!input || typeof input !== "object" || Array.isArray(input)) {
