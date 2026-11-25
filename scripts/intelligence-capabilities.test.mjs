@@ -189,14 +189,10 @@ test("security audit gathers bounded evidence from fixed official research sourc
   assert.match(runnerSource, /fixed official documentation URLs/);
 });
 
-test("completed self-assessment creates one idempotent evidence-driven terminal follow-up", () => {
-  assert.match(runnerSource, /workPackageId === selfImprovementPackageId && finalState\.workPackage\?\.status === "completed" && finalState\.reportStorage\?\.stored === true/);
-  assert.match(runnerSource, /\.slice\(0, 6\)[\s\S]*?result_text[\s\S]*?\.slice\(0, 420\)/);
-  assert.match(runnerSource, /JSON\.stringify\([\s\S]*?tasks: taskEvidence[\s\S]*?\.slice\(0, 1150\)/);
-  assert.match(runnerSource, /idempotencyKey: "mehran-intelligence-self-improvement-evidence-review-v1"/);
-  assert.match(runnerSource, /allowDeterministicFallback: false/);
-  assert.match(runnerSource, /CYCLE 2 \(FINAL, NON-RECURSIVE\)/);
-  assert.match(runnerSource, /Do not create another self-improvement mission or recursive follow-up/);
+test("runner does not create an automatic self-assessment follow-up", () => {
+  assert.doesNotMatch(runnerSource, /selfImprovementPackageId/);
+  assert.doesNotMatch(runnerSource, /mehran-intelligence-self-improvement-evidence-review-v1/);
+  assert.doesNotMatch(runnerSource, /request\("\/agent\/v1\/missions\/plan"/);
 });
 
 test("repository inspection report file-size limits stay aligned across Worker and Runner", () => {
