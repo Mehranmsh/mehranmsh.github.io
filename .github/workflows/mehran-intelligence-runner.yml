@@ -96,7 +96,10 @@ jobs:
             let responseStatus = 0;
             try {
               let lastError;
-              for (let attempt = 0; attempt < 3; attempt++) {
+              // Never replay an AI analysis request after an ambiguous network failure:
+              // the provider may already have consumed its reserved budget.
+              const maxNetworkAttempts = path === "/agent/v1/repository/analyze" ? 1 : 3;
+              for (let attempt = 0; attempt < maxNetworkAttempts; attempt++) {
                 try {
                   const response = await fetch(base + path, {
                     ...options,
@@ -159,8 +162,8 @@ jobs:
                   lastError = error;
                   const transientNetworkFailure = error instanceof TypeError ||
                     /ECONNRESET|ECONNREFUSED|EPIPE|fetch failed|socket hang up/i.test(String(error?.message || error));
-                  if (!transientNetworkFailure || attempt === 2) throw error;
-                  console.log(`Transient Agent API network failure; retrying attempt ${attempt + 2}/3 for ${path}.`);
+                  if (!transientNetworkFailure || attempt === maxNetworkAttempts - 1) throw error;
+                  console.log(`Transient Agent API network failure; retrying attempt ${attempt + 2}/${maxNetworkAttempts} for ${path}.`);
                   await new Promise(resolve => setTimeout(resolve, 500 * (attempt + 1)));
                 }
               }
