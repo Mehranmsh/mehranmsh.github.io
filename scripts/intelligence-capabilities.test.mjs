@@ -313,14 +313,14 @@ test("repository inspection is active, pre-authorized, exact-path allowlisted, a
   }).ok, false);
 });
 
-test("private runner seeds one idempotent, bounded repository inspection task", () => {
-  assert.match(runnerSource, /request\("\/agent\/v1\/work-packages"/);
-  assert.match(runnerSource, /mehran-intelligence-repo-inspection-v2-\$\{baseSha\}/);
-  assert.match(runnerSource, /actionType: "inspect_repository"/);
-  assert.match(runnerSource, /"scripts\/intelligence-agent\.mjs"/);
-  assert.match(runnerSource, /"docs\/INTELLIGENCE_EXECUTION_PROTOCOL\.md"/);
-  assert.doesNotMatch(runnerSource, /mehran-intelligence-owner-mission-v1-/);
-  assert.match(runnerSource, /Inspection exceeded the 750 KB aggregate source limit\./);
+test("private runner processes queued work without automatically seeding baseline or test packages", () => {
+  assert.doesNotMatch(runnerSource, /mehran-intelligence-repo-inspection-v2-/);
+  assert.doesNotMatch(runnerSource, /mehran-intelligence-self-improvement-v3-/);
+  assert.doesNotMatch(runnerSource, /mehran-intelligence-fixed-tests-v2-/);
+  assert.match(runnerSource, /request\("\/agent\/v1\/tasks\/next"\)/);
+  assert.match(runnerSource, /Automatic baseline, AI self-improvement, and fixed-test package seeding is intentionally disabled/);
+  assert.ok(runnerSource.includes('cron: "*/15 * * * *"'));
+  assert.match(runnerSource, /create-review-pr-from-verified-patch:[\s\S]*?if: false/);
 });
 
 
@@ -1505,9 +1505,10 @@ test("routine missions are routed through the deterministic planner before any A
   assert.ok(workerSource.includes('planner: "deterministic_rules_v1"'));
 });
 
-test("scheduled self-improvement mission gets one fresh idempotency cycle and labels duplicate plans honestly", () => {
-  assert.match(runnerSource, /idempotencyKey: `mehran-intelligence-self-improvement-v3-\$\{baseSha\}`/);
-  assert.match(runnerSource, /planned\.duplicate \? "not_invoked_duplicate"/);
-  assert.match(runnerSource, /planned\.plannerUnavailable \? "unavailable" : "not_reported"/);
+test("runner disables automatic self-improvement planning and proposal PR creation", () => {
+  assert.doesNotMatch(runnerSource, /request\("\/agent\/v1\/missions\/plan"/);
+  assert.doesNotMatch(runnerSource, /mehran-intelligence-self-improvement-v3-/);
+  const prJob = runnerSource.slice(runnerSource.indexOf("  create-review-pr-from-verified-patch:"));
+  assert.ok(prJob.includes("if: false # Owner-approved manual review is required; automated PR creation is disabled."));
 });
 
