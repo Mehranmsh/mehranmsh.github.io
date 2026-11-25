@@ -1500,6 +1500,6 @@ test("routine missions are routed through the deterministic planner before any A
   assert.ok(deterministicReturn > deterministicStart);
   assert.ok(memoryStart > deterministicReturn);
   assert.ok(inferenceStart > memoryStart);
-  assert.match(workerSource, /aiInferenceUsed:\\s*false/);
-  assert.match(workerSource, /planner:\\s*"deterministic_rules_v1"/);
+  assert.ok(workerSource.includes("aiInferenceUsed: false"));
+  assert.ok(workerSource.includes('planner: "deterministic_rules_v1"'));
 });
