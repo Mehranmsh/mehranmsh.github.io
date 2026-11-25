@@ -9,7 +9,8 @@ import { createModuleAdapter, dispatchModuleCapability } from "./scripts/intelli
 const INTELLIGENCE_MODULE_WIRING = Object.freeze({
   msh_core: Object.freeze(["projects.read"]),
   social: Object.freeze(["social.metrics.read"]),
-  studio_music: Object.freeze(["studio.health.read"])
+  studio_music: Object.freeze(["studio.health.read"]),
+  mehran_ai: Object.freeze(["ai.health.read", "ai.quota.read"])
 });
 
 function nextWorkersAIDailyResetAt(attemptedAt) {
@@ -9608,6 +9609,92 @@ export default {
               : "سلام. آماده‌ام؛ درخواست یا مسئله‌ات را بگو.";
           await appendIntelligenceChatTurn(env,admin.uid,sessionKey,"assistant",reply);
           return json({success:true,reply,usage:{aiRequests:0,reason:"deterministic_short_circuit"}});
+        }
+
+        // Read-only AI diagnostics expose binding presence and aggregate quota counters only.
+        if (/^(وضعیتهوشمصنوعی|وضعیتهوش|aihealth|aistatus|aiquota)$/u.test(lightweightMessage)) {
+          const aiAdapter = createModuleAdapter({
+            moduleId: "mehran_ai",
+            handlers: {
+              "ai.health.read": async status => ({
+                module: "mehran_ai",
+                integration: "partial",
+                providers: status.providers,
+                liveProviderProbe: "not_performed",
+                secretsExposed: false
+              }),
+              "ai.quota.read": async quota => ({
+                dailyReservationCaps: quota.dailyReservationCaps,
+                today: quota.today,
+                databaseAvailable: quota.databaseAvailable
+              })
+            }
+          });
+          const providers = {
+            cloudflareWorkersAI: !!(env.AI && typeof env.AI.run === "function"),
+            groqConfigured: !!env.GROQ_API_KEY,
+            openRouterConfigured: !!env.OPENROUTER_API_KEY,
+            openAIConfigured: !!env.OPENAI_API_KEY,
+            geminiConfigured: !!env.GEMINI_API_KEY
+          };
+          const healthResult = await dispatchModuleCapability({
+            adapter: aiAdapter,
+            capability: "ai.health.read",
+            input: { providers }
+          });
+          if (!healthResult.ok) return error("MEHRAN AI health adapter is unavailable.",503);
+          let today = null;
+          let databaseAvailable = false;
+          if (env.DB) {
+            try {
+              const dayKey = new Date().toISOString().slice(0,10);
+              const row = await env.DB.prepare(
+                "SELECT intelligence_reserved,total_reserved,request_count FROM workers_ai_daily_budget WHERE day_key=? LIMIT 1"
+              ).bind(dayKey).first();
+              today = {
+                utcDay: dayKey,
+                intelligenceReserved: Number(row?.intelligence_reserved || 0),
+                totalReserved: Number(row?.total_reserved || 0),
+                requestCount: Number(row?.request_count || 0)
+              };
+              databaseAvailable = true;
+            } catch {
+              databaseAvailable = false;
+            }
+          }
+          const quotaResult = await dispatchModuleCapability({
+            adapter: aiAdapter,
+            capability: "ai.quota.read",
+            input: {
+              dailyReservationCaps: {
+                intelligence: WORKERS_AI_INTELLIGENCE_DAILY_RESERVATION_CREDITS,
+                global: WORKERS_AI_GLOBAL_DAILY_RESERVATION_CREDITS
+              },
+              today,
+              databaseAvailable
+            }
+          });
+          if (!quotaResult.ok) return error("MEHRAN AI quota adapter is unavailable.",503);
+          const reply = [
+            "وضعیت MEHRAN AI:",
+            "• اتصال Workers AI: " + (providers.cloudflareWorkersAI ? "پیکربندی شده" : "پیکربندی نشده"),
+            "• اتصال Groq: " + (providers.groqConfigured ? "پیکربندی شده" : "پیکربندی نشده"),
+            "• اتصال OpenRouter: " + (providers.openRouterConfigured ? "پیکربندی شده" : "پیکربندی نشده"),
+            "• اتصال OpenAI: " + (providers.openAIConfigured ? "پیکربندی شده" : "پیکربندی نشده"),
+            "• اتصال Gemini: " + (providers.geminiConfigured ? "پیکربندی شده" : "پیکربندی نشده"),
+            "• سقف رزرو روزانه Intelligence: " + WORKERS_AI_INTELLIGENCE_DAILY_RESERVATION_CREDITS,
+            "• سقف رزرو سراسری: " + WORKERS_AI_GLOBAL_DAILY_RESERVATION_CREDITS,
+            "• رزرو امروز: " + (today ? today.intelligenceReserved : "نامشخص"),
+            "• تعداد درخواست‌های ثبت‌شده: " + (today ? today.requestCount : "نامشخص"),
+            "• بررسی زنده ارائه‌دهندگان: انجام نشده",
+            "• کلیدها و مقادیر محرمانه: نمایش داده نمی‌شوند"
+          ].join("\n");
+          await appendIntelligenceChatTurn(env,admin.uid,sessionKey,"assistant",reply);
+          return json({
+            success:true,reply,
+            ai:{health:healthResult.result,quota:quotaResult.result},
+            usage:{aiRequests:0,reason:"deterministic_ai_diagnostics"}
+          });
         }
 
         // Studio project drafts and audio assets currently live in the owner's browser.
