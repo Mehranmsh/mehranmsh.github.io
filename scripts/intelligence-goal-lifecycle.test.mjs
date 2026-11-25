@@ -42,6 +42,9 @@ test("creates advisory replanning suggestions after an owner-confirmed failure",
     task("research"), task("build", { depends_on_task_ids: ["research"], dependencies_confirmed: true, dependencies_confirmed_by: "owner-a" })
   ], [event("fail-1", "research", "failed")], { ownerUid: "owner-a", actorUid: "owner-a" });
   assert.ok(result.replanningSuggestions.some(item => item.task_id === "research" && item.reason === "owner_confirmed_failure"));
+  const plan = result.executionPlans.find(item => item.goal_id === "goal-a");
+  assert.equal(plan.orderedTasks.some(item => item.task_id === "research"), false);
+  assert.deepEqual(plan.heldTasks, [{ task_id: "research", state: "failed" }]);
   assert.equal(result.diagnostics.recordsChanged, false);
   assert.equal(result.diagnostics.tasksExecuted, false);
   assert.equal(result.diagnostics.approvalRequired, true);
