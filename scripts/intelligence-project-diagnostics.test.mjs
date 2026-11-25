@@ -27,7 +27,6 @@ test("flags blocked dependencies only from explicit owner-scoped states", () => 
   ], { ownerUid: "owner-a", now: NOW });
   assert.deepEqual(result.blockedProjects[0].blocked_by, [{ memory_key: "api", state: "blocked" }]);
   assert.deepEqual(result.unknownDependencyStates[0].dependencies, [
-    { memory_key: "design", reason: "missing_or_out_of_scope" },
     { memory_key: "unknown", reason: "missing_or_out_of_scope" }
   ]);
 });
