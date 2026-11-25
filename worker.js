@@ -10,10 +10,19 @@ function nextWorkersAIDailyResetAt(attemptedAt) {
   const date = new Date(timestamp);
   return Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate() + 1);
 }
+// A provider quota error can happen just after the UTC reset boundary while
+// Cloudflare's account-level allocation is still propagating. Recheck after a
+// short cooldown instead of holding the circuit open for almost another day.
+const WORKERS_AI_QUOTA_RETRY_COOLDOWN_MS = 15 * 60 * 1000;
 function isWorkersAIDailyQuotaCircuitOpen(attemptedAt, now = Date.now()) {
-  const resetAt = nextWorkersAIDailyResetAt(attemptedAt);
-  return resetAt !== null && Number.isFinite(now) && now < resetAt;
+  const timestamp = typeof attemptedAt === "number" ? attemptedAt : Date.parse(attemptedAt);
+  if (!Number.isFinite(timestamp) || !Number.isFinite(now)) return false;
+  const resetAt = nextWorkersAIDailyResetAt(timestamp);
+  if (resetAt === null) return false;
+  const retryAt = Math.min(resetAt, timestamp + WORKERS_AI_QUOTA_RETRY_COOLDOWN_MS);
+  return now < retryAt;
 }
+export { isWorkersAIDailyQuotaCircuitOpen, nextWorkersAIDailyResetAt };
 
 const ALLOWED_ORIGIN = "https://mehranmsh.github.io";
 const FIREBASE_WEB_API_KEY = "AIzaSyBNezoCzAUXi1D7vC_stoUnQuN_JHR-rDM";
