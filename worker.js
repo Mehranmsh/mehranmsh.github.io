@@ -9,6 +9,7 @@ import { buildIntelligenceFeedbackReview } from "./scripts/intelligence-feedback
 import { normalizeIntelligenceAnswer } from "./scripts/intelligence-answer-quality.mjs";
 import { planIntelligenceRetry } from "./scripts/intelligence-retry-policy.mjs";
 import { compareIntelligencePlanVersions } from "./scripts/intelligence-plan-history.mjs";
+import { learnFromIntelligencePlanOutcomes } from "./scripts/intelligence-plan-learning.mjs";
 
 function nextWorkersAIDailyResetAt(attemptedAt) {
   const timestamp = typeof attemptedAt === "number" ? attemptedAt : Date.parse(attemptedAt);
@@ -9851,7 +9852,8 @@ export default {
           explicit_confirmation:Number(event.explicit_confirmation)===1,occurred_at:event.occurred_at
         }));
         const comparison = compareIntelligencePlanVersions(revisions,progressEvents,{ownerUid:admin.uid,actorUid:admin.uid});
-        return json({success:true,revisions,comparison,progressEvents:progressEvents.slice(-100),
+        const learning = learnFromIntelligencePlanOutcomes(revisions,progressEvents,{ownerUid:admin.uid,actorUid:admin.uid});
+        return json({success:true,revisions,comparison,learning,progressEvents:progressEvents.slice(-100),
           diagnostics:{ownerScoped:true,immutableSnapshots:true,historyWritten:false,recordsChanged:false}});
       }
 
