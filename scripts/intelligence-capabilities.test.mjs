@@ -19,6 +19,7 @@ import {
 const workerSource = readFileSync(new URL("../worker.js", import.meta.url), "utf8");
 const indexSource = readFileSync(new URL("../index.html", import.meta.url), "utf8");
 const runnerSource = readFileSync(new URL("../.github/workflows/mehran-intelligence-runner.yml", import.meta.url), "utf8");
+const routinePlannerSource = readFileSync(new URL("./intelligence-routine-planner.mjs", import.meta.url), "utf8");
 const scheduledStart = workerSource.indexOf("async scheduled(controller, env, ctx)");
 const scheduledEnd = workerSource.indexOf("async fetch(request, env)", scheduledStart);
 assert.ok(scheduledStart >= 0 && scheduledEnd > scheduledStart, "Worker scheduled handler must be locatable");
@@ -1484,4 +1485,22 @@ test("Workers AI daily quota circuit resets at Cloudflare UTC midnight", () => {
   const cloudflareEnd = workerSource.indexOf('if (provider === "groq")', cloudflareStart);
   const cloudflare = workerSource.slice(cloudflareStart, cloudflareEnd);
   assert.doesNotMatch(cloudflare, /24 \* 60 \* 60 \* 1000/);
+});
+
+test("routine missions are routed through the deterministic planner before any AI inference", () => {
+  assert.match(routinePlannerSource, /service health|worker health|database health/i);
+  assert.match(routinePlannerSource, /source security|security audit/i);
+  assert.match(routinePlannerSource, /if \\(changeIntent\\.test\\(text\\)\\) return null/);
+
+  const plannerStart = workerSource.indexOf("async function planIntelligenceMission(");
+  const deterministicStart = workerSource.indexOf("const deterministicPlan = buildDeterministicRoutinePlan(mission)", plannerStart);
+  const deterministicReturn = workerSource.indexOf("return createDeterministicRoutinePackage", deterministicStart);
+  const memoryStart = workerSource.indexOf("await ensureIntelligenceMemoryTables(env)", plannerStart);
+  const inferenceStart = workerSource.indexOf("runIntelligenceAI(env", plannerStart);
+  assert.ok(plannerStart >= 0 && deterministicStart > plannerStart);
+  assert.ok(deterministicReturn > deterministicStart);
+  assert.ok(memoryStart > deterministicReturn);
+  assert.ok(inferenceStart > memoryStart);
+  assert.ok(workerSource.includes("aiInferenceUsed: false"));
+  assert.ok(workerSource.includes('planner: "deterministic_rules_v1"'));
 });
