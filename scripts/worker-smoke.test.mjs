@@ -56,8 +56,6 @@ const planHistorySource = (await readFile(new URL("./intelligence-plan-history.m
   .replace("export function compareIntelligencePlanVersions", "function compareIntelligencePlanVersions");
 const planLearningSource = (await readFile(new URL("./intelligence-plan-learning.mjs", import.meta.url), "utf8"))
   .replace("export function learnFromIntelligencePlanOutcomes", "function learnFromIntelligencePlanOutcomes");
-const planLearningSource = await readFile(new URL("./intelligence-plan-learning.mjs", import.meta.url), "utf8");
-const planLearningUrl = moduleUrl(planLearningSource);
 const feedbackReviewSource = (await readFile(new URL("./intelligence-feedback-review.mjs", import.meta.url), "utf8"))
   .replace('from "./intelligence-feedback-learning.mjs"', 'from "' + feedbackLearningUrl + '"')
   .replace("export function buildIntelligenceFeedbackReview", "function buildIntelligenceFeedbackReview")
