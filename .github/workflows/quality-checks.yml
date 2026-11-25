@@ -92,6 +92,9 @@ jobs:
       - name: Run Intelligence memory relevance tests
         run: node --check scripts/intelligence-memory-ranking.mjs && node --test scripts/intelligence-memory-ranking.test.mjs
 
+      - name: Run Intelligence knowledge graph tests
+        run: node --check scripts/intelligence-knowledge-graph.mjs && node --test scripts/intelligence-knowledge-graph.test.mjs
+
       - name: Run Intelligence report finalization safety tests
         run: node --check scripts/intelligence-report-finalization.mjs && node --test scripts/intelligence-report-finalization.test.mjs
 
