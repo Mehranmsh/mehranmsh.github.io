@@ -1447,7 +1447,7 @@ test("owner mission intake is admin-gated and records custom missions through bo
 
   assert.match(indexSource, /id="intelMissionForm"/);
   assert.match(indexSource, /api\("\/intelligence\/missions"/);
-  assert.doesNotMatch(runnerSource, /const packageIds = new Set\(\)/, "runner must not seed or collect automatically generated follow-up packages");
+  assert.match(runnerSource, /const packageIds = new Set\(\)/, "runner must track only explicitly claimed work packages for bounded finalization");
   assert.match(runnerSource, /task\?\.workPackageId/);
   assert.match(runnerSource, /for \(const workPackageId of packageIds\)/);
   assert.match(runnerSource, /work-packages\/\$\{encodeURIComponent\(workPackageId\)\}/);
