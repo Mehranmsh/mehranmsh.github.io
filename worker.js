@@ -4809,6 +4809,93 @@ async function socialGenerateAssistantImage(request, env) {
     return json({ success: false, error: message, code: "SOCIAL_IMAGE_GENERATION_FAILED", requestId, stage: currentStage, elapsedMs }, 502);
   }
 }
+async function socialAssistantTaskPlan(request, env) {
+  const user = await getSocialUser(request, env);
+  if (!user) return error("Authentication required", 401);
+  if (!await checkRateLimit(env, request, "social-ai-task-plan", 5, 3600, 3600, user.id)) {
+    return error("Task planning limit reached. Please try again later.", 429);
+  }
+  const body = await readBody(request);
+  if (!body) return error("Invalid request body");
+  const goal = cleanText(body.goal, 2400);
+  if (!goal || goal.length < 12) return error("Describe the task in at least 12 characters.");
+  await env.DB.prepare(`
+    CREATE TABLE IF NOT EXISTS social_ai_tasks(
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      title TEXT NOT NULL,
+      goal TEXT NOT NULL,
+      plan_json TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'planned',
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )
+  `).run();
+  const model = cleanText(env.SOCIAL_AI_MODEL_CLOUDFLARE, 120) || SOCIAL_AI_PROVIDERS.cloudflare.model;
+  const messages = [
+    { role: "user", content:
+      "Create a safe, practical execution plan for this user goal. Return ONLY valid JSON with this exact shape: " +
+      '{"title":"short title","summary":"brief summary","steps":[{"title":"step title","details":"specific work and expected output","kind":"read|draft|change|sensitive","approval_required":true}],"risks":["risk"],"done_when":["verifiable completion condition"]}. ' +
+      "Use 2 to 8 ordered steps. Every step must set approval_required to true for change or sensitive work; read and draft steps may set it false. Never claim any step has been executed. Do not request passwords, recovery phrases, private keys or API secrets. Highlight external side effects and irreversible actions as sensitive. Goal: " + goal
+    }
+  ];
+  try {
+    const raw = await socialAIRequest("cloudflare", model, messages, env);
+    const cleaned = String(raw).trim().replace(/^\`\`\`(?:json)?\s*/i, "").replace(/\s*\`\`\`$/, "");
+    const parsed = JSON.parse(cleaned);
+    if (!parsed || typeof parsed !== "object" || !Array.isArray(parsed.steps)) throw new Error("The planner returned an invalid plan.");
+    const steps = parsed.steps.slice(0, 8).map((step, index) => ({
+      number: index + 1,
+      title: cleanText(step?.title, 120) || "Step " + (index + 1),
+      details: cleanText(step?.details, 700),
+      kind: ["read", "draft", "change", "sensitive"].includes(step?.kind) ? step.kind : "draft",
+      approval_required: ["change", "sensitive"].includes(step?.kind) ? true : step?.approval_required === true,
+      status: "planned"
+    }));
+    if (steps.length < 2 || steps.some(step => !step.details)) throw new Error("The planner returned incomplete steps. Please try again.");
+    const plan = {
+      title: cleanText(parsed.title, 140) || "Task plan",
+      summary: cleanText(parsed.summary, 500),
+      steps,
+      risks: Array.isArray(parsed.risks) ? parsed.risks.slice(0, 6).map(x => cleanText(x, 240)).filter(Boolean) : [],
+      done_when: Array.isArray(parsed.done_when) ? parsed.done_when.slice(0, 6).map(x => cleanText(x, 240)).filter(Boolean) : [],
+      execution_status: "not_started",
+      execution_notice: "This is a plan only. No steps or external actions have been executed."
+    };
+    const id = crypto.randomUUID();
+    await env.DB.prepare(
+      "INSERT INTO social_ai_tasks(id,user_id,title,goal,plan_json,status) VALUES(?,?,?,?,?,'planned')"
+    ).bind(id, user.id, plan.title, goal, JSON.stringify(plan)).run();
+    return json({ success: true, task: { id, ...plan, created_at: new Date().toISOString() } }, 201);
+  } catch (e) {
+    console.error("MEHRAN_AI_TASK_PLAN_FAILED", JSON.stringify({ userId: user.id, message: String(e?.message || e).slice(0, 180) }));
+    return error(String(e?.message || "Could not create a task plan.").slice(0, 220), 502);
+  }
+}
+
+async function socialAssistantTaskList(request, env) {
+  const user = await getSocialUser(request, env);
+  if (!user) return error("Authentication required", 401);
+  await env.DB.prepare(`
+    CREATE TABLE IF NOT EXISTS social_ai_tasks(
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      title TEXT NOT NULL,
+      goal TEXT NOT NULL,
+      plan_json TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'planned',
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )
+  `).run();
+  const result = await env.DB.prepare(
+    "SELECT id,title,goal,plan_json,status,created_at FROM social_ai_tasks WHERE user_id=? ORDER BY created_at DESC LIMIT 20"
+  ).bind(user.id).all();
+  return json({ success: true, tasks: (result.results || []).map(row => {
+    let plan = {};
+    try { plan = JSON.parse(row.plan_json); } catch {}
+    return { id: row.id, title: row.title, goal: row.goal, status: row.status, created_at: row.created_at, plan };
+  }) });
+}
+
 async function socialAssistantStatus(request, env) {
   const user = await getSocialUser(request, env);
   if (!user) return error("Authentication required", 401);
@@ -9045,6 +9132,8 @@ export default {
         if (path === "/social/assistant/status" && method === "GET") return await socialAssistantStatus(request, env);
         if (path === "/social/assistant/history" && method === "GET") return await socialAssistantHistory(request, env);
         if (path === "/social/assistant/chat" && method === "POST") return await socialAssistantChat(request, env);
+        if (path === "/social/assistant/tasks" && method === "GET") return await socialAssistantTaskList(request, env);
+        if (path === "/social/assistant/tasks" && method === "POST") return await socialAssistantTaskPlan(request, env);
 
         if (path === "/social/bots" && method === "GET") {
           return await socialListBots(request, env);
