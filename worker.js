@@ -6012,8 +6012,10 @@ async function reserveIntelligenceMissionGeneratorSlot(env, cycleKey, packageId)
       status='reserved',
       expires_at=datetime('now','+2 minutes'),
       updated_at=CURRENT_TIMESTAMP
-    WHERE intelligence_mission_generator_lock.status <> 'reserved'
-       OR datetime(intelligence_mission_generator_lock.expires_at) <= datetime('now')
+    WHERE (
+        intelligence_mission_generator_lock.status <> 'reserved'
+        OR datetime(intelligence_mission_generator_lock.expires_at) <= datetime('now')
+      )
       AND NOT EXISTS (
         SELECT 1 FROM intelligence_work_packages
         WHERE status IN ('queued','in_progress','waiting_retry','attention_required')
