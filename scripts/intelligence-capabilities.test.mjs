@@ -1504,3 +1504,10 @@ test("routine missions are routed through the deterministic planner before any A
   assert.ok(workerSource.includes("aiInferenceUsed: false"));
   assert.ok(workerSource.includes('planner: "deterministic_rules_v1"'));
 });
+
+test("scheduled self-improvement mission gets one fresh idempotency cycle and labels duplicate plans honestly", () => {
+  assert.match(runnerSource, /idempotencyKey: `mehran-intelligence-self-improvement-v3-\$\{baseSha\}`/);
+  assert.match(runnerSource, /planned\.duplicate \? "not_invoked_duplicate"/);
+  assert.match(runnerSource, /planned\.plannerUnavailable \? "unavailable" : "not_reported"/);
+});
+

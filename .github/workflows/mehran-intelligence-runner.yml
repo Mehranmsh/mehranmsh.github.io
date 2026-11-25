@@ -229,7 +229,7 @@ jobs:
               const planned = await request("/agent/v1/missions/plan", {
                 method: "POST",
                 body: JSON.stringify({
-                  idempotencyKey: `mehran-intelligence-self-improvement-v2-${baseSha}`,
+                  idempotencyKey: `mehran-intelligence-self-improvement-v3-${baseSha}`,
                   mission: "MEHRAN INTELLIGENCE: perform the first evidence-based self-assessment. Inspect the bounded core execution architecture, verify the existing fixed capability test suite and deterministic security controls, identify the most important gaps between the current executor and a professional autonomous company assistant, and produce a prioritized, staged self-improvement plan. Prefer practical capabilities for mission understanding, research, multi-step execution, durable learning from completed work, and safe self-improvement. Do not claim capabilities that do not exist. Any code change must remain a private proposal for owner review; never modify source, create branches or pull requests, merge, deploy, access secrets, or perform wallet/financial actions.",
                   allowDeterministicFallback: true
                 })
@@ -237,7 +237,7 @@ jobs:
               const plannedId = planned.workPackageId || "";
               if (plannedId) selfImprovementPackageId = plannedId;
               if (plannedId) packageIds.add(plannedId);
-              console.log(`Self-improvement mission: ${planned.status || "unknown"}; duplicate=${Boolean(planned.duplicate)}; tasks=${planned.taskCount || 0}; planner=${planned.planner?.provider || "unavailable"}; reason=${planned.reason || "none"}; detail=${String(planned.error || "").slice(0,180)}`);
+              console.log(`Self-improvement mission: ${planned.status || "unknown"}; duplicate=${Boolean(planned.duplicate)}; tasks=${planned.taskCount || 0}; planner=${planned.duplicate ? "not_invoked_duplicate" : (planned.planner?.provider || (planned.plannerUnavailable ? "unavailable" : "not_reported"))}; reason=${planned.reason || "none"}; detail=${String(planned.error || "").slice(0,180)}`);
               if (planned.plannerUnavailable) {
                 console.log("Self-improvement mission was not created because AI planning is unavailable; no deterministic result is presented as AI analysis.");
               }
