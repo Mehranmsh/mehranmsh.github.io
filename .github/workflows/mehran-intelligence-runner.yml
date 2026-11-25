@@ -536,15 +536,8 @@ jobs:
                 const excerpt = [...selected].sort((a,b)=>a-b).map(index => `${index+1}: ${sourceLines[index]}`).join("\n").slice(0,2800);
                 if (excerpt) evidenceFiles.push({path,sha:file.sha,excerpt});
               }
-              if (orchestratorToken.length < 40 || evidenceFiles.length < 1) {
-                throw new Error("Owner AI analysis identity or bounded source evidence is unavailable.");
-              }
-              const semantic = await request("/agent/v1/repository/analyze", {
-                method: "POST",
-                body: JSON.stringify({commitSha:commit.sha,files:evidenceFiles})
-              }, ownerHeaders, 90000);
-              if (!semantic.success || semantic.commitSha !== commit.sha || !semantic.analysis) {
-                throw new Error("Workers AI semantic source analysis was not verified.");
+              if (evidenceFiles.length < 1) {
+                throw new Error("Bounded source evidence could not be prepared from the exact inspection allowlist.");
               }
               return {
                 type: task.actionType,
@@ -554,11 +547,18 @@ jobs:
                 commitSha: commit.sha,
                 summary: { filesInspected: files.length, totalBytes },
                 files,
-                analysis: semantic.analysis,
+                analysis: {
+                  summary: `Deterministic source inventory completed for ${files.length} allowlisted files at immutable commit ${commit.sha}. This task does not perform semantic code review.`,
+                  findings: [],
+                  limitations: [
+                    "This report contains file metadata and bounded declaration names only; no semantic AI review was performed.",
+                    "Repository content was treated as untrusted data and was never executed or followed as instructions.",
+                    "No tests, vulnerability conclusions, or code changes are claimed."
+                  ]
+                },
                 limitations: [
-                  "Semantic analysis used bounded excerpts from exact allowlisted files at one immutable commit.",
-                  "Repository content was treated as untrusted data and was never executed or followed as instructions.",
-                  "AI findings are evidence-checked but still require human review; no tests or code changes are claimed."
+                  "Inspection is limited to exact allowlisted paths and bounded source metadata.",
+                  "Repository content was treated as untrusted data and was never executed or followed as instructions."
                 ]
               };
             }
