@@ -46,7 +46,8 @@ const routinePlannerSource = (await readFile(new URL("./intelligence-routine-pla
 const retryPolicySource = (await readFile(new URL("./intelligence-retry-policy.mjs", import.meta.url), "utf8"))
   .replace("export function planIntelligenceRetry", "function planIntelligenceRetry");
 const feedbackLearningSource = (await readFile(new URL("./intelligence-feedback-learning.mjs", import.meta.url), "utf8"))
-  .replace("export function proposeIntelligencePreferenceUpdates", "function proposeIntelligencePreferenceUpdates");
+  .replace("export function proposeIntelligencePreferenceUpdates", "function proposeIntelligencePreferenceUpdates")
+  .replaceAll("BLOCKED_SENSITIVITY", "FEEDBACK_BLOCKED_SENSITIVITY");
 const feedbackLearningUrl = moduleUrl(feedbackLearningSource);
 const feedbackReviewSource = (await readFile(new URL("./intelligence-feedback-review.mjs", import.meta.url), "utf8"))
   .replace('from "./intelligence-feedback-learning.mjs"', 'from "' + feedbackLearningUrl + '"')
