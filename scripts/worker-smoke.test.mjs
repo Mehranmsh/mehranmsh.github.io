@@ -1342,6 +1342,15 @@ test("scheduled Intelligence runner is single-flight, secret-backed and restrict
   assert.match(runner, /task\.status !== "in_progress"/);
   assert.match(runner, /task\.assignedTo/);
   assert.match(runner, /secrets\.MEHRAN_AGENT_TOKEN/);
+  assert.match(runner, /secrets\\.MEHRAN_ORCHESTRATOR_TOKEN/);
+  assert.match(runner, /vars\\.MEHRAN_MISSION_GENERATOR_ENABLED/);
+  assert.match(runner, /GITHUB_EVENT_NAME === "schedule"/);
+  assert.match(runner, /MEHRAN_MISSION_GENERATOR_ENABLED === "true"/);
+  assert.match(runner, /orchestratorToken\.length < 40/);
+  assert.match(runner, /agent\\/v1\\/missions\\/generate/);
+  assert.match(runner, /Math\.floor\(Date\.now\(\) \/ 900000\) \* 900000/);
+  assert.match(runner, /Safely paused: active work or another generator reservation exists/);
+
   assert.match(runner, /service_health_report/);
   assert.match(runner, /repository_quality_check/);
   assert.match(runner, /status, result/);
