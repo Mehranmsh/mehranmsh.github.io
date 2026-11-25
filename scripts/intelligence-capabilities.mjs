@@ -67,10 +67,11 @@ export const INTELLIGENCE_CAPABILITIES = Object.freeze({
     executors: ["github_actions_runner"],
     requiresApproval: false,
     autonomous: true,
-    description: "Inventory exact allowlisted source files from one immutable commit without executing repository content or writing files.",
+    description: "Inspect exact allowlisted source files from one immutable commit in inventory-only mode by default, or request bounded semantic analysis of redacted excerpts without executing repository content or writing files.",
     inputSchema: {
       required: ["paths"],
       properties: {
+        analysisMode: { type: "string", enum: ["inventory", "semantic"] },
         paths: {
           type: "array",
           minItems: 1,
@@ -82,6 +83,10 @@ export const INTELLIGENCE_CAPABILITIES = Object.freeze({
             "worker.js",
             "scripts/intelligence-agent.mjs",
             "scripts/intelligence-capabilities.mjs",
+            "scripts/intelligence-module-registry.mjs",
+            "scripts/intelligence-module-registry.test.mjs",
+            "scripts/intelligence-module-adapter.mjs",
+            "scripts/intelligence-module-adapter.test.mjs",
             "scripts/intelligence-capabilities.test.mjs",
             ".github/workflows/mehran-intelligence-runner.yml",
             "docs/INTELLIGENCE_EXECUTION_PROTOCOL.md"

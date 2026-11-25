@@ -56,6 +56,10 @@ The capability registry is the canonical routing map:
 
 The registry stores executor identities as an explicit list. The GitHub Runner's action allowlist must be checked against the registry and the Worker scheduled handler. An active capability does not imply that every executor can run it. Any routing change must update registry metadata, executor allowlists, and regression tests together.
 
+## Owner-only module registry diagnostics
+
+The Worker exposes `GET /agent/v1/modules/registry` behind the owner orchestration identity. It returns the static module registry, registry-integrity result, dependency-first integration plans, and explicit conservative labels (`registry_declared`, `not_checked`). It does not probe module services, read module user data, or claim live health. The current Worker wires two bounded read-only capabilities through the adapter runtime: `msh_core.projects.read` and `social.social.metrics.read`; Studio/Music and MEHRAN AI still need service-specific adapters. The ordinary agent token is not accepted for this route. This endpoint is the authenticated bridge between MEHRAN INTELLIGENCE and the central MSH module map; independent health observations remain separate implementation tasks.
+
 ## Planning and dependency rules
 
 1. Convert each owner request into a work package and a dependency graph.
@@ -159,6 +163,10 @@ This is a runtime foundation, not the complete protocol and not yet production-a
 
 Do not describe the protocol as active until the acceptance criteria have passed in an end-to-end test. Keep public GitHub intake limited to non-sensitive signals. Do not expand unrelated company modules as part of this work.
 
+### Optional semantic repository analysis
+
+Repository inspection remains inventory-only by default and consumes no AI inference. A private inbox mission may explicitly set `analysis_mode: "semantic"`; the Worker validates that opt-in and carries the mode in the immutable task payload. The fixed Runner then reads only exact allowlisted files at one immutable `main` commit, extracts bounded excerpts, redacts common credential-shaped values, and submits those excerpts plus a bounded mission focus to the owner-authenticated `/agent/v1/repository/analyze` endpoint. The analyzer treats source as untrusted data, requires every finding quote to match a supplied excerpt, and returns evidence-backed findings and limitations. Each semantic analysis reserves 500 units from the existing Intelligence AI budget; provider/budget failures block the task rather than silently downgrading it to an inventory report. The Runner does not automatically replay this endpoint after an ambiguous network failure, because the first request may already have consumed its reservation. The Worker rejects a result or resumed checkpoint whose analysis mode differs from the task's stored request. This remains read-only and does not execute source code or apply recommendations.
+
 ### Runner claim fencing
 
 Every task claim now receives a fresh 256-bit random claim token. The runner receives the raw token only in the authenticated claim response; D1 stores only its SHA-256 hash. Checkpoint and result commits must present the token, and the Worker compares its hash against the current claim in both the read and conditional update. When a claim expires, is retried, or reaches a terminal result, the stored hash is cleared. A later runner claim replaces it with a new hash, so an older runner cannot checkpoint or commit a result after ownership has changed. This is a fencing mechanism, not a lease-renewal system: the existing 15-minute claim expiry remains, and long-running work must fail closed if its claim expires.
@@ -182,3 +190,39 @@ The request lifecycle is deliberately fail-closed. A newly reserved request ente
 The atomic request reservation occurs before IP rate-limit accounting, so only the single winning delivery consumes one of the three daily attempts. A rejected rate-limit reservation is recorded as terminal and never reaches AI generation or budget reservation. These guarantees are covered by mocked Worker/D1 and artifact-store tests; they are not evidence of a live production D1 or production GitHub storage run.
 
 PR #217 consolidates the bounded generation API, private artifact storage, and queue executor on a clean branch based on `main`. Its CI checks pass, but the pull request remains open as a draft and has not been merged or deployed. Therefore none of these capabilities is production-active. Even after deployment, this executor will **not** apply patches, write to the source repository, create branches or pull requests, merge changes, or deploy code. Generated artifacts remain private proposals requiring a separate owner review path.
+
+
+## Central module integration contract (draft, not production-active)
+
+The central registry in `scripts/intelligence-module-registry.mjs` is the source of truth for how MEHRAN INTELLIGENCE discovers current and planned application modules. The initial inventory includes MEHRAN MSH Core, Studio/Music, SOCIAL, MEHRAN AI, and shared authentication, database, and audit services. MEHRAN Instruments and Robotics are listed as planned modules with no granted capabilities or data scopes.
+
+Every future module must declare a stable module ID, display name, semantic version, dependencies, explicitly requested capabilities, data scopes, and one supported health-check descriptor. A module must not integrate by exposing arbitrary URLs, shell commands, database handles, or secrets. Health-check descriptors are metadata for a future allowlisted adapter; they are not permission to execute arbitrary checks.
+
+The registry provides deterministic integrity validation, dependency-first integration planning, capability resolution, and sanitized health-report composition. The integrity check rejects duplicate IDs, missing dependencies, invalid trust/status combinations, inactive modules with access, and dependency cycles. A dependent module is marked degraded when a required dependency is unhealthy. Planned or newly discovered modules remain pending and receive no capabilities or data scopes automatically.
+
+The default-deny boundary is mandatory:
+- Unknown modules and unapproved manifests receive no access.
+- Only explicitly registered capabilities and aggregate or metadata scopes may be resolved.
+- Secrets, credentials, passwords, private messages, wallet keys, and wallet assets are outside the Intelligence data boundary.
+- Write-like actions require a separate approval decision and audit event.
+- Merge, production deployment, destructive database changes, and financial or wallet operations remain unavailable to autonomous execution.
+
+The private Runner's repository-inspection allowlist includes the registry source and its tests. Its fixed isolated test workflow syntax-checks the registry and executes the repository's bounded test suite. This makes the registry inspectable and testable by Intelligence without granting it repository write or production access.
+
+This registry and its CI integration are currently on the unmerged draft development branch. Do not describe module adapters, live module health checks, or end-to-end Intelligence control of every module as production-active until each real adapter is implemented, tested against its owning service, and accepted through the live Runner after an approved merge and deployment.
+
+
+The companion `scripts/intelligence-module-adapter.mjs` defines the bounded adapter dispatch contract. Adapters may register handlers only for capabilities explicitly granted to their active module. Dispatch rejects unknown handlers, oversized or sensitive-key payloads, and unregistered capabilities. Handlers receive only a minimal request context and declared module scopes; the adapter contract does not pass Worker environment bindings, D1 handles, or secrets. Write-like capabilities require an explicit approval marker, approval reference, and audit callback. The adapter runtime is a tested policy boundary, not a live connector to every module; each service-specific handler must still be implemented and integration-tested before use.
+
+### Current adapter coverage on the development branch
+
+The Worker currently dispatches five bounded read-only capabilities through the shared adapter contract: msh_core.projects.read, social.social.metrics.read, studio_music.studio.health.read, mehran_ai.ai.health.read, and mehran_ai.ai.quota.read. The Studio capability is intentionally an integration-boundary report, not a project catalog connector. The current Studio UI stores project metadata in browser localStorage and imported audio assets in browser IndexedDB; the Worker cannot inspect either store. Cross-device transfer remains an explicit user-initiated one-time-code flow. The adapter reports these limitations and does not attempt background access, claim live health, or read local project contents. Full Studio catalog synchronization requires a separately designed authenticated server-side storage path and explicit migration/consent plan.
+
+### MEHRAN AI diagnostic adapter
+
+The Worker now dispatches two bounded read-only capabilities for the active mehran_ai module: ai.health.read and ai.quota.read. The health response reports only whether provider bindings are configured; it never returns credential values and does not claim that a provider is reachable. The quota response reads aggregate daily reservation counters from workers_ai_daily_budget and reports the configured Intelligence/global reservation caps. These diagnostics run without an AI inference request. The ai.tests.run capability remains declared but is not wired; provider connectivity tests require a separately approved, rate-limited design and must not consume quota unexpectedly.
+
+
+### Standalone agent runner result contract
+
+The optional `scripts/intelligence-agent.mjs` runner must preserve the 256-bit claim token returned by `GET /agent/v1/tasks/next` and include it in every checkpoint or result commit. Its completed health and repository-metadata tasks must return the same action-specific JSON report shapes independently verified by the Worker; plain console summaries are not accepted as completed evidence. The pure report and claim-payload helpers live in `scripts/intelligence-agent-runtime.mjs` with focused tests in `scripts/intelligence-agent-runtime.test.mjs`. This runner currently implements only `service_health_report` and `repository_quality_check`; unsupported task types are safely reported as blocked rather than guessed or partially executed. The scheduled GitHub Actions runner remains the broader fixed executor.

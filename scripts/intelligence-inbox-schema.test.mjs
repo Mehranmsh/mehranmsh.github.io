@@ -59,3 +59,11 @@ test("rejects malformed mission documents without throwing", () => {
   assert.deepEqual(validatePrivateIntelligenceMission(null), ["invalid_document"]);
   assert.deepEqual(validatePrivateIntelligenceMission([]), ["invalid_document"]);
 });
+
+test("accepts explicit semantic analysis mode and rejects unknown modes", () => {
+  const mission = validMission();
+  mission.analysis_mode = "semantic";
+  assert.deepEqual(validatePrivateIntelligenceMission(mission), []);
+  mission.analysis_mode = "unbounded";
+  assert.deepEqual(validatePrivateIntelligenceMission(mission), ["analysis_mode_invalid"]);
+});

@@ -47,6 +47,8 @@ test("persistent Workers AI inference 503 failures are not automatically retried
   assert.match(runnerSource, /Workers AI inference failure is recorded as non-retryable/);
   assert.match(runnerSource, /error\?\.name === "TimeoutError" \|\| error\?\.name === "AbortError"/);
   assert.match(runnerSource, /Number\(error\?\.status\) === 503/);
+  assert.match(runnerSource, /maxNetworkAttempts = path === "\/agent\/v1\/repository\/analyze" \? 1 : 3/);
+  assert.match(runnerSource, /attempt === maxNetworkAttempts - 1/);
 });
 
 test("bounded inspection serialization preserves a schema-valid semantic analysis", () => {
@@ -60,7 +62,7 @@ test("bounded inspection serialization preserves a schema-valid semantic analysi
   assert.match(serializer, /item\?\.rootCause/);
 });
 
-test("repository inventory is deterministic and never depends on Workers AI", () => {
+test("repository inspection keeps deterministic inventory as default and gates semantic AI analysis explicitly", () => {
   const inspectStart = runnerSource.indexOf('if (task.actionType === "inspect_repository")');
   const inspectEnd = runnerSource.indexOf('if (task.actionType === "source_security_audit")', inspectStart);
   assert.ok(inspectStart >= 0 && inspectEnd > inspectStart);
@@ -69,8 +71,19 @@ test("repository inventory is deterministic and never depends on Workers AI", ()
   assert.match(inspect, /blobSha: file\.sha/);
   assert.match(inspect, /lineCount:/);
   assert.match(inspect, /symbols:/);
+  assert.ok(inspect.includes('"scripts/intelligence-agent-runtime.mjs"'));
+  assert.ok(inspect.includes('"scripts/intelligence-agent-runtime.test.mjs"'));
+  assert.match(inspect, /const analysisMode = payload\.analysisMode \|\| "inventory"/);
+  assert.match(inspect, /if \(analysisMode === "semantic"\)/);
+  assert.match(inspect, /request\("\/agent\/v1\/repository\/analyze"/);
+  assert.match(inspect, /redactExcerpt/);
+  assert.match(inspect, /analysisMode,/);
   assert.match(inspect, /Deterministic repository inventory completed/);
-  assert.doesNotMatch(inspect, /repository\/analyze|runIntelligenceAI|MEHRAN_ORCHESTRATOR_TOKEN/);
+  assert.ok(inspect.includes('"scripts/intelligence-module-registry.mjs"'));
+  assert.ok(inspect.includes('"scripts/intelligence-module-registry.test.mjs"'));
+  assert.ok(inspect.includes('"scripts/intelligence-module-adapter.mjs"'));
+  assert.ok(inspect.includes('"scripts/intelligence-module-adapter.test.mjs"'));
+  assert.doesNotMatch(inspect, /runIntelligenceAI|MEHRAN_ORCHESTRATOR_TOKEN/);
   assert.match(workerSource, /inspect_repository_inventory_only/);
   assert.match(workerSource, /inspect_repository_schema/);
 });
@@ -345,6 +358,12 @@ test("repository inspection is active, pre-authorized, exact-path allowlisted, a
   assert.equal(validateIntelligenceCapabilityRequest("inspect_repository", {
     paths: ["worker.js", "docs/INTELLIGENCE_EXECUTION_PROTOCOL.md"]
   }).ok, true);
+  assert.equal(validateIntelligenceCapabilityRequest("inspect_repository", {
+    paths: ["worker.js"], analysisMode: "semantic"
+  }).ok, true);
+  assert.equal(validateIntelligenceCapabilityRequest("inspect_repository", {
+    paths: ["worker.js"], analysisMode: "unbounded"
+  }).ok, false);
   assert.equal(validateIntelligenceCapabilityRequest("inspect_repository", { paths: ["../../secrets"] }).ok, false);
   assert.equal(validateIntelligenceCapabilityRequest("inspect_repository", { paths: [] }).ok, false);
   assert.equal(validateIntelligenceCapabilityRequest("inspect_repository", {
@@ -369,7 +388,7 @@ const isolatedTestWorkflowSource = readFileSync(
   "utf8"
 );
 
-test("isolated test workflow runs one fixed suite without secrets or network access", () => {
+test("isolated test workflow runs the complete fixed regression suite without secrets or network access", () => {
   assert.match(isolatedTestWorkflowSource, /workflow_dispatch:/);
   assert.match(isolatedTestWorkflowSource, /pull_request:/);
   assert.match(isolatedTestWorkflowSource, /github\.event\.pull_request\.head\.sha/);
@@ -388,7 +407,8 @@ test("isolated test workflow runs one fixed suite without secrets or network acc
   assert.match(isolatedTestWorkflowSource, /--cpus 1/);
   assert.match(isolatedTestWorkflowSource, /--tmpfs \/tmp:rw,noexec,nosuid,nodev,size=64m/);
   assert.match(isolatedTestWorkflowSource, /dst=\/workspace,readonly/);
-  assert.match(isolatedTestWorkflowSource, /node --test scripts\/intelligence-capabilities\.test\.mjs/);
+  assert.match(isolatedTestWorkflowSource, /node --test --test-reporter=tap scripts\/\*\.test\.mjs/);
+  assert.match(isolatedTestWorkflowSource, /node --check scripts\/intelligence-verification-loop\.mjs/);
   assert.match(isolatedTestWorkflowSource, /node --check worker\.js/);
   assert.doesNotMatch(isolatedTestWorkflowSource, /secrets\.|GITHUB_TOKEN|MEHRAN_AGENT_TOKEN|MEHRAN_ORCHESTRATOR_TOKEN|actions:\s*write/);
   assert.doesNotMatch(isolatedTestWorkflowSource, /npm\s+(?:install|run)|pnpm\s+(?:install|run)|yarn\s+(?:install|run)/);
@@ -1289,8 +1309,10 @@ test("repository inventory is independent from the optional semantic analysis en
   const inspectEnd = runnerSource.indexOf('if (task.actionType === "source_security_audit")', inspectStart);
   assert.ok(inspectStart >= 0 && inspectEnd > inspectStart);
   const inspect = runnerSource.slice(inspectStart, inspectEnd);
-  assert.doesNotMatch(inspect, /repository\/analyze|runIntelligenceAI|evidenceFiles|semantic\.analysis/);
-  assert.match(inspect, /analysis: \{/);
+  assert.match(inspect, /analysisMode === "semantic"/);
+  assert.match(inspect, /repository\/analyze/);
+  assert.match(inspect, /analysisEvidence/);
+  assert.match(inspect, /let analysis = \{/);
   assert.match(inspect, /Deterministic repository inventory completed/);
   assert.match(workerSource, /Do not call a named constant a magic number/);
   assert.match(workerSource, /Do not label a Firebase Web API key/);
@@ -1475,8 +1497,11 @@ test("patch generation uses the approved provider router without a second budget
 test("Cloudflare AI diagnostics distinguish budget reservation failures from inference failures", () => {
   assert.ok(workerSource.includes('const DEFAULT_INTELLIGENCE_MODEL = "@cf/meta/llama-3.1-8b-instruct-fast"'));
   assert.ok(workerSource.includes("const model = options.jsonMode ? DEFAULT_INTELLIGENCE_MODEL : (configuredModel || DEFAULT_INTELLIGENCE_MODEL)"));
-  assert.match(workerSource, /LIMIT 12"\)\.bind\("mehran_intelligence"\)/);
-  assert.match(workerSource, /content:String\(item\.content\|\|""\)\.slice\(0,450\)/);
+  assert.match(workerSource, /SELECT owner_uid,memory_key,category,content,importance,source,updated_at FROM intelligence_memory_items/);
+  assert.match(workerSource, /maxItems: 12/);
+  assert.match(workerSource, /maxChars: 6000/);
+  assert.match(workerSource, /maxItemChars: 450/);
+  assert.match(workerSource, /selectMemoryContext\(memoryRows\.results \|\| \[\]/);
   assert.match(workerSource, /jsonMode: true, temperature: 0, maxTokens: 1000, cloudflareReservation: 25/);
   assert.match(workerSource, /jsonMode:true,temperature:0,maxTokens:1500,cloudflareReservation:500/);
 
@@ -1561,4 +1586,23 @@ test("bounded repository architecture inventory is routed deterministically with
   assert.ok(routinePlannerSource.includes('"scripts/intelligence-agent.mjs"'));
   assert.ok(workerSource.includes("const deterministicPlan = buildDeterministicRoutinePlan(mission)"));
   assert.ok(workerSource.includes("aiInferenceUsed: false"));
+});
+
+
+test("semantic inspection is explicit, budgeted, redacted, and bound to the immutable task mode", () => {
+  assert.match(workerSource, /mission\.analysis_mode === "semantic" \? "semantic" : "inventory"/);
+  assert.match(workerSource, /analysisMode = actionType === "inspect_repository"/);
+  assert.match(workerSource, /\["inventory", "semantic"\]\.includes\(analysisMode\)/);
+  assert.match(workerSource, /analysisMode: item\.analysisMode \|\| "inventory"/);
+  assert.match(workerSource, /parsedReport\.analysisMode !== expectedAnalysisMode/);
+  assert.match(workerSource, /body\.focus\.length > 800/);
+  assert.match(workerSource, /cloudflareReservation:500/);
+  assert.match(runnerSource, /analysisMode === "semantic"/);
+  assert.match(runnerSource, /const matchingLines = \[\]/);
+  assert.match(runnerSource, /centerCount = Math\.min\(7, matchingLines\.length\)/);
+  assert.match(runnerSource, /redactExcerpt/);
+  assert.match(runnerSource, /Bearer \[REDACTED\]/);
+  assert.match(runnerSource, /analysisMode: value\?\.analysisMode \|\| "inventory"/);
+  assert.match(runnerSource, /expectedAnalysisMode = taskPayload\.analysisMode \|\| "inventory"/);
+  assert.match(runnerSource, /report\?\.analysisMode \|\| "inventory"\) === expectedAnalysisMode/);
 });

@@ -16,10 +16,13 @@ const capabilityImport = 'import { INTELLIGENCE_ACTION_TYPES, PREAPPROVED_INTELL
 const patchStoreImport = 'import { storePrivatePatchArtifact, verifyPrivatePatchArtifactAtPath, getPrivatePatchArtifactPath, getVerifiedPrivatePatchArtifactAtPath } from "./scripts/intelligence-private-patch-store.mjs";';
 const patchGenerationImport = 'import { extractPatchModelText, generatePatchArtifact } from "./scripts/intelligence-patch-generation-service.mjs";';
 const inboxSchemaImport = 'import { validatePrivateIntelligenceMission } from "./scripts/intelligence-inbox-schema.mjs";';
+const moduleRegistryImport = 'import { listRegisteredModules, validateModuleRegistry, getModuleIntegrationPlan } from "./scripts/intelligence-module-registry.mjs";';
+const moduleAdapterImport = 'import { createModuleAdapter, dispatchModuleCapability } from "./scripts/intelligence-module-adapter.mjs";';
 const routinePlannerImport = 'import { buildDeterministicRoutinePlan } from "./scripts/intelligence-routine-planner.mjs";';
+const memoryRankingImport = 'import { selectMemoryContext } from "./scripts/intelligence-memory-ranking.mjs";';
 if (!workerSource.includes(capabilityImport) || !workerSource.includes(patchStoreImport) ||
     !workerSource.includes(patchGenerationImport) || !workerSource.includes(inboxSchemaImport) ||
-    !workerSource.includes(routinePlannerImport)) {
+    !workerSource.includes(routinePlannerImport) || !workerSource.includes(memoryRankingImport) || !workerSource.includes(moduleRegistryImport) || !workerSource.includes(moduleAdapterImport)) {
   throw new Error("Worker capability, patch storage, or private inbox schema imports were not found");
 }
 const policySource = await readFile(new URL("./intelligence-patch-policy.mjs", import.meta.url), "utf8");
@@ -28,10 +31,14 @@ const patchStoreSource = await readFile(new URL("./intelligence-private-patch-st
 const patchGenerationPromptSource = await readFile(new URL("./intelligence-patch-generation.mjs", import.meta.url), "utf8");
 const patchGenerationServiceSource = await readFile(new URL("./intelligence-patch-generation-service.mjs", import.meta.url), "utf8");
 const inboxSchemaSource = await readFile(new URL("./intelligence-inbox-schema.mjs", import.meta.url), "utf8");
+const moduleRegistrySource = await readFile(new URL("./intelligence-module-registry.mjs", import.meta.url), "utf8");
+const moduleAdapterSource = await readFile(new URL("./intelligence-module-adapter.mjs", import.meta.url), "utf8");
 const routinePlannerSource = (await readFile(new URL("./intelligence-routine-planner.mjs", import.meta.url), "utf8"))
   .replace("export function buildDeterministicRoutinePlan", "function buildDeterministicRoutinePlan");
 const moduleUrl = source => "data:text/javascript;base64," + Buffer.from(source).toString("base64");
 const inboxSchemaUrl = moduleUrl(inboxSchemaSource);
+const moduleRegistryUrl = moduleUrl(moduleRegistrySource);
+const moduleAdapterUrl = moduleUrl(moduleAdapterSource.replace('from "./intelligence-module-registry.mjs"', `from "${moduleRegistryUrl}"`));
 const policyUrl = moduleUrl(policySource);
 const artifactUrl = moduleUrl(artifactSource.replace(
   'from "./intelligence-patch-policy.mjs"',
@@ -79,10 +86,15 @@ const workerRest = workerSource.replace(capabilityImport, "")
   .replace(patchStoreImport, "")
   .replace(patchGenerationImport, "")
   .replace(inboxSchemaImport, "")
-  .replace(routinePlannerImport, "");
-const workerSourceForTest = routinePlannerSource + `\nimport { storePrivatePatchArtifact, verifyPrivatePatchArtifactAtPath, getPrivatePatchArtifactPath, getVerifiedPrivatePatchArtifactAtPath } from "${patchStoreTestUrl}";
+  .replace(routinePlannerImport, "")
+  .replace(memoryRankingImport, "")
+  .replace(moduleRegistryImport, "")
+  .replace(moduleAdapterImport, "");
+const workerSourceForTest = routinePlannerSource + `\nconst selectMemoryContext = () => [];\nimport { storePrivatePatchArtifact, verifyPrivatePatchArtifactAtPath, getPrivatePatchArtifactPath, getVerifiedPrivatePatchArtifactAtPath } from "${patchStoreTestUrl}";
 import { generatePatchArtifact } from "${patchGenerationTestUrl}";
 import { validatePrivateIntelligenceMission } from "${inboxSchemaUrl}";
+import { listRegisteredModules, validateModuleRegistry, getModuleIntegrationPlan } from "${moduleRegistryUrl}";
+import { createModuleAdapter, dispatchModuleCapability } from "${moduleAdapterUrl}";
 const INTELLIGENCE_ACTION_TYPES = ${JSON.stringify(INTELLIGENCE_ACTION_TYPES)};
 const PREAPPROVED_INTELLIGENCE_ACTION_TYPES = ${JSON.stringify(PREAPPROVED_INTELLIGENCE_ACTION_TYPES)};
 ` + workerRest;
@@ -107,6 +119,19 @@ function mockDb() {
           if (sql.includes("FROM intelligence_scheduler_runs")) return null;
           throw new Error("Unexpected SQL in smoke test: " + sql);
         }
+      };
+    }
+  };
+}
+
+function permissiveSchemaDb() {
+  return {
+    prepare() {
+      return {
+        bind() { return this; },
+        async run() { return { success: true, meta: { changes: 1 } }; },
+        async first() { return null; },
+        async all() { return { results: [] }; }
       };
     }
   };
@@ -216,6 +241,100 @@ test("health endpoint exposes only bounded private inbox diagnostics", async () 
   assert.equal(JSON.stringify(payload.privateInbox).includes("mission_id"), false);
 });
 
+test("MEHRAN module registry endpoint is owner-only and never claims live health", () => {
+  assert.match(workerSource, /path === "\/agent\/v1\/modules\/registry" && method === "GET"/);
+  assert.match(workerSource, /const ownerOrchestrationRoute = .*modules\/registry/s);
+  const agentStart = workerSource.indexOf('if (path.startsWith("/agent/v1/"))');
+  const authGuard = workerSource.indexOf('if (mismatch !== 0) return error(ownerOrchestrationRoute ? "Owner orchestration authentication required."', agentStart);
+  const start = workerSource.indexOf('if (path === "/agent/v1/modules/registry" && method === "GET")');
+  assert.ok(agentStart >= 0 && authGuard > agentStart && start > authGuard, "module registry must be dispatched only after owner authentication");
+  const end = workerSource.indexOf('if (path === "/agent/v1/ai-diagnostics/archive"', start);
+  assert.ok(start >= 0 && end > start, "owner-only module registry route must exist");
+  const route = workerSource.slice(start, end);
+  assert.match(route, /listRegisteredModules/);
+  assert.match(route, /validateModuleRegistry/);
+  assert.match(route, /: "registry_declared"/);
+  assert.match(route, /liveHealth: "not_checked"/);
+  assert.match(route, /adapterCoverage: "partial"/);
+  assert.ok(route.includes("msh_core.projects.read") && route.includes("social.social.metrics.read") && route.includes("studio_music.studio.health.read") && route.includes("mehran_ai.ai.health.read") && route.includes("mehran_ai.ai.quota.read"));
+  assert.match(route, /"partially_wired"/);
+  assert.match(route, /does not probe module services or claim live health/);
+});
+
+test("owner can retrieve the validated module registry and partial adapter coverage", async () => {
+  const token = "o".repeat(48);
+  const response = await request("/agent/v1/modules/registry", {
+    headers: { Authorization: "Bearer " + token }
+  }, {
+    DB: permissiveSchemaDb(),
+    MEHRAN_ORCHESTRATOR_TOKEN: token
+  });
+  assert.equal(response.status, 200);
+  const payload = await response.json();
+  assert.equal(payload.success, true);
+  assert.equal(payload.registry.ok, true);
+  assert.equal(payload.registry.moduleCount, 9);
+  const core = payload.modules.find(module => module.id === "msh_core");
+  const social = payload.modules.find(module => module.id === "social");
+  const studio = payload.modules.find(module => module.id === "studio_music");
+  assert.equal(core.integrationState, "partially_wired");
+  assert.deepEqual(core.wiredCapabilities, ["projects.read"]);
+  assert.equal(social.integrationState, "partially_wired");
+  assert.deepEqual(social.wiredCapabilities, ["social.metrics.read"]);
+  assert.equal(studio.integrationState, "partially_wired");
+  assert.deepEqual(studio.wiredCapabilities, ["studio.health.read"]);
+  assert.equal(core.liveHealth, "not_checked");
+  assert.equal(payload.runtime.adapterCoverage, "partial");
+  assert.deepEqual(payload.runtime.wiredCapabilities, ["msh_core.projects.read", "social.social.metrics.read", "studio_music.studio.health.read", "mehran_ai.ai.health.read", "mehran_ai.ai.quota.read"]);
+  assert.equal(studio.liveHealth, "not_checked");
+});
+
+test("MEHRAN AI diagnostics use read-only health and quota capabilities", () => {
+  const start = workerSource.indexOf('if (/^(وضعیتهوشمصنوعی|وضعیتهوش|aihealth|aistatus|aiquota)$/u.test(lightweightMessage))');
+  const end = workerSource.indexOf('if (/^(وضعیتاستودیو|استودیواستاتوس|studiohealth|studiostatus)$/u.test(lightweightMessage))', start);
+  assert.ok(start >= 0 && end > start, "MEHRAN AI diagnostics branch must exist");
+  const route = workerSource.slice(start, end);
+  assert.ok(route.includes('moduleId: "mehran_ai"'));
+  assert.ok(route.includes('"ai.health.read"'));
+  assert.ok(route.includes('"ai.quota.read"'));
+  assert.ok(route.includes("cloudflareWorkersAI"));
+  assert.ok(route.includes("intelligence_reserved"));
+  assert.ok(route.includes("secretsExposed: false"));
+  assert.ok(route.includes('liveProviderProbe: "not_performed"'));
+  assert.equal(route.includes("env.OPENAI_API_KEY"), true);
+  assert.equal(route.includes("JSON.stringify(env"), false);
+  assert.equal(route.includes("env.AI.run("), false);
+});
+
+
+
+test("Studio status adapter reports browser-local storage without claiming project access", () => {
+  const start = workerSource.indexOf('if (/^(وضعیتاستودیو|استودیواستاتوس|studiohealth|studiostatus)$/u.test(lightweightMessage))');
+  const end = workerSource.indexOf('if (/^(وضعیتپروژهها|وضعیتپروژه|projectstatus|projectsstatus)$/u.test(lightweightMessage))', start);
+  assert.ok(start >= 0 && end > start, "read-only Studio status branch must exist");
+  const route = workerSource.slice(start, end);
+  assert.match(route, /moduleId: "studio_music"/);
+  assert.ok(route.includes('"studio.health.read"'));
+  assert.match(route, /browser_localStorage/);
+  assert.match(route, /browser_indexedDB/);
+  assert.match(route, /workerCanReadLocalProjects: false/);
+  assert.match(route, /liveServiceProbe: "not_performed"/);
+  assert.match(route, /user_initiated_one_time_code/);
+  assert.equal(route.includes("localStorage.getItem"), false);
+  assert.equal(route.includes("indexedDB.open"), false);
+  assert.equal(route.includes("SELECT ") && route.includes("music_project"), false);
+});
+
+test("module registry route does not accept the ordinary agent token", async () => {
+  const response = await request("/agent/v1/modules/registry", {}, {
+    DB: mockDb(),
+    MEHRAN_AGENT_TOKEN: "a".repeat(48)
+  });
+  assert.equal(response.status, 503);
+  const payload = await response.json();
+  assert.match(payload.error, /Owner orchestration identity is not configured/);
+});
+
 test("private inbox uses the shared schema validator and fair round-robin scanning", () => {
   assert.match(workerSource, /validatePrivateIntelligenceMission\(mission\)/);
   assert.match(workerSource, /INTELLIGENCE_PRIVATE_INBOX_REJECTED/);
@@ -293,8 +412,13 @@ test("MEHRAN INTELLIGENCE serves exact project and SOCIAL status queries without
   assert.ok(route.indexOf("deterministic_social_metrics") < route.indexOf("reserveSocialWorkersAIBudget"));
   assert.ok(route.indexOf("deterministic_project_status") < route.indexOf('if (!env.AI || typeof env.AI.run'));
   assert.ok(route.indexOf("deterministic_social_metrics") < route.indexOf('if (!env.AI || typeof env.AI.run'));
-  assert.match(route, /SELECT name,status FROM projects ORDER BY created_at DESC LIMIT 30/);
+  assert.match(route, /SELECT name,status FROM projects ORDER BY created_at DESC LIMIT 20/);
   assert.match(route, /SELECT COUNT\(\*\) AS total FROM social_users/);
+  assert.match(route, /moduleId: "msh_core"/);
+  assert.match(route, /capability: "projects.read"/);
+  assert.match(route, /moduleId: "social"/);
+  assert.match(route, /capability: "social.metrics.read"/);
+  assert.match(route, /dispatchModuleCapability/);
   assert.match(route, /aiRequests:0,reason:"deterministic_project_status"/);
   assert.match(route, /aiRequests:0,reason:"deterministic_social_metrics"/);
   assert.ok(workerSource.includes(String.raw`replace(/[!؟?.،,\s\u200c]+/gu, "")`));

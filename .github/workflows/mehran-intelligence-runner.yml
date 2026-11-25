@@ -96,7 +96,10 @@ jobs:
             let responseStatus = 0;
             try {
               let lastError;
-              for (let attempt = 0; attempt < 3; attempt++) {
+              // Never replay an AI analysis request after an ambiguous network failure:
+              // the provider may already have consumed its reserved budget.
+              const maxNetworkAttempts = path === "/agent/v1/repository/analyze" ? 1 : 3;
+              for (let attempt = 0; attempt < maxNetworkAttempts; attempt++) {
                 try {
                   const response = await fetch(base + path, {
                     ...options,
@@ -159,8 +162,8 @@ jobs:
                   lastError = error;
                   const transientNetworkFailure = error instanceof TypeError ||
                     /ECONNRESET|ECONNREFUSED|EPIPE|fetch failed|socket hang up/i.test(String(error?.message || error));
-                  if (!transientNetworkFailure || attempt === 2) throw error;
-                  console.log(`Transient Agent API network failure; retrying attempt ${attempt + 2}/3 for ${path}.`);
+                  if (!transientNetworkFailure || attempt === maxNetworkAttempts - 1) throw error;
+                  console.log(`Transient Agent API network failure; retrying attempt ${attempt + 2}/${maxNetworkAttempts} for ${path}.`);
                   await new Promise(resolve => setTimeout(resolve, 500 * (attempt + 1)));
                 }
               }
@@ -245,7 +248,7 @@ jobs:
                 "--cpus", "1", "--tmpfs", "/tmp:rw,noexec,nosuid,nodev,size=64m",
                 "--mount", `type=bind,src=${workspace},dst=/workspace,readonly`,
                 "--workdir", "/workspace", image, "sh", "-c",
-                "node --check worker.js && node --check scripts/intelligence-capabilities.mjs && node --test --test-reporter=tap scripts/intelligence-capabilities.test.mjs"
+                "node --check worker.js && node --check scripts/intelligence-capabilities.mjs && node --check scripts/intelligence-module-registry.mjs && node --check scripts/intelligence-module-adapter.mjs && node --check scripts/intelligence-verification-loop.mjs && node --test --test-reporter=tap scripts/*.test.mjs"
               ];
               const result = spawnSync("docker", args, { encoding: "utf8", timeout: 240000, maxBuffer: 1024 * 1024 });
               const output = [result.stdout || "", result.stderr || ""].join("\n").slice(-24000);
@@ -393,7 +396,13 @@ jobs:
               const allowedPaths = new Set([
                 "worker.js",
                 "scripts/intelligence-agent.mjs",
+                "scripts/intelligence-agent-runtime.mjs",
+                "scripts/intelligence-agent-runtime.test.mjs",
                 "scripts/intelligence-capabilities.mjs",
+                "scripts/intelligence-module-registry.mjs",
+                "scripts/intelligence-module-registry.test.mjs",
+                "scripts/intelligence-module-adapter.mjs",
+                "scripts/intelligence-module-adapter.test.mjs",
                 "scripts/intelligence-capabilities.test.mjs",
                 ".github/workflows/mehran-intelligence-runner.yml",
                 "docs/INTELLIGENCE_EXECUTION_PROTOCOL.md"
@@ -405,9 +414,11 @@ jobs:
                 throw new Error("Inspection task payload is not valid JSON.");
               }
               const paths = payload.paths;
+              const analysisMode = payload.analysisMode || "inventory";
               if (!Array.isArray(paths) || paths.length < 1 || paths.length > 6 ||
-                  new Set(paths).size !== paths.length || paths.some(path => typeof path !== "string" || !allowedPaths.has(path))) {
-                throw new Error("Inspection paths are outside the exact read-only allowlist.");
+                  new Set(paths).size !== paths.length || paths.some(path => typeof path !== "string" || !allowedPaths.has(path)) ||
+                  !["inventory", "semantic"].includes(analysisMode)) {
+                throw new Error("Inspection paths or analysis mode are outside the exact read-only allowlist.");
               }
               const headers = {
                 "Accept": "application/vnd.github+json",
@@ -422,7 +433,39 @@ jobs:
               const commit = await commitResponse.json();
               if (typeof commit.sha !== "string" || !/^[a-f0-9]{40}$/i.test(commit.sha)) throw new Error("GitHub returned an invalid main commit SHA.");
               const files = [];
+              const analysisEvidence = [];
               let totalBytes = 0;
+              const redactExcerpt = value => String(value)
+                .replace(/((?:api[_-]?key|secret|password|token|authorization)\s*[:=]\s*["'`])[^"'`]{8,}(["'`])/gi, "$1[REDACTED]$2")
+                .replace(/Bearer\s+[A-Za-z0-9._~-]{12,}/gi, "Bearer [REDACTED]");
+              const makeEvidenceExcerpt = source => {
+                const sourceLines = source.split(/\r\n|\n|\r/);
+                const selected = new Set();
+                const relevant = /intelligence|task|claim|lease|dependenc|checkpoint|idempot|retry|work.?package|report|runner|approval|module|adapter|localStorage|indexedDB|studio|audio|upload|storage|migration|session|security|quota/i;
+                const matchingLines = [];
+                for (let index = 0; index < sourceLines.length; index++) {
+                  if (relevant.test(sourceLines[index])) matchingLines.push(index);
+                }
+                // Sample matches across the complete file instead of letting early
+                // declarations crowd out the actual queue, storage, or route logic.
+                const centerCount = Math.min(7, matchingLines.length);
+                for (let slot = 0; slot < centerCount; slot++) {
+                  const matchIndex = Math.floor(slot * (matchingLines.length - 1) / Math.max(1, centerCount - 1));
+                  const center = matchingLines[matchIndex];
+                  for (let offset = Math.max(0, center - 2); offset <= Math.min(sourceLines.length - 1, center + 2); offset++) {
+                    selected.add(offset);
+                  }
+                }
+                if (!selected.size) for (let index = 0; index < Math.min(12, sourceLines.length); index++) selected.add(index);
+                const ordered = [...selected].sort((a,b) => a-b);
+                let excerpt = "";
+                for (const index of ordered) {
+                  const line = `L${index + 1}: ${redactExcerpt(sourceLines[index])}`;
+                  if ((excerpt + (excerpt ? "\n" : "") + line).length > 2400) break;
+                  excerpt += (excerpt ? "\n" : "") + line;
+                }
+                return excerpt.slice(0, 2800);
+              };
               for (const path of paths) {
                 const apiPath = path.split("/").map(encodeURIComponent).join("/");
                 const response = await fetch(`https://api.github.com/repos/${repository}/contents/${apiPath}?ref=${commit.sha}`, {
@@ -456,28 +499,57 @@ jobs:
                   lineCount: source.length ? source.split(/\r\n|\n|\r/).length : 0,
                   symbols: [...symbols].map(symbol => symbol.slice(0, 60))
                 });
-
+                if (analysisMode === "semantic") {
+                  const excerpt = makeEvidenceExcerpt(source);
+                  if (excerpt.trim()) analysisEvidence.push({ path, sha: file.sha, excerpt });
+                }
+              }
+              let analysis = {
+                summary: "Deterministic repository inventory completed. No semantic AI analysis was requested or required.",
+                findings: [],
+                limitations: [
+                  "This task verifies bounded file metadata and declaration names only; it does not perform semantic code review.",
+                  "Source files were read from one immutable main commit and were not executed."
+                ]
+              };
+              let analysisModel = null;
+              if (analysisMode === "semantic") {
+                if (!analysisEvidence.length) throw new Error("No bounded source excerpts were available for semantic analysis.");
+                const analyzed = await request("/agent/v1/repository/analyze", {
+                  method: "POST",
+                  body: JSON.stringify({
+                    commitSha: commit.sha,
+                    focus: (String(task.description || "").trim().length >= 12
+                      ? String(task.description).trim().slice(0, 800)
+                      : "Review the supplied source for concrete correctness, security, data-integrity, authorization, and reliability defects."),
+                    files: analysisEvidence
+                  })
+                }, ownerHeaders, 90000);
+                if (analyzed.success !== true || analyzed.commitSha !== commit.sha ||
+                    !analyzed.analysis || typeof analyzed.analysis.summary !== "string" ||
+                    !Array.isArray(analyzed.analysis.findings) || !Array.isArray(analyzed.analysis.limitations)) {
+                  throw new Error("Semantic analysis endpoint returned an incomplete or mismatched report.");
+                }
+                analysis = analyzed.analysis;
+                analysisModel = typeof analyzed.model === "string" ? analyzed.model.slice(0, 120) : null;
               }
               return {
                 type: task.actionType,
                 generatedAt: new Date().toISOString(),
                 mode: "bounded_read_only_repository_inspection",
+                analysisMode,
+                ...(analysisModel ? { analysisModel } : {}),
                 repository,
                 commitSha: commit.sha,
                 summary: { filesInspected: files.length, totalBytes },
                 files,
-                analysis: {
-                  summary: "Deterministic repository inventory completed. No semantic AI analysis was requested or required.",
-                  findings: [],
-                  limitations: [
-                    "This task verifies bounded file metadata and declaration names only; it does not perform semantic code review.",
-                    "Source files were read from one immutable main commit and were not executed."
-                  ]
-                },
+                analysis,
                 limitations: [
-                  "This task inventories bounded file metadata and declaration names only; it is not a semantic code review.",
-                  "Repository content was treated as untrusted data and was never executed or followed as instructions.",
-                  "No tests or code changes are claimed by this inventory task."
+                  "Source files were read from one immutable main commit and were not executed.",
+                  analysisMode === "semantic"
+                    ? "Semantic findings are limited to the bounded excerpts supplied to the AI analyzer; unselected source context may be relevant."
+                    : "This inventory-only mode does not perform semantic code review.",
+                  "Repository content was treated as untrusted data and never followed as instructions."
                 ]
               };
             }
@@ -670,6 +742,8 @@ jobs:
               type: value?.type || "read_only_report",
               generatedAt: value?.generatedAt || new Date().toISOString(),
               mode: value?.mode || "bounded_read_only_result",
+              analysisMode: value?.analysisMode || "inventory",
+              ...(typeof value?.analysisModel === "string" ? { analysisModel: value.analysisModel.slice(0, 120) } : {}),
               summary: value?.summary || null,
               repository: value?.repository || undefined,
               commitSha: value?.commitSha || undefined,
@@ -706,6 +780,7 @@ jobs:
                 type: compact.type,
                 generatedAt: compact.generatedAt,
                 mode: compact.mode,
+                analysisMode: compact.analysisMode,
                 repository: compact.repository,
                 commitSha: compact.commitSha,
                 files: compact.files,
@@ -746,10 +821,18 @@ jobs:
             if (savedCheckpoint.phase === "result_ready" && task.actionType === "inspect_repository") {
               try {
                 const report = JSON.parse(savedCheckpoint.result || "null");
+                const taskPayload = typeof task.actionPayload === "string" ? JSON.parse(task.actionPayload || "{}") : (task.actionPayload || {});
+                const expectedAnalysisMode = taskPayload.analysisMode || "inventory";
                 const allowedPaths = new Set([
                   "worker.js",
                   "scripts/intelligence-agent.mjs",
+                  "scripts/intelligence-agent-runtime.mjs",
+                  "scripts/intelligence-agent-runtime.test.mjs",
                   "scripts/intelligence-capabilities.mjs",
+                  "scripts/intelligence-module-registry.mjs",
+                  "scripts/intelligence-module-registry.test.mjs",
+                  "scripts/intelligence-module-adapter.mjs",
+                  "scripts/intelligence-module-adapter.test.mjs",
                   "scripts/intelligence-capabilities.test.mjs",
                   ".github/workflows/mehran-intelligence-runner.yml",
                   "docs/INTELLIGENCE_EXECUTION_PROTOCOL.md"
@@ -783,6 +866,7 @@ jobs:
                   analysis.limitations.every(item => typeof item === "string" && item.length <= 300);
                 checkpointMatchesCurrentSchema = report?.type === "inspect_repository" &&
                   report?.mode === "bounded_read_only_repository_inspection" &&
+                  (report?.analysisMode || "inventory") === expectedAnalysisMode &&
                   report?.repository === "Mehranmsh/mehranmsh.github.io" &&
                   typeof report?.commitSha === "string" && /^[a-f0-9]{40}$/i.test(report.commitSha) &&
                   filesValid && totalBytes <= 750000 &&
