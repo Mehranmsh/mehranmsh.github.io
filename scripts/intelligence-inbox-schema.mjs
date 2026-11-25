@@ -27,6 +27,7 @@ export function validatePrivateIntelligenceMission(mission) {
   }
   if (mission.schema_version !== 1) reasons.push("schema_version_mismatch");
   if (mission.status !== "pending_ingestion") reasons.push("status_mismatch");
+  if (mission.analysis_mode !== undefined && !["inventory", "semantic"].includes(mission.analysis_mode)) reasons.push("analysis_mode_invalid");
   if (typeof mission.mission_id !== "string" ||
       !/^[a-z0-9][a-z0-9-]{7,100}$/i.test(mission.mission_id)) {
     reasons.push("mission_id_invalid");
