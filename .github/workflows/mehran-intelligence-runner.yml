@@ -746,7 +746,7 @@ jobs:
                 regressionTests: Array.isArray(item?.regressionTests) ? item.regressionTests.slice(0, 3).map(item => String(item).slice(0, 180)) : []
               })) : [],
               limitations: Array.isArray(value.analysis.limitations) ? value.analysis.limitations.slice(0, 3).map(item => String(item).slice(0, 180)) : []
-            } : { summary: "Semantic analysis unavailable after bounded serialization.", findings: [], limitations: ["Original analysis payload was absent."] };
+            } : { summary: "Deterministic source inventory completed; semantic analysis was not requested.", findings: [], limitations: ["Original analysis payload was absent."] };
             const compact = {
               type: value?.type || "read_only_report",
               generatedAt: value?.generatedAt || new Date().toISOString(),
@@ -792,7 +792,7 @@ jobs:
                 files: compact.files,
                 summary: compact.summary,
                 analysis: {
-                  summary: String(compactAnalysis.summary || "Semantic findings were compacted to fit the result limit.").slice(0, 700),
+                  summary: String(compactAnalysis.summary || "Deterministic inventory summary was compacted to fit the result limit.").slice(0, 700),
                   findings: [],
                   limitations: ["Findings omitted only to satisfy the bounded task-result size."]
                 },
