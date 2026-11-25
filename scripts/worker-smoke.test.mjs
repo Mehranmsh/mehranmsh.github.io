@@ -494,10 +494,7 @@ test("patch proposal task reports are independently verified and bound to privat
 });
 
 test("Agent runner verifies durable result checkpoint digests before resuming work", () => {
-  assert.match(runnerSource, /checkpointResult\.length > 0/);
-  assert.match(runnerSource, /checkpointResult\.length <= 3000/);
-  assert.match(runnerSource, /checkpointDigest\) &&/);
-  assert.match(runnerSource, /createHash\("sha256"\)\.update\(checkpointResult\)\.digest\("hex"\) === checkpointDigest/);
+  assert.match(runnerSource, /const integrity = verifyIntelligenceResultCheckpoint\(savedCheckpoint, \{ maxResultChars: 3000 \}\)/);
   assert.match(runnerSource, /checkpointMatchesCurrentSchema = checkpointMatchesCurrentSchema &&/);
   assert.match(runnerSource, /Ignoring result checkpoint whose content digest is missing or invalid/);
   assert.match(runnerSource, /import \{ verifyIntelligenceResultCheckpoint \} from "\.\/scripts\/intelligence-checkpoint\.mjs"/);
