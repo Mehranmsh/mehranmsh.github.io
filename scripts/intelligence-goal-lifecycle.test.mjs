@@ -65,7 +65,7 @@ test("is deterministic, bounded, and leaves all input records unchanged", () => 
   const proposals = [task("a"), task("b")];
   const events = [event("done", "a", "completed")];
   const before = structuredClone({ records, proposals, events });
-  const options = { ownerUid: "owner-a", maxItems: 1 };
+  const options = { ownerUid: "owner-a", actorUid: "owner-a", maxItems: 1 };
   const first = buildIntelligenceGoalLifecycle(records, proposals, events, options);
   const second = buildIntelligenceGoalLifecycle(records, proposals, events, options);
   assert.deepEqual(first, second);
