@@ -83,6 +83,9 @@ jobs:
       - name: Run Intelligence retry policy tests
         run: node --check scripts/intelligence-retry-policy.mjs && node --test scripts/intelligence-retry-policy.test.mjs
 
+      - name: Run Intelligence checkpoint integrity tests
+        run: node --check scripts/intelligence-checkpoint.mjs && node --test scripts/intelligence-checkpoint.test.mjs
+
       - name: Run Intelligence answer quality gate tests
         run: node --check scripts/intelligence-answer-quality.mjs && node --test scripts/intelligence-answer-quality.test.mjs
 
