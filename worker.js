@@ -7946,6 +7946,29 @@ export default {
           if (!Number(updated?.meta?.changes || 0)) return error("Notification lease changed before acknowledgement.",409);
           return json({success:true,status:finalStatus},200);
         }
+        if (path === "/agent/v1/work-packages/scope-diagnostics" && method === "GET") {
+          // Aggregate-only owner diagnostic: never return package IDs, task payloads, scope contents, or secrets.
+          const diagnostics = await env.DB.prepare(
+            "SELECT status,COUNT(*) AS package_count,SUM(CASE WHEN json_type(CASE WHEN json_valid(scope_json) THEN scope_json ELSE '{}' END,'$.allowedActions')='array' AND json_array_length(CASE WHEN json_valid(scope_json) THEN scope_json ELSE '{}' END,'$.allowedActions') BETWEEN 1 AND 6 AND NOT EXISTS (SELECT 1 FROM json_each(CASE WHEN json_valid(scope_json) THEN scope_json ELSE '{}' END,'$.allowedActions') a WHERE a.type!='text' OR a.value NOT IN ('service_health_report','repository_quality_check','source_security_audit','inspect_repository','run_repository_tests','propose_code_patch')) AND (SELECT COUNT(DISTINCT value) FROM json_each(CASE WHEN json_valid(scope_json) THEN scope_json ELSE '{}' END,'$.allowedActions'))=json_array_length(CASE WHEN json_valid(scope_json) THEN scope_json ELSE '{}' END,'$.allowedActions') THEN 1 ELSE 0 END) AS explicitly_authorized_count FROM intelligence_work_packages GROUP BY status ORDER BY status LIMIT 20"
+          ).all();
+          const rows = (diagnostics.results || []).map(row => ({
+            status: cleanText(row.status, 40) || "unknown",
+            packageCount: Math.max(0, Number(row.package_count) || 0),
+            explicitlyAuthorizedCount: Math.max(0, Number(row.explicitly_authorized_count) || 0),
+            reviewRequiredCount: Math.max(0, (Number(row.package_count) || 0) - (Number(row.explicitly_authorized_count) || 0))
+          }));
+          return json({
+            success: true,
+            readOnly: true,
+            aggregateOnly: true,
+            packages: {
+              total: rows.reduce((sum, row) => sum + row.packageCount, 0),
+              explicitlyAuthorized: rows.reduce((sum, row) => sum + row.explicitlyAuthorizedCount, 0),
+              reviewRequired: rows.reduce((sum, row) => sum + row.reviewRequiredCount, 0),
+              byStatus: rows
+            }
+          });
+        }
         if (path === "/agent/v1/work-packages/pending-finalization" && method === "GET") {
           const pending = await env.DB.prepare(
             "SELECT id FROM intelligence_work_packages WHERE status IN ('completed','attention_required') AND report_stored_at IS NULL ORDER BY created_at ASC LIMIT 20"
