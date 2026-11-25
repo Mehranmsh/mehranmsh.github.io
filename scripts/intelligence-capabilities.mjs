@@ -84,6 +84,8 @@ export const INTELLIGENCE_CAPABILITIES = Object.freeze({
             "scripts/intelligence-capabilities.mjs",
             "scripts/intelligence-module-registry.mjs",
             "scripts/intelligence-module-registry.test.mjs",
+            "scripts/intelligence-module-adapter.mjs",
+            "scripts/intelligence-module-adapter.test.mjs",
             "scripts/intelligence-capabilities.test.mjs",
             ".github/workflows/mehran-intelligence-runner.yml",
             "docs/INTELLIGENCE_EXECUTION_PROTOCOL.md"
