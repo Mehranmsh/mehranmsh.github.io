@@ -80,6 +80,9 @@ jobs:
       - name: Run Intelligence bounded result serialization tests
         run: node --test scripts/intelligence-result-serializer.test.mjs
 
+      - name: Run Intelligence answer quality gate tests
+        run: node --check scripts/intelligence-answer-quality.mjs && node --test scripts/intelligence-answer-quality.test.mjs
+
       - name: Run Intelligence memory relevance tests
         run: node --check scripts/intelligence-memory-ranking.mjs && node --test scripts/intelligence-memory-ranking.test.mjs
 
