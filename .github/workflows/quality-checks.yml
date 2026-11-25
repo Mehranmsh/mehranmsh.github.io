@@ -85,6 +85,8 @@ jobs:
 
       - name: Run Intelligence security audit pattern regression tests
         run: node --test scripts/intelligence-security-audit-patterns.test.mjs
+      - name: Run Intelligence autonomous verification and repair loop tests
+        run: node --check scripts/intelligence-verification-loop.mjs && node --test scripts/intelligence-verification-loop.test.mjs
 
       - name: Run local Music Studio control-plane tests
         run: python -m unittest discover -s engine -p 'test_*.py' -v
