@@ -3676,7 +3676,12 @@ test("deterministic routine planner refuses to downgrade change requests into re
     "بررسی سلامت سرویس و اصلاح مشکل دیتابیس",
     "ممیزی امنیتی سورس را انجام بده و آسیب‌پذیری‌ها را برطرف کن",
     "Update the repository health dashboard",
-    "پیاده‌سازی بررسی سلامت خودکار"
+    "پیاده‌سازی بررسی سلامت خودکار",
+    "Run a security audit and remediate the vulnerabilities",
+    "Check repository health and resolve the issue",
+    "ممیزی امنیتی را انجام بده و سیستم را ایمن‌سازی کن",
+    "بررسی سلامت سرویس و مشکل را حل کن",
+    "به‌روزرسانی داشبورد سلامت مخزن"
   ];
   for (const mission of missions) {
     assert.equal(buildDeterministicRoutinePlan(mission), null, `change intent must not be downgraded: ${mission}`);
