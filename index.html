@@ -1105,6 +1105,52 @@ input:focus,textarea:focus,select:focus,button:focus-visible,a:focus-visible{out
 }
 @media(prefers-reduced-motion:reduce){#page-social *{scroll-behavior:auto!important;animation:none!important;transition:none!important}}
 </style>
+<style id="mehran-ai-composer-redesign-v2">
+/* MEHRAN AI: quiet, compact composer and a purpose-built attachment popover */
+#page-ai .ai-signin-gate{align-items:center;padding:13px 16px;border:1px solid rgba(91,174,218,.22);border-radius:15px;background:linear-gradient(110deg,rgba(18,46,70,.62),rgba(13,25,42,.9))}
+#page-ai .ai-signin-gate>div strong{font-size:13px;color:#e9f6ff}
+#page-ai .ai-guest-label{flex:0 0 auto;color:#75c9df;font-size:9px;font-weight:800;letter-spacing:1px}
+#page-ai .assistant-composer-wrap{position:relative;margin-top:14px}
+#page-ai .assistant-composer{display:flex;align-items:center;gap:9px;padding:8px;border:1px solid #29445f;border-radius:19px;background:linear-gradient(145deg,#101e30,#0b1523);box-shadow:0 10px 28px rgba(0,0,0,.18);transition:border-color .2s,box-shadow .2s}
+#page-ai .assistant-composer:focus-within{border-color:#3d83a5;box-shadow:0 0 0 3px rgba(58,164,205,.09),0 12px 30px #0003}
+#page-ai .assistant-composer>input{flex:1;min-width:0;height:44px;border:0!important;outline:0!important;background:transparent!important;box-shadow:none!important;padding:0 8px!important;color:#eef7ff!important;font-size:14px!important}
+#page-ai .assistant-composer>input::placeholder{color:#7188a1}
+#page-ai .assistant-attach-wrap{position:relative;flex:0 0 auto}
+#page-ai .assistant-attach-btn{display:grid;place-items:center;width:43px;height:43px;border:1px solid #2c4963;border-radius:14px;background:#14263a;color:#8fdcf0;font-size:0;cursor:pointer;transition:background .18s,border-color .18s,transform .18s}
+#page-ai .assistant-attach-btn svg{width:19px;height:19px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round}
+#page-ai .assistant-attach-btn:hover,#page-ai .assistant-attach-btn[aria-expanded=true]{background:#193c55;border-color:#4b9bb8;transform:translateY(-1px)}
+#page-ai .assistant-attach-menu{position:absolute;z-index:40;left:0;bottom:55px;width:min(330px,calc(100vw - 48px));padding:12px;border:1px solid #294b66;border-radius:19px;background:linear-gradient(155deg,#172b40,#0c1726 82%);box-shadow:0 22px 60px rgba(0,0,0,.55);backdrop-filter:blur(18px)}
+#page-ai .assistant-attach-menu-head{display:flex;align-items:center;gap:11px;padding:4px 4px 13px}
+#page-ai .assistant-attach-menu-head>span:last-child{display:grid;gap:3px}
+#page-ai .assistant-attach-menu-head strong{font-size:13px;color:#f0f7ff}
+#page-ai .assistant-attach-menu-head small{font-size:10px;color:#8da6bf}
+#page-ai .assistant-attach-menu-mark{display:grid;place-items:center;width:37px;height:37px;border:1px solid #315b76;border-radius:12px;background:#16364c;color:#8be5f4;font-size:18px}
+#page-ai .assistant-attach-option{display:flex;align-items:center;gap:12px;width:100%;padding:11px;border:1px solid #263f56;border-radius:14px;background:rgba(19,42,62,.72);color:#edf7ff;text-align:left;cursor:pointer;transition:background .18s,border-color .18s}
+#page-ai .assistant-attach-option:hover{background:#1a3a52;border-color:#4383a2}
+#page-ai .assistant-attach-option>span:nth-child(2){display:grid;gap:4px;flex:1;min-width:0}
+#page-ai .assistant-attach-option strong{font-size:12px}
+#page-ai .assistant-attach-option small{font-size:10px;line-height:1.45;color:#91a9c0}
+#page-ai .assistant-attach-icon{display:grid;place-items:center;width:40px;height:40px;flex:0 0 40px;border-radius:12px;background:#193d56;color:#8edcf0}
+#page-ai .assistant-attach-icon svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}
+#page-ai .assistant-attach-arrow{color:#83a6bd;font-size:23px}
+#page-ai .assistant-attach-menu-foot{padding:11px 3px 1px;color:#6f8aa4;font-size:9px;line-height:1.55}
+#page-ai .assistant-attachment-preview{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 9px}
+#page-ai .assistant-file-chip{display:flex;align-items:center;gap:9px;max-width:min(100%,320px);padding:8px 11px;border:1px solid #31536c;border-radius:13px;background:#132b40;color:#e9f6ff;font-size:11px}
+#page-ai .assistant-file-chip .file-kind{display:grid;place-items:center;width:27px;height:27px;border-radius:9px;background:#1b4960;color:#8ce5f2}
+#page-ai .assistant-file-chip .file-name{max-width:210px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#page-ai .assistant-file-chip button{width:25px;height:25px;border:0;border-radius:8px;background:#26384a;color:#b8c9d8;font-size:17px;cursor:pointer}
+#page-ai .assistant-attach-note{margin:8px 4px 0;color:#718ba4;font-size:10px;line-height:1.55}
+#page-ai .assistant-attachment-preview[hidden],#page-ai .assistant-attach-menu[hidden]{display:none!important}
+#page-ai #assistantSendBtn{min-width:76px;border-radius:13px}
+@media(max-width:560px){
+ #page-ai .assistant-composer{gap:6px;padding:6px}
+ #page-ai .assistant-composer>input{font-size:13px!important;padding:0 4px!important}
+ #page-ai .assistant-attach-btn{width:40px;height:40px}
+ #page-ai #assistantSendBtn{min-width:62px;padding:10px 11px}
+ #page-ai .assistant-attach-menu{width:min(310px,calc(100vw - 34px))}
+ #page-ai .ai-guest-label{font-size:8px}
+}
+</style>
 </head>
 <body>
 <div class="app">
@@ -1335,15 +1381,20 @@ input:focus,textarea:focus,select:focus,button:focus-visible,a:focus-visible{out
 <button type="button" class="ai-nav-btn" data-ai-view="studios" onclick="switchAIView('studios')">✧ Creative Studios</button>
 </div>
 <div class="ai-view active" id="social-ai"><div class="ai-chat-shell"><div class="ai-chat-topline"><div><span class="ai-live-mark"></span><span>PRIVATE AI SESSION</span></div><span class="ai-model-label">MEHRAN INTELLIGENCE</span></div><div class="ai-signin-gate" id="aiSignInGate" hidden>
-<div><strong>Sign in to use MEHRAN AI</strong><p class="small-text">Your private AI conversations use the same secure account as SOCIAL.</p></div>
-<button class="btn small" type="button" onclick="mehranAIRequestSignIn()">Sign in</button>
+<div><strong>Guest workspace</strong><p class="small-text">Prompt Creator and creative tools are open. Private chat history and saved plans are account features.</p></div>
+<span class="ai-guest-label">NO ACCOUNT NEEDED FOR PUBLIC TOOLS</span>
 </div>
 <div class="ai-quick-start" aria-label="Quick AI tasks"><span class="ai-quick-label">START WITH</span><div class="ai-quick-grid"><button type="button" onclick="mehranAIStartTask('write')"><span>✎</span><strong>Write</strong></button><button type="button" onclick="mehranAIStartTask('explain')"><span>⌘</span><strong>Explain</strong></button><button type="button" onclick="mehranAIStartTask('code')"><span>⌁</span><strong>Code</strong></button><button type="button" onclick="mehranAIStartTask('analyze')"><span>◫</span><strong>Analyze</strong></button><button type="button" onclick="mehranAIStartTask('plan')"><span>☷</span><strong>Plan</strong></button><button type="button" onclick="mehranAIStartTask('ideas')"><span>✧</span><strong>Ideas</strong></button></div></div>
 <div class="ai-chat-controls"><div class="ai-provider-control"><span>MODEL</span><select id="assistantProviderSelect"><option value="central">Auto</option><option value="openai">OpenAI</option><option value="gemini">Gemini</option><option value="cloudflare">Cloudflare AI</option><option value="groq">Groq</option></select></div><p id="assistantStatus" class="ai-status-line">Connecting…</p></div><div id="assistantProviderStatus" class="ai-provider-status small-text" style="margin:0 0 8px"></div><div id="assistantMessages" class="social-card" style="min-height:180px;max-height:420px;overflow:auto;margin:12px 0"><div class="empty">Your MEHRAN AI conversation will appear here.</div></div><div class="assistant-composer-wrap">
 <div id="assistantAttachmentPreview" class="assistant-attachment-preview" hidden></div>
 <div class="assistant-composer">
-<div class="assistant-attach-wrap"><button type="button" class="assistant-attach-btn" id="assistantAttachBtn" aria-label="Attach media" aria-expanded="false" title="Attach image, audio, video or file" onclick="socialToggleAttachMenu()">＋</button>
-<div class="assistant-attach-menu" id="assistantAttachMenu" hidden><div class="assistant-attach-heading">Add an image</div><button type="button" class="assistant-attach-option" onclick="socialChooseAssistantFile('image')"><span class="assistant-attach-icon image">▧</span><span><strong>Photo or image</strong><small>Choose from your device</small></span><b>＋</b></button></div></div>
+<div class="assistant-attach-wrap">
+<button type="button" class="assistant-attach-btn" id="assistantAttachBtn" aria-label="Add an image" aria-expanded="false" title="Add image" onclick="socialToggleAttachMenu()"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button>
+<div class="assistant-attach-menu" id="assistantAttachMenu" hidden>
+<div class="assistant-attach-menu-head"><span class="assistant-attach-menu-mark">✦</span><span><strong>Add to your message</strong><small>Give MEHRAN AI more context</small></span></div>
+<button type="button" class="assistant-attach-option" onclick="socialChooseAssistantFile('image')"><span class="assistant-attach-icon image"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="4" width="17" height="16" rx="3"/><circle cx="9" cy="10" r="1.7"/><path d="m5 17 5-5 3 3 2-2 4 4"/></svg></span><span><strong>Photo or image</strong><small>JPG, PNG, WEBP or GIF · up to 20 MB</small></span><span class="assistant-attach-arrow">›</span></button>
+<div class="assistant-attach-menu-foot">Image understanding is available when a compatible AI model is connected.</div>
+</div></div>
 <input id="assistantInput" maxlength="4000" placeholder="Message MEHRAN AI..." autocomplete="off"><button class="btn" id="assistantSendBtn">Send</button></div>
 <input class="assistant-hidden-file" id="assistantImageFile" type="file" accept="image/jpeg,image/png,image/webp,image/gif" onchange="socialPickAssistantFiles(event,'image')">
 <input class="assistant-hidden-file" id="assistantAudioFile" type="file" accept="audio/*" multiple onchange="socialPickAssistantFiles(event,'audio')">
@@ -1709,7 +1760,6 @@ function mehranAIStartTask(kind){
   ideas:"Help me brainstorm original, practical ideas for this topic. Group them by direction and briefly evaluate their strengths and challenges:\n\n"
  };
  const input=$("assistantInput");
- if(!socialUser){mehranAIRequestSignIn();return;}
  if(!input)return;
  input.value=starters[kind]||"Help me with this task:\n\n";
  input.focus();
@@ -4004,7 +4054,7 @@ function socialShowAssistantError(error){
 async function socialSendAssistantMessage(){
  const input=$("assistantInput"),send=$("assistantSendBtn"),content=input.value.trim(),provider=socialSelectedAIProvider();
  if(!content&&!socialAssistantPendingFiles.length)return;
- if(!socialUser)return;
+ if(!socialUser){mehranAIRequestSignIn();return;}
  const pending=[...socialAssistantPendingFiles];
  if(pending.some(item=>item.kind!=="image")){toast("Image analysis is enabled first. Audio, video and documents are not connected yet.");return;}
  if(pending.some(item=>!["image/jpeg","image/png","image/webp","image/gif"].includes(item.file.type))){toast("Choose JPG, PNG, WEBP or GIF images.");return;}
