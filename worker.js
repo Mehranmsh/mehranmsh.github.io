@@ -5995,7 +5995,7 @@ export function validateIntelligenceWorkPackage(input) {
 }
 
 async function reserveIntelligenceMissionGeneratorSlot(env, cycleKey, packageId) {
-  if (typeof cycleKey !== "string" || !/^\\d{8}T\\d{4}$/.test(cycleKey) ||
+  if (typeof cycleKey !== "string" || !/^\d{8}T\d{4}$/.test(cycleKey) ||
       typeof packageId !== "string" || !/^[0-9a-f-]{36}$/i.test(packageId)) {
     return { reserved: false, reason: "invalid_reservation_input" };
   }
@@ -7931,7 +7931,9 @@ export default {
         if (path === "/agent/v1/missions/generate" && method === "POST") {
           const body = await readBody(request);
           const cycleKey = cleanText(body?.cycleKey, 32);
-          if (!/^\\d{8}T\\d{4}$/.test(cycleKey)) return error("A valid UTC 15-minute cycle key is required.", 400);
+          const cycleMatch = /^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})$/.exec(cycleKey);
+          const cycleDate = cycleMatch ? new Date(Date.UTC(Number(cycleMatch[1]), Number(cycleMatch[2]) - 1, Number(cycleMatch[3]), Number(cycleMatch[4]), Number(cycleMatch[5]))) : null;
+          if (!cycleMatch || !cycleDate || cycleDate.toISOString().replace(/[^0-9T]/g, "").slice(0, 13) !== cycleKey || Number(cycleMatch[5]) % 15 !== 0) return error("A valid UTC 15-minute cycle key is required.", 400);
           const packageId = crypto.randomUUID();
           const mission = "service health check, repository quality check, and source security audit";
           const idempotencyKey = "mission-generator:" + cycleKey;
