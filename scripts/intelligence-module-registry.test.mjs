@@ -58,7 +58,7 @@ test("manifest validation rejects duplicate, malformed and excessive inputs", ()
   assert.equal(discoverModuleManifest({ ...base, dependencies: ["platform_auth", "platform_auth"] }).code, "duplicate_manifest_entry");
   assert.equal(discoverModuleManifest({ ...base, capabilities: ["*"] }).code, "invalid_capabilities");
   assert.equal(discoverModuleManifest({ ...base, version: "../latest" }).code, "invalid_module_version");
-  assert.equal(discoverModuleManifest({ ...base, id: "bad" }).code, "invalid_module_id");
+  assert.equal(discoverModuleManifest({ ...base, id: "x" }).code, "invalid_module_id");
 });
 
 test("write-like capabilities require an explicit approval flag", () => {
