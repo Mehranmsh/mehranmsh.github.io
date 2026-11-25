@@ -9,7 +9,7 @@ on:
     paths:
       - ".github/workflows/mehran-intelligence-runner.yml"
   schedule:
-    - cron: "*/5 * * * *"
+    - cron: "*/15 * * * *"
   workflow_dispatch:
 
 permissions:
@@ -178,111 +178,8 @@ jobs:
             // Telemetry must never block mission execution during a rolling Worker deployment.
             console.log("Runner start telemetry temporarily unavailable; continuing work: " + String(error?.message || error).slice(0,160));
           }
-          // Seed one bounded read-only baseline inspection. Its immutable commit key avoids duplicate packages
-          // while ensuring the AI planner has real, immutable repository evidence to analyze.
-          const packageIds = new Set();
-          let selfImprovementPackageId = "";
-          if (orchestratorToken.length >= 40 && orchestratorToken.length <= 200) {
-            try {
-              const created = await request("/agent/v1/work-packages", {
-                method: "POST",
-                body: JSON.stringify({
-                  idempotencyKey: `mehran-intelligence-repo-inspection-v2-${baseSha}`,
-                  title: "MEHRAN INTELLIGENCE first bounded repository inspection",
-                  objective: "Inspect the bounded core execution architecture and preserve verified evidence for the first self-improvement assessment.",
-                  priority: "normal",
-                  scope: {
-                    mode: "read_only",
-                    mission: "Inspect six explicitly allowlisted core files at one immutable main commit.",
-                    allowedActions: ["inspect_repository"],
-                    forbidden: ["source_changes", "deployment", "secret_access", "wallet_operations", "arbitrary_shell"]
-                  },
-                  tasks: [{
-                    taskId: "inspect-core",
-                    title: "Inspect MEHRAN INTELLIGENCE core files",
-                    description: "Read exact allowlisted source files from one immutable main commit and return bounded file metadata and declaration inventory for private review.",
-                    actionType: "inspect_repository",
-                    dependsOn: [],
-                    paths: [
-                      "worker.js",
-                      "scripts/intelligence-agent.mjs",
-                      "scripts/intelligence-capabilities.mjs",
-                      "scripts/intelligence-capabilities.test.mjs",
-                      ".github/workflows/mehran-intelligence-runner.yml",
-                      "docs/INTELLIGENCE_EXECUTION_PROTOCOL.md"
-                    ]
-                  }]
-                })
-              }, ownerHeaders, 30000);
-              if (created.workPackageId) packageIds.add(created.workPackageId);
-              console.log(`Baseline inspection package: ${created.status || "unknown"}; duplicate=${Boolean(created.duplicate)}; tasks=${created.taskCount || 0}`);
-            } catch (error) {
-              console.log("Baseline inspection seeding failed closed: " + String(error?.message || error).slice(0,240));
-            }
-          }
-
-          // Re-evaluate the owner-defined self-improvement mission on every immutable commit, including after Worker planner fixes.
-          // The Workers AI planner may decompose it only into server-allowlisted actions.
-          // If AI planning is unavailable, fail visibly instead of disguising a fallback as AI work.
-          if (orchestratorToken.length >= 40 && orchestratorToken.length <= 200) {
-            try {
-              const planned = await request("/agent/v1/missions/plan", {
-                method: "POST",
-                body: JSON.stringify({
-                  idempotencyKey: `mehran-intelligence-self-improvement-v3-${baseSha}`,
-                  mission: "MEHRAN INTELLIGENCE: perform the first evidence-based self-assessment. Inspect the bounded core execution architecture, verify the existing fixed capability test suite and deterministic security controls, identify the most important gaps between the current executor and a professional autonomous company assistant, and produce a prioritized, staged self-improvement plan. Prefer practical capabilities for mission understanding, research, multi-step execution, durable learning from completed work, and safe self-improvement. Do not claim capabilities that do not exist. Any code change must remain a private proposal for owner review; never modify source, create branches or pull requests, merge, deploy, access secrets, or perform wallet/financial actions.",
-                  allowDeterministicFallback: true
-                })
-              }, ownerHeaders, 90000);
-              const plannedId = planned.workPackageId || "";
-              if (plannedId) selfImprovementPackageId = plannedId;
-              if (plannedId) packageIds.add(plannedId);
-              console.log(`Self-improvement mission: ${planned.status || "unknown"}; duplicate=${Boolean(planned.duplicate)}; tasks=${planned.taskCount || 0}; planner=${planned.duplicate ? "not_invoked_duplicate" : (planned.planner?.provider || (planned.plannerUnavailable ? "unavailable" : "not_reported"))}; reason=${planned.reason || "none"}; detail=${String(planned.error || "").slice(0,180)}`);
-              if (planned.plannerUnavailable) {
-                console.log("Self-improvement mission was not created because AI planning is unavailable; no deterministic result is presented as AI analysis.");
-              }
-            } catch (error) {
-              const diagnostic = String(error?.message || error).slice(0, 300);
-              console.log(`Self-improvement mission planning unavailable for this tick; continuing with eligible queued tasks: ${diagnostic}`);
-            }
-          } else {
-            console.log("Self-improvement mission skipped: owner orchestration identity is unavailable. Existing eligible tasks may still run.");
-          }
-
-          // Queue one immutable fixed-suite test mission per main commit. The idempotency key
-          // prevents repeated five-minute runner ticks from duplicating the same test.
-          if (orchestratorToken.length >= 40 && orchestratorToken.length <= 200) {
-            try {
-              const seeded = await request("/agent/v1/work-packages", {
-                method: "POST",
-                body: JSON.stringify({
-                  idempotencyKey: `mehran-intelligence-fixed-tests-v2-${baseSha}`,
-                  title: "MEHRAN INTELLIGENCE isolated repository test",
-                  objective: "Run the one fixed Intelligence policy test suite against this immutable main commit inside a no-network, read-only, resource-limited container.",
-                  priority: "normal",
-                  scope: {
-                    mode: "isolated_ci",
-                    mission: "Execute only scripts/intelligence-capabilities.test.mjs at the exact main commit.",
-                    allowedActions: ["run_repository_tests"],
-                    forbidden: ["arbitrary_commands", "network_access_in_container", "repository_writes", "secret_access", "deployment", "wallet_operations"]
-                  },
-                  tasks: [{
-                    taskId: "fixed-tests",
-                    title: "Run the fixed isolated Intelligence test suite",
-                    description: "Verify the exact immutable main commit is an ancestor of this runner's main checkout, then execute only the fixed Node test file in the pinned no-network read-only container. Return bounded test counts and container-policy evidence.",
-                    actionType: "run_repository_tests",
-                    dependsOn: [],
-                    baseSha
-                  }]
-                })
-              }, ownerHeaders, 30000);
-              if (seeded.workPackageId) packageIds.add(seeded.workPackageId);
-              console.log(`Fixed test package: ${seeded.status || "unknown"}; duplicate=${Boolean(seeded.duplicate)}; tasks=${seeded.taskCount || 0}; baseSha=${baseSha.slice(0,12)}`);
-            } catch (error) {
-              console.log("Fixed test package seeding failed closed: " + String(error?.message || error).slice(0,240));
-            }
-          }
-
+          // Automatic baseline, AI self-improvement, and fixed-test package seeding is intentionally disabled.
+          // This runner now processes only explicitly queued, approved work packages.
           function runHost(command, args, timeoutMs = 30000) {
             const result = spawnSync(command, args, { encoding: "utf8", timeout: timeoutMs, maxBuffer: 1024 * 1024 });
             if (result.error) throw new Error(`${command} failed: ${String(result.error.message || result.error).slice(0,160)}`);
@@ -1115,7 +1012,7 @@ jobs:
 
   create-review-pr-from-verified-patch:
     needs: execute-safe-reports
-    if: needs.execute-safe-reports.result == 'success' && !contains(github.event.head_commit.message, '[read-only-wake]')
+    if: false # Owner-approved manual review is required; automated PR creation is disabled.
     runs-on: ubuntu-latest
     timeout-minutes: 8
     permissions:
