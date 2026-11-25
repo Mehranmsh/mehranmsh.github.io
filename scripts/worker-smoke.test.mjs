@@ -325,13 +325,31 @@ test("persistent preference governance routes are owner-authenticated, bounded, 
 test("Intelligence preference governance UI uses explicit owner review actions", () => {
   assert.match(indexSource,/id="intelPreferenceProposalForm"/);
   assert.match(indexSource,/id="intelPreferencePendingList"/);
-  assert.match(indexSource,/id="intelPreferenceProfile"/);
+  assert.match(indexSource,/id="intelPreferenceProfile"/);\n  assert.match(indexSource,/id="intelPreferenceFeedbackForm"/);\n  assert.match(indexSource,/api\\("\\/intelligence\\/preferences\\/feedback"/);\n  assert.match(indexSource,/api\\("\\/intelligence\\/preferences\\/review-feedback"/);
   assert.match(indexSource,/api\("\/intelligence\/preferences"/);
   assert.match(indexSource,/api\("\/intelligence\/preferences\/proposals"/);
   assert.match(indexSource,/api\("\/intelligence\/preferences\/decisions"/);
   assert.match(indexSource,/window\.confirm\(/);
   assert.match(indexSource,/explicitConfirmation:true/);
   assert.match(indexSource,/No memory was modified/);
+});
+
+test("owner-confirmed feedback is stored and converted into bounded review proposals without auto-application", () => {
+  const feedback=workerSource.indexOf('if (path === "/intelligence/preferences/feedback" && method === "POST")');
+  const review=workerSource.indexOf('if (path === "/intelligence/preferences/review-feedback" && method === "POST")');
+  const preferences=workerSource.indexOf('if (path === "/intelligence/preferences" && method === "GET")');
+  assert.ok(feedback>=0&&review>feedback&&preferences>review);
+  const routes=workerSource.slice(feedback,preferences);
+  assert.equal((routes.match(/verifyAdmin\\(request, env\\)/g)||[]).length,2);
+  assert.match(routes,/body\.explicitConfirmation !== true/);
+  assert.match(routes,/feedback_confirmed|explicit_confirmation=1/);
+  assert.match(routes,/minimumObservations|observations < 2/);
+  assert.match(routes,/0\.75/);
+  assert.match(routes,/ownerApprovalRequired:true/);
+  assert.match(routes,/preferencesChanged:false,applied:false/);
+  assert.match(workerSource,/CREATE TABLE IF NOT EXISTS intelligence_feedback_records/);
+  assert.match(workerSource,/UNIQUE\(owner_uid,feedback_id\)/);
+  assert.doesNotMatch(routes,/body\.ownerUid|body\.actorUid/);
 });
 
 test("MEHRAN INTELLIGENCE serves exact project and SOCIAL status queries without Workers AI", () => {
