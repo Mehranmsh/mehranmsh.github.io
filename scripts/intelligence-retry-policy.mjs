@@ -1,4 +1,4 @@
-const TRANSIENT_ERROR_PATTERN = /timeout|abort|fetch failed|network|HTTP 5\\d\\d|temporarily unavailable|rate limit|\\b429\\b|connection reset|upstream unavailable/i;
+const TRANSIENT_ERROR_PATTERN = /timeout|abort|fetch failed|network|HTTP 5[0-9]{2}|temporarily unavailable|rate limit|429|connection reset|upstream unavailable/i;
 
 export function planIntelligenceRetry({ attempts = 0, maxAttempts = 3, error = "", now = Date.now(), baseDelaySeconds = 30, maxDelaySeconds = 3600 } = {}) {
   const used = Math.max(0, Number(attempts) || 0);
