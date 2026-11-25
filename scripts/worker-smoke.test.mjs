@@ -349,6 +349,8 @@ test("owner-confirmed feedback is stored and converted into bounded review propo
   assert.match(routes,/minimumObservations|observations < 2/);
   assert.match(routes,/0\.75/);
   assert.match(routes,/ownerApprovalRequired:true/);
+  assert.match(routes,/processed_at IS NULL/);
+  assert.match(routes,/SET processed_at=\?/);
   assert.match(routes,/preferencesChanged:false,applied:false/);
   assert.match(workerSource,/CREATE TABLE IF NOT EXISTS intelligence_feedback_records/);
   assert.match(workerSource,/UNIQUE\(owner_uid,feedback_id\)/);
