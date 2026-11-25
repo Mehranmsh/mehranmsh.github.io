@@ -1,0 +1,51 @@
+name: MEHRAN INTELLIGENCE runner policy validation
+
+on:
+  push:
+    branches:
+      - intelligence/safe-runner-hardening
+    paths:
+      - ".github/workflows/mehran-intelligence-runner.yml"
+      - ".github/workflows/intelligence-runner-policy-check.yml"
+      - "scripts/intelligence-capabilities.test.mjs"
+
+permissions:
+  contents: read
+
+jobs:
+  validate-runner-policy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Check out branch
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - name: Verify runner safeguards
+        run: |
+          node --input-type=module <<'NODE'
+          import { readFileSync } from "node:fs";
+          import assert from "node:assert/strict";
+
+          const source = readFileSync(".github/workflows/mehran-intelligence-runner.yml", "utf8");
+          assert.ok(source.includes('cron: "*/15 * * * *"'), "15-minute polling must be configured");
+          assert.equal(source.includes('cron: "*/5 * * * *"'), false, "five-minute polling must remain disabled");
+
+          for (const key of [
+            "mehran-intelligence-repo-inspection-v2-",
+            "mehran-intelligence-self-improvement-v3-",
+            "mehran-intelligence-fixed-tests-v2-"
+          ]) {
+            assert.equal(source.includes(key), false, "automatic package seeding remains: " + key);
+          }
+
+          assert.ok(source.includes('request("/agent/v1/tasks/next")'),
+            "runner must continue processing explicitly queued tasks");
+          assert.equal(source.includes("create-review-pr-from-verified-patch"), false, "write-capable proposal PR job must be removed");
+          assert.equal(source.includes("contents: write"), false, "runner must not request repository write access");
+          assert.equal(source.includes("pull-requests: write"), false, "runner must not request PR write access");
+          assert.ok(source.split("jobs:")[0].includes("contents: read"), "workflow permissions must remain read-only");
+          console.log("PASS: 15-minute polling, no automatic seed packages, approved-queue processing, PR write job removed, read-only workflow permissions.");
+          NODE
+      - name: Run Intelligence capability regression tests
+        run: node --test --test-reporter=tap scripts/intelligence-capabilities.test.mjs

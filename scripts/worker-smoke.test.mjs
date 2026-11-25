@@ -1302,7 +1302,7 @@ test("owner approval remains the only way to release approval-gated tasks", () =
 test("scheduled Intelligence runner is single-flight, secret-backed and restricted to read-only reports", async () => {
   const runner = await readFile(new URL("../.github/workflows/mehran-intelligence-runner.yml", import.meta.url), "utf8");
   assert.match(runner, /schedule:/);
-  assert.match(runner, /cron: "\*\/5 \* \* \* \*"/);
+  assert.match(runner, /cron: "\*\/15 \* \* \* \*"/, "scheduled runner cadence must be limited to every 15 minutes");
   assert.match(runner, /concurrency:/);
   assert.match(runner, /cancel-in-progress:\s*false/,
     "an active runner must not be cancelled by a later scheduled tick");
@@ -1447,7 +1447,7 @@ test("owner mission intake is admin-gated and records custom missions through bo
 
   assert.match(indexSource, /id="intelMissionForm"/);
   assert.match(indexSource, /api\("\/intelligence\/missions"/);
-  assert.match(runnerSource, /const packageIds = new Set\(\)/);
+  assert.doesNotMatch(runnerSource, /const packageIds = new Set\(\)/, "runner must not seed or collect automatically generated follow-up packages");
   assert.match(runnerSource, /task\?\.workPackageId/);
   assert.match(runnerSource, /for \(const workPackageId of packageIds\)/);
   assert.match(runnerSource, /work-packages\/\$\{encodeURIComponent\(workPackageId\)\}/);

@@ -189,14 +189,10 @@ test("security audit gathers bounded evidence from fixed official research sourc
   assert.match(runnerSource, /fixed official documentation URLs/);
 });
 
-test("completed self-assessment creates one idempotent evidence-driven terminal follow-up", () => {
-  assert.match(runnerSource, /workPackageId === selfImprovementPackageId && finalState\.workPackage\?\.status === "completed" && finalState\.reportStorage\?\.stored === true/);
-  assert.match(runnerSource, /\.slice\(0, 6\)[\s\S]*?result_text[\s\S]*?\.slice\(0, 420\)/);
-  assert.match(runnerSource, /JSON\.stringify\([\s\S]*?tasks: taskEvidence[\s\S]*?\.slice\(0, 1150\)/);
-  assert.match(runnerSource, /idempotencyKey: "mehran-intelligence-self-improvement-evidence-review-v1"/);
-  assert.match(runnerSource, /allowDeterministicFallback: false/);
-  assert.match(runnerSource, /CYCLE 2 \(FINAL, NON-RECURSIVE\)/);
-  assert.match(runnerSource, /Do not create another self-improvement mission or recursive follow-up/);
+test("runner does not create an automatic self-assessment follow-up", () => {
+  assert.doesNotMatch(runnerSource, /selfImprovementPackageId/);
+  assert.doesNotMatch(runnerSource, /mehran-intelligence-self-improvement-evidence-review-v1/);
+  assert.doesNotMatch(runnerSource, /request\("\/agent\/v1\/missions\/plan"/);
 });
 
 test("repository inspection report file-size limits stay aligned across Worker and Runner", () => {
@@ -313,14 +309,15 @@ test("repository inspection is active, pre-authorized, exact-path allowlisted, a
   }).ok, false);
 });
 
-test("private runner seeds one idempotent, bounded repository inspection task", () => {
-  assert.match(runnerSource, /request\("\/agent\/v1\/work-packages"/);
-  assert.match(runnerSource, /mehran-intelligence-repo-inspection-v2-\$\{baseSha\}/);
-  assert.match(runnerSource, /actionType: "inspect_repository"/);
-  assert.match(runnerSource, /"scripts\/intelligence-agent\.mjs"/);
-  assert.match(runnerSource, /"docs\/INTELLIGENCE_EXECUTION_PROTOCOL\.md"/);
-  assert.doesNotMatch(runnerSource, /mehran-intelligence-owner-mission-v1-/);
-  assert.match(runnerSource, /Inspection exceeded the 750 KB aggregate source limit\./);
+test("private runner processes queued work without automatically seeding baseline or test packages", () => {
+  assert.doesNotMatch(runnerSource, /mehran-intelligence-repo-inspection-v2-/);
+  assert.doesNotMatch(runnerSource, /mehran-intelligence-self-improvement-v3-/);
+  assert.doesNotMatch(runnerSource, /mehran-intelligence-fixed-tests-v2-/);
+  assert.match(runnerSource, /request\("\/agent\/v1\/tasks\/next"\)/);
+  assert.match(runnerSource, /Automatic baseline, AI self-improvement, and fixed-test package seeding is intentionally disabled/);
+  assert.ok(runnerSource.includes('cron: "*/15 * * * *"'));
+  assert.doesNotMatch(runnerSource, /create-review-pr-from-verified-patch/);
+  assert.doesNotMatch(runnerSource, /contents: write|pull-requests: write/);
 });
 
 
@@ -1505,9 +1502,10 @@ test("routine missions are routed through the deterministic planner before any A
   assert.ok(workerSource.includes('planner: "deterministic_rules_v1"'));
 });
 
-test("scheduled self-improvement mission gets one fresh idempotency cycle and labels duplicate plans honestly", () => {
-  assert.match(runnerSource, /idempotencyKey: `mehran-intelligence-self-improvement-v3-\$\{baseSha\}`/);
-  assert.match(runnerSource, /planned\.duplicate \? "not_invoked_duplicate"/);
-  assert.match(runnerSource, /planned\.plannerUnavailable \? "unavailable" : "not_reported"/);
+test("runner disables automatic self-improvement planning and proposal PR creation", () => {
+  assert.doesNotMatch(runnerSource, /request\("\/agent\/v1\/missions\/plan"/);
+  assert.doesNotMatch(runnerSource, /mehran-intelligence-self-improvement-v3-/);
+  assert.doesNotMatch(runnerSource, /create-review-pr-from-verified-patch/);
+  assert.doesNotMatch(runnerSource, /contents: write|pull-requests: write/);
 });
 
