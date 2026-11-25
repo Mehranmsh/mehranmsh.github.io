@@ -1580,3 +1580,19 @@ test("bounded repository architecture inventory is routed deterministically with
   assert.ok(workerSource.includes("const deterministicPlan = buildDeterministicRoutinePlan(mission)"));
   assert.ok(workerSource.includes("aiInferenceUsed: false"));
 });
+
+
+test("semantic inspection is explicit, budgeted, redacted, and bound to the immutable task mode", () => {
+  assert.match(workerSource, /mission\.analysis_mode === "semantic" \? "semantic" : "inventory"/);
+  assert.match(workerSource, /analysisMode = actionType === "inspect_repository"/);
+  assert.match(workerSource, /\["inventory", "semantic"\]\.includes\(analysisMode\)/);
+  assert.match(workerSource, /analysisMode: item\.analysisMode \|\| "inventory"/);
+  assert.match(workerSource, /parsedReport\.analysisMode !== expectedAnalysisMode/);
+  assert.match(workerSource, /body\.focus\.length > 800/);
+  assert.match(workerSource, /cloudflareReservation:500/);
+  assert.match(runnerSource, /analysisMode === "semantic"/);
+  assert.match(runnerSource, /Bearer \\[REDACTED\\]/);
+  assert.match(runnerSource, /analysisMode: value\?\.analysisMode \|\| "inventory"/);
+  assert.match(runnerSource, /expectedAnalysisMode = taskPayload\.analysisMode \|\| "inventory"/);
+  assert.match(runnerSource, /report\?\.analysisMode \|\| "inventory"\) === expectedAnalysisMode/);
+});
