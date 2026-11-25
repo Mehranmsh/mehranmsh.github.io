@@ -5512,6 +5512,7 @@ async function ensureIntelligencePreferenceTables(env) {
     )
   `).run();
   await env.DB.prepare("CREATE INDEX IF NOT EXISTS idx_intelligence_preference_decisions_owner ON intelligence_preference_decisions(owner_uid,decided_at)").run();
+  await env.DB.prepare("CREATE UNIQUE INDEX IF NOT EXISTS idx_intelligence_preference_one_decision ON intelligence_preference_decisions(owner_uid,proposal_id)").run();
 }
 
 async function appendIntelligenceChatTurn(env, ownerUid, sessionKey, role, content) {
@@ -9728,6 +9729,7 @@ export default {
         const targetKey = cleanText(body.targetKey, 80).toLowerCase();
         const recommendation = body.recommendation;
         if (!/^[a-z0-9][a-z0-9._:-]{1,79}$/.test(targetKey) ||
+            /(secret|credential|wallet|financial|private|health|identity|password|recovery|mnemonic|seed)/i.test(targetKey) ||
             !["increase_preference","decrease_preference"].includes(recommendation)) {
           return error("Invalid preference proposal.", 400);
         }
