@@ -5513,6 +5513,18 @@ async function ensureIntelligencePreferenceTables(env) {
   `).run();
   await env.DB.prepare("CREATE INDEX IF NOT EXISTS idx_intelligence_preference_decisions_owner ON intelligence_preference_decisions(owner_uid,decided_at)").run();
   await env.DB.prepare("CREATE UNIQUE INDEX IF NOT EXISTS idx_intelligence_preference_one_decision ON intelligence_preference_decisions(owner_uid,proposal_id)").run();
+  await env.DB.prepare(`
+    CREATE TABLE IF NOT EXISTS intelligence_feedback_records(
+      feedback_id TEXT PRIMARY KEY,
+      owner_uid TEXT NOT NULL,
+      target_key TEXT NOT NULL,
+      outcome TEXT NOT NULL CHECK(outcome IN ('accepted','rejected')),
+      explicit_confirmation INTEGER NOT NULL CHECK(explicit_confirmation=1),
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(owner_uid,feedback_id)
+    )
+  `).run();
+  await env.DB.prepare("CREATE INDEX IF NOT EXISTS idx_intelligence_feedback_owner_target ON intelligence_feedback_records(owner_uid,target_key,created_at)").run();
 }
 
 async function appendIntelligenceChatTurn(env, ownerUid, sessionKey, role, content) {
@@ -9685,6 +9697,87 @@ export default {
         return json({success:true,task:formatIntelligenceTask(row)});
       }
 
+
+      if (path === "/intelligence/preferences/feedback" && method === "POST") {
+        const admin = await verifyAdmin(request, env);
+        if (!admin) return error("Admin authentication required", 403);
+        if (!await checkRateLimit(env, request, "intelligence-preference-feedback", 60, 3600, 900, admin.uid)) {
+          return error("Too many feedback records. Try again later.", 429);
+        }
+        const body = await readBody(request);
+        if (!body) return error("Invalid request body", 400);
+        const targetKey = cleanText(body.targetKey, 80).toLowerCase();
+        if (!/^[a-z0-9][a-z0-9._:-]{1,79}$/.test(targetKey) ||
+            /(secret|credential|wallet|financial|private|health|identity|password|recovery|mnemonic|seed)/i.test(targetKey) ||
+            !["accepted","rejected"].includes(body.outcome) || body.explicitConfirmation !== true) {
+          return error("Explicit owner-confirmed preference feedback is required.", 400);
+        }
+        await ensureIntelligencePreferenceTables(env);
+        const memory = await env.DB.prepare(
+          "SELECT memory_key FROM intelligence_memory_items WHERE owner_uid=? AND memory_key=? AND category IN ('preference','decision') LIMIT 1"
+        ).bind(admin.uid,targetKey).first();
+        if (!memory) return error("An existing owner preference or decision memory is required.", 409);
+        const feedbackId = crypto.randomUUID();
+        await env.DB.prepare(
+          "INSERT INTO intelligence_feedback_records(feedback_id,owner_uid,target_key,outcome,explicit_confirmation) VALUES(?,?,?,?,1)"
+        ).bind(feedbackId,admin.uid,targetKey,body.outcome).run();
+        await writeAdminAudit(env,admin,"intelligence_preference_feedback_recorded","intelligence_preference_feedback",feedbackId,
+          JSON.stringify({targetKey,outcome:body.outcome}));
+        return json({success:true,feedback:{feedbackId,targetKey,outcome:body.outcome},stored:true,preferencesChanged:false,applied:false},201);
+      }
+
+      if (path === "/intelligence/preferences/review-feedback" && method === "POST") {
+        const admin = await verifyAdmin(request, env);
+        if (!admin) return error("Admin authentication required", 403);
+        if (!await checkRateLimit(env, request, "intelligence-preference-feedback-review", 10, 3600, 1800, admin.uid)) {
+          return error("Feedback review is temporarily rate-limited.", 429);
+        }
+        await ensureIntelligencePreferenceTables(env);
+        const [feedbackResult,memoryResult,pendingCount] = await Promise.all([
+          env.DB.prepare("SELECT target_key,outcome FROM intelligence_feedback_records WHERE owner_uid=? AND explicit_confirmation=1 ORDER BY created_at DESC LIMIT 500").bind(admin.uid).all(),
+          env.DB.prepare("SELECT memory_key FROM intelligence_memory_items WHERE owner_uid=? AND category IN ('preference','decision')").bind(admin.uid).all(),
+          env.DB.prepare("SELECT COUNT(*) AS total FROM intelligence_preference_proposals WHERE owner_uid=? AND status='pending'").bind(admin.uid).first()
+        ]);
+        const validTargets = new Set((memoryResult.results||[]).map(row=>row.memory_key));
+        const groups = new Map();
+        for (const row of feedbackResult.results||[]) {
+          if (!row || !["accepted","rejected"].includes(row.outcome)) continue;
+          const key = String(row.target_key||"");
+          if (!groups.has(key)) groups.set(key,{accepted:0,rejected:0});
+          groups.get(key)[row.outcome] += 1;
+        }
+        const existingRows = await env.DB.prepare(
+          "SELECT target_key,recommendation FROM intelligence_preference_proposals WHERE owner_uid=? AND status='pending'"
+        ).bind(admin.uid).all();
+        const existing = new Set((existingRows.results||[]).map(row=>JSON.stringify([row.target_key,row.recommendation])));
+        const inserts = [], proposals = [];
+        let unmatched = 0, omitted = 0;
+        let remaining = Math.max(0,100-Number(pendingCount?.total||0));
+        for (const [targetKey,counts] of [...groups.entries()].sort(([a],[b])=>a.localeCompare(b))) {
+          const observations = counts.accepted + counts.rejected;
+          if (observations < 2) continue;
+          const acceptedShare = counts.accepted / observations;
+          const rejectedShare = counts.rejected / observations;
+          if (Math.max(acceptedShare,rejectedShare) < 0.75) continue;
+          if (!validTargets.has(targetKey)) { unmatched++; continue; }
+          const recommendation = acceptedShare > rejectedShare ? "increase_preference" : "decrease_preference";
+          const key = JSON.stringify([targetKey,recommendation]);
+          if (existing.has(key)) continue;
+          if (remaining <= 0) { omitted++; continue; }
+          const id = crypto.randomUUID(), proposalKey = key;
+          inserts.push(env.DB.prepare(
+            "INSERT INTO intelligence_preference_proposals(id,owner_uid,target_key,recommendation,proposal_key) VALUES(?,?,?,?,?)"
+          ).bind(id,admin.uid,targetKey,recommendation,proposalKey));
+          proposals.push({id,target_key:targetKey,recommendation,observations,confidence:Number(Math.max(acceptedShare,rejectedShare).toFixed(4)),status:"pending",approval_required:true,applied:false});
+          existing.add(key); remaining--;
+        }
+        if (inserts.length) await env.DB.batch(inserts);
+        if (proposals.length) await writeAdminAudit(env,admin,"intelligence_preference_feedback_review_generated","intelligence_preference_proposal",admin.uid,
+          JSON.stringify({created:proposals.length,unmatched,omitted}));
+        return json({success:true,proposals,created:proposals.length,unmatched,omitted,
+          diagnostics:{ownerScoped:true,explicitFeedbackOnly:true,minimumObservations:2,dominanceThreshold:0.75,
+            advisoryOnly:true,ownerApprovalRequired:true,preferencesChanged:false,applied:false}});
+      }
 
       if (path === "/intelligence/preferences" && method === "GET") {
         const admin = await verifyAdmin(request, env);
