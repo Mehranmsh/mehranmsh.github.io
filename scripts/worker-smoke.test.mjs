@@ -122,6 +122,19 @@ function mockDb() {
   };
 }
 
+function permissiveSchemaDb() {
+  return {
+    prepare() {
+      return {
+        bind() { return this; },
+        async run() { return { success: true, meta: { changes: 1 } }; },
+        async first() { return null; },
+        async all() { return { results: [] }; }
+      };
+    }
+  };
+}
+
 async function request(path, { method = "GET", origin, headers = {}, body } = {}, env = {}) {
   const requestHeaders = new Headers(headers);
   if (origin) requestHeaders.set("Origin", origin);
@@ -244,6 +257,31 @@ test("MEHRAN module registry endpoint is owner-only and never claims live health
   assert.match(route, /"msh_core\.projects\.read", "social\.social\.metrics\.read"/);
   assert.match(route, /"partially_wired"/);
   assert.match(route, /does not probe module services or claim live health/);
+});
+
+test("owner can retrieve the validated module registry and partial adapter coverage", async () => {
+  const token = "o".repeat(48);
+  const response = await request("/agent/v1/modules/registry", {
+    headers: { Authorization: "Bearer " + token }
+  }, {
+    DB: permissiveSchemaDb(),
+    MEHRAN_ORCHESTRATOR_TOKEN: token
+  });
+  assert.equal(response.status, 200);
+  const payload = await response.json();
+  assert.equal(payload.success, true);
+  assert.equal(payload.registry.ok, true);
+  assert.equal(payload.registry.moduleCount, 9);
+  const core = payload.modules.find(module => module.id === "msh_core");
+  const social = payload.modules.find(module => module.id === "social");
+  const studio = payload.modules.find(module => module.id === "studio_music");
+  assert.equal(core.integrationState, "partially_wired");
+  assert.deepEqual(core.wiredCapabilities, ["projects.read"]);
+  assert.equal(social.integrationState, "partially_wired");
+  assert.deepEqual(social.wiredCapabilities, ["social.metrics.read"]);
+  assert.equal(studio.integrationState, "registry_declared");
+  assert.equal(core.liveHealth, "not_checked");
+  assert.equal(payload.runtime.adapterCoverage, "partial");
 });
 
 test("module registry route does not accept the ordinary agent token", async () => {
