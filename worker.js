@@ -342,7 +342,7 @@ async function releaseSocialWorkersAIBudget(env, reservation) {
 
 
 const INTELLIGENCE_AI_PROVIDER_ORDER = Object.freeze(["cloudflare", "groq", "gemini", "openrouter"]);
-const DEFAULT_INTELLIGENCE_MODEL = "@cf/meta/llama-3.1-8b-instruct-fp8-fast";
+const DEFAULT_INTELLIGENCE_MODEL = "@cf/meta/llama-3.1-8b-instruct-fast";
 function intelligenceProviderError(provider, status, message) {
   const error = new Error(String(message || "Provider request failed").slice(0, 180));
   error.provider = provider;
@@ -368,7 +368,9 @@ async function runIntelligenceAI(env, options) {
     try {
       if (provider === "cloudflare") {
         if (!env.AI || typeof env.AI.run !== "function") { attempts.push({provider, reason:"not_configured"}); continue; }
-        const model = cleanText(env.MEHRAN_INTELLIGENCE_MODEL, 120) || DEFAULT_INTELLIGENCE_MODEL;
+        const configuredModel = cleanText(env.MEHRAN_INTELLIGENCE_MODEL, 120);
+        // JSON Mode must use a model explicitly verified for structured responses; do not let an env override silently select an incompatible model.
+        const model = options.jsonMode ? DEFAULT_INTELLIGENCE_MODEL : (configuredModel || DEFAULT_INTELLIGENCE_MODEL);
         if (env.DB) {
           try {
             await ensureIntelligenceAIProviderDiagnostics(env);
@@ -7514,7 +7516,7 @@ export default {
               try {
                 const routed = await runIntelligenceAI(env, {
                   messages,
-                  jsonMode: false,
+                  jsonMode: true,
                   temperature,
                   maxTokens,
                   cloudflareReservation: 100
