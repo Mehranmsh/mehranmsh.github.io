@@ -245,7 +245,7 @@ jobs:
                 "--cpus", "1", "--tmpfs", "/tmp:rw,noexec,nosuid,nodev,size=64m",
                 "--mount", `type=bind,src=${workspace},dst=/workspace,readonly`,
                 "--workdir", "/workspace", image, "sh", "-c",
-                "node --check worker.js && node --check scripts/intelligence-capabilities.mjs && node --test --test-reporter=tap scripts/intelligence-capabilities.test.mjs"
+                "node --check worker.js && node --check scripts/intelligence-capabilities.mjs && node --check scripts/intelligence-verification-loop.mjs && node --test --test-reporter=tap scripts/*.test.mjs"
               ];
               const result = spawnSync("docker", args, { encoding: "utf8", timeout: 240000, maxBuffer: 1024 * 1024 });
               const output = [result.stdout || "", result.stderr || ""].join("\n").slice(-24000);
