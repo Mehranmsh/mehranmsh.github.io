@@ -36,4 +36,4 @@ jobs:
           node --check scripts/intelligence-mission-generator-policy.test.mjs
           node --check scripts/intelligence-mission-generator-d1.test.mjs
       - name: Run the complete fixed Intelligence test suite
-        run: node --test --test-reporter=tap scripts/intelligence-capabilities.test.mjs
+        run: node --test --test-reporter=tap scripts/intelligence-capabilities.test.mjs scripts/intelligence-memory-ranking.test.mjs
