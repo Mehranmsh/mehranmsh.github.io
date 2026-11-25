@@ -20,7 +20,10 @@ function safeJsonSize(value, maxBytes) {
 }
 
 function hasForbiddenKey(value, depth = 0) {
-  if (depth > 5 || value === null || typeof value !== "object") return false;
+  // Fail closed at the nesting boundary. Returning false here would let a
+  // sensitive key hide one level deeper than the inspection limit.
+  if (depth > 5) return true;
+  if (value === null || typeof value !== "object") return false;
   for (const [key, child] of Object.entries(value)) {
     if (/(?:secret|password|private.?key|recovery.?phrase|wallet.?seed|authorization|cookie|private.?message)/i.test(key)) return true;
     if (hasForbiddenKey(child, depth + 1)) return true;
