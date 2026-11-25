@@ -5520,6 +5520,7 @@ async function ensureIntelligencePreferenceTables(env) {
       target_key TEXT NOT NULL,
       outcome TEXT NOT NULL CHECK(outcome IN ('accepted','rejected')),
       explicit_confirmation INTEGER NOT NULL CHECK(explicit_confirmation=1),
+      processed_at TEXT,
       created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
       UNIQUE(owner_uid,feedback_id)
     )
@@ -9734,7 +9735,7 @@ export default {
         }
         await ensureIntelligencePreferenceTables(env);
         const [feedbackResult,memoryResult,pendingCount] = await Promise.all([
-          env.DB.prepare("SELECT target_key,outcome FROM intelligence_feedback_records WHERE owner_uid=? AND explicit_confirmation=1 ORDER BY created_at DESC LIMIT 500").bind(admin.uid).all(),
+          env.DB.prepare("SELECT target_key,outcome FROM intelligence_feedback_records WHERE owner_uid=? AND explicit_confirmation=1 AND processed_at IS NULL ORDER BY created_at DESC LIMIT 500").bind(admin.uid).all(),
           env.DB.prepare("SELECT memory_key FROM intelligence_memory_items WHERE owner_uid=? AND category IN ('preference','decision')").bind(admin.uid).all(),
           env.DB.prepare("SELECT COUNT(*) AS total FROM intelligence_preference_proposals WHERE owner_uid=? AND status='pending'").bind(admin.uid).first()
         ]);
@@ -9750,7 +9751,7 @@ export default {
           "SELECT target_key,recommendation FROM intelligence_preference_proposals WHERE owner_uid=? AND status='pending'"
         ).bind(admin.uid).all();
         const existing = new Set((existingRows.results||[]).map(row=>JSON.stringify([row.target_key,row.recommendation])));
-        const inserts = [], proposals = [];
+        const inserts = [], proposals = [], processedTargets = new Set();
         let unmatched = 0, omitted = 0;
         let remaining = Math.max(0,100-Number(pendingCount?.total||0));
         for (const [targetKey,counts] of [...groups.entries()].sort(([a],[b])=>a.localeCompare(b))) {
@@ -9762,16 +9763,20 @@ export default {
           if (!validTargets.has(targetKey)) { unmatched++; continue; }
           const recommendation = acceptedShare > rejectedShare ? "increase_preference" : "decrease_preference";
           const key = JSON.stringify([targetKey,recommendation]);
-          if (existing.has(key)) continue;
+          if (existing.has(key)) { processedTargets.add(targetKey); continue; }
           if (remaining <= 0) { omitted++; continue; }
           const id = crypto.randomUUID(), proposalKey = key;
           inserts.push(env.DB.prepare(
             "INSERT INTO intelligence_preference_proposals(id,owner_uid,target_key,recommendation,proposal_key) VALUES(?,?,?,?,?)"
           ).bind(id,admin.uid,targetKey,recommendation,proposalKey));
           proposals.push({id,target_key:targetKey,recommendation,observations,confidence:Number(Math.max(acceptedShare,rejectedShare).toFixed(4)),status:"pending",approval_required:true,applied:false});
-          existing.add(key); remaining--;
+          existing.add(key); processedTargets.add(targetKey); remaining--;
         }
-        if (inserts.length) await env.DB.batch(inserts);
+        const processedAt = new Date().toISOString();
+        const processUpdates = [...processedTargets].map(targetKey=>env.DB.prepare(
+          "UPDATE intelligence_feedback_records SET processed_at=? WHERE owner_uid=? AND target_key=? AND processed_at IS NULL"
+        ).bind(processedAt,admin.uid,targetKey));
+        if (inserts.length || processUpdates.length) await env.DB.batch([...inserts,...processUpdates]);
         if (proposals.length) await writeAdminAudit(env,admin,"intelligence_preference_feedback_review_generated","intelligence_preference_proposal",admin.uid,
           JSON.stringify({created:proposals.length,unmatched,omitted}));
         return json({success:true,proposals,created:proposals.length,unmatched,omitted,
