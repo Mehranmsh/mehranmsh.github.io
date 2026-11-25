@@ -19,6 +19,8 @@ import {
 const workerSource = readFileSync(new URL("../worker.js", import.meta.url), "utf8");
 const indexSource = readFileSync(new URL("../index.html", import.meta.url), "utf8");
 const runnerSource = readFileSync(new URL("../.github/workflows/mehran-intelligence-runner.yml", import.meta.url), "utf8");
+const proposalRunnerSource = readFileSync(new URL("./intelligence-proposal-pr-runner.mjs", import.meta.url), "utf8");
+const proposalWorkflowSource = readFileSync(new URL("../.github/workflows/intelligence-proposal-pr-runner.yml", import.meta.url), "utf8");
 const routinePlannerSource = readFileSync(new URL("./intelligence-routine-planner.mjs", import.meta.url), "utf8");
 const scheduledStart = workerSource.indexOf("async scheduled(controller, env, ctx)");
 const scheduledEnd = workerSource.indexOf("async fetch(request, env)", scheduledStart);
@@ -227,12 +229,17 @@ test("AI planner strips schema-optional fields that are invalid for another acti
   assert.match(workerSource, /tasks: normalizedTasks/);
 });
 
-test("pull request creation remains planned and non-executable", () => {
+test("pull request creation is active only through the dedicated verified proposal outbox", () => {
   const capability = getIntelligenceCapability("create_pull_request");
-  assert.equal(capability.status, "planned");
-  assert.equal(validateIntelligenceCapabilityRequest("create_pull_request", {}).ok, false);
-  assert.equal(validateIntelligenceCapabilityRequest("create_pull_request", {}).code, "capability_not_implemented");
+  assert.equal(capability.status, "active");
+  assert.equal(capability.permissionTier, "branch_scoped_write");
+  assert.equal(capability.executionMode, "verified_proposal_outbox");
+  assert.equal(capability.requiresApproval, false);
+  assert.equal(capability.autonomous, true);
   assert.deepEqual(capability.executors, ["github_actions_runner"]);
+  assert.equal(INTELLIGENCE_ACTION_TYPES.includes("create_pull_request"), false);
+  assert.equal(PREAPPROVED_INTELLIGENCE_ACTION_TYPES.includes("create_pull_request"), false);
+  assert.equal(validateIntelligenceCapabilityRequest("create_pull_request", {}).code, "missing_required_field");
 });
 
 test("merge, deployment, secrets, wallet and arbitrary shell capabilities remain blocked", () => {
@@ -264,17 +271,24 @@ test("patch proposal capability is active only for bounded private proposal gene
   assert.deepEqual(capability.executors, ["github_actions_runner"]);
 });
 
-test("PR creation schema requires a scoped proposal branch and immutable head SHA", () => {
+test("PR creation schema accepts only scoped proposal branches and immutable commit metadata", () => {
   const capability = getIntelligenceCapability("create_pull_request");
   assert.equal(capability.inputSchema.properties.branch.pattern, "^intelligence/proposal-[a-f0-9-]{8,64}$");
   assert.equal(capability.inputSchema.properties.headSha.pattern, "^[a-f0-9]{40}$");
-  assert.equal(capability.requiresApproval, false);
-  assert.equal(capability.autonomous, true);
+  const valid = {
+    branch: "intelligence/proposal-22345678-1234-4234-8234-123456789abc",
+    title: "[INTELLIGENCE] Add bounded regression test",
+    headSha: "a".repeat(40)
+  };
+  assert.equal(validateIntelligenceCapabilityRequest("create_pull_request", valid).ok, true);
+  assert.equal(validateIntelligenceCapabilityRequest("create_pull_request", { ...valid, branch: "main" }).code, "invalid_input_value");
+  assert.equal(validateIntelligenceCapabilityRequest("create_pull_request", { ...valid, headSha: "not-a-sha" }).code, "invalid_input_value");
+  assert.equal(validateIntelligenceCapabilityRequest("create_pull_request", { ...valid, merge: true }).code, "unknown_input_field");
 });
 
 
-// Autonomous metadata is policy only; planned capabilities remain non-executable until an executor ships.
-test("bounded patch proposals are pre-authorized while PR creation and privileged actions remain gated", () => {
+// Autonomous metadata is policy only; privileged actions remain owner-gated.
+test("bounded patch proposals and verified draft PR creation are pre-authorized while privileged actions remain gated", () => {
   const proposal = getIntelligenceCapability("propose_code_patch");
   assert.equal(proposal.requiresApproval, false);
   assert.equal(proposal.autonomous, true);
@@ -284,12 +298,39 @@ test("bounded patch proposals are pre-authorized while PR creation and privilege
     objective: "Add a regression test for a safe parser boundary"
   }).ok, true);
   const pullRequest = getIntelligenceCapability("create_pull_request");
-  assert.equal(pullRequest.status, "planned");
-  assert.equal(validateIntelligenceCapabilityRequest("create_pull_request", {}).code, "capability_not_implemented");
+  assert.equal(pullRequest.status, "active");
+  assert.equal(pullRequest.permissionTier, "branch_scoped_write");
+  assert.equal(validateIntelligenceCapabilityRequest("create_pull_request", {
+    branch: "intelligence/proposal-22345678-1234-4234-8234-123456789abc",
+    title: "[INTELLIGENCE] Add bounded regression test",
+    headSha: "a".repeat(40)
+  }).ok, true);
   for (const id of ["merge_pull_request", "deploy", "read_secrets", "wallet_operations", "arbitrary_shell"]) {
     assert.equal(getIntelligenceCapability(id).requiresApproval, true, id);
     assert.equal(getIntelligenceCapability(id).autonomous, undefined, id);
   }
+});
+
+test("draft PR automation is isolated, main-only, test-gated, and never merges or deploys", () => {
+  assert.match(proposalWorkflowSource, /schedule:/);
+  assert.match(proposalWorkflowSource, /workflow_dispatch:/);
+  assert.ok(proposalWorkflowSource.includes("if: github.ref == 'refs/heads/main'"));
+  assert.ok(proposalWorkflowSource.includes("contents: read"));
+  assert.ok(proposalWorkflowSource.includes("contents: write"));
+  assert.ok(proposalWorkflowSource.includes("pull-requests: write"));
+  assert.doesNotMatch(proposalWorkflowSource, /pull_request_target|pull_request:/);
+  assert.match(proposalWorkflowSource, /node scripts\/intelligence-proposal-pr-runner\.mjs/);
+  assert.match(proposalWorkflowSource, /MEHRAN_AGENT_TOKEN:/);
+  assert.match(proposalWorkflowSource, /MEHRAN_ORCHESTRATOR_TOKEN:/);
+  assert.match(proposalWorkflowSource, /GITHUB_TOKEN:/);
+
+  assert.match(proposalRunnerSource, /proposals\.slice\(0,3\)/);
+  assert.match(proposalRunnerSource, /proposal\.targetPath !== targetPath/);
+  assert.match(proposalRunnerSource, /scripts\/intelligence-capabilities\.test\.mjs/);
+  assert.match(proposalRunnerSource, /--network", "none"/);
+  assert.match(proposalRunnerSource, /draft: true/);
+  assert.match(proposalRunnerSource, /base: "main"/);
+  assert.doesNotMatch(proposalRunnerSource, /wrangler deploy/i);
 });
 
 test("repository inspection is active, pre-authorized, exact-path allowlisted, and read-only", () => {

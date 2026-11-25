@@ -163,6 +163,14 @@ Do not describe the protocol as active until the acceptance criteria have passed
 
 Every task claim now receives a fresh 256-bit random claim token. The runner receives the raw token only in the authenticated claim response; D1 stores only its SHA-256 hash. Checkpoint and result commits must present the token, and the Worker compares its hash against the current claim in both the read and conditional update. When a claim expires, is retried, or reaches a terminal result, the stored hash is cleared. A later runner claim replaces it with a new hash, so an older runner cannot checkpoint or commit a result after ownership has changed. This is a fencing mechanism, not a lease-renewal system: the existing 15-minute claim expiry remains, and long-running work must fail closed if its claim expires.
 
+## Verified draft pull-request automation
+
+The dedicated `.github/workflows/intelligence-proposal-pr-runner.yml` workflow polls the private verified-proposal outbox every 15 minutes and can also be started manually on `main`. It runs separately from the read-only task runner. Workflow-level permissions remain `contents: read`; repository write permissions are granted only to this single isolated job.
+
+The executor handles at most three pending proposals per run. It requires both the agent and owner-orchestrator secrets, verifies the immutable base SHA and private artifact hashes, accepts only the fixed target `scripts/intelligence-capabilities.test.mjs`, applies the append-only patch policy, and reruns the fixed test suite inside the pinned network-disabled container. Only after all checks pass does it create a branch matching `intelligence/proposal-<proposal-id>` and open a **Draft PR** against `main`. It never merges, deploys, changes Worker configuration, or accesses wallet contents. The PR creation capability is deliberately excluded from the ordinary task action allowlist; it is a separate post-verification outbox operation.
+
+The workflow is production-active only after this implementation is merged to `main` and its first scheduled/manual run succeeds. The existing `MEHRAN_AGENT_TOKEN` and `MEHRAN_ORCHESTRATOR_TOKEN` secrets must be present. The job uses the short-lived GitHub Actions token with `contents: write` and `pull-requests: write` only within that isolated workflow job.
+
 ## Bounded AI patch proposal generation (PR #217, not production-active)
 
 The patch-proposal pipeline is being introduced in a separate, unmerged PR chain. The authenticated `POST /agent/v1/patch-proposals/generate` route accepts an immutable base SHA, a bounded objective, and a stable request ID. It checks that the SHA is the current `main` commit before reading the allowlisted test file, and checks `main` again after model generation to reject a branch-advance race.

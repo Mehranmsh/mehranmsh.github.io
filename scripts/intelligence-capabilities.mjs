@@ -120,12 +120,13 @@ export const INTELLIGENCE_CAPABILITIES = Object.freeze({
   }),
   create_pull_request: freezeCapability({
     id: "create_pull_request",
-    status: "planned",
+    status: "active",
     permissionTier: "branch_scoped_write",
+    executionMode: "verified_proposal_outbox",
     executors: ["github_actions_runner"],
     requiresApproval: false,
     autonomous: true,
-    description: "Create a review-only PR from a tested, isolated Intelligence branch; merge and deployment remain owner-controlled.",
+    description: "Create a draft review PR only from a verified private proposal after append-only validation and isolated tests; never merge or deploy.",
     inputSchema: {
       required: ["branch", "title", "headSha"],
       properties: {
@@ -224,7 +225,9 @@ function validateValue(value, rule) {
 export function validateIntelligenceCapabilityRequest(capabilityId, input) {
   const capability = getIntelligenceCapability(capabilityId);
   if (!capability) return { ok: false, code: "unknown_capability" };
-  if (capability.status !== "active" || !["read_only", "isolated_ci", "proposal_only"].includes(capability.permissionTier) || capability.executors.length === 0) {
+  const supportedPermissionTier = ["read_only", "isolated_ci", "proposal_only"].includes(capability.permissionTier)
+    || (capabilityId === "create_pull_request" && capability.permissionTier === "branch_scoped_write");
+  if (capability.status !== "active" || !supportedPermissionTier || capability.executors.length === 0) {
     return { ok: false, code: capability.status === "blocked" ? "capability_blocked" : "capability_not_implemented" };
   }
   if (!input || typeof input !== "object" || Array.isArray(input)) {
