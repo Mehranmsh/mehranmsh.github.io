@@ -1501,7 +1501,7 @@ test("Cloudflare AI diagnostics distinguish budget reservation failures from inf
   assert.match(workerSource, /maxItems: 12/);
   assert.match(workerSource, /maxChars: 6000/);
   assert.match(workerSource, /maxItemChars: 450/);
-  assert.match(workerSource, /selectMemoryContext\\(memoryRows\\.results \\|\\| \\[\\]/);
+  assert.match(workerSource, /selectMemoryContext\(memoryRows\.results \|\| \[\]/);
   assert.match(workerSource, /jsonMode: true, temperature: 0, maxTokens: 1000, cloudflareReservation: 25/);
   assert.match(workerSource, /jsonMode:true,temperature:0,maxTokens:1500,cloudflareReservation:500/);
 
