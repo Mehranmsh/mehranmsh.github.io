@@ -135,3 +135,19 @@ test("evaluates alternatives only as advisory and applies approved overlays only
   });
   assert.equal(spoofed.decisionEvaluation.diagnostics.preferencesApplied, false);
 });
+
+test("coordinates owner-authenticated plan history and keeps it read-only", () => {
+  const revisions = [
+    { owner_uid: "owner-a", revision_id: "r1", version: 1, created_at: "2026-11-20T10:00:00Z", change_reason: "initial", tasks: [{ task_id: "build", title: "Build" }] },
+    { owner_uid: "owner-a", revision_id: "r2", version: 2, created_at: "2026-11-21T10:00:00Z", change_reason: "owner reprioritized", tasks: [{ task_id: "build", title: "Build", priority: "high" }] }
+  ];
+  const before = structuredClone(revisions);
+  const result = buildIntelligenceContextSnapshot([base("safe")], {
+    ownerUid: "owner-a", actorUid: "owner-a", planRevisions: revisions
+  });
+  assert.equal(result.planHistory.comparison.changed[0].task_id, "build");
+  assert.equal(result.planHistory.comparison.change_reason, "owner reprioritized");
+  assert.equal(result.planHistory.diagnostics.historyWritten, false);
+  assert.equal(result.diagnostics.planHistoryRevisions, 2);
+  assert.deepEqual(revisions, before);
+});
