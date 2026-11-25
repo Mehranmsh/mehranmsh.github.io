@@ -9866,20 +9866,32 @@ export default {
         if (reason.length < 5) return error("A clear change reason of at least 5 characters is required.", 400);
         await ensureIntelligencePlanHistoryTables(env);
         const taskRows = await env.DB.prepare(
-          "SELECT id,title,priority,status FROM intelligence_tasks WHERE created_by=? ORDER BY created_at ASC,id ASC LIMIT 100"
-        ).bind(admin.uid).all();
-        const tasks = (taskRows.results || []).map(row => ({
+          "SELECT t.id,t.title,t.priority,t.status FROM intelligence_tasks t LEFT JOIN intelligence_work_packages p ON p.id=t.work_package_id WHERE t.created_by=? OR p.owner_uid=? ORDER BY t.created_at ASC,t.id ASC LIMIT 100"
+        ).bind(admin.uid,admin.uid).all();
+        const rows = taskRows.results || [];
+        const taskIds = rows.map(row => String(row.id));
+        const dependencyRows = taskIds.length
+          ? await env.DB.prepare("SELECT task_id,depends_on_task_id FROM intelligence_task_dependencies WHERE task_id IN ("+taskIds.map(()=>"?").join(",")+")")
+              .bind(...taskIds).all()
+          : { results: [] };
+        const dependencyMap = new Map();
+        for (const dependency of dependencyRows.results || []) {
+          if (!dependencyMap.has(dependency.task_id)) dependencyMap.set(dependency.task_id, []);
+          dependencyMap.get(dependency.task_id).push(String(dependency.depends_on_task_id));
+        }
+        const tasks = rows.map(row => ({
           task_id:String(row.id),
           title:String(row.title || "").slice(0,200),
           priority:["high","normal","low"].includes(String(row.priority).toLowerCase()) ? String(row.priority).toLowerCase() : "normal",
           due_at:"",
-          depends_on_task_ids:[],
+          depends_on_task_ids:(dependencyMap.get(String(row.id)) || []).sort().slice(0,50),
           task_state:({
-            queued:"pending",pending:"pending",running:"in_progress",in_progress:"in_progress",
+            queued:"pending",pending:"pending",accepted:"pending",awaiting_approval:"pending",
+            retry_waiting:"pending",running:"in_progress",in_progress:"in_progress",
             completed:"completed",blocked:"blocked",failed:"failed"
           })[String(row.status).toLowerCase()] || "pending"
         }));
-        if (!tasks.length) return error("There are no owner-created Intelligence tasks to snapshot yet.", 409);
+        if (!tasks.length) return error("There are no owner-scoped Intelligence tasks to snapshot yet.", 409);
         const revisionId = crypto.randomUUID();
         const createdAt = new Date().toISOString();
         try {
