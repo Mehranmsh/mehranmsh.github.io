@@ -1,15 +1,8 @@
 name: Deploy Cloudflare Worker
 
 on:
-  # Deploy automatically when Worker source/config changes land on main.
-  push:
-    branches:
-      - main
-    paths:
-      - "worker.js"
-      - "wrangler.jsonc"
-      - ".github/workflows/deploy-worker.yml"
-  # Keep a manual recovery path as well.
+  # Production deployments are deliberately manual.
+  # Merging Worker source changes must never deploy to Cloudflare implicitly.
   workflow_dispatch:
 
 concurrency:
