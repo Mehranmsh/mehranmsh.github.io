@@ -1,4 +1,5 @@
 import test from "node:test";
+import "./intelligence-mission-generator-policy.test.mjs";
 import { applyValidatedPatchInMemory } from "./intelligence-patch-apply.mjs";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
