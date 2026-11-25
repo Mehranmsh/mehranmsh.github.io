@@ -5268,3 +5268,156 @@ const prevMe=window.socialMe;window.socialMe=async function(){await prevMe();soc
 @media(max-width:800px){#page-ai #ai-studios>.grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:560px){#page-ai #ai-studios>.grid{grid-template-columns:1fr}#page-ai #ai-studios .social-card{min-height:190px}}
 </style>
+
+
+<style id="mehran-ai-chat-composer-polish-v2">
+/* MEHRAN AI: contained conversation, compact composer and anchored attachment menu */
+#page-ai #social-ai,
+#page-ai #social-ai>.panel,
+#page-ai .assistant-composer-wrap,
+#page-ai .assistant-composer{min-width:0;box-sizing:border-box}
+#page-ai #social-ai>.panel{overflow:visible!important}
+#page-ai #assistantMessages{
+  height:clamp(210px,34vh,285px)!important;
+  min-height:210px!important;
+  max-height:285px!important;
+  margin:0!important;
+  overflow-y:auto!important;
+  overflow-x:hidden!important;
+  overscroll-behavior-y:contain;
+  scrollbar-width:thin;
+  -webkit-overflow-scrolling:touch;
+}
+#page-ai .assistant-composer-wrap{
+  position:relative!important;
+  display:block;
+  width:100%;
+  margin:0!important;
+  padding:9px!important;
+  overflow:visible!important;
+  border:1px solid rgba(105,177,220,.22)!important;
+  border-radius:17px!important;
+  background:linear-gradient(145deg,#0d1b2b,#091421)!important;
+  box-shadow:0 8px 22px rgba(0,0,0,.16)!important;
+}
+#page-ai .assistant-attachment-preview{
+  display:flex;
+  flex-wrap:wrap;
+  gap:7px;
+  max-width:100%;
+  margin:0 0 8px!important;
+}
+#page-ai .assistant-attachment-preview[hidden],
+#page-ai .assistant-attach-menu[hidden]{display:none!important}
+#page-ai .assistant-composer{
+  display:grid!important;
+  grid-template-columns:42px minmax(0,1fr) auto;
+  align-items:center;
+  gap:8px!important;
+  width:100%;
+  min-width:0;
+  padding:0!important;
+  border:0!important;
+  border-radius:0!important;
+  background:transparent!important;
+  box-shadow:none!important;
+}
+#page-ai .assistant-attach-wrap{position:relative;min-width:0;z-index:20}
+#page-ai .assistant-attach-btn{
+  display:grid;
+  place-items:center;
+  width:42px!important;
+  height:42px!important;
+  padding:0!important;
+  border:1px solid rgba(105,190,230,.25)!important;
+  border-radius:13px!important;
+  background:#14283c!important;
+  color:#9bdfff!important;
+  font-size:24px!important;
+  line-height:1!important;
+}
+#page-ai #assistantInput{
+  display:block;
+  width:100%!important;
+  min-width:0!important;
+  height:44px!important;
+  min-height:44px!important;
+  margin:0!important;
+  padding:0 11px!important;
+  border:1px solid rgba(105,177,220,.16)!important;
+  border-radius:12px!important;
+  background:#081522!important;
+  color:#edf7ff!important;
+  box-shadow:none!important;
+}
+#page-ai #assistantSendBtn{
+  min-width:66px!important;
+  min-height:42px!important;
+  margin:0!important;
+  padding:0 13px!important;
+  border-radius:12px!important;
+  white-space:nowrap;
+}
+#page-ai .assistant-attach-menu{
+  position:absolute!important;
+  inset-inline-start:0!important;
+  inset-inline-end:auto!important;
+  left:auto!important;
+  right:auto!important;
+  bottom:calc(100% + 10px)!important;
+  z-index:80!important;
+  display:grid;
+  gap:3px;
+  box-sizing:border-box!important;
+  width:min(264px,calc(100vw - 36px))!important;
+  max-width:calc(100vw - 36px)!important;
+  max-height:min(48vh,300px);
+  overflow-y:auto;
+  padding:9px!important;
+  border:1px solid rgba(112,184,225,.25)!important;
+  border-radius:16px!important;
+  background:linear-gradient(155deg,#152b41,#0a1523 88%)!important;
+  box-shadow:0 16px 42px rgba(0,0,0,.48)!important;
+  backdrop-filter:blur(16px);
+}
+#page-ai .assistant-attach-heading{
+  padding:8px 9px 10px!important;
+  color:#eaf6ff!important;
+  font-size:11px!important;
+}
+#page-ai .assistant-attach-option{
+  display:flex!important;
+  align-items:center;
+  width:100%!important;
+  min-width:0;
+  min-height:52px;
+  gap:10px!important;
+  padding:7px 8px!important;
+  border:0!important;
+  border-radius:11px!important;
+  background:transparent!important;
+  color:#eaf4ff!important;
+  text-align:start!important;
+}
+#page-ai .assistant-attach-option:disabled{opacity:.42;cursor:not-allowed}
+#page-ai .assistant-attach-option>span:nth-child(2){min-width:0;flex:1}
+#page-ai .assistant-attach-option strong{font-size:11px!important}
+#page-ai .assistant-attach-option small{font-size:9px!important;color:#9aafc3!important}
+#page-ai .assistant-attach-icon{width:34px!important;height:34px!important;flex:0 0 34px;border-radius:10px!important}
+#page-ai .assistant-attach-footnote{padding:8px 9px 3px!important;font-size:9px!important}
+#page-ai .assistant-attach-note{display:none!important}
+#page-ai .assistant-file-chip{max-width:100%;min-width:0}
+#page-ai .assistant-file-chip .file-name{max-width:min(180px,48vw)}
+@media(max-width:680px){
+  #page-ai #assistantMessages{
+    height:clamp(190px,31vh,235px)!important;
+    min-height:190px!important;
+    max-height:235px!important;
+  }
+  #page-ai .assistant-composer-wrap{padding:7px!important}
+  #page-ai .assistant-composer{grid-template-columns:38px minmax(0,1fr) auto;gap:6px!important}
+  #page-ai .assistant-attach-btn{width:38px!important;height:38px!important;border-radius:11px!important}
+  #page-ai #assistantInput{height:40px!important;min-height:40px!important;padding:0 8px!important;font-size:12px!important}
+  #page-ai #assistantSendBtn{min-width:54px!important;min-height:38px!important;padding:0 9px!important;font-size:11px!important}
+}
+</style>
