@@ -254,7 +254,7 @@ test("MEHRAN module registry endpoint is owner-only and never claims live health
   assert.match(route, /: "registry_declared"/);
   assert.match(route, /liveHealth: "not_checked"/);
   assert.match(route, /adapterCoverage: "partial"/);
-  assert.match(route, /"msh_core\\.projects\\.read", "social\\.social\\.metrics\\.read", "studio_music\\.studio\\.health\\.read"/);
+  assert.ok(route.includes("msh_core.projects.read") && route.includes("social.social.metrics.read") && route.includes("studio_music.studio.health.read"));
   assert.match(route, /"partially_wired"/);
   assert.match(route, /does not probe module services or claim live health/);
 });
@@ -293,13 +293,15 @@ test("Studio status adapter reports browser-local storage without claiming proje
   assert.ok(start >= 0 && end > start, "read-only Studio status branch must exist");
   const route = workerSource.slice(start, end);
   assert.match(route, /moduleId: "studio_music"/);
-  assert.match(route, /"studio\.health\.read"/);
+  assert.ok(route.includes('"studio.health.read"'));
   assert.match(route, /browser_localStorage/);
   assert.match(route, /browser_indexedDB/);
   assert.match(route, /workerCanReadLocalProjects: false/);
   assert.match(route, /liveServiceProbe: "not_performed"/);
   assert.match(route, /user_initiated_one_time_code/);
-  assert.doesNotMatch(route, /localStorage\.getItem|indexedDB\.open|SELECT .*music_project/i);
+  assert.equal(route.includes("localStorage.getItem"), false);
+  assert.equal(route.includes("indexedDB.open"), false);
+  assert.equal(route.includes("SELECT ") && route.includes("music_project"), false);
 });
 
 test("module registry route does not accept the ordinary agent token", async () => {
