@@ -3278,7 +3278,7 @@ test("Agent task claim tokens fence checkpoint and result commits to the current
   assert.match(schedulerClaim, /\.bind\(claimTokenHash,candidate\.id,candidate\.status\)/);
   assert.ok(workerSource.includes("WHERE id=? AND status='in_progress' AND agent_claim_token_hash=?"), "scheduler completion and failure must be fenced by the current claim token");
   assert.ok(workerSource.includes(".bind(resultText,candidate.id,claimTokenHash)"), "completion must bind the current claim token");
-  assert.match(workerSource, /WHERE changes\\(\\)>0/);
+  assert.ok(workerSource.includes("WHERE changes()>0"), "task event inserts must be conditional on a successful fenced update");
   assert.match(runnerSource, /claimToken: task\.claimToken/);
   const runnerLogLines = runnerSource.split("\n").filter(line => /console\.(?:log|error|warn)\(/.test(line));
   assert.ok(runnerLogLines.length > 0, "runner should retain bounded operational diagnostics");
