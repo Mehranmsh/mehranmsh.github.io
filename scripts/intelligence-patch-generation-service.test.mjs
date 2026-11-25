@@ -13,12 +13,12 @@ test("Workers AI JSON Mode object responses are normalized into JSON text", () =
 });
 
 test("patch model response extraction preserves text and output_text fallbacks", () => {
-  assert.equal(extractPatchModelText({ response: "{\\"summary\\":\\"ok\\"}" }), "{\\"summary\\":\\"ok\\"}");
-  assert.equal(extractPatchModelText({ output_text: "{\\"summary\\":\\"fallback\\"}" }), "{\\"summary\\":\\"fallback\\"}");
+  assert.equal(extractPatchModelText({ response: '{"summary":"ok"}' }), '{"summary":"ok"}');
+  assert.equal(extractPatchModelText({ output_text: '{"summary":"fallback"}' }), '{"summary":"fallback"}');
   assert.equal(extractPatchModelText({ response: ["not", "an", "object"] }), "");
   assert.equal(extractPatchModelText(null), "");
 });
- 
+
 test("patch generation preserves only safe structural diagnostics for empty model output", async () => {
   const result = await generatePatchArtifact({
     env,
