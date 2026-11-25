@@ -74,6 +74,42 @@ test("is deterministic, bounded, and leaves all input records unchanged", () => 
   assert.equal(first.diagnostics.advisoryOnly, true);
 });
 
+test("does not allow a later ordinary event to regress a completed task", () => {
+  const result = buildIntelligenceGoalLifecycle([goal()], [task("release")], [
+    event("complete-1", "release", "completed"),
+    event("late-fail", "release", "failed", { occurred_at: "2026-11-25T11:00:00.000Z" })
+  ], { ownerUid: "owner-a", actorUid: "owner-a" });
+  assert.equal(result.progress.taskStates[0].state, "completed");
+  assert.equal(result.progress.acceptedEvents, 1);
+  assert.ok(result.progress.ignoredEventReasons.some(item =>
+    item.event_id === "late-fail" && item.reason === "completion_regression_requires_owner_correction"
+  ));
+});
+
+test("allows a completion correction only when it explicitly references the completed event", () => {
+  const result = buildIntelligenceGoalLifecycle([goal()], [task("release")], [
+    event("complete-1", "release", "completed"),
+    event("correct-1", "release", "failed", {
+      occurred_at: "2026-11-25T11:00:00.000Z",
+      explicit_correction: true,
+      correction_of_event_id: "complete-1",
+      correction_confirmed_by_owner: true
+    })
+  ], { ownerUid: "owner-a", actorUid: "owner-a" });
+  assert.equal(result.progress.taskStates[0].state, "failed");
+  assert.equal(result.progress.taskStates[0].correction, true);
+  assert.equal(result.progress.acceptedEvents, 2);
+});
+
+test("deduplicates event identifiers globally and reports ignored evidence", () => {
+  const result = buildIntelligenceGoalLifecycle([goal()], [task("a"), task("b")], [
+    event("same-id", "a", "in_progress"),
+    event("same-id", "b", "completed", { occurred_at: "2026-11-25T11:00:00.000Z" })
+  ], { ownerUid: "owner-a", actorUid: "owner-a" });
+  assert.equal(result.progress.acceptedEvents, 1);
+  assert.equal(result.progress.ignoredEventReasons[0].reason, "duplicate_event_id");
+});
+
 test("fails closed without owner scope or required input arrays", () => {
   const result = buildIntelligenceGoalLifecycle([goal()], [task("a")], [], {});
   assert.equal(result.diagnostics.ownerScoped, false);
