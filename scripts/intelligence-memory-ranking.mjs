@@ -71,7 +71,7 @@ export function analyzeMemoryRelations(records) {
     const owner = typeof record.owner_uid === "string" ? record.owner_uid.trim() : "";
     const key = typeof record.memory_key === "string" ? record.memory_key.trim() : "";
     if (!owner || !key) continue;
-    byOwnerAndKey.set(owner + "\\u0000" + key, record);
+    byOwnerAndKey.set(JSON.stringify([owner, key]), record);
   }
 
   const supersededKeys = new Set();
@@ -86,10 +86,10 @@ export function analyzeMemoryRelations(records) {
       .filter(value => typeof value === "string" && value.trim())
       .map(value => value.trim());
     for (const oldKey of new Set(supersedes)) {
-      const prior = byOwnerAndKey.get(owner + "\\u0000" + oldKey);
+      const prior = byOwnerAndKey.get(JSON.stringify([owner, oldKey]));
       const priorAt = timestamp(prior?.updated_at);
       if (prior && oldKey !== key && updatedAt !== null && priorAt !== null && updatedAt > priorAt) {
-        supersededKeys.add(owner + "\\u0000" + oldKey);
+        supersededKeys.add(JSON.stringify([owner, oldKey]));
       }
     }
     const references = Array.isArray(record.conflicts_with)
@@ -97,10 +97,10 @@ export function analyzeMemoryRelations(records) {
       : (typeof record.conflicts_with === "string" ? [record.conflicts_with] : []);
     for (const otherKey of references) {
       if (typeof otherKey !== "string" || !otherKey.trim()) continue;
-      const other = byOwnerAndKey.get(owner + "\\u0000" + otherKey.trim());
+      const other = byOwnerAndKey.get(JSON.stringify([owner, otherKey.trim()]));
       if (other && otherKey.trim() !== key) {
-        conflictedKeys.add(owner + "\\u0000" + key);
-        conflictedKeys.add(owner + "\\u0000" + otherKey.trim());
+        conflictedKeys.add(JSON.stringify([owner, key]));
+        conflictedKeys.add(JSON.stringify([owner, otherKey.trim()]));
       }
     }
   }
@@ -121,7 +121,7 @@ export function selectMemoryContext(records, options = {}) {
   const candidates = [];
   for (const record of records) {
     if (!record || typeof record !== "object" || Array.isArray(record)) continue;
-    if (record.owner_uid !== ownerUid || record.deleted_at || record.superseded_by ||\n        relations.supersededKeys.has(ownerUid + "\\u0000" + String(record.memory_key || "").trim())) continue;
+    if (record.owner_uid !== ownerUid || record.deleted_at || record.superseded_by ||\n        relations.supersededKeys.has(JSON.stringify([ownerUid, String(record.memory_key || "").trim()]))) continue;
     if (record.status && record.status !== "active") continue;
     if (BLOCKED_SENSITIVITY.has(String(record.sensitivity || "").toLowerCase())) continue;
     if (containsSensitivePersonalData(record.content) || containsSensitivePersonalData(record.memory_key)) continue;
@@ -145,7 +145,7 @@ export function selectMemoryContext(records, options = {}) {
     const score = query.size ? (baseScore * 0.75) + (relevance * 0.25) : baseScore;
     candidates.push({
       memory_key: key, memory_type: memoryType, content: content.slice(0, maxItemChars),
-      source: provenance.slice(0, 120), confidence, importance, relevance,\n      relation_status: relations.conflictedKeys.has(ownerUid + "\\u0000" + key) ? "conflict" : "current",
+      source: provenance.slice(0, 120), confidence, importance, relevance,\n      relation_status: relations.conflictedKeys.has(JSON.stringify([ownerUid, key])) ? "conflict" : "current",
       updated_at: new Date(updatedAt).toISOString(), score
     });
   }
