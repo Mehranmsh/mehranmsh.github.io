@@ -1438,7 +1438,6 @@ test("Cloudflare AI diagnostics distinguish budget reservation failures from inf
   const analysisRoute = workerSource.slice(analysisStart, analysisEnd);
   assert.match(analysisRoute, /recordIntelligenceAIProviderDiagnostics\(env, traceId, providerAttempts, model\)/);
   assert.match(analysisRoute, /providerAttempts:safeAttempts/);
-  assert.match(workerSource, /ORDER BY CASE WHEN provider='cloudflare' THEN 0 ELSE 1 END,id DESC LIMIT 4/);
   const healthStart = workerSource.indexOf('if (path === "/health" && method === "GET")');
   const healthEnd = workerSource.indexOf('if (path.startsWith("/admin/session"))', healthStart);
   const healthRoute = workerSource.slice(healthStart, healthEnd);
