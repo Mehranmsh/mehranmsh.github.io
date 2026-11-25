@@ -47,11 +47,17 @@ const retryPolicySource = (await readFile(new URL("./intelligence-retry-policy.m
   .replace("export function planIntelligenceRetry", "function planIntelligenceRetry");
 const feedbackLearningSource = (await readFile(new URL("./intelligence-feedback-learning.mjs", import.meta.url), "utf8"))
   .replace("export function proposeIntelligencePreferenceUpdates", "function proposeIntelligencePreferenceUpdates")
-  .replaceAll("BLOCKED_SENSITIVITY", "FEEDBACK_BLOCKED_SENSITIVITY");
+  .replaceAll("BLOCKED_SENSITIVITY", "FEEDBACK_LEARNING_BLOCKED_SENSITIVITY")
+  .replace("const clean=", "const cleanFeedbackLearning=")
+  .replaceAll("clean(", "cleanFeedbackLearning(");
 const feedbackLearningUrl = moduleUrl(feedbackLearningSource);
 const feedbackReviewSource = (await readFile(new URL("./intelligence-feedback-review.mjs", import.meta.url), "utf8"))
   .replace('from "./intelligence-feedback-learning.mjs"', 'from "' + feedbackLearningUrl + '"')
-  .replace("export function buildIntelligenceFeedbackReview", "function buildIntelligenceFeedbackReview");
+  .replace("export function buildIntelligenceFeedbackReview", "function buildIntelligenceFeedbackReview")
+  .replace("const BLOCKED=", "const FEEDBACK_REVIEW_BLOCKED=")
+  .replaceAll("BLOCKED.has", "FEEDBACK_REVIEW_BLOCKED.has")
+  .replace("const clean=", "const cleanFeedbackReview=")
+  .replaceAll("clean(", "cleanFeedbackReview(");
 function moduleUrl(source) { return "data:text/javascript;base64," + Buffer.from(source).toString("base64"); }
 const inboxSchemaUrl = moduleUrl(inboxSchemaSource);
 const policyUrl = moduleUrl(policySource);
