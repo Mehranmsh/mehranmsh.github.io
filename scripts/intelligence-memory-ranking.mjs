@@ -10,6 +10,7 @@ function normalizeMemoryType(value) {
     constraint: "decision",
     goal: "semantic",
     preference: "decision",
+    progress: "episodic",
     workflow: "procedural",
     project: "semantic"
   };
@@ -33,6 +34,25 @@ function recencyScore(updatedAt, now) {
   return Math.exp(-ageDays / 45);
 }
 
+function queryTokens(value) {
+  return new Set(String(value || "")
+    .toLocaleLowerCase()
+    .normalize("NFKC")
+    .replace(/[\\u064a\\u0649]/g, "ی")
+    .replace(/[\\u0643]/g, "ک")
+    .split(/[^\\p{L}\\p{N}]+/u)
+    .filter(token => token.length > 1)
+    .slice(0, 32));
+}
+
+function relevanceScore(record, query) {
+  if (!query.size) return 0;
+  const content = queryTokens([record.memory_key, record.memory_type, record.content].join(" "));
+  let matched = 0;
+  for (const token of query) if (content.has(token)) matched++;
+  return matched / query.size;
+}
+
 /**
  * Selects a bounded, owner-scoped memory context without inference or I/O.
  * Records lacking provenance, valid timestamps, or an allowed type are excluded.
@@ -44,6 +64,7 @@ export function selectMemoryContext(records, options = {}) {
     ? Math.min(options.maxItems, 50) : DEFAULT_LIMITS.maxItems;
   const maxChars = Number.isInteger(options.maxChars) && options.maxChars > 0
     ? Math.min(options.maxChars, 20_000) : DEFAULT_LIMITS.maxChars;
+  const query = queryTokens(options.query);
   const maxItemChars = Number.isInteger(options.maxItemChars) && options.maxItemChars > 0
     ? Math.min(options.maxItemChars, 4000) : DEFAULT_LIMITS.maxItemChars;
 
@@ -74,7 +95,7 @@ export function selectMemoryContext(records, options = {}) {
     const trust = record.source === "project_baseline" || record.source === "owner_confirmed"
       ? 1 : finiteUnit(record.source_trust, 0.5);
     const recency = recencyScore(updatedAt, now);
-    const score = (importance * 0.35) + (confidence * 0.25) + (trust * 0.20) + (recency * 0.20);
+    const baseScore = (importance * 0.35) + (confidence * 0.25) + (trust * 0.20) + (recency * 0.20);\n    const relevance = relevanceScore(record, query);\n    const score = query.size ? (baseScore * 0.75) + (relevance * 0.25) : baseScore;
 
     candidates.push({
       memory_key: key,
@@ -83,6 +104,7 @@ export function selectMemoryContext(records, options = {}) {
       source: provenance.slice(0, 120),
       confidence,
       importance,
+      relevance,
       updated_at: new Date(updatedAt).toISOString(),
       score
     });
