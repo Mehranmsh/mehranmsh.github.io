@@ -484,9 +484,9 @@ test("Agent API stale-claim recovery includes package-bound allowlisted tasks", 
   const checkpointStart = workerSource.indexOf("const checkpointMatch", start);
   const resultStart = workerSource.indexOf("const agentResultMatch", checkpointStart);
   const resultEnd = workerSource.indexOf('return error("Not found",404);', resultStart);
-  assert.match(workerSource.slice(checkpointStart, resultStart), /json_each\\(CASE WHEN json_valid\\(wp\\.scope_json\\) THEN wp\\.scope_json ELSE '\\{\\}' END, '\\$\\.allowedActions'\\)/,
+  assert.match(workerSource.slice(checkpointStart, resultStart), /json_each\(CASE WHEN json_valid\(wp\.scope_json\) THEN wp\.scope_json ELSE '\{\}' END, '\$\.allowedActions'\)/,
     "checkpoint writes must reject tasks outside their package scope");
-  assert.match(workerSource.slice(resultStart, resultEnd), /json_each\\(CASE WHEN json_valid\\(wp\\.scope_json\\) THEN wp\\.scope_json ELSE '\\{\\}' END, '\\$\\.allowedActions'\\)/,
+  assert.match(workerSource.slice(resultStart, resultEnd), /json_each\(CASE WHEN json_valid\(wp\.scope_json\) THEN wp\.scope_json ELSE '\{\}' END, '\$\.allowedActions'\)/,
     "result commits must reject tasks outside their package scope");
 });
 
