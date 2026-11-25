@@ -121,7 +121,8 @@ export function selectMemoryContext(records, options = {}) {
   const candidates = [];
   for (const record of records) {
     if (!record || typeof record !== "object" || Array.isArray(record)) continue;
-    if (record.owner_uid !== ownerUid || record.deleted_at || record.superseded_by ||\n        relations.supersededKeys.has(JSON.stringify([ownerUid, String(record.memory_key || "").trim()]))) continue;
+    if (record.owner_uid !== ownerUid || record.deleted_at || record.superseded_by ||
+        relations.supersededKeys.has(JSON.stringify([ownerUid, String(record.memory_key || "").trim()]))) continue;
     if (record.status && record.status !== "active") continue;
     if (BLOCKED_SENSITIVITY.has(String(record.sensitivity || "").toLowerCase())) continue;
     if (containsSensitivePersonalData(record.content) || containsSensitivePersonalData(record.memory_key)) continue;
@@ -145,7 +146,8 @@ export function selectMemoryContext(records, options = {}) {
     const score = query.size ? (baseScore * 0.75) + (relevance * 0.25) : baseScore;
     candidates.push({
       memory_key: key, memory_type: memoryType, content: content.slice(0, maxItemChars),
-      source: provenance.slice(0, 120), confidence, importance, relevance,\n      relation_status: relations.conflictedKeys.has(JSON.stringify([ownerUid, key])) ? "conflict" : "current",
+      source: provenance.slice(0, 120), confidence, importance, relevance,
+      relation_status: relations.conflictedKeys.has(JSON.stringify([ownerUid, key])) ? "conflict" : "current",
       updated_at: new Date(updatedAt).toISOString(), score
     });
   }
