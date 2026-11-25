@@ -44,15 +44,14 @@ test("persistent Workers AI inference 503 failures are not automatically retried
   assert.match(runnerSource, /Number\(error\?\.status\) === 503/);
 });
 
-test("bounded inspection serialization preserves a schema-valid semantic analysis", () => {
-  const serializerStart = runnerSource.indexOf("function serializeBoundedResult");
-  const serializerEnd = runnerSource.indexOf('for (let count = 0;', serializerStart);
-  const serializer = runnerSource.slice(serializerStart, serializerEnd);
-  assert.match(serializer, /analysis: compactAnalysis/);
-  assert.match(serializer, /findings: \[\]/);
-  assert.match(serializer, /Semantic findings were compacted/);
-  assert.match(serializer, /bounded\.length > maxChars/);
-  assert.match(serializer, /item\?\.rootCause/);
+test("bounded repository inventory does not require Workers AI semantic analysis", () => {
+  assert.match(runnerSource, /Deterministic source inventory completed/);
+  assert.match(runnerSource, /This task does not perform semantic code review/);
+  assert.match(runnerSource, /findings: \[\]/);
+  assert.doesNotMatch(runnerSource, /request\("\/agent\/v1\/repository\/analyze"/);
+  assert.doesNotMatch(runnerSource, /Workers AI semantic source analysis was not verified/);
+  assert.match(workerSource, /inspect_repository_deterministic_inventory/);
+  assert.doesNotMatch(workerSource, /inspect_repository_semantic_analysis/);
 });
 
 test("runner resumes a durable completed result checkpoint without repeating execution", () => {
