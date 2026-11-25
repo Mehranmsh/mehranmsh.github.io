@@ -59,6 +59,54 @@ function relevanceScore(record, query, normalizedQuery) {
   return (tokenCoverage * 0.85) + (phraseMatch ? 0.15 : 0);
 }
 
+/**
+ * Resolve only owner-authored, explicit memory relations.
+ * A newer record may supersede an older key; conflicts remain visible.
+ */
+export function analyzeMemoryRelations(records) {
+  if (!Array.isArray(records)) return { supersededKeys: new Set(), conflictedKeys: new Set() };
+  const byOwnerAndKey = new Map();
+  for (const record of records) {
+    if (!record || typeof record !== "object" || Array.isArray(record)) continue;
+    const owner = typeof record.owner_uid === "string" ? record.owner_uid.trim() : "";
+    const key = typeof record.memory_key === "string" ? record.memory_key.trim() : "";
+    if (!owner || !key) continue;
+    byOwnerAndKey.set(owner + "\\u0000" + key, record);
+  }
+
+  const supersededKeys = new Set();
+  const conflictedKeys = new Set();
+  for (const record of records) {
+    if (!record || typeof record !== "object" || Array.isArray(record)) continue;
+    const owner = typeof record.owner_uid === "string" ? record.owner_uid.trim() : "";
+    const key = typeof record.memory_key === "string" ? record.memory_key.trim() : "";
+    if (!owner || !key) continue;
+    const updatedAt = timestamp(record.updated_at);
+    const supersedes = [record.supersedes_key, record.supersedes_memory_key]
+      .filter(value => typeof value === "string" && value.trim())
+      .map(value => value.trim());
+    for (const oldKey of new Set(supersedes)) {
+      const prior = byOwnerAndKey.get(owner + "\\u0000" + oldKey);
+      const priorAt = timestamp(prior?.updated_at);
+      if (prior && oldKey !== key && updatedAt !== null && priorAt !== null && updatedAt > priorAt) {
+        supersededKeys.add(owner + "\\u0000" + oldKey);
+      }
+    }
+    const references = Array.isArray(record.conflicts_with)
+      ? record.conflicts_with
+      : (typeof record.conflicts_with === "string" ? [record.conflicts_with] : []);
+    for (const otherKey of references) {
+      if (typeof otherKey !== "string" || !otherKey.trim()) continue;
+      const other = byOwnerAndKey.get(owner + "\\u0000" + otherKey.trim());
+      if (other && otherKey.trim() !== key) {
+        conflictedKeys.add(owner + "\\u0000" + key);
+        conflictedKeys.add(owner + "\\u0000" + otherKey.trim());
+      }
+    }
+  }
+  return { supersededKeys, conflictedKeys };
+}
+
 /** Selects bounded, owner-scoped memory context without inference or I/O. */
 export function selectMemoryContext(records, options = {}) {
   const ownerUid = typeof options.ownerUid === "string" ? options.ownerUid.trim() : "";
@@ -73,7 +121,7 @@ export function selectMemoryContext(records, options = {}) {
   const candidates = [];
   for (const record of records) {
     if (!record || typeof record !== "object" || Array.isArray(record)) continue;
-    if (record.owner_uid !== ownerUid || record.deleted_at || record.superseded_by) continue;
+    if (record.owner_uid !== ownerUid || record.deleted_at || record.superseded_by ||\n        relations.supersededKeys.has(ownerUid + "\\u0000" + String(record.memory_key || "").trim())) continue;
     if (record.status && record.status !== "active") continue;
     if (BLOCKED_SENSITIVITY.has(String(record.sensitivity || "").toLowerCase())) continue;
     if (containsSensitivePersonalData(record.content) || containsSensitivePersonalData(record.memory_key)) continue;
@@ -97,7 +145,7 @@ export function selectMemoryContext(records, options = {}) {
     const score = query.size ? (baseScore * 0.75) + (relevance * 0.25) : baseScore;
     candidates.push({
       memory_key: key, memory_type: memoryType, content: content.slice(0, maxItemChars),
-      source: provenance.slice(0, 120), confidence, importance, relevance,
+      source: provenance.slice(0, 120), confidence, importance, relevance,\n      relation_status: relations.conflictedKeys.has(ownerUid + "\\u0000" + key) ? "conflict" : "current",
       updated_at: new Date(updatedAt).toISOString(), score
     });
   }
