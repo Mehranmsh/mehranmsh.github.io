@@ -1591,7 +1591,7 @@ test("semantic inspection is explicit, budgeted, redacted, and bound to the immu
   assert.match(workerSource, /body\.focus\.length > 800/);
   assert.match(workerSource, /cloudflareReservation:500/);
   assert.match(runnerSource, /analysisMode === "semantic"/);
-  assert.match(runnerSource, /Bearer \\[REDACTED\\]/);
+  assert.match(runnerSource, /Bearer \\[REDACTED\]/);
   assert.match(runnerSource, /analysisMode: value\?\.analysisMode \|\| "inventory"/);
   assert.match(runnerSource, /expectedAnalysisMode = taskPayload\.analysisMode \|\| "inventory"/);
   assert.match(runnerSource, /report\?\.analysisMode \|\| "inventory"\) === expectedAnalysisMode/);
