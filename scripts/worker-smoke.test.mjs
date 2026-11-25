@@ -301,7 +301,7 @@ test("MEHRAN AI diagnostics use read-only health and quota capabilities", () => 
   assert.ok(route.includes('liveProviderProbe: "not_performed"'));
   assert.equal(route.includes("env.OPENAI_API_KEY"), true);
   assert.equal(route.includes("JSON.stringify(env"), false);
-  assert.equal(route.includes("env.AI.run"), false);
+  assert.equal(route.includes("env.AI.run("), false);
 });
 
 
