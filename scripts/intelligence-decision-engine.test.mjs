@@ -37,7 +37,7 @@ test("decision engine consumes approved preference profile only after explicit o
  const criteria=[{key:"quality",weight:50,direction:"higher"},{key:"cost",weight:50,direction:"higher"}];
  const options=[{id:"a",scores:{quality:5,cost:0}},{id:"b",scores:{quality:0,cost:5}}];
  const normal=evaluateIntelligenceOptions(options,criteria,{ownerUid:"owner"});
- const opted=evaluateIntelligenceOptions(options,criteria,{ownerUid:"owner",approvedPreferenceProfile:profile,allowApprovedPreferences:true});
+ const opted=evaluateIntelligenceOptions(options,criteria,{ownerUid:"owner",approvedPreferenceProfile:profile,allowApprovedPreferences:true,actorUid:"owner"});
  assert.equal(normal.diagnostics.preferencesApplied,false);
  assert.equal(opted.diagnostics.preferencesApplied,true);
  assert.equal(opted.rankedOptions[0].evidence.find(x=>x.criterion==="quality").weight,55);
