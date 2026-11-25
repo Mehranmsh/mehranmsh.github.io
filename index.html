@@ -901,6 +901,65 @@ input:focus,textarea:focus,select:focus,button:focus-visible,a:focus-visible{out
 }
 @media(max-width:380px){.home-edition{display:none}.home-hero-visual{min-height:43svh}.home-portrait-frame{height:43svh}.home-hero-footer span:last-child{display:none}}
 </style>
+
+<style id="msh-ai-studio-redesign">
+/* MEHRAN AI: studio layout, preserving existing controls and API hooks */
+#page-ai{max-width:1500px;margin:0 auto;padding:clamp(16px,2.4vw,32px)!important}
+#page-ai>.page-heading{position:relative;padding:26px 30px 24px;margin:0 0 18px;border:1px solid #23445f;border-radius:20px;background:radial-gradient(ellipse at 88% 15%,#174b68 0%,#10283d 38%,#0b1523 78%);overflow:hidden}
+#page-ai>.page-heading:after{content:"✳";position:absolute;right:35px;top:-28px;font-size:150px;line-height:1;color:#69d9f2;opacity:.07;pointer-events:none}
+#page-ai>.page-heading h1{font-size:clamp(26px,3vw,38px);letter-spacing:.04em;margin:0 0 7px;color:#eaf8ff}
+#page-ai>.page-heading p{max-width:650px;color:#a9c4d7;margin:0;font-size:13px;line-height:1.7}
+#page-ai .ai-navigation{display:flex;gap:8px;padding:6px;margin:0 0 18px;width:max-content;max-width:100%;border:1px solid var(--line);border-radius:14px;background:var(--panel);position:sticky;top:8px;z-index:8}
+#page-ai .ai-nav-btn{border:0;border-radius:10px;padding:11px 17px;background:transparent;color:var(--muted);font-weight:750;font-size:12px;transition:background .2s,color .2s}
+#page-ai .ai-nav-btn.active{background:linear-gradient(120deg,#164a68,#17627a);color:#e9fbff;box-shadow:0 5px 18px #0003}
+#page-ai #social-ai>.section-title{display:none}
+#page-ai #social-ai>.panel{display:grid;grid-template-columns:minmax(0,1.55fr) minmax(270px,.78fr);grid-template-areas:"intro intro" "signin signin" "quick quick" "status status" "provider provider" "messages planner" "composer planner" "image image";gap:14px;align-items:start;padding:clamp(12px,1.6vw,20px);border-radius:20px;border:1px solid #243d54;background:linear-gradient(145deg,#101c2b,#0b1420 72%);box-shadow:0 18px 55px #0002}
+#page-ai #social-ai>.panel>.notice:first-child{grid-area:intro;margin:0!important;padding:13px 16px;border:1px solid #28516a;border-radius:13px;background:#10283a}
+#page-ai .ai-signin-gate{grid-area:signin}
+#page-ai .ai-quick-start{grid-area:quick;padding:17px;border:1px solid #263e54;border-radius:16px;background:linear-gradient(110deg,#13283a,#10202f)}
+#page-ai .ai-quick-heading{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:13px;flex-wrap:wrap}
+#page-ai .ai-quick-heading strong{font-size:14px;color:#e5f5ff}
+#page-ai .ai-quick-grid{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:9px}
+#page-ai .ai-quick-grid button{min-width:0;min-height:96px;display:flex;flex-direction:column;align-items:flex-start;justify-content:center;gap:5px;padding:12px;border:1px solid #2b465d;border-radius:13px;background:#0d1b29;color:var(--text);text-align:left;transition:transform .18s,border-color .18s,background .18s}
+#page-ai .ai-quick-grid button:hover{transform:translateY(-3px);border-color:#55cce7;background:#132c40}
+#page-ai .ai-quick-grid button>span{font-size:19px;color:#67d9ef}
+#page-ai .ai-quick-grid button strong{font-size:11px}
+#page-ai .ai-quick-grid button small{font-size:10px;line-height:1.4;color:var(--muted)}
+#page-ai #assistantStatus{grid-area:status;margin:0!important}
+#page-ai #social-ai>.panel>.field:has(#assistantProviderSelect){grid-area:provider;margin:0;padding:12px 14px;border:1px solid #263e54;border-radius:13px;background:#0d1926}
+#page-ai #assistantProviderSelect{max-width:100%;min-height:42px}
+#page-ai #assistantProviderStatus{grid-area:provider;align-self:end;justify-self:end;margin:0 12px 9px!important;max-width:48%;text-align:right}
+#page-ai #assistantMessages{grid-area:messages;min-height:350px!important;max-height:560px!important;margin:0!important;padding:17px;border:1px solid #29465d;border-radius:16px;background:linear-gradient(180deg,#0b1724,#0d1c2b)}
+#page-ai .assistant-composer-wrap{grid-area:composer;margin:0;padding:11px;border:1px solid #2a485f;border-radius:16px;background:#101f2e}
+#page-ai .assistant-composer{gap:9px}
+#page-ai .assistant-composer input{min-height:48px;border-radius:12px}
+#page-ai .assistant-composer .btn{min-width:88px;min-height:46px;border-radius:12px}
+#page-ai #assistantTaskPlanner{grid-area:planner;margin:0!important;padding:18px;border:1px solid #34516a;border-radius:16px;background:linear-gradient(160deg,#14283a,#0d1926);height:fit-content;position:sticky;top:72px}
+#page-ai #assistantTaskPlanner .section-title h3{font-size:17px}
+#page-ai #assistantTaskPlanner .section-title>span{padding:5px 8px;border-radius:7px;background:#193a4d;color:#79dff0;font-size:9px;letter-spacing:.1em}
+#page-ai #imageStudioPanel{grid-area:image;margin:0!important;padding:20px;border:1px solid #3a4560;border-radius:17px;background:linear-gradient(120deg,#171d31,#101a29 70%)}
+#page-ai #imageStudioPanel textarea{min-height:105px}
+#page-ai #social-prompt-creator>.section-title{padding:8px 2px 14px}
+#page-ai #social-prompt-creator .prompt-hero{padding:clamp(20px,3vw,34px);border:1px solid #34546c;border-radius:18px;background:radial-gradient(ellipse at 90% 0%,#17445d,#101f30 65%)}
+#page-ai #social-prompt-creator .prompt-hero h3{font-size:clamp(22px,3vw,32px);max-width:700px;line-height:1.25}
+#page-ai #social-prompt-creator .prompt-gallery{margin-top:15px;border-radius:18px}
+@media(max-width:980px){
+ #page-ai #social-ai>.panel{grid-template-columns:minmax(0,1fr);grid-template-areas:"intro" "signin" "quick" "status" "provider" "messages" "composer" "planner" "image"}
+ #page-ai #assistantTaskPlanner{position:static}
+ #page-ai .ai-quick-grid{grid-template-columns:repeat(3,minmax(0,1fr))}
+ #page-ai #assistantProviderStatus{position:static;justify-self:start;max-width:none;text-align:left}
+}
+@media(max-width:560px){
+ #page-ai{padding:12px!important}
+ #page-ai>.page-heading{padding:21px 18px;border-radius:16px}
+ #page-ai .ai-navigation{width:100%;position:static}
+ #page-ai .ai-nav-btn{flex:1;padding:10px 7px;font-size:11px}
+ #page-ai .ai-quick-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+ #page-ai .ai-quick-grid button{min-height:86px}
+ #page-ai #assistantMessages{min-height:260px!important}
+ #page-ai #imageStudioPanel{padding:14px}
+}
+</style>
 </head>
 <body>
 <div class="app">
