@@ -1490,7 +1490,7 @@ test("Workers AI daily quota circuit resets at Cloudflare UTC midnight", () => {
 test("routine missions are routed through the deterministic planner before any AI inference", () => {
   assert.match(routinePlannerSource, /service health|worker health|database health/i);
   assert.match(routinePlannerSource, /source security|security audit/i);
-  assert.match(routinePlannerSource, /if \\(changeIntent\\.test\\(text\\)\\) return null/);
+  assert.match(routinePlannerSource, /if \(changeIntent\.test\(text\)\) return null/);
 
   const plannerStart = workerSource.indexOf("async function planIntelligenceMission(");
   const deterministicStart = workerSource.indexOf("const deterministicPlan = buildDeterministicRoutinePlan(mission)", plannerStart);
