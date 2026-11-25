@@ -39,7 +39,7 @@ test("does not count cross-owner, spoofed, implicit, or unconfirmed events", () 
 
 test("emits a repeated association without claiming cause or changing preferences", () => {
   const revisions = [rev(1,[task("a")]), rev(2,[task("a",{priority:"high"})]),
-    rev(3,[task("a",{priority:"high"})]), rev(4,[task("a",{priority:"high"})])];
+    rev(3,[task("a",{priority:"normal"})]), rev(4,[task("a",{priority:"high"})])];
   const events = [event(2,"a","failed"),event(3,"a","failed"),event(4,"a","failed")];
   const result = learnFromIntelligencePlanOutcomes(revisions,events,opts);
   const pattern = result.patterns.find(x => x.signature === "priority_changed");
