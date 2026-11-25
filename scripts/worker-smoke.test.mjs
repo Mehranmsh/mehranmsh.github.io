@@ -3941,7 +3941,7 @@ test("persistent Intelligence plan history is owner-scoped, immutable, and expli
   assert.ok(workerSource.includes("CREATE TABLE IF NOT EXISTS intelligence_plan_progress_events"));
   assert.ok(workerSource.includes("UNIQUE(owner_uid,version)"));
   assert.ok(routes.includes("recordsChanged:false"));
-  assert.doesNotMatch(routes,/body\\.ownerUid|body\\.actorUid/);
+  assert.doesNotMatch(routes,/body\.ownerUid|body\.actorUid/);
 });
 
 test("Intelligence plan history UI requires explicit confirmation and displays revision comparison", () => {
