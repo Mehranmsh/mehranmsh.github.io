@@ -95,7 +95,8 @@ try {
 }
 const patchStoreModule = await import(patchStoreUrl);
 const worker = workerModule.default;
-const { verifyIntelligenceReport, validateIntelligenceWorkPackage, persistIntelligencePackageReport } = workerModule;
+const { verifyIntelligenceReport, validateIntelligenceWorkPackage, persistIntelligencePackageReport,
+  isWorkersAIDailyQuotaCircuitOpen, nextWorkersAIDailyResetAt } = workerModule;
 
 function mockDb() {
   return {
@@ -121,6 +122,26 @@ async function request(path, { method = "GET", origin, headers = {}, body } = {}
     body: body === undefined ? undefined : JSON.stringify(body)
   }), env);
 }
+
+test("Workers AI quota circuit retries after a bounded cooldown", () => {
+  const attemptedAt = Date.parse("2026-11-25T00:01:00.000Z");
+  assert.equal(isWorkersAIDailyQuotaCircuitOpen(attemptedAt, attemptedAt + 14 * 60 * 1000), true);
+  assert.equal(isWorkersAIDailyQuotaCircuitOpen(attemptedAt, attemptedAt + 15 * 60 * 1000), false);
+  assert.equal(isWorkersAIDailyQuotaCircuitOpen(attemptedAt, attemptedAt + 24 * 60 * 60 * 1000), false);
+});
+
+test("Workers AI quota circuit opens sooner when the UTC daily reset is near", () => {
+  const attemptedAt = Date.parse("2026-11-25T23:59:30.000Z");
+  const resetAt = Date.parse("2026-11-26T00:00:00.000Z");
+  assert.equal(nextWorkersAIDailyResetAt(attemptedAt), resetAt);
+  assert.equal(isWorkersAIDailyQuotaCircuitOpen(attemptedAt, resetAt - 1), true);
+  assert.equal(isWorkersAIDailyQuotaCircuitOpen(attemptedAt, resetAt), false);
+});
+
+test("Workers AI quota circuit fails open for invalid diagnostic timestamps", () => {
+  assert.equal(isWorkersAIDailyQuotaCircuitOpen("not-a-date", Date.now()), false);
+  assert.equal(isWorkersAIDailyQuotaCircuitOpen("2026-11-25T00:01:00.000Z", Number.NaN), false);
+});
 
 test("health endpoint reports online and confirms the database binding", async () => {
   const response = await request("/health", {}, { DB: mockDb() });
