@@ -437,9 +437,17 @@ jobs:
                 const sourceLines = source.split(/\r\n|\n|\r/);
                 const selected = new Set();
                 const relevant = /intelligence|task|claim|lease|dependenc|checkpoint|idempot|retry|work.?package|report|runner|approval|module|adapter|localStorage|indexedDB|studio|audio|upload|storage|migration|session|security|quota/i;
-                for (let index = 0; index < sourceLines.length && selected.size < 34; index++) {
-                  if (!relevant.test(sourceLines[index])) continue;
-                  for (let offset = Math.max(0, index - 2); offset <= Math.min(sourceLines.length - 1, index + 2); offset++) {
+                const matchingLines = [];
+                for (let index = 0; index < sourceLines.length; index++) {
+                  if (relevant.test(sourceLines[index])) matchingLines.push(index);
+                }
+                // Sample matches across the complete file instead of letting early
+                // declarations crowd out the actual queue, storage, or route logic.
+                const centerCount = Math.min(7, matchingLines.length);
+                for (let slot = 0; slot < centerCount; slot++) {
+                  const matchIndex = Math.floor(slot * (matchingLines.length - 1) / Math.max(1, centerCount - 1));
+                  const center = matchingLines[matchIndex];
+                  for (let offset = Math.max(0, center - 2); offset <= Math.min(sourceLines.length - 1, center + 2); offset++) {
                     selected.add(offset);
                   }
                 }
