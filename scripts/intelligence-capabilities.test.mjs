@@ -71,6 +71,8 @@ test("repository inspection keeps deterministic inventory as default and gates s
   assert.match(inspect, /blobSha: file\.sha/);
   assert.match(inspect, /lineCount:/);
   assert.match(inspect, /symbols:/);
+  assert.ok(inspect.includes('"scripts/intelligence-agent-runtime.mjs"'));
+  assert.ok(inspect.includes('"scripts/intelligence-agent-runtime.test.mjs"'));
   assert.match(inspect, /const analysisMode = payload\.analysisMode \|\| "inventory"/);
   assert.match(inspect, /if \(analysisMode === "semantic"\)/);
   assert.match(inspect, /request\("\/agent\/v1\/repository\/analyze"/);
