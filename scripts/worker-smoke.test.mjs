@@ -20,9 +20,10 @@ const routinePlannerImport = 'import { buildDeterministicRoutinePlan } from "./s
 const memoryRankingImport = 'import { selectMemoryContext } from "./scripts/intelligence-memory-ranking.mjs";';
 const answerQualityImport = 'import { normalizeIntelligenceAnswer } from "./scripts/intelligence-answer-quality.mjs";';
 const retryPolicyImport = 'import { planIntelligenceRetry } from "./scripts/intelligence-retry-policy.mjs";';
+const feedbackReviewImport = 'import { buildIntelligenceFeedbackReview } from "./scripts/intelligence-feedback-review.mjs";';
 if (!workerSource.includes(capabilityImport) || !workerSource.includes(patchStoreImport) ||
     !workerSource.includes(patchGenerationImport) || !workerSource.includes(inboxSchemaImport) ||
-    !workerSource.includes(routinePlannerImport) || !workerSource.includes(memoryRankingImport) || !workerSource.includes(answerQualityImport) || !workerSource.includes(retryPolicyImport) || !workerSource.includes('import { buildIntelligenceFeedbackReview } from "./scripts/intelligence-feedback-review.mjs";')) {
+    !workerSource.includes(routinePlannerImport) || !workerSource.includes(memoryRankingImport) || !workerSource.includes(answerQualityImport) || !workerSource.includes(retryPolicyImport) || !workerSource.includes(feedbackReviewImport)) {
   throw new Error("Worker capability, patch storage, or private inbox schema imports were not found");
 }
 const policySource = await readFile(new URL("./intelligence-patch-policy.mjs", import.meta.url), "utf8");
@@ -44,6 +45,12 @@ const routinePlannerSource = (await readFile(new URL("./intelligence-routine-pla
   .replace("export function buildDeterministicRoutinePlan", "function buildDeterministicRoutinePlan");
 const retryPolicySource = (await readFile(new URL("./intelligence-retry-policy.mjs", import.meta.url), "utf8"))
   .replace("export function planIntelligenceRetry", "function planIntelligenceRetry");
+const feedbackLearningSource = (await readFile(new URL("./intelligence-feedback-learning.mjs", import.meta.url), "utf8"))
+  .replace("export function proposeIntelligencePreferenceUpdates", "function proposeIntelligencePreferenceUpdates");
+const feedbackLearningUrl = moduleUrl(feedbackLearningSource);
+const feedbackReviewSource = (await readFile(new URL("./intelligence-feedback-review.mjs", import.meta.url), "utf8"))
+  .replace('from "./intelligence-feedback-learning.mjs"', 'from "' + feedbackLearningUrl + '"')
+  .replace("export function buildIntelligenceFeedbackReview", "function buildIntelligenceFeedbackReview");
 const moduleUrl = source => "data:text/javascript;base64," + Buffer.from(source).toString("base64");
 const inboxSchemaUrl = moduleUrl(inboxSchemaSource);
 const policyUrl = moduleUrl(policySource);
@@ -96,8 +103,9 @@ const workerRest = workerSource.replace(capabilityImport, "")
   .replace(routinePlannerImport, "")
   .replace(memoryRankingImport, "")
   .replace(answerQualityImport, "")
-  .replace(retryPolicyImport, "");
-const workerSourceForTest = knowledgeGraphSource + "\n" + memoryRankingSource + "\n" + routinePlannerSource + "\n" + retryPolicySource + `\nimport { storePrivatePatchArtifact, verifyPrivatePatchArtifactAtPath, getPrivatePatchArtifactPath, getVerifiedPrivatePatchArtifactAtPath } from "${patchStoreTestUrl}";
+  .replace(retryPolicyImport, "")
+  .replace(feedbackReviewImport, "");
+const workerSourceForTest = knowledgeGraphSource + "\n" + memoryRankingSource + "\n" + feedbackLearningSource + "\n" + feedbackReviewSource + "\n" + routinePlannerSource + "\n" + retryPolicySource + `\nimport { storePrivatePatchArtifact, verifyPrivatePatchArtifactAtPath, getPrivatePatchArtifactPath, getVerifiedPrivatePatchArtifactAtPath } from "${patchStoreTestUrl}";
 import { generatePatchArtifact } from "${patchGenerationTestUrl}";
 import { validatePrivateIntelligenceMission } from "${inboxSchemaUrl}";
 const INTELLIGENCE_ACTION_TYPES = ${JSON.stringify(INTELLIGENCE_ACTION_TYPES)};
