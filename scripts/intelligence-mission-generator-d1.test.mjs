@@ -15,7 +15,7 @@ function sqlAfter(marker) {
 const schemaLock = sqlAfter("CREATE TABLE IF NOT EXISTS intelligence_mission_generator_lock(");
 const schemaPackages = sqlAfter("CREATE TABLE IF NOT EXISTS intelligence_work_packages(");
 const trigger = sqlAfter("CREATE TRIGGER IF NOT EXISTS intelligence_mission_generator_lock_guard");
-const reserve = sqlAfter("INSERT INTO intelligence_mission_generator_lock(id,cycle_key,package_id,status,expires_at,updated_at)");
+const reserveSql = sqlAfter("INSERT INTO intelligence_mission_generator_lock(id,cycle_key,package_id,status,expires_at,updated_at)");
 const release = "UPDATE intelligence_mission_generator_lock SET status='released',updated_at=CURRENT_TIMESTAMP WHERE id=1 AND package_id=? AND status='reserved'";
 
 test("D1 mission-generator reservation SQL and insert guard pass SQLite integration checks", () => {
@@ -24,7 +24,7 @@ test("D1 mission-generator reservation SQL and insert guard pass SQLite integrat
     db.exec(schemaLock);
     db.exec(schemaPackages);
     db.exec(trigger);
-    const reserveSlot = db.prepare(reserve);
+    const reserveSlot = db.prepare(reserveSql);
     const addPackage = db.prepare("INSERT INTO intelligence_work_packages(id,idempotency_key,title,created_by) VALUES(?,?,?,?)");
     const reserve = (cycle, id) => Number(reserveSlot.run(cycle, id).changes);
     const add = (id, key) => addPackage.run(id, key, "test", "test");
