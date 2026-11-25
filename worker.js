@@ -5440,6 +5440,26 @@ async function ensureIntelligenceTaskTable(env) {
 
 async function ensureIntelligenceProtocolTables(env) {
   await env.DB.prepare(`
+    CREATE TABLE IF NOT EXISTS intelligence_mission_generator_lock(
+      id INTEGER PRIMARY KEY CHECK(id=1),
+      cycle_key TEXT NOT NULL,
+      package_id TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'reserved',
+      updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )
+  `).run();
+  await env.DB.prepare(`
+    CREATE TRIGGER IF NOT EXISTS intelligence_mission_generator_lock_guard
+    BEFORE INSERT ON intelligence_work_packages
+    WHEN EXISTS (
+      SELECT 1 FROM intelligence_mission_generator_lock
+      WHERE id=1 AND status='reserved' AND package_id <> NEW.id
+    )
+    BEGIN
+      SELECT RAISE(ABORT, 'Intelligence mission generator reservation is active');
+    END
+  `).run();
+  await env.DB.prepare(`
     CREATE TABLE IF NOT EXISTS intelligence_work_packages(
       id TEXT PRIMARY KEY,
       idempotency_key TEXT NOT NULL UNIQUE,
@@ -5973,6 +5993,41 @@ export function validateIntelligenceWorkPackage(input) {
   return { ok: true, idempotencyKey, title, objective, priority, scope, scopeJson, tasks: normalized };
 }
 
+async function reserveIntelligenceMissionGeneratorSlot(env, cycleKey, packageId) {
+  if (typeof cycleKey !== "string" || !/^\\d{8}T\\d{4}$/.test(cycleKey) ||
+      typeof packageId !== "string" || !/^[0-9a-f-]{36}$/i.test(packageId)) {
+    return { reserved: false, reason: "invalid_reservation_input" };
+  }
+  const result = await env.DB.prepare(`
+    INSERT INTO intelligence_mission_generator_lock(id,cycle_key,package_id,status,updated_at)
+    SELECT 1, ?, ?, 'reserved', CURRENT_TIMESTAMP
+    WHERE NOT EXISTS (
+      SELECT 1 FROM intelligence_work_packages
+      WHERE status IN ('queued','in_progress','waiting_retry','attention_required')
+    )
+    ON CONFLICT(id) DO UPDATE SET
+      cycle_key=excluded.cycle_key,
+      package_id=excluded.package_id,
+      status='reserved',
+      updated_at=CURRENT_TIMESTAMP
+    WHERE intelligence_mission_generator_lock.status <> 'reserved'
+      AND NOT EXISTS (
+        SELECT 1 FROM intelligence_work_packages
+        WHERE status IN ('queued','in_progress','waiting_retry','attention_required')
+      )
+  `).bind(cycleKey, packageId).run();
+  const changes = Number(result?.meta?.changes ?? result?.changes ?? 0);
+  return changes === 1
+    ? { reserved: true, packageId, cycleKey }
+    : { reserved: false, reason: "active_work_or_generator_reservation_exists" };
+}
+
+async function releaseIntelligenceMissionGeneratorSlot(env, packageId) {
+  await env.DB.prepare(
+    "UPDATE intelligence_mission_generator_lock SET status='released',updated_at=CURRENT_TIMESTAMP WHERE id=1 AND package_id=? AND status='reserved'"
+  ).bind(packageId).run();
+}
+
 async function createIntelligenceWorkPackage(env, input) {
   const validated = validateIntelligenceWorkPackage(input);
   if (!validated.ok) return { success: false, error: validated.error, code: -32602 };
@@ -5988,7 +6043,18 @@ async function createIntelligenceWorkPackage(env, input) {
     }
     return { success: true, duplicate: true, workPackageId: existing.id, status: existing.status };
   }
-  const packageId = crypto.randomUUID();
+  const generatorReservation = input.generatorReservation && typeof input.generatorReservation === "object"
+    ? input.generatorReservation
+    : null;
+  const packageId = generatorReservation?.packageId || crypto.randomUUID();
+  let generatorSlotReserved = false;
+  if (generatorReservation) {
+    const reservation = await reserveIntelligenceMissionGeneratorSlot(env, generatorReservation.cycleKey, packageId);
+    if (!reservation.reserved) {
+      return { success: false, error: "Mission generation paused: another active work package or generator reservation exists.", code: -32010, reason: reservation.reason };
+    }
+    generatorSlotReserved = true;
+  }
   const statements = [
     env.DB.prepare("INSERT INTO intelligence_work_packages(id,idempotency_key,request_hash,title,objective,scope_json,priority,status,created_by,owner_uid) VALUES(?,?,?,?,?,?,?,'queued','mehran_intelligence',?)")
       .bind(packageId, idempotencyKey, requestHash, title, objective, scopeJson, priority, typeof input.ownerUid === "string" ? input.ownerUid : null)
@@ -6005,6 +6071,7 @@ async function createIntelligenceWorkPackage(env, input) {
   }
   try {
     await env.DB.batch(statements);
+    return { success: true, duplicate: false, workPackageId: packageId, status: "queued", taskCount: tasks.length };
   } catch (err) {
     const raced = await env.DB.prepare("SELECT id,status,request_hash FROM intelligence_work_packages WHERE idempotency_key=?")
       .bind(idempotencyKey).first();
@@ -6015,8 +6082,11 @@ async function createIntelligenceWorkPackage(env, input) {
       return { success: true, duplicate: true, workPackageId: raced.id, status: raced.status };
     }
     throw err;
+  } finally {
+    if (generatorSlotReserved) {
+      await releaseIntelligenceMissionGeneratorSlot(env, packageId).catch(() => {});
+    }
   }
-  return { success: true, duplicate: false, workPackageId: packageId, status: "queued", taskCount: tasks.length };
 }
 
 async function createIntelligenceFallbackPackage(env, mission, idempotencyKey, reason, ownerUid) {
@@ -6109,7 +6179,7 @@ function extractIntelligenceJsonObject(raw) {
   return "";
 }
 
-async function createDeterministicRoutinePackage(env, mission, idempotencyKey, ownerUid, plan) {
+async function createDeterministicRoutinePackage(env, mission, idempotencyKey, ownerUid, plan, generatorReservation = null) {
   const scope = {
     mode: "read_only",
     planner: "deterministic_rules_v1",
@@ -6125,7 +6195,8 @@ async function createDeterministicRoutinePackage(env, mission, idempotencyKey, o
     priority: plan.priority,
     scope,
     tasks: plan.tasks,
-    ownerUid
+    ownerUid,
+    ...(generatorReservation ? { generatorReservation } : {})
   });
   if (!created.success) return created;
   return {
@@ -6160,7 +6231,7 @@ async function planIntelligenceMission(env, input) {
   if (existing) return { success: true, duplicate: true, workPackageId: existing.id, status: existing.status };
   const deterministicPlan = buildDeterministicRoutinePlan(mission);
   if (deterministicPlan) {
-    return createDeterministicRoutinePackage(env, mission, idempotencyKey, input?.ownerUid, deterministicPlan);
+    return createDeterministicRoutinePackage(env, mission, idempotencyKey, input?.ownerUid, deterministicPlan, input?.generatorReservation || null);
   }
   await ensureIntelligenceMemoryTables(env);
   await seedIntelligenceOwnerMemory(env,"mehran_intelligence");
@@ -7396,7 +7467,7 @@ export default {
       }
 
       if (path.startsWith("/agent/v1/")) {
-        const ownerOrchestrationRoute = (path === "/agent/v1/patch-proposals/pending" && method === "GET") || (path === "/agent/v1/patch-proposals/claim" && method === "POST") || (path === "/agent/v1/patch-proposals/complete" && method === "POST") || (path === "/agent/v1/repository/analyze" && method === "POST") || (path === "/agent/v1/missions/plan" && method === "POST") || (path === "/agent/v1/work-packages" && method === "POST") || (path === "/agent/v1/work-packages/pending-finalization" && method === "GET") || (path.startsWith("/agent/v1/work-packages/") && method === "GET") || (path === "/agent/v1/notifications/next" && method === "GET") || (path === "/agent/v1/notifications/status" && method === "GET") || (path.startsWith("/agent/v1/notifications/") && method === "POST");
+        const ownerOrchestrationRoute = (path === "/agent/v1/patch-proposals/pending" && method === "GET") || (path === "/agent/v1/patch-proposals/claim" && method === "POST") || (path === "/agent/v1/patch-proposals/complete" && method === "POST") || (path === "/agent/v1/repository/analyze" && method === "POST") || (path === "/agent/v1/missions/plan" && method === "POST") || (path === "/agent/v1/missions/generate" && method === "POST") || (path === "/agent/v1/work-packages" && method === "POST") || (path === "/agent/v1/work-packages/pending-finalization" && method === "GET") || (path.startsWith("/agent/v1/work-packages/") && method === "GET") || (path === "/agent/v1/notifications/next" && method === "GET") || (path === "/agent/v1/notifications/status" && method === "GET") || (path.startsWith("/agent/v1/notifications/") && method === "POST");
         const configuredToken = ownerOrchestrationRoute
           ? (typeof env.MEHRAN_ORCHESTRATOR_TOKEN === "string" ? env.MEHRAN_ORCHESTRATOR_TOKEN : "")
           : (typeof env.MEHRAN_AGENT_TOKEN === "string" ? env.MEHRAN_AGENT_TOKEN : "");
@@ -7851,6 +7922,23 @@ export default {
           const elapsedMs = Date.now() - inferenceStartedAt;
           console.log("INTELLIGENCE_CODE_ANALYSIS_SUCCESS",JSON.stringify({traceId,elapsedMs,findings:analysis.findings.length,limitations:analysis.limitations.length}));
           return json({success:true,model,commitSha:body.commitSha,analysis,diagnostic:{stage:"workers_ai_inference",operation:"repository_analyze",traceId,elapsedMs}});
+        }
+        if (path === "/agent/v1/missions/generate" && method === "POST") {
+          const body = await readBody(request);
+          const cycleKey = cleanText(body?.cycleKey, 32);
+          if (!/^\\d{8}T\\d{4}$/.test(cycleKey)) return error("A valid UTC 15-minute cycle key is required.", 400);
+          const packageId = crypto.randomUUID();
+          const mission = "service health check, repository quality check, and source security audit";
+          const idempotencyKey = "mission-generator:" + cycleKey;
+          const planned = await planIntelligenceMission(env, {
+            mission,
+            idempotencyKey,
+            ownerUid: "mehran_intelligence",
+            allowDeterministicFallback: false,
+            generatorReservation: { cycleKey, packageId }
+          });
+          if (!planned.success) return json({ success: false, error: planned.error || "Mission generation was safely paused.", reason: planned.reason }, planned.code === -32010 ? 409 : planned.code === -32003 ? 503 : 400);
+          return json({ success: true, ...planned, generator: { cycleKey, mode: "deterministic_read_only", aiInferenceUsed: false } }, planned.duplicate ? 200 : 202);
         }
         if (path === "/agent/v1/missions/plan" && method === "POST") {
           const body = await readBody(request);
