@@ -104,6 +104,9 @@ jobs:
       - name: Run Intelligence execution planner tests
         run: node --check scripts/intelligence-execution-planner.mjs && node --test scripts/intelligence-execution-planner.test.mjs
 
+      - name: Run Intelligence goal lifecycle tests
+        run: node --check scripts/intelligence-goal-lifecycle.mjs && node --test scripts/intelligence-goal-lifecycle.test.mjs
+
       - name: Run Intelligence decision engine tests
         run: node --check scripts/intelligence-decision-engine.mjs && node --test scripts/intelligence-decision-engine.test.mjs
       - name: Run Intelligence feedback learning tests
