@@ -369,7 +369,7 @@ const isolatedTestWorkflowSource = readFileSync(
   "utf8"
 );
 
-test("isolated test workflow runs one fixed suite without secrets or network access", () => {
+test("isolated test workflow runs the complete fixed regression suite without secrets or network access", () => {
   assert.match(isolatedTestWorkflowSource, /workflow_dispatch:/);
   assert.match(isolatedTestWorkflowSource, /pull_request:/);
   assert.match(isolatedTestWorkflowSource, /github\.event\.pull_request\.head\.sha/);
@@ -388,7 +388,8 @@ test("isolated test workflow runs one fixed suite without secrets or network acc
   assert.match(isolatedTestWorkflowSource, /--cpus 1/);
   assert.match(isolatedTestWorkflowSource, /--tmpfs \/tmp:rw,noexec,nosuid,nodev,size=64m/);
   assert.match(isolatedTestWorkflowSource, /dst=\/workspace,readonly/);
-  assert.match(isolatedTestWorkflowSource, /node --test scripts\/intelligence-capabilities\.test\.mjs/);
+  assert.match(isolatedTestWorkflowSource, /node --test --test-reporter=tap scripts\/\*\.test\.mjs/);
+  assert.match(isolatedTestWorkflowSource, /node --check scripts\/intelligence-verification-loop\.mjs/);
   assert.match(isolatedTestWorkflowSource, /node --check worker\.js/);
   assert.doesNotMatch(isolatedTestWorkflowSource, /secrets\.|GITHUB_TOKEN|MEHRAN_AGENT_TOKEN|MEHRAN_ORCHESTRATOR_TOKEN|actions:\s*write/);
   assert.doesNotMatch(isolatedTestWorkflowSource, /npm\s+(?:install|run)|pnpm\s+(?:install|run)|yarn\s+(?:install|run)/);
