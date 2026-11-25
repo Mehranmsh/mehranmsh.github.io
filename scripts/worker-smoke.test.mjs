@@ -104,7 +104,7 @@ let workerModule;
 try {
   workerModule = await import("data:text/javascript;base64," + Buffer.from(workerSourceForTest).toString("base64"));
 } catch (error) {
-  throw new Error("Worker smoke harness import failed: " + String(error?.name || "Error") + ": " + String(error?.message || error).slice(0,1000));
+  throw new Error("Worker smoke harness import failed: " + String(error?.name || "Error") + ": " + String(error?.message || error).slice(0,1000) + " | " + String(error?.stack || "").slice(0,1800));
 }
 const patchStoreModule = await import(patchStoreUrl);
 const worker = workerModule.default;
