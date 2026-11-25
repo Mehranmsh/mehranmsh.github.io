@@ -5960,9 +5960,45 @@ export async function persistIntelligencePackageReport(env, packageId, snapshot)
   return { stored: true, alreadyExists: false, path, artifactSha256: expectedReportHash };
 }
 
+async function blockIntelligenceTasksWithTerminalDependencies(env, packageId) {
+  if (!packageId) return 0;
+  const candidates = await env.DB.prepare(`
+    SELECT child.id,
+      (SELECT parent.id FROM intelligence_task_dependencies d JOIN intelligence_tasks parent ON parent.id=d.depends_on_task_id
+       WHERE d.task_id=child.id AND parent.work_package_id=child.work_package_id AND parent.status IN ('blocked','failed','cancelled')
+       ORDER BY parent.id LIMIT 1) AS dependency_id,
+      (SELECT parent.status FROM intelligence_task_dependencies d JOIN intelligence_tasks parent ON parent.id=d.depends_on_task_id
+       WHERE d.task_id=child.id AND parent.work_package_id=child.work_package_id AND parent.status IN ('blocked','failed','cancelled')
+       ORDER BY parent.id LIMIT 1) AS dependency_status
+    FROM intelligence_tasks child
+    WHERE child.work_package_id=? AND child.status IN ('queued','accepted','retry_wait')
+      AND EXISTS (
+        SELECT 1 FROM intelligence_task_dependencies d JOIN intelligence_tasks parent ON parent.id=d.depends_on_task_id
+        WHERE d.task_id=child.id AND parent.work_package_id=child.work_package_id
+          AND parent.status IN ('blocked','failed','cancelled')
+      )
+    ORDER BY child.created_at ASC,child.id ASC LIMIT 20
+  `).bind(packageId).all();
+  let blocked = 0;
+  for (const child of candidates.results || []) {
+    const reason = "Blocked because prerequisite task " + String(child.dependency_id || "unknown").slice(0,160) +
+      " ended with status " + String(child.dependency_status || "terminal").slice(0,32) + ".";
+    const eventId = crypto.randomUUID();
+    const result = await env.DB.batch([
+      env.DB.prepare("UPDATE intelligence_tasks SET status='blocked',agent_claimed_at=NULL,agent_claim_token_hash='',next_attempt_at=NULL,last_error_code='dependency_terminal',result_text=?,updated_at=CURRENT_TIMESTAMP WHERE id=? AND work_package_id=? AND status IN ('queued','accepted','retry_wait') AND EXISTS (SELECT 1 FROM intelligence_task_dependencies d JOIN intelligence_tasks parent ON parent.id=d.depends_on_task_id WHERE d.task_id=intelligence_tasks.id AND parent.work_package_id=intelligence_tasks.work_package_id AND parent.status IN ('blocked','failed','cancelled'))")
+        .bind(reason,child.id,packageId),
+      env.DB.prepare("INSERT INTO intelligence_task_events(id,work_package_id,task_id,event_type,from_status,to_status,actor,details_json) SELECT ?,?,?, 'dependency_blocked',?,'blocked','scheduled_runner',? WHERE changes()>0")
+        .bind(eventId,packageId,child.id,"queued",JSON.stringify({dependencyTaskId:child.dependency_id || null,dependencyStatus:child.dependency_status || null}))
+    ]);
+    if (Number(result?.[0]?.meta?.changes || 0)) blocked++;
+  }
+  return blocked;
+}
+
 async function refreshIntelligenceWorkPackageSnapshot(env, packageId) {
   if (!packageId) return null;
   const pkg = await env.DB.prepare("SELECT status FROM intelligence_work_packages WHERE id=?").bind(packageId).first();
+  await blockIntelligenceTasksWithTerminalDependencies(env, packageId);
   if (!pkg) return null;
   const result = await env.DB.prepare("SELECT status,COUNT(*) AS total FROM intelligence_tasks WHERE work_package_id=? GROUP BY status").bind(packageId).all();
   const counts = {total:0,completed:0,blocked:0,failed:0,cancelled:0,awaitingApproval:0,inProgress:0,queued:0,retryWaiting:0,blockedDependencies:0};
