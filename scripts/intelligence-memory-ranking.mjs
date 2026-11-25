@@ -2,6 +2,20 @@ const MEMORY_TYPES = new Set(["episodic", "semantic", "procedural", "decision", 
 const BLOCKED_SENSITIVITY = new Set(["secret", "credential", "wallet", "financial", "private_social"]);
 const DEFAULT_LIMITS = Object.freeze({ maxItems: 12, maxChars: 6000, maxItemChars: 1200 });
 
+function normalizeMemoryType(value) {
+  const type = String(value || "");
+  if (MEMORY_TYPES.has(type)) return type;
+  const legacy = {
+    architecture: "semantic",
+    constraint: "decision",
+    goal: "semantic",
+    preference: "decision",
+    workflow: "procedural",
+    project: "semantic"
+  };
+  return legacy[type] || "";
+}
+
 function finiteUnit(value, fallback = 0) {
   const number = Number(value);
   return Number.isFinite(number) ? Math.max(0, Math.min(1, number)) : fallback;
@@ -42,7 +56,8 @@ export function selectMemoryContext(records, options = {}) {
     if (record.deleted_at || record.superseded_by) continue;
     if (record.status && record.status !== "active") continue;
     if (BLOCKED_SENSITIVITY.has(String(record.sensitivity || "").toLowerCase())) continue;
-    if (!MEMORY_TYPES.has(String(record.memory_type || record.category || ""))) continue;
+    const memoryType = normalizeMemoryType(record.memory_type || record.category);
+    if (!memoryType) continue;
 
     const key = typeof record.memory_key === "string" ? record.memory_key.trim() : "";
     const content = typeof record.content === "string" ? record.content.trim() : "";
@@ -53,7 +68,8 @@ export function selectMemoryContext(records, options = {}) {
     const expiresAt = record.expires_at ? timestamp(record.expires_at) : null;
     if (record.expires_at && (expiresAt === null || expiresAt <= now)) continue;
 
-    const importance = finiteUnit(record.importance);
+    const rawImportance = Number(record.importance);
+    const importance = finiteUnit(Number.isFinite(rawImportance) && rawImportance > 1 ? rawImportance / 5 : rawImportance);
     const confidence = finiteUnit(record.confidence, 0.5);
     const trust = finiteUnit(record.source_trust, 0.5);
     const recency = recencyScore(updatedAt, now);
@@ -61,7 +77,7 @@ export function selectMemoryContext(records, options = {}) {
 
     candidates.push({
       memory_key: key,
-      memory_type: String(record.memory_type || record.category),
+      memory_type: memoryType,
       content: content.slice(0, maxItemChars),
       source: provenance.slice(0, 120),
       confidence,
