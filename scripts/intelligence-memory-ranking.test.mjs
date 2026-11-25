@@ -19,6 +19,30 @@ test("query relevance promotes memories matching the current topic", () => {
   assert.ok(selected[0].relevance > selected[1].relevance);
 });
 
+test("Persian and Arabic character variants normalize consistently", () => {
+  const memories = [
+    record("ai-topic", "semantic", "طراحی هوش مصنوعی برای مهران"),
+    record("other-topic", "semantic", "موضوعی کاملاً متفاوت")
+  ];
+  const selected = selectMemoryContext(memories, {
+    ownerUid: "owner-1", now, query: "طراحی هوش‌مصنوعی برای مهران"
+  });
+  assert.equal(selected[0].memory_key, "ai-topic");
+  assert.equal(selected[0].relevance, 1);
+});
+
+test("exact topic phrases outrank records with the same words in a different order", () => {
+  const memories = [
+    record("shuffled", "semantic", "مهران مصنوعی طراحی هوش"),
+    record("exact-phrase", "semantic", "طراحی هوش مصنوعی مهران")
+  ];
+  const selected = selectMemoryContext(memories, {
+    ownerUid: "owner-1", now, query: "طراحی هوش مصنوعی مهران"
+  });
+  assert.equal(selected[0].memory_key, "exact-phrase");
+  assert.ok(selected[0].relevance > selected[1].relevance);
+});
+
 test("memory selection remains owner scoped and excludes invalid provenance", () => {
   const memories = [
     record("valid", "goal", "A durable project goal"),
