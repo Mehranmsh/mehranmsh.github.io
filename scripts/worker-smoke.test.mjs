@@ -33,7 +33,9 @@ const patchGenerationServiceSource = await readFile(new URL("./intelligence-patc
 const inboxSchemaSource = await readFile(new URL("./intelligence-inbox-schema.mjs", import.meta.url), "utf8");
 const memoryRankingSource = (await readFile(new URL("./intelligence-memory-ranking.mjs", import.meta.url), "utf8"))
   .replace("export function selectMemoryContext", "function selectMemoryContext");
-const answerQualitySource = (await readFile(new URL("./intelligence-answer-quality.mjs", import.meta.url), "utf8"))\n  .replace("export function normalizeIntelligenceAnswer", "function normalizeIntelligenceAnswer");\nconst routinePlannerSource = (await readFile(new URL("./intelligence-routine-planner.mjs", import.meta.url), "utf8"))
+const answerQualitySource = (await readFile(new URL("./intelligence-answer-quality.mjs", import.meta.url), "utf8"))
+  .replace("export function normalizeIntelligenceAnswer", "function normalizeIntelligenceAnswer");
+const routinePlannerSource = (await readFile(new URL("./intelligence-routine-planner.mjs", import.meta.url), "utf8"))
   .replace("export function buildDeterministicRoutinePlan", "function buildDeterministicRoutinePlan");
 const retryPolicySource = (await readFile(new URL("./intelligence-retry-policy.mjs", import.meta.url), "utf8"))
   .replace("export function planIntelligenceRetry", "function planIntelligenceRetry");
