@@ -1,7 +1,7 @@
 import { buildDeterministicRoutinePlan } from "./scripts/intelligence-routine-planner.mjs";
 import { INTELLIGENCE_ACTION_TYPES, PREAPPROVED_INTELLIGENCE_ACTION_TYPES } from "./scripts/intelligence-capabilities.mjs";
 import { storePrivatePatchArtifact, verifyPrivatePatchArtifactAtPath, getPrivatePatchArtifactPath, getVerifiedPrivatePatchArtifactAtPath } from "./scripts/intelligence-private-patch-store.mjs";
-import { generatePatchArtifact } from "./scripts/intelligence-patch-generation-service.mjs";
+import { extractPatchModelText, generatePatchArtifact } from "./scripts/intelligence-patch-generation-service.mjs";
 import { validatePrivateIntelligenceMission } from "./scripts/intelligence-inbox-schema.mjs";
 
 function nextWorkersAIDailyResetAt(attemptedAt) {
@@ -7530,7 +7530,7 @@ export default {
                   maxTokens,
                   cloudflareReservation: 100
                 });
-                const text = routed?.result?.response ?? routed?.result?.output_text ?? "";
+                const text = extractPatchModelText(routed?.result);
                 if (typeof text !== "string" || !text.trim()) {
                   const modelResult = routed?.result;
                   const responseValue = modelResult?.response;
