@@ -8,6 +8,13 @@ The Worker scheduler processes the legacy `project_status_report` and `social_me
 
 ## Required secrets
 
+The Worker uses separate credentials for agent authentication, owner orchestration, private report storage, and GitHub Actions dispatch. Do not reuse the private-reports repository token for dispatching the runner in the main repository.
+
+### Runner dispatch credential
+
+Create a dedicated fine-grained GitHub personal access token (or GitHub App installation token) restricted to `Mehranmsh/mehranmsh.github.io`, with **Actions: write** repository permission. Store it only as an encrypted Cloudflare Worker Secret named `MEHRAN_RUNNER_GITHUB_TOKEN` in `mehran-msh-auth` → Settings → Variables and Secrets. This token is used only to dispatch `.github/workflows/mehran-intelligence-runner.yml` on `main`. Do not add it to GitHub Actions secrets, source code, Issues, pull requests, workflow logs, or ChatGPT messages. Keep `MEHRAN_REPORTS_GITHUB_TOKEN` separate and limited to the private reports repository. If the dispatch token is missing or lacks permission, the five-minute scheduled runner continues to operate; only immediate dispatch is unavailable.
+
+
 Before enabling the runner after its code is reviewed and merged, create one high-entropy random secret of at least 40 characters (64 random bytes encoded as hex is suitable). Store the exact same value in both locations:
 
 1. Cloudflare Dashboard → Workers & Pages → `mehran-msh-auth` → Settings → Variables and Secrets → add it as an encrypted Secret named `MEHRAN_AGENT_TOKEN`.
