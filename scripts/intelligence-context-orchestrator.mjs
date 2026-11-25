@@ -40,7 +40,7 @@ export function buildIntelligenceContextSnapshot(records, options = {}) {
     maxGraphNodes: boundedInteger(options.maxGraphNodes, DEFAULT_LIMITS.maxGraphNodes, 100),
     maxGraphEdges: boundedInteger(options.maxGraphEdges, DEFAULT_LIMITS.maxGraphEdges, 200),
     maxTasks: boundedInteger(options.maxTasks, DEFAULT_LIMITS.maxTasks, 100),
-    maxOutputChars: boundedInteger(options.maxOutputChars, DEFAULT_LIMITS.maxOutputChars, 30000)
+    maxOutputChars: Math.max(512, boundedInteger(options.maxOutputChars, DEFAULT_LIMITS.maxOutputChars, 30000))
   };
   const ownerRecords = records.filter(record =>
     record && typeof record === "object" && !Array.isArray(record) &&
