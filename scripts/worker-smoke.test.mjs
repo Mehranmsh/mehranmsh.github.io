@@ -429,7 +429,7 @@ test("proposal-only work-package tasks require a bounded objective", () => {
     title: "Prepare a bounded test proposal",
     objective: "Generate one private regression-test proposal",
     priority: "normal",
-    scope: { modules: ["intelligence"], private: true },
+    scope: { modules: ["intelligence"], private: true, allowedActions: ["service_health_report", "repository_quality_check"] },
     tasks: [{
       taskId: "patch", title: "Propose a regression test", description: "Create a narrow test-only proposal",
       actionType: "propose_code_patch", dependsOn: [], objective: "Add regression coverage for an identified validation edge case"
@@ -2929,12 +2929,15 @@ test("MCP work-package validation rejects arbitrary actions, forward dependencie
   const base = {
     idempotencyKey: "owner-plan-2026-11-22-b1",
     title: "Bounded plan",
+    scope: { allowedActions: ["service_health_report"] },
     tasks: [{ taskId: "one", title: "Safe report", actionType: "service_health_report" }]
   };
   assert.equal(validateIntelligenceWorkPackage({ ...base, tasks: [{ ...base.tasks[0], actionType: "shell_command" }] }).ok, false);
   assert.equal(validateIntelligenceWorkPackage({ ...base, tasks: [{ ...base.tasks[0], dependsOn: ["later"] }, { taskId: "later", title: "Later", actionType: "repository_quality_check" }] }).ok, false);
   assert.equal(validateIntelligenceWorkPackage({ ...base, tasks: Array.from({ length: 21 }, (_, index) => ({ taskId: "task-" + index, title: "Task " + index, actionType: "service_health_report" })) }).ok, false);
   assert.equal(validateIntelligenceWorkPackage({ ...base, idempotencyKey: "short" }).ok, false);
+  assert.equal(validateIntelligenceWorkPackage({ ...base, scope: undefined }).ok, false, "task plans without explicit capability scope must be rejected");
+  assert.equal(validateIntelligenceWorkPackage({ ...base, scope: { allowedActions: ["repository_quality_check"] } }).ok, false, "every task action must be explicitly authorized by its package scope");
 });
 
 test("Intelligence chat applies a bounded answer gate and self-review policy", () => {
