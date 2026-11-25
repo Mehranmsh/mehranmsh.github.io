@@ -1196,7 +1196,7 @@ test("Intelligence retains owner-scoped durable memory and recent conversation c
   assert.match(workerSource, /RECENT CONVERSATION/);
   assert.match(workerSource, /name:"remember_context"/);
   assert.match(workerSource, /ON CONFLICT\(owner_uid,memory_key\) DO UPDATE/);
-  assert.match(workerSource, /Credentials and wallet secrets cannot be stored in memory/);
+  assert.match(workerSource, /Credentials, wallet data and personal financial details cannot be stored in memory/);
   assert.match(workerSource, /seedIntelligenceOwnerMemory\(env,admin\.uid\)/);
   assert.match(workerSource, /path.match\(\/\^\\\/intelligence\\\/memory\\\/\(\[\^\/\]\+\)\$\//);
   assert.match(workerSource, /DELETE FROM intelligence_memory_items WHERE owner_uid=\? AND memory_key=\?/);
