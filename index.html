@@ -819,6 +819,37 @@ input:focus,textarea:focus,select:focus,button:focus-visible,a:focus-visible{out
 #page-ai #pcGalleryCount{white-space:nowrap}
 @media(max-width:520px){#page-ai .prompt-gallery-search{align-items:stretch;flex-direction:column;gap:5px}}
 </style>
+<style id="mehran-redesign-2026">
+/* Structural redesign: distinct service identities and an interactive destination wheel */
+.home-orbit-section{margin:44px auto 10px;max-width:1040px;padding:30px clamp(14px,3vw,34px);border:1px solid #263d58;border-radius:28px;background:linear-gradient(145deg,#0d192a,#0a1220 68%,#111d30);overflow:hidden}
+.home-orbit-heading{text-align:center;margin-bottom:14px}.home-orbit-heading h2{font-size:clamp(22px,3vw,30px);margin:9px 0}.home-orbit-heading p{font-size:12px;color:#8fa7c0;margin:0}
+.home-orbit-layout{display:grid;grid-template-columns:minmax(260px,1fr) minmax(220px,.8fr);align-items:center;gap:clamp(15px,5vw,60px);max-width:760px;margin:10px auto 0}
+.home-orbit-wheel{width:min(100%,360px);aspect-ratio:1;position:relative;margin:auto;touch-action:pan-y}
+.home-orbit-ring{position:absolute;inset:9%;border:1px dashed #2d5773;border-radius:50%;box-shadow:0 0 50px #1e9ac014,inset 0 0 40px #1e9ac00a}
+.home-orbit-ring:before,.home-orbit-ring:after{content:"";position:absolute;border:1px solid #24405b;border-radius:50%;inset:13%}
+.home-orbit-ring:after{inset:28%;border-style:dotted;opacity:.55}
+.home-orbit-center{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:37%;aspect-ratio:1;border-radius:50%;display:flex;flex-direction:column;align-items:center;justify-content:center;background:radial-gradient(circle at 35% 25%,#214d6a,#101d32 72%);border:1px solid #3b7897;box-shadow:0 0 0 8px #12243a,0 0 35px #20c9ef20;text-align:center;z-index:2}
+.home-orbit-center span{font-size:32px;color:#6ce6ff;line-height:1.2}.home-orbit-center strong{font-size:13px;letter-spacing:1px;margin-top:5px}.home-orbit-center small{font-size:8px;letter-spacing:2px;color:#7d9bb7;margin-top:5px}
+.orbit-node{position:absolute;left:50%;top:50%;width:76px;height:76px;margin:-38px 0 0 -38px;border-radius:22px;border:1px solid #294965;background:linear-gradient(145deg,#172c43,#0c1929);color:#b9d0e5;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;cursor:pointer;transition:left .42s cubic-bezier(.2,.8,.2,1),top .42s cubic-bezier(.2,.8,.2,1),transform .3s,background .3s,border-color .3s,box-shadow .3s;z-index:3}
+.orbit-node span{font-size:23px;line-height:1}.orbit-node small{font-size:8px;font-weight:800;letter-spacing:.35px}.orbit-node.active{background:linear-gradient(145deg,#174c66,#17345b);border-color:#54d9f5;color:#fff;box-shadow:0 0 0 4px #2dd7f522,0 10px 30px #0008;transform:scale(1.13)}
+.home-orbit-detail{padding:10px 0}.orbit-detail-index{font-size:10px;letter-spacing:2px;color:#43d4f2}.home-orbit-detail h3{font-size:clamp(25px,4vw,36px);margin:10px 0 8px;letter-spacing:.4px}.home-orbit-detail p{color:#9cb1c9;font-size:13px;line-height:1.8;min-height:68px}.orbit-controls{display:flex;gap:8px;align-items:center;margin-top:20px}.orbit-controls button{height:42px;min-width:42px;border-radius:13px;border:1px solid #2a4863;background:#122238;color:#d7efff;font-size:18px}.orbit-controls .orbit-enter{margin-left:auto;padding:0 16px;background:linear-gradient(110deg,#26cce9,#397bff);border:0;color:#061321;font-size:11px;font-weight:900}.orbit-enter b{margin-left:8px}.orbit-hint{margin-top:18px;color:#5f7d98;font-size:8px;letter-spacing:2px}
+.services-masthead{display:grid;grid-template-columns:1.05fr .95fr;min-height:310px;overflow:hidden;border:1px solid #24435f;border-radius:28px;background:linear-gradient(112deg,#101f33 0%,#102d43 55%,#101a31 100%);margin-bottom:40px;position:relative}
+.services-mast-copy{padding:clamp(25px,5vw,52px);align-self:center;position:relative;z-index:2}.services-kicker{font-size:9px;font-weight:900;letter-spacing:2.4px;color:#53d9f3}.services-mast-copy h1{font-size:clamp(34px,5vw,56px);line-height:1.06;letter-spacing:-1.8px;margin:15px 0}.services-mast-copy h1 em{font-style:normal;color:#66d9ed}.services-mast-copy p{max-width:430px;color:#9db4ca;font-size:13px;line-height:1.8}.services-mast-meta{display:flex;gap:22px;flex-wrap:wrap;margin-top:30px;color:#718ca7;font-size:8px;letter-spacing:1.5px}.services-mast-meta i{display:inline-block;width:6px;height:6px;border-radius:50%;background:#41e1ad;margin-right:7px;box-shadow:0 0 12px #41e1ad}
+.services-mast-art{position:relative;min-height:280px;overflow:hidden}.services-art-orbit{position:absolute;width:310px;height:310px;border:1px solid #4aa8c044;border-radius:50%;left:50%;top:50%;transform:translate(-50%,-50%) rotate(-25deg)}.services-art-orbit.orbit-a{width:240px;height:240px;border-style:dashed}.services-art-orbit.orbit-b{width:370px;height:180px;transform:translate(-50%,-50%) rotate(42deg);border-color:#4aa8c033}.services-art-core{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:112px;height:112px;border-radius:32px;display:grid;place-items:center;background:linear-gradient(145deg,#2acde7,#2556a0);color:#061521;font-size:34px;font-weight:1000;box-shadow:0 0 70px #29c9e744}.services-art-core span{font-size:12px;align-self:center;margin-left:-22px;margin-top:32px}.services-art-tag{position:absolute;padding:8px 11px;border:1px solid #39718b;border-radius:20px;background:#0b1a2bbd;color:#bcefff;font-size:8px;letter-spacing:1.6px}.tag-one{left:14%;top:23%}.tag-two{right:10%;top:38%}.tag-three{left:28%;bottom:15%}
+.services-section-head{display:flex;align-items:end;justify-content:space-between;gap:15px;margin:0 0 17px}.services-section-head h2{font-size:25px;margin:7px 0 4px}.services-section-head p{font-size:11px;color:#8fa7c0;margin:0}.services-count{font-size:9px;letter-spacing:1.6px;color:#7191ac;padding-bottom:5px}
+.services-showcase{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:15px}.service-tile{grid-column:span 3;min-width:0;overflow:hidden;border:1px solid #29425e;border-radius:21px;background:#0e1929;transition:transform .25s,border-color .25s}.service-tile:hover{transform:translateY(-4px);border-color:#4d9bbd}.service-social{grid-column:span 3}.service-ai{grid-column:span 3}.service-music{grid-column:span 2}.service-instruments{grid-column:span 2}.service-robotics{grid-column:span 2}
+.service-tile-top{height:49px;padding:0 17px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #ffffff0b}.service-symbol{font-size:21px;color:#69dcf1}.service-index{font-size:8px;letter-spacing:1.3px;color:#708aa4}
+.service-tile-visual{height:155px;position:relative;overflow:hidden;display:flex;align-items:center;justify-content:center}.service-tile-copy{padding:17px 18px 19px;display:flex;flex-direction:column;gap:17px;min-height:190px}.service-category{font-size:8px;letter-spacing:1.5px;color:#63bcd7}.service-tile-copy h3{font-size:21px;letter-spacing:.5px;margin:7px 0}.service-tile-copy p{font-size:11px;color:#91a7be;line-height:1.75;margin:0;max-width:470px}
+.service-open{align-self:flex-start;display:inline-flex;align-items:center;gap:20px;border:1px solid #315a77;border-radius:11px;padding:10px 13px;background:#132940;color:#d9f6ff;font-size:10px;font-weight:800;text-decoration:none}.service-open b{font-size:15px;color:#66d9ef}.service-status{align-self:flex-start;padding:8px 10px;border:1px solid #3b5268;border-radius:8px;color:#91a7be;font-size:8px;letter-spacing:1.3px}.service-status.future{border-color:#695b3c;color:#d8bd82}
+.social-visual{background:radial-gradient(circle at 50% 50%,#1b6680,#10253e 48%,#101827)}.social-orb{position:absolute;width:74px;height:74px;border-radius:26px;display:grid;place-items:center;font-size:29px;font-weight:900;box-shadow:0 12px 35px #0006}.orb-left{left:25%;top:27%;background:linear-gradient(145deg,#52d8ec,#246b9f);color:#062035;transform:rotate(-13deg)}.orb-right{right:24%;bottom:20%;background:linear-gradient(145deg,#8b82ff,#3c4d9c);color:#fff;transform:rotate(12deg)}.social-visual-line{position:absolute;width:45%;height:1px;background:#72dff4;transform:rotate(-22deg);opacity:.55}.social-visual-caption{position:absolute;bottom:12px;font-size:8px;letter-spacing:2.5px;color:#b7eaf4}
+.ai-visual{background:radial-gradient(ellipse at center,#1c4770,#101c30 68%)}.ai-visual-grid{position:absolute;inset:0;background-image:linear-gradient(#4cbde411 1px,transparent 1px),linear-gradient(90deg,#4cbde411 1px,transparent 1px);background-size:24px 24px;mask-image:radial-gradient(circle,#000,transparent 75%)}.ai-visual-core{width:78px;height:78px;border:1px solid #69dff0;border-radius:24px;display:grid;place-items:center;color:#8bf0ff;font-size:38px;box-shadow:0 0 45px #25c9e944;background:#0d2944;transform:rotate(45deg)}.ai-visual-core:first-letter{transform:rotate(-45deg)}.ai-visual-label{position:absolute;bottom:12px;font-size:8px;letter-spacing:2px;color:#8cb9d8}
+.music-visual{background:linear-gradient(125deg,#221b37,#3d2850 55%,#14223a)}.music-wave{height:80px;display:flex;align-items:center;gap:7px}.music-wave i{display:block;width:5px;border-radius:9px;background:linear-gradient(#d3a8ff,#57d5ec);height:var(--h,40px);box-shadow:0 0 13px #7b9fff44}.music-wave i:nth-child(3n){--h:65px}.music-wave i:nth-child(3n + 1){--h:27px}.music-wave i:nth-child(3n + 2){--h:48px}.music-visual>span{position:absolute;bottom:12px;font-size:8px;letter-spacing:2px;color:#c7b4e9}
+.instruments-visual{background:linear-gradient(130deg,#172d3a,#263d48 52%,#142132)}.instrument-lines{position:absolute;width:170px;height:110px;border:1px solid #8cc9ca66;border-radius:18px;transform:rotate(-18deg);box-shadow:12px 12px 0 -5px #9bc8c522,24px 24px 0 -10px #9bc8c522}.instrument-lines:before{content:"";position:absolute;left:28px;right:28px;top:12px;bottom:12px;border-left:1px solid #b5e3db66;border-right:1px solid #b5e3db66}.instruments-visual>span{position:absolute;bottom:12px;font-size:8px;letter-spacing:1.6px;color:#b6d3d0}
+.robotics-visual{background:radial-gradient(circle at 50% 43%,#31515f,#152331 70%)}.robot-eye{width:104px;height:75px;border:1px solid #6fabb3;border-radius:25px;display:grid;place-items:center;background:linear-gradient(145deg,#263f4c,#0d1a27);box-shadow:0 0 35px #5ad6e522}.robot-eye i{width:35px;height:35px;border-radius:50%;background:radial-gradient(circle,#c6fff5 0 10%,#57e0cf 18%,#1c6973 62%,transparent 68%);box-shadow:0 0 25px #61e8db}.robotics-visual>span{position:absolute;bottom:12px;font-size:8px;letter-spacing:1.3px;color:#9ebfc3}
+.projects-entry{display:flex;align-items:center;gap:18px;margin-top:25px;padding:22px;border:1px solid #2c4963;border-radius:19px;background:linear-gradient(110deg,#132a3d,#111c2d 70%)}.projects-entry-mark{width:52px;height:52px;flex:0 0 52px;border-radius:16px;display:grid;place-items:center;background:#1b4960;color:#73e2f6;font-size:26px}.projects-entry-copy{flex:1}.projects-entry-copy h2{font-size:17px;margin:5px 0}.projects-entry-copy p{font-size:10px;color:#8fa7bd;margin:0;line-height:1.6}.projects-entry-button{padding:12px 14px;border:1px solid #3a6681;border-radius:11px;background:#17334a;color:#d9f6ff;font-size:10px;font-weight:800;white-space:nowrap}.projects-entry-button b{margin-left:10px;color:#70dff2}
+@media(max-width:760px){.home-orbit-layout{grid-template-columns:1fr;gap:3px}.home-orbit-wheel{width:min(100%,320px)}.home-orbit-detail{text-align:center;padding:0 8px 10px}.home-orbit-detail p{min-height:0}.orbit-controls{justify-content:center}.orbit-hint{margin-top:13px}.services-masthead{grid-template-columns:1fr;min-height:0}.services-mast-copy{padding:28px 23px 8px}.services-mast-art{min-height:210px;margin-top:-8px}.services-art-orbit{width:230px;height:230px}.services-art-orbit.orbit-a{width:180px;height:180px}.services-art-orbit.orbit-b{width:290px;height:140px}.services-art-core{width:84px;height:84px;font-size:28px;border-radius:25px}.services-art-tag{font-size:7px}.services-showcase{gap:10px}.service-music,.service-instruments,.service-robotics{grid-column:span 3}.service-tile-visual{height:135px}.service-tile-copy{min-height:0}.projects-entry{align-items:flex-start;flex-wrap:wrap}.projects-entry-copy{min-width:calc(100% - 75px)}.projects-entry-button{margin-left:70px}}
+@media(max-width:470px){.service-social,.service-ai,.service-music,.service-instruments,.service-robotics{grid-column:span 6}.service-tile-visual{height:145px}.services-section-head h2{font-size:21px}.services-count{font-size:8px}.home-orbit-section{padding:23px 12px}.orbit-node{width:65px;height:65px;margin:-32.5px 0 0 -32.5px;border-radius:19px}.orbit-node span{font-size:20px}.orbit-node small{font-size:7px}}
+</style>
 </head>
 <body>
 <div class="app">
@@ -850,6 +881,12 @@ input:focus,textarea:focus,select:focus,button:focus-visible,a:focus-visible{out
   <p class="home-description" id="heroText">Central hub for digital projects, technology, music, AI and robotics in the Pi Network ecosystem.</p>
   <button class="btn home-enter" onclick="showPage('services')">Enter Ecosystem</button>
 </div>
+<section class="home-orbit-section" aria-label="Explore MEHRAN services">
+ <div class="home-orbit-heading"><span class="services-kicker">EXPLORE THE ECOSYSTEM</span><h2>Where do you want to go?</h2><p>Choose a destination. The wheel is yours to explore.</p></div>
+ <div class="home-orbit-layout"><div class="home-orbit-wheel" id="homeOrbitWheel">
+  <div class="home-orbit-ring"></div><div class="home-orbit-center"><span id="orbitCenterIcon">◎</span><strong id="orbitCenterName">SOCIAL</strong><small>SELECTED SPACE</small></div><div id="homeOrbitNodes"></div>
+ </div><div class="home-orbit-detail"><span class="orbit-detail-index" id="orbitDetailIndex">01 / 05</span><h3 id="orbitDetailTitle">SOCIAL</h3><p id="orbitDetailText">Connect with people, share moments and discover communities.</p><div class="orbit-controls"><button type="button" id="orbitPrev" aria-label="Previous service">←</button><button type="button" id="orbitNext" aria-label="Next service">→</button><button type="button" class="orbit-enter" id="orbitEnter">Enter space <b>↗</b></button></div><div class="orbit-hint">TAP A NODE OR TURN THE WHEEL</div></div></div>
+</section>
 <div class="sr-only" aria-hidden="true"><span id="dashIdentity">Guest</span><span id="dashPosts">0</span><span id="dashProjects">0</span></div>
 </section>
 
@@ -1280,13 +1317,19 @@ input:focus,textarea:focus,select:focus,button:focus-visible,a:focus-visible{out
 <section class="page" id="page-projects"><div class="page-heading"><h1>Projects</h1><p>Manage and explore projects connected to MEHRAN MSH.</p></div><div class="panel"><div class="section-title"><h2>Project Workspace</h2><button class="btn small" id="refreshProjectsBtn">Refresh</button></div><div id="projectsMessage" class="notice">Loading projects...</div><div id="projectsList"></div></div><div class="panel"><h3>Create Project</h3><div class="field"><label>Project name</label><input id="projectName" placeholder="Project name"></div><div class="field"><label>Description</label><textarea id="projectDescription" placeholder="Describe your project"></textarea></div><button class="btn" id="createProjectBtn">Create project</button></div></section>
 
 <section class="page" id="page-services">
-<div class="page-heading"><h1>Services</h1><p>Products and business divisions across the MEHRAN ecosystem.</p></div><div class="panel"><div class="section-title"><div><h2>Projects</h2><div class="small-text">Open the project workspace and manage ecosystem projects.</div></div><button class="btn" type="button" onclick="showPage('projects')">Open Projects</button></div></div>
-<div class="feature-grid services-grid">
-<div class="feature"><div class="feature-icon">🎙</div><h3>MEHRAN MUSIC STUDIO</h3><p>Music creation, recording, production and AI-assisted music tools.</p><p class="service-action"><a class="btn small" href="music-studio.html">Open Music Studio ↗</a></p></div>
-<div class="feature"><div class="feature-icon">🎸</div><h3>MEHRAN INSTRUMENTS</h3><p>Musical instruments, professional studio equipment, music technology and global trade.</p><span class="pill">Business division</span></div>
-<div class="feature"><div class="feature-icon">✧</div><h3>MEHRAN AI</h3><p>Artificial intelligence products, assistants and intelligent tools.</p><p class="service-action"><button class="btn small" type="button" onclick="showPage('ai')">Open MEHRAN AI</button></p></div>
-<div class="feature"><div class="feature-icon">🤖</div><h3>MEHRAN ROBOTICS</h3><p>Robotics research, intelligent machines and future automation products.</p><span class="pill">Future division</span></div>
+<div class="services-masthead">
+ <div class="services-mast-copy"><span class="services-kicker">THE MEHRAN ECOSYSTEM</span><h1>One ecosystem.<br><em>Many ways forward.</em></h1><p>Explore the products, creative spaces and services being built across MEHRAN MSH.</p><div class="services-mast-meta"><span><i></i> PI NETWORK ECOSYSTEM</span><span>01 / SERVICES</span></div></div>
+ <div class="services-mast-art" aria-hidden="true"><div class="services-art-orbit orbit-a"></div><div class="services-art-orbit orbit-b"></div><div class="services-art-core">M<span>SH</span></div><span class="services-art-tag tag-one">CREATE</span><span class="services-art-tag tag-two">CONNECT</span><span class="services-art-tag tag-three">BUILD</span></div>
 </div>
+<div class="services-section-head"><div><span class="services-kicker">DISCOVER</span><h2>Choose your space</h2><p>Every service has its own purpose and experience.</p></div><span class="services-count">05 DIVISIONS</span></div>
+<div class="services-showcase">
+ <article class="service-tile service-social"><div class="service-tile-top"><span class="service-symbol">◎</span><span class="service-index">01 / COMMUNITY</span></div><div class="service-tile-visual social-visual"><span class="social-orb orb-left">S</span><span class="social-orb orb-right">✦</span><span class="social-visual-line"></span><span class="social-visual-caption">YOUR PEOPLE. YOUR WORLD.</span></div><div class="service-tile-copy"><div><span class="service-category">CONNECT · SHARE · DISCOVER</span><h3>SOCIAL</h3><p>A place for profiles, stories, conversations, communities and creative expression.</p></div><button class="service-open" type="button" onclick="showPage('social')">Enter SOCIAL <b>↗</b></button></div></article>
+ <article class="service-tile service-ai"><div class="service-tile-top"><span class="service-symbol">✧</span><span class="service-index">02 / INTELLIGENCE</span></div><div class="service-tile-visual ai-visual"><div class="ai-visual-grid"></div><div class="ai-visual-core">✧</div><span class="ai-visual-label">THINK · CREATE · SOLVE</span></div><div class="service-tile-copy"><div><span class="service-category">ASSISTANTS · TOOLS · PROMPTS</span><h3>MEHRAN AI</h3><p>Intelligent assistance, prompt creation and AI-powered creative workflows.</p></div><button class="service-open" type="button" onclick="showPage('ai')">Explore AI <b>↗</b></button></div></article>
+ <article class="service-tile service-music"><div class="service-tile-top"><span class="service-symbol">♫</span><span class="service-index">03 / MUSIC</span></div><div class="service-tile-visual music-visual"><div class="music-wave"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div><span>MAKE SOUND MATTER</span></div><div class="service-tile-copy"><div><span class="service-category">RECORD · PRODUCE · RELEASE</span><h3>MEHRAN MUSIC STUDIO</h3><p>A dedicated creative space for music production, recording and sound experiments.</p></div><a class="service-open" href="music-studio.html">Open Studio <b>↗</b></a></div></article>
+ <article class="service-tile service-instruments"><div class="service-tile-top"><span class="service-symbol">⌁</span><span class="service-index">04 / MUSIC TECHNOLOGY</span></div><div class="service-tile-visual instruments-visual"><div class="instrument-lines"></div><span>INSTRUMENTS / STUDIO / GEAR</span></div><div class="service-tile-copy"><div><span class="service-category">INSTRUMENTS · PRO AUDIO · TRADE</span><h3>MEHRAN INSTRUMENTS</h3><p>Musical instruments, professional studio equipment and music technology trade.</p></div><span class="service-status">BUSINESS DIVISION</span></div></article>
+ <article class="service-tile service-robotics"><div class="service-tile-top"><span class="service-symbol">⟡</span><span class="service-index">05 / FUTURE SYSTEMS</span></div><div class="service-tile-visual robotics-visual"><div class="robot-eye"><i></i></div><span>HUMAN IDEAS. MACHINE PRECISION.</span></div><div class="service-tile-copy"><div><span class="service-category">ROBOTICS · AUTOMATION · RESEARCH</span><h3>MEHRAN ROBOTICS</h3><p>Research and future products for intelligent machines and automation.</p></div><span class="service-status future">IN DEVELOPMENT</span></div></article>
+</div>
+<div class="projects-entry"><div class="projects-entry-mark">↗</div><div class="projects-entry-copy"><span class="services-kicker">WORK IN PROGRESS</span><h2>Projects, in motion.</h2><p>Track the ideas, experiments and products taking shape across the ecosystem.</p></div><button class="projects-entry-button" type="button" onclick="showPage('projects')">Open project workspace <b>↗</b></button></div>
 </section>
 </main></div>
 
@@ -4471,5 +4514,45 @@ const prevMe=window.socialMe;window.socialMe=async function(){await prevMe();soc
 
 
 
+<script id="mehran-home-orbit">
+(()=>{
+ const services=[
+  {name:"SOCIAL",icon:"◎",desc:"Connect with people, share moments and discover communities.",page:"social"},
+  {name:"MEHRAN AI",icon:"✧",desc:"Explore intelligent assistance, prompt creation and creative AI tools.",page:"ai"},
+  {name:"MUSIC STUDIO",icon:"♫",desc:"Create, record and produce music in a dedicated creative space.",url:"music-studio.html"},
+  {name:"INSTRUMENTS",icon:"⌁",desc:"Discover instruments, professional studio equipment and music technology.",page:"services"},
+  {name:"ROBOTICS",icon:"⟡",desc:"Explore the future direction of intelligent machines and automation.",page:"services"}
+ ];
+ let active=0;
+ const nodes=document.getElementById("homeOrbitNodes"),wheel=document.getElementById("homeOrbitWheel");
+ if(!nodes||!wheel)return;
+ services.forEach((item,index)=>{
+  const b=document.createElement("button");b.type="button";b.className="orbit-node";b.setAttribute("aria-label","Select "+item.name);b.innerHTML="<span>"+item.icon+"</span><small>"+item.name+"</small>";b.addEventListener("click",()=>select(index));nodes.appendChild(b);
+ });
+ const $=id=>document.getElementById(id);
+ function render(){
+  const radius=window.innerWidth<=470?Math.min(wheel.clientWidth*.34,104):Math.min(wheel.clientWidth*.36,132);
+  [...nodes.children].forEach((node,index)=>{
+   const angle=(-90+(index-active)*72)*Math.PI/180;
+   node.style.left=(wheel.clientWidth/2+Math.cos(angle)*radius)+"px";
+   node.style.top=(wheel.clientHeight/2+Math.sin(angle)*radius)+"px";
+   node.classList.toggle("active",index===active);
+   node.setAttribute("aria-pressed",index===active?"true":"false");
+  });
+  const item=services[active];
+  $("orbitCenterIcon").textContent=item.icon;$("orbitCenterName").textContent=item.name;
+  $("orbitDetailIndex").textContent=String(active+1).padStart(2,"0")+" / "+String(services.length).padStart(2,"0");
+  $("orbitDetailTitle").textContent=item.name;$("orbitDetailText").textContent=item.desc;
+ }
+ function select(index){active=(index+services.length)%services.length;render();}
+ $("orbitPrev").addEventListener("click",()=>select(active-1));
+ $("orbitNext").addEventListener("click",()=>select(active+1));
+ $("orbitEnter").addEventListener("click",()=>{const item=services[active];if(item.url)location.href=item.url;else if(item.page==="services"&&active===4)showPage("services");else showPage(item.page);});
+ let startX=null;
+ wheel.addEventListener("touchstart",e=>{startX=e.touches[0].clientX;},{passive:true});
+ wheel.addEventListener("touchend",e=>{if(startX===null)return;const dx=e.changedTouches[0].clientX-startX;if(Math.abs(dx)>35)select(active+(dx<0?1:-1));startX=null;},{passive:true});
+ window.addEventListener("resize",render);render();
+})();
+</script>
 </body>
 </html>
