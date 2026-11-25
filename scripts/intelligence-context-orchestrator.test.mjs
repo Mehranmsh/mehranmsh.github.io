@@ -66,3 +66,15 @@ test("fails closed without owner scope and stays deterministic, bounded and read
   assert.ok(first.graph.nodes.length <= 1);
   assert.equal(first.diagnostics.advisoryOnly, true);
 });
+
+test("enforces the serialized output budget even for dense owner records", () => {
+  const records = Array.from({length: 80}, (_, index) =>
+    base("memory_" + index, { content: "long context ".repeat(100) + index })
+  );
+  const result = buildIntelligenceContextSnapshot(records, {
+    ownerUid: "owner-a", maxOutputChars: 512, maxMemoryItems: 50, maxMemoryChars: 20000,
+    maxGraphNodes: 100, maxGraphEdges: 200
+  });
+  assert.ok(JSON.stringify(result).length <= 512);
+  assert.equal(result.diagnostics.outputTrimmed, true);
+});
