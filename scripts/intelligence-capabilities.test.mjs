@@ -44,15 +44,19 @@ test("persistent Workers AI inference 503 failures are not automatically retried
   assert.match(runnerSource, /Number\(error\?\.status\) === 503/);
 });
 
-test("bounded inspection serialization preserves a schema-valid semantic analysis", () => {
-  const serializerStart = runnerSource.indexOf("function serializeBoundedResult");
-  const serializerEnd = runnerSource.indexOf('for (let count = 0;', serializerStart);
-  const serializer = runnerSource.slice(serializerStart, serializerEnd);
-  assert.match(serializer, /analysis: compactAnalysis/);
-  assert.match(serializer, /findings: \[\]/);
-  assert.match(serializer, /Semantic findings were compacted/);
-  assert.match(serializer, /bounded\.length > maxChars/);
-  assert.match(serializer, /item\?\.rootCause/);
+test("repository inventory is deterministic and never depends on Workers AI", () => {
+  const inspectStart = runnerSource.indexOf('if (task.actionType === "inspect_repository")');
+  const inspectEnd = runnerSource.indexOf('if (task.actionType === "source_security_audit")', inspectStart);
+  assert.ok(inspectStart >= 0 && inspectEnd > inspectStart);
+  const inspect = runnerSource.slice(inspectStart, inspectEnd);
+  assert.match(inspect, /bounded_read_only_repository_inspection/);
+  assert.match(inspect, /blobSha: file\.sha/);
+  assert.match(inspect, /lineCount:/);
+  assert.match(inspect, /symbols:/);
+  assert.match(inspect, /Deterministic repository inventory completed/);
+  assert.doesNotMatch(inspect, /repository\/analyze|runIntelligenceAI|MEHRAN_ORCHESTRATOR_TOKEN/);
+  assert.match(workerSource, /inspect_repository_inventory_only/);
+  assert.match(workerSource, /inspect_repository_schema/);
 });
 
 test("runner resumes a durable completed result checkpoint without repeating execution", () => {
