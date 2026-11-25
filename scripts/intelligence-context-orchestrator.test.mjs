@@ -26,6 +26,29 @@ test("coordinates memory, graph, project diagnostics and task planning in one ow
   assert.equal(result.diagnostics.decisionMade, false);
 });
 
+
+test("coordinates authenticated goal decomposition and confirmed progress without mutation", () => {
+  const records = [
+    base("goal_launch", { memory_type: "goal", goal_id: "goal_launch", title: "Launch MEHRAN MSH" })
+  ];
+  const goalTaskProposals = [
+    { owner_uid: "owner-a", goal_id: "goal_launch", task_id: "prepare", title: "Prepare release" }
+  ];
+  const progressEvents = [{
+    owner_uid: "owner-a", actor_uid: "owner-a", explicit_confirmation: true,
+    event_id: "progress-1", task_id: "prepare", progress_state: "failed",
+    occurred_at: "2026-11-25T10:00:00.000Z"
+  }];
+  const result = buildIntelligenceContextSnapshot(records, {
+    ownerUid: "owner-a", actorUid: "owner-a", goalTaskProposals, progressEvents
+  });
+  assert.equal(result.goalLifecycle.acceptedTaskProposals.length, 1);
+  assert.equal(result.goalLifecycle.progress.taskStates[0].state, "failed");
+  assert.ok(result.goalLifecycle.replanningSuggestions.some(item => item.reason === "owner_confirmed_failure"));
+  assert.equal(result.goalLifecycle.diagnostics.tasksCreated, false);
+  assert.equal(result.goalLifecycle.diagnostics.tasksExecuted, false);
+});
+
 test("excludes foreign and sensitive records before coordinating subsystems", () => {
   const records = [
     base("safe"),
