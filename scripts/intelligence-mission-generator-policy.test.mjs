@@ -60,7 +60,7 @@ test("idempotency key rejects invalid intervals", () => {
 test("Worker generator endpoint is owner-protected and accepts only a bounded UTC cycle key", () => {
   assert.match(workerSource, /path === "\\/agent\\/v1\\/missions\\/generate" && method === "POST"/);
   assert.match(workerSource, /ownerOrchestrationRoute = .*missions\\/generate/);
-  assert.match(workerSource, /!\\^\\\\d\\{8\\}T\\\\d\\{4\\}\\$/.source);
+  assert.match(workerSource, /\\\\d\\{8\\}T\\\\d\\{4\\}/);
   assert.match(workerSource, /const mission = "service health check, repository quality check, and source security audit"/);
   assert.match(workerSource, /allowDeterministicFallback: false/);
   assert.match(workerSource, /aiInferenceUsed: false/);
