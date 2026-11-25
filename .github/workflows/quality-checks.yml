@@ -109,6 +109,8 @@ jobs:
 
       - name: Run Intelligence plan history tests
         run: node --check scripts/intelligence-plan-history.mjs && node --test scripts/intelligence-plan-history.test.mjs
+      - name: Run Intelligence plan outcome learning tests
+        run: node --check scripts/intelligence-plan-learning.mjs && node --test scripts/intelligence-plan-learning.test.mjs
 
       - name: Run Intelligence plan outcome learning tests
         run: node --check scripts/intelligence-plan-learning.mjs && node --test scripts/intelligence-plan-learning.test.mjs
