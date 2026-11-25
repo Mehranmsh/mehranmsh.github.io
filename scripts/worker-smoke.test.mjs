@@ -1342,14 +1342,14 @@ test("scheduled Intelligence runner is single-flight, secret-backed and restrict
   assert.match(runner, /task\.status !== "in_progress"/);
   assert.match(runner, /task\.assignedTo/);
   assert.match(runner, /secrets\.MEHRAN_AGENT_TOKEN/);
-  assert.match(runner, /secrets\\.MEHRAN_ORCHESTRATOR_TOKEN/);
-  assert.match(runner, /vars\\.MEHRAN_MISSION_GENERATOR_ENABLED/);
-  assert.match(runner, /GITHUB_EVENT_NAME === "schedule"/);
-  assert.match(runner, /MEHRAN_MISSION_GENERATOR_ENABLED === "true"/);
-  assert.match(runner, /orchestratorToken\.length < 40/);
-  assert.match(runner, /agent\\/v1\\/missions\\/generate/);
-  assert.match(runner, /Math\.floor\(Date\.now\(\) \/ 900000\) \* 900000/);
-  assert.match(runner, /Safely paused: active work or another generator reservation exists/);
+  assert.ok(runner.includes("secrets.MEHRAN_ORCHESTRATOR_TOKEN"));
+  assert.ok(runner.includes("vars.MEHRAN_MISSION_GENERATOR_ENABLED"));
+  assert.ok(runner.includes('GITHUB_EVENT_NAME === "schedule"'));
+  assert.ok(runner.includes('MEHRAN_MISSION_GENERATOR_ENABLED === "true"'));
+  assert.ok(runner.includes("orchestratorToken.length < 40"));
+  assert.ok(runner.includes('request("/agent/v1/missions/generate"'));
+  assert.ok(runner.includes("Math.floor(Date.now() / 900000) * 900000"));
+  assert.ok(runner.includes("Safely paused: active work or another generator reservation exists"));
 
   assert.match(runner, /service_health_report/);
   assert.match(runner, /repository_quality_check/);
