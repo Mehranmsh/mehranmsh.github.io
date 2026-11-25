@@ -1346,7 +1346,7 @@ test("scheduled Intelligence runner is single-flight, secret-backed and restrict
 test("Intelligence source audit cross-checks capability allowlists and owner safety boundaries", () => {
   for (const checkId of [
     "planner_validator_agent_mcp_and_runner_allowlists_aligned",
-    "custom_owner_missions_remain_admin_gated_without_fallback",
+    "custom_owner_missions_remain_admin_gated_with_bounded_fallback",
     "mcp_package_intake_keeps_separate_bridge_and_owner_identities",
     "executor_rechecks_assignment_status_and_approval",
     "runner_has_no_deploy_or_repository_write_commands",
@@ -1417,14 +1417,14 @@ test("Intelligence mission planner creates a bounded deterministic fallback when
   assert.match(planner, /SELECT id,status FROM intelligence_work_packages WHERE idempotency_key=\?/);
 });
 
-test("owner mission intake is admin-gated and does not substitute a generic fallback for custom missions", () => {
+test("owner mission intake is admin-gated and records custom missions through bounded read-only fallback", () => {
   const routeStart = workerSource.indexOf('if (path === "/intelligence/missions" && method === "POST")');
   const routeEnd = workerSource.indexOf('if (path === "/intelligence/tasks" && ["GET","POST"].includes(method))', routeStart);
   assert.ok(routeStart >= 0 && routeEnd > routeStart, "owner mission intake route must exist before the task hub route");
   const route = workerSource.slice(routeStart, routeEnd);
   assert.match(route, /verifyAdmin\(request, env\)/);
   assert.match(route, /intelligence-owner-mission-submit/);
-  assert.match(route, /allowDeterministicFallback: false/);
+  assert.match(route, /allowDeterministicFallback: true/);
   assert.match(route, /writeAdminAudit\(/);
   assert.match(route, /planIntelligenceMission\(env/);
 
