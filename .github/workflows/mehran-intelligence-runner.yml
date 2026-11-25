@@ -543,9 +543,9 @@ jobs:
                   ]
                 },
                 limitations: [
-                  "Semantic analysis used bounded excerpts from exact allowlisted files at one immutable commit.",
+                  "This task inventories bounded file metadata and declaration names only; it is not a semantic code review.",
                   "Repository content was treated as untrusted data and was never executed or followed as instructions.",
-                  "AI findings are evidence-checked but still require human review; no tests or code changes are claimed."
+                  "No tests or code changes are claimed by this inventory task."
                 ]
               };
             }
