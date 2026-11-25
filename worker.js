@@ -3,6 +3,7 @@ import { INTELLIGENCE_ACTION_TYPES, PREAPPROVED_INTELLIGENCE_ACTION_TYPES } from
 import { storePrivatePatchArtifact, verifyPrivatePatchArtifactAtPath, getPrivatePatchArtifactPath, getVerifiedPrivatePatchArtifactAtPath } from "./scripts/intelligence-private-patch-store.mjs";
 import { extractPatchModelText, generatePatchArtifact } from "./scripts/intelligence-patch-generation-service.mjs";
 import { validatePrivateIntelligenceMission } from "./scripts/intelligence-inbox-schema.mjs";
+import { listRegisteredModules, validateModuleRegistry, getModuleIntegrationPlan } from "./scripts/intelligence-module-registry.mjs";
 
 function nextWorkersAIDailyResetAt(attemptedAt) {
   const timestamp = typeof attemptedAt === "number" ? attemptedAt : Date.parse(attemptedAt);
@@ -7307,6 +7308,25 @@ export default {
       try {
         await ensureIntelligenceTaskTable(env);
         await ensureIntelligenceProtocolTables(env);
+        if (path === "/agent/v1/modules/registry" && method === "GET") {
+          const integrity = validateModuleRegistry();
+          const modules = listRegisteredModules({ includePlanned: true }).map(module => ({
+            ...module,
+            integrationState: "registry_declared",
+            liveHealth: "not_checked",
+            integrationPlan: getModuleIntegrationPlan(module.id)
+          }));
+          return json({
+            success: true,
+            generatedAt: new Date().toISOString(),
+            registry: { ok: integrity.ok, moduleCount: integrity.moduleCount, issues: integrity.issues },
+            modules,
+            runtime: {
+              adaptersWired: false,
+              note: "Registry metadata only. This endpoint does not probe module services or claim live health."
+            }
+          });
+        }
         await ensureIntelligenceSchedulerRunsTable(env);
         await ingestPrivateIntelligenceInbox(env);
         await ingestGitHubIntelligenceInbox(env);
@@ -7481,7 +7501,7 @@ export default {
       }
 
       if (path.startsWith("/agent/v1/")) {
-        const ownerOrchestrationRoute = (path === "/agent/v1/patch-proposals/pending" && method === "GET") || (path === "/agent/v1/patch-proposals/claim" && method === "POST") || (path === "/agent/v1/patch-proposals/complete" && method === "POST") || (path === "/agent/v1/repository/analyze" && method === "POST") || (path === "/agent/v1/missions/plan" && method === "POST") || (path === "/agent/v1/missions/generate" && method === "POST") || (path === "/agent/v1/work-packages" && method === "POST") || (path === "/agent/v1/work-packages/pending-finalization" && method === "GET") || (path.startsWith("/agent/v1/work-packages/") && method === "GET") || (path === "/agent/v1/notifications/next" && method === "GET") || (path === "/agent/v1/notifications/status" && method === "GET") || (path.startsWith("/agent/v1/notifications/") && method === "POST");
+        const ownerOrchestrationRoute = (path === "/agent/v1/modules/registry" && method === "GET") || (path === "/agent/v1/patch-proposals/pending" && method === "GET") || (path === "/agent/v1/patch-proposals/claim" && method === "POST") || (path === "/agent/v1/patch-proposals/complete" && method === "POST") || (path === "/agent/v1/repository/analyze" && method === "POST") || (path === "/agent/v1/missions/plan" && method === "POST") || (path === "/agent/v1/missions/generate" && method === "POST") || (path === "/agent/v1/work-packages" && method === "POST") || (path === "/agent/v1/work-packages/pending-finalization" && method === "GET") || (path.startsWith("/agent/v1/work-packages/") && method === "GET") || (path === "/agent/v1/notifications/next" && method === "GET") || (path === "/agent/v1/notifications/status" && method === "GET") || (path.startsWith("/agent/v1/notifications/") && method === "POST");
         const configuredToken = ownerOrchestrationRoute
           ? (typeof env.MEHRAN_ORCHESTRATOR_TOKEN === "string" ? env.MEHRAN_ORCHESTRATOR_TOKEN : "")
           : (typeof env.MEHRAN_AGENT_TOKEN === "string" ? env.MEHRAN_AGENT_TOKEN : "");
