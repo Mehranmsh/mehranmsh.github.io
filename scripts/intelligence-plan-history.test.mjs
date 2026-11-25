@@ -13,8 +13,8 @@ const options = { ownerUid: "owner-a", actorUid: "owner-a" };
 
 test("compares task additions, removals, field changes and ordering", () => {
   const result = compareIntelligencePlanVersions([
-    revision(1, [task("a"), task("b")]),
-    revision(2, [task("b", { priority: "high" }), task("c")])
+    revision(1, [task("a"), task("b"), task("c")]),
+    revision(2, [task("c"), task("b", { priority: "high" }), task("d")])
   ], [], options);
   assert.deepEqual(result.comparison.added.map(x => x.task_id), ["c"]);
   assert.deepEqual(result.comparison.removed.map(x => x.task_id), ["a"]);
@@ -43,7 +43,7 @@ test("reports version gaps, duplicate versions and non-increasing timestamps", (
   const result = compareIntelligencePlanVersions([
     revision(1, [task("a")]),
     revision(3, [task("b")], { created_at: "2026-11-20T09:00:00.000Z" }),
-    revision(3, [task("c")], { revision_id: "duplicate-version" })
+    revision(3, [task("c")], { revision_id: "z-duplicate-version" })
   ], [], options);
   assert.equal(result.revisions.length, 2);
   assert.ok(result.diagnostics.chronologyWarnings.some(x => x.reason === "version_gap"));
