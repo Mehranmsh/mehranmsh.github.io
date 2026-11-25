@@ -5,6 +5,7 @@ import { buildApprovedPreferenceProfile } from "./intelligence-preference-govern
 import { evaluateIntelligenceOptions } from "./intelligence-decision-engine.mjs";
 import { buildIntelligenceGoalLifecycle } from "./intelligence-goal-lifecycle.mjs";
 import { compareIntelligencePlanVersions } from "./intelligence-plan-history.mjs";
+import { learnFromIntelligencePlanOutcomes } from "./intelligence-plan-learning.mjs";
 
 const DEFAULT_LIMITS = Object.freeze({
   maxMemoryItems: 12,
@@ -36,6 +37,7 @@ export function buildIntelligenceContextSnapshot(records, options = {}) {
     decisionEvaluation: { rankedOptions: [], excludedOptions: [], reviewRequired: [], diagnostics: { advisoryOnly: true, decisionMade: false, executionPerformed: false, preferencesApplied: false } },
     goalLifecycle: { goals: [], acceptedTaskProposals: [], rejectedTaskProposals: [], progress: { acceptedEvents: 0, ignoredEvents: 0, taskStates: [] }, executionPlans: [], replanningSuggestions: [], diagnostics: { ownerScoped: false, advisoryOnly: true, recordsChanged: false, tasksCreated: false, tasksExecuted: false, approvalRequired: true } },
     planHistory: { revisions: [], comparison: null, outcomes: [], diagnostics: { ownerScoped: false, advisoryOnly: true, recordsChanged: false, historyWritten: false, approvalRequired: true } },
+    planLearning: { patterns: [], observations: [], diagnostics: { ownerScoped: false, advisoryOnly: true, causalClaims: false, recordsChanged: false, preferencesChanged: false, approvalRequired: true } },
     diagnostics: { ownerScoped: false, advisoryOnly: true, memoryChanged: false, preferencesChanged: false, decisionMade: false, executionPerformed: false, outputTrimmed: false }
   };
   if (!ownerUid || !Array.isArray(records)) return empty;
@@ -99,6 +101,13 @@ export function buildIntelligenceContextSnapshot(records, options = {}) {
     { ownerUid, actorUid: options.actorUid, maxRevisions: options.maxPlanRevisions, maxTasks: limits.maxTasks }
   );
 
+  const planLearning = learnFromIntelligencePlanOutcomes(
+    Array.isArray(options.planRevisions) ? options.planRevisions : [],
+    Array.isArray(options.planProgressEvents) ? options.planProgressEvents : [],
+    { ownerUid, actorUid: options.actorUid, maxRevisions: options.maxPlanRevisions,
+      maxEvents: options.maxPlanEvents, minObservations: options.minPlanLearningObservations }
+  );
+
   const snapshot = {
     memories: memory.memories,
     graph: memory.graph,
@@ -108,6 +117,7 @@ export function buildIntelligenceContextSnapshot(records, options = {}) {
     decisionEvaluation,
     goalLifecycle,
     planHistory,
+    planLearning,
     diagnostics: {
       ownerScoped: true,
       inputRecords: records.length,
@@ -125,6 +135,8 @@ export function buildIntelligenceContextSnapshot(records, options = {}) {
       goalReplanningSuggestions: goalLifecycle.replanningSuggestions.length,
       planHistoryRevisions: planHistory.revisions.length,
       planHistoryChanges: planHistory.comparison ? planHistory.comparison.added.length + planHistory.comparison.removed.length + planHistory.comparison.changed.length : 0,
+      planLearningPatterns: planLearning.patterns.length,
+      planLearningObservations: planLearning.diagnostics.observationsAccepted || 0,
       preferencesAppliedForEvaluation: decisionEvaluation.diagnostics.preferencesApplied === true,
       advisoryOnly: true,
       memoryChanged: false,
@@ -162,6 +174,7 @@ export function buildIntelligenceContextSnapshot(records, options = {}) {
     },
     goalLifecycle: { ...snapshot.goalLifecycle, acceptedTaskProposals: [], rejectedTaskProposals: [], progress: { acceptedEvents: snapshot.goalLifecycle.progress.acceptedEvents, ignoredEvents: snapshot.goalLifecycle.progress.ignoredEvents, taskStates: [] }, executionPlans: [], replanningSuggestions: [] },
     planHistory: { ...snapshot.planHistory, revisions: snapshot.planHistory.revisions.slice(-2), outcomes: snapshot.planHistory.outcomes.slice(-10) },
+    planLearning: { ...snapshot.planLearning, patterns: snapshot.planLearning.patterns.slice(0, 10), observations: snapshot.planLearning.observations.slice(-10) },
     decisionEvaluation: {
       ...snapshot.decisionEvaluation,
       rankedOptions: snapshot.decisionEvaluation.rankedOptions.slice(0, 20),
