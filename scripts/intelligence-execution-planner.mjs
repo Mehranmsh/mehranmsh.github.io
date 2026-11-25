@@ -32,6 +32,7 @@ export function buildIntelligenceExecutionPlan(records, options={}) {
     if(!ready.length) break;
     for(const id of ready) if(pending.delete(id)) {
       const r=tasks.get(id),due=date(r.due_at);
+      done.add(id);
       orderedTasks.push({task_id:id,title:clean(r.title||r.label||id,200),priority:clean(r.priority,24)||"unspecified",estimate_minutes:Number.isFinite(r.estimate_minutes)&&r.estimate_minutes>=0?Math.min(Math.floor(r.estimate_minutes),100000):null,due_at:due===null?null:new Date(due).toISOString(),rationale:"dependencies_explicitly_satisfied",advisory:true});
     }
   }
