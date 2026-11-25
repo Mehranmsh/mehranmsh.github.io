@@ -84,3 +84,31 @@ test("clamps tiny requested output budgets to a safe metadata floor", () => {
   assert.ok(JSON.stringify(result).length <= 512);
   assert.equal(result.diagnostics.ownerScoped, true);
 });
+
+test("evaluates alternatives only as advisory and applies approved overlays only with owner opt-in", () => {
+  const ledger = [{
+    record_type: "intelligence_preference_decision", decision_id: "d2", owner_uid: "owner-a",
+    actor_uid: "owner-a", explicit_confirmation: true, decision: "accepted",
+    recommendation: "increase_preference", target_key: "owner_work_style",
+    proposal_key: JSON.stringify(["owner_work_style", "increase_preference"]),
+    decided_at: "2026-11-20T00:00:00.000Z"
+  }];
+  const input = {
+    ownerUid: "owner-a",
+    preferenceLedger: ledger,
+    decisionCriteria: [{ key: "owner_work_style", weight: 10, direction: "higher" }],
+    decisionOptions: [{ id: "option-a", title: "Option A", scores: { owner_work_style: 4 } }]
+  };
+  const noOptIn = buildIntelligenceContextSnapshot([base("safe")], input);
+  assert.equal(noOptIn.decisionEvaluation.diagnostics.preferencesApplied, false);
+  const optedIn = buildIntelligenceContextSnapshot([base("safe")], {
+    ...input, actorUid: "owner-a", allowApprovedPreferences: true
+  });
+  assert.equal(optedIn.decisionEvaluation.diagnostics.preferencesApplied, true);
+  assert.equal(optedIn.decisionEvaluation.diagnostics.decisionMade, false);
+  assert.equal(optedIn.diagnostics.decisionMade, false);
+  const spoofed = buildIntelligenceContextSnapshot([base("safe")], {
+    ...input, actorUid: "attacker", allowApprovedPreferences: true
+  });
+  assert.equal(spoofed.decisionEvaluation.diagnostics.preferencesApplied, false);
+});
