@@ -25,7 +25,8 @@ export function buildIntelligenceGoalLifecycle(records, proposedTasks, progressE
     executionPlans: [], replanningSuggestions: [],
     diagnostics: { ownerScoped: false, advisoryOnly: true, recordsChanged: false, tasksCreated: false, tasksExecuted: false, approvalRequired: true }
   };
-  const actorUid = clean(options.actorUid, 256);\n  if (!ownerUid || actorUid !== ownerUid || !Array.isArray(records) || !Array.isArray(proposedTasks) || !Array.isArray(progressEvents)) return empty;
+  const actorUid = clean(options.actorUid, 256);
+  if (!ownerUid || actorUid !== ownerUid || !Array.isArray(records) || !Array.isArray(proposedTasks) || !Array.isArray(progressEvents)) return empty;
 
   const ownerRecords = records.filter(record =>
     record && typeof record === "object" && !Array.isArray(record) &&
