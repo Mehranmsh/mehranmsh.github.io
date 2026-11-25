@@ -349,6 +349,12 @@ test("repository inspection is active, pre-authorized, exact-path allowlisted, a
   assert.equal(validateIntelligenceCapabilityRequest("inspect_repository", {
     paths: ["worker.js", "docs/INTELLIGENCE_EXECUTION_PROTOCOL.md"]
   }).ok, true);
+  assert.equal(validateIntelligenceCapabilityRequest("inspect_repository", {
+    paths: ["worker.js"], analysisMode: "semantic"
+  }).ok, true);
+  assert.equal(validateIntelligenceCapabilityRequest("inspect_repository", {
+    paths: ["worker.js"], analysisMode: "unbounded"
+  }).ok, false);
   assert.equal(validateIntelligenceCapabilityRequest("inspect_repository", { paths: ["../../secrets"] }).ok, false);
   assert.equal(validateIntelligenceCapabilityRequest("inspect_repository", { paths: [] }).ok, false);
   assert.equal(validateIntelligenceCapabilityRequest("inspect_repository", {
