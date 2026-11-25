@@ -5576,7 +5576,7 @@ async function ensureIntelligencePatchProposalTable(env) {
 }
 
 async function persistIntelligenceNotification(env, row) {
-  const token = typeof env.MEHRAN_RUNNER_GITHUB_TOKEN === "string" ? env.MEHRAN_RUNNER_GITHUB_TOKEN.trim() : "";
+  const token = typeof env.MEHRAN_REPORTS_GITHUB_TOKEN === "string" ? env.MEHRAN_REPORTS_GITHUB_TOKEN.trim() : "";
   if (token.length < 40) throw new Error("Private notification archive is not configured.");
   if (!row || row.channel !== "owner_private" || !/^[0-9a-f-]{36}$/i.test(String(row.event_id || ""))) throw new Error("Invalid private notification record.");
   let payload;
