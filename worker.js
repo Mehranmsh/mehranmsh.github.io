@@ -6394,7 +6394,7 @@ export function verifyIntelligenceReport(actionType, report) {
         !validAnalysis) {
       return { passed: false, checks: [...checks, "inspect_repository_schema"] };
     }
-    checks.push("inspect_repository_identity", "inspect_repository_paths", "inspect_repository_bounds", "inspect_repository_semantic_analysis");
+    checks.push("inspect_repository_identity", "inspect_repository_paths", "inspect_repository_bounds", "inspect_repository_inventory_only");
   } else if (actionType === "run_repository_tests") {
     const tests = report.tests && typeof report.tests === "object" ? report.tests : {};
     const container = report.container && typeof report.container === "object" ? report.container : {};

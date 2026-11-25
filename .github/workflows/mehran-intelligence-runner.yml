@@ -490,7 +490,6 @@ jobs:
               const commit = await commitResponse.json();
               if (typeof commit.sha !== "string" || !/^[a-f0-9]{40}$/i.test(commit.sha)) throw new Error("GitHub returned an invalid main commit SHA.");
               const files = [];
-              const evidenceFiles = [];
               let totalBytes = 0;
               for (const path of paths) {
                 const apiPath = path.split("/").map(encodeURIComponent).join("/");
@@ -525,26 +524,7 @@ jobs:
                   lineCount: source.length ? source.split(/\r\n|\n|\r/).length : 0,
                   symbols: [...symbols].map(symbol => symbol.slice(0, 60))
                 });
-                const sourceLines = source.split(/\r?\n/);
-                const focus = /persistIntelligencePackageReport|verifyExistingReport|generatePatchArtifact|generated_diff_validation|canonicalizeAppendOnly|inspect_repository|propose_code_patch|source_security_audit|planIntelligenceMission|verifyIntelligenceReport|validateIntelligenceWorkPackage|runFixedRepositoryTests|function execute\(/i;
-                const selected = new Set();
-                for (let lineIndex = 0; lineIndex < sourceLines.length; lineIndex++) {
-                  if (!focus.test(sourceLines[lineIndex])) continue;
-                  for (let offset = Math.max(0, lineIndex - 18); offset <= Math.min(sourceLines.length - 1, lineIndex + 28); offset++) selected.add(offset);
-                  if (selected.size >= 180) break;
-                }
-                const excerpt = [...selected].sort((a,b)=>a-b).map(index => `${index+1}: ${sourceLines[index]}`).join("\n").slice(0,2800);
-                if (excerpt) evidenceFiles.push({path,sha:file.sha,excerpt});
-              }
-              if (orchestratorToken.length < 40 || evidenceFiles.length < 1) {
-                throw new Error("Owner AI analysis identity or bounded source evidence is unavailable.");
-              }
-              const semantic = await request("/agent/v1/repository/analyze", {
-                method: "POST",
-                body: JSON.stringify({commitSha:commit.sha,files:evidenceFiles})
-              }, ownerHeaders, 90000);
-              if (!semantic.success || semantic.commitSha !== commit.sha || !semantic.analysis) {
-                throw new Error("Workers AI semantic source analysis was not verified.");
+
               }
               return {
                 type: task.actionType,
@@ -554,11 +534,18 @@ jobs:
                 commitSha: commit.sha,
                 summary: { filesInspected: files.length, totalBytes },
                 files,
-                analysis: semantic.analysis,
+                analysis: {
+                  summary: "Deterministic repository inventory completed. No semantic AI analysis was requested or required.",
+                  findings: [],
+                  limitations: [
+                    "This task verifies bounded file metadata and declaration names only; it does not perform semantic code review.",
+                    "Source files were read from one immutable main commit and were not executed."
+                  ]
+                },
                 limitations: [
-                  "Semantic analysis used bounded excerpts from exact allowlisted files at one immutable commit.",
+                  "This task inventories bounded file metadata and declaration names only; it is not a semantic code review.",
                   "Repository content was treated as untrusted data and was never executed or followed as instructions.",
-                  "AI findings are evidence-checked but still require human review; no tests or code changes are claimed."
+                  "No tests or code changes are claimed by this inventory task."
                 ]
               };
             }
