@@ -1,3 +1,5 @@
+import { buildIntelligenceKnowledgeGraph } from "./intelligence-knowledge-graph.mjs";
+
 const MEMORY_TYPES = new Set(["episodic", "semantic", "procedural", "decision", "working", "evaluation"]);
 const BLOCKED_SENSITIVITY = new Set(["secret", "credential", "wallet", "financial", "private_social"]);
 const DEFAULT_LIMITS = Object.freeze({ maxItems: 12, maxChars: 6000, maxItemChars: 1200 });
@@ -164,4 +166,19 @@ export function selectMemoryContext(records, options = {}) {
     usedChars += cost;
   }
   return selected;
+}
+
+
+/**
+ * Return ranked memory plus a bounded owner-scoped relationship graph.
+ * The graph is supplementary context and never changes the ranked memories.
+ */
+export function selectMemoryContextWithGraph(records, options = {}) {
+  const memories = selectMemoryContext(records, options);
+  const graph = buildIntelligenceKnowledgeGraph(records, {
+    ownerUid: options.ownerUid,
+    maxNodes: options.graphMaxNodes ?? 40,
+    maxEdges: options.graphMaxEdges ?? 80
+  });
+  return { memories, graph };
 }
