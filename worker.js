@@ -4,6 +4,7 @@ import { storePrivatePatchArtifact, verifyPrivatePatchArtifactAtPath, getPrivate
 import { extractPatchModelText, generatePatchArtifact } from "./scripts/intelligence-patch-generation-service.mjs";
 import { validatePrivateIntelligenceMission } from "./scripts/intelligence-inbox-schema.mjs";
 import { selectMemoryContext } from "./scripts/intelligence-memory-ranking.mjs";
+import { buildIntelligenceFeedbackReview } from "./scripts/intelligence-feedback-review.mjs";
 import { normalizeIntelligenceAnswer } from "./scripts/intelligence-answer-quality.mjs";
 import { planIntelligenceRetry } from "./scripts/intelligence-retry-policy.mjs";
 
@@ -9735,33 +9736,40 @@ export default {
         }
         await ensureIntelligencePreferenceTables(env);
         const [feedbackResult,memoryResult,pendingCount] = await Promise.all([
-          env.DB.prepare("SELECT target_key,outcome FROM intelligence_feedback_records WHERE owner_uid=? AND explicit_confirmation=1 AND processed_at IS NULL ORDER BY created_at DESC LIMIT 500").bind(admin.uid).all(),
-          env.DB.prepare("SELECT memory_key FROM intelligence_memory_items WHERE owner_uid=? AND category IN ('preference','decision')").bind(admin.uid).all(),
+          env.DB.prepare("SELECT feedback_id,owner_uid,target_key,outcome,explicit_confirmation FROM intelligence_feedback_records WHERE owner_uid=? AND explicit_confirmation=1 AND processed_at IS NULL ORDER BY created_at ASC,feedback_id ASC LIMIT 500").bind(admin.uid).all(),
+          env.DB.prepare("SELECT owner_uid,memory_key,category FROM intelligence_memory_items WHERE owner_uid=? AND category IN ('preference','decision')").bind(admin.uid).all(),
           env.DB.prepare("SELECT COUNT(*) AS total FROM intelligence_preference_proposals WHERE owner_uid=? AND status='pending'").bind(admin.uid).first()
         ]);
-        const validTargets = new Set((memoryResult.results||[]).map(row=>row.memory_key));
-        const groups = new Map();
-        for (const row of feedbackResult.results||[]) {
-          if (!row || !["accepted","rejected"].includes(row.outcome)) continue;
-          const key = String(row.target_key||"");
-          if (!groups.has(key)) groups.set(key,{accepted:0,rejected:0});
-          groups.get(key)[row.outcome] += 1;
-        }
+        const feedbackRecords = (feedbackResult.results||[]).map(row=>({
+          feedback_id:row.feedback_id,
+          owner_uid:row.owner_uid,
+          target_key:row.target_key,
+          outcome:row.outcome,
+          feedback_confirmed:Number(row.explicit_confirmation)===1,
+          confirmed_by:row.owner_uid,
+          status:"active"
+        }));
+        const memoryRecords = (memoryResult.results||[]).map(row=>({
+          owner_uid:row.owner_uid,
+          memory_key:row.memory_key,
+          category:row.category,
+          status:"active"
+        }));
+        const review = buildIntelligenceFeedbackReview(memoryRecords,feedbackRecords,{
+          ownerUid:admin.uid,
+          minimumObservations:2,
+          dominanceThreshold:0.75
+        });
         const existingRows = await env.DB.prepare(
           "SELECT target_key,recommendation FROM intelligence_preference_proposals WHERE owner_uid=? AND status='pending'"
         ).bind(admin.uid).all();
         const existing = new Set((existingRows.results||[]).map(row=>JSON.stringify([row.target_key,row.recommendation])));
         const inserts = [], proposals = [], processedTargets = new Set();
-        let unmatched = 0, omitted = 0;
+        let omitted = 0;
         let remaining = Math.max(0,100-Number(pendingCount?.total||0));
-        for (const [targetKey,counts] of [...groups.entries()].sort(([a],[b])=>a.localeCompare(b))) {
-          const observations = counts.accepted + counts.rejected;
-          if (observations < 2) continue;
-          const acceptedShare = counts.accepted / observations;
-          const rejectedShare = counts.rejected / observations;
-          if (Math.max(acceptedShare,rejectedShare) < 0.75) continue;
-          if (!validTargets.has(targetKey)) { unmatched++; continue; }
-          const recommendation = acceptedShare > rejectedShare ? "increase_preference" : "decrease_preference";
+        for (const proposal of review.reviewableProposals) {
+          const targetKey = proposal.target_key;
+          const recommendation = proposal.recommendation;
           const key = JSON.stringify([targetKey,recommendation]);
           if (existing.has(key)) { processedTargets.add(targetKey); continue; }
           if (remaining <= 0) { omitted++; continue; }
@@ -9769,7 +9777,8 @@ export default {
           inserts.push(env.DB.prepare(
             "INSERT INTO intelligence_preference_proposals(id,owner_uid,target_key,recommendation,proposal_key) VALUES(?,?,?,?,?)"
           ).bind(id,admin.uid,targetKey,recommendation,proposalKey));
-          proposals.push({id,target_key:targetKey,recommendation,observations,confidence:Number(Math.max(acceptedShare,rejectedShare).toFixed(4)),status:"pending",approval_required:true,applied:false});
+          proposals.push({id,target_key:targetKey,recommendation,observations:proposal.observations,
+            confidence:proposal.confidence,status:"pending",approval_required:true,applied:false});
           existing.add(key); processedTargets.add(targetKey); remaining--;
         }
         const processedAt = new Date().toISOString();
@@ -9778,10 +9787,10 @@ export default {
         ).bind(processedAt,admin.uid,targetKey));
         if (inserts.length || processUpdates.length) await env.DB.batch([...inserts,...processUpdates]);
         if (proposals.length) await writeAdminAudit(env,admin,"intelligence_preference_feedback_review_generated","intelligence_preference_proposal",admin.uid,
-          JSON.stringify({created:proposals.length,unmatched,omitted}));
-        return json({success:true,proposals,created:proposals.length,unmatched,omitted,
+          JSON.stringify({created:proposals.length,unmatched:review.unmatchedProposals.length,omitted}));
+        return json({success:true,proposals,created:proposals.length,unmatched:review.unmatchedProposals.length,omitted,
           diagnostics:{ownerScoped:true,explicitFeedbackOnly:true,minimumObservations:2,dominanceThreshold:0.75,
-            advisoryOnly:true,ownerApprovalRequired:true,preferencesChanged:false,applied:false}});
+            advisoryOnly:true,ownerApprovalRequired:true,memoryChanged:false,preferencesChanged:false,applied:false}});
       }
 
       if (path === "/intelligence/preferences" && method === "GET") {
