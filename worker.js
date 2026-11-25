@@ -6050,12 +6050,20 @@ async function createIntelligenceFallbackPackage(env, mission, idempotencyKey, r
       description: "Run the existing pattern-based read-only checks against worker.js and the Intelligence runner workflow. This is not a semantic AI code review.",
       actionType: "source_security_audit",
       dependsOn: []
+    },
+    {
+      taskId: "inspect-intelligence-core",
+      title: "Inspect the bounded Intelligence execution architecture",
+      description: "Collect read-only evidence from the fixed allowlisted Intelligence executor, capabilities, tests, runner workflow, and execution protocol. This is evidence collection, not AI analysis.",
+      actionType: "inspect_repository",
+      paths: [...INTELLIGENCE_INSPECT_ALLOWED_PATHS],
+      dependsOn: []
     }
   ];
   const created = await createIntelligenceWorkPackage(env, {
     idempotencyKey,
-    title: "MEHRAN INTELLIGENCE readiness baseline",
-    objective: "Establish an evidence-based baseline of service health, repository state, and the currently implemented deterministic security controls using only existing read-only capabilities.",
+    title: "MEHRAN INTELLIGENCE deterministic mission intake",
+    objective: "Record the owner's mission and gather a deterministic, read-only evidence baseline for it. This package does not claim AI analysis or mission completion; it preserves the mission for execution and later AI-assisted assessment when a provider is available. Owner mission: " + cleanText(mission, 1200),
     priority: "normal",
     scope,
     tasks,
@@ -9263,10 +9271,10 @@ export default {
         const planned = await planIntelligenceMission(env, {
           mission,
           idempotencyKey: "owner-mission-" + crypto.randomUUID(),
-          allowDeterministicFallback: false,
+          allowDeterministicFallback: true,
           ownerUid: admin.uid
         });
-        if (!planned.success) return error(planned.error || "Mission planning failed.", planned.code === -32003 ? 503 : 400);
+        if (!planned.success) return error(planned.error || "Mission intake failed.", planned.code === -32003 ? 503 : 400);
         await writeAdminAudit(env, admin, "intelligence_owner_mission_submitted", "intelligence_work_package", planned.workPackageId, JSON.stringify({ mission: mission.slice(0, 300), taskCount: planned.taskCount || 0, planner: planned.planner?.provider || "unknown" }));
         return json({ success: true, workPackageId: planned.workPackageId, status: planned.status, taskCount: planned.taskCount || 0, planSummary: planned.planSummary || "", planner: planned.planner || null, safety: planned.safety || "" }, planned.duplicate ? 200 : 202);
       }
