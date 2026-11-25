@@ -45,6 +45,11 @@ function queryTokens(value) {
     .slice(0, 32));
 }
 
+function containsSensitivePersonalData(value) {
+  const text = String(value || "").toLowerCase();
+  return /(?:\\b(?:password|passphrase|api[_ -]?key|private[_ -]?key|seed phrase|recovery phrase|mnemonic)\\b|\\b(?:wallet|bank|card)\\s+(?:address|balance|number|details|credentials)\\b|\\b(?:my|personal)\\s+(?:wallet|bank|account|balance|transactions?)\\b|\\b(?:credit|debit)\\s+card\\b)/i.test(text);
+}
+
 function relevanceScore(record, query) {
   if (!query.size) return 0;
   const content = queryTokens([record.memory_key, record.memory_type, record.content].join(" "));
@@ -77,6 +82,7 @@ export function selectMemoryContext(records, options = {}) {
     if (record.deleted_at || record.superseded_by) continue;
     if (record.status && record.status !== "active") continue;
     if (BLOCKED_SENSITIVITY.has(String(record.sensitivity || "").toLowerCase())) continue;
+    if (containsSensitivePersonalData(record.content) || containsSensitivePersonalData(record.memory_key)) continue;
     const memoryType = normalizeMemoryType(record.memory_type || record.category);
     if (!memoryType) continue;
 
