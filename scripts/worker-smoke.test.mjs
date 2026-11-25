@@ -321,6 +321,19 @@ test("persistent preference governance routes are owner-authenticated, bounded, 
   assert.match(workerSource,/CREATE TABLE IF NOT EXISTS intelligence_preference_proposals/);
 });
 
+
+test("Intelligence preference governance UI uses explicit owner review actions", () => {
+  assert.match(indexSource,/id="intelPreferenceProposalForm"/);
+  assert.match(indexSource,/id="intelPreferencePendingList"/);
+  assert.match(indexSource,/id="intelPreferenceProfile"/);
+  assert.match(indexSource,/api\("\/intelligence\/preferences"/);
+  assert.match(indexSource,/api\("\/intelligence\/preferences\/proposals"/);
+  assert.match(indexSource,/api\("\/intelligence\/preferences\/decisions"/);
+  assert.match(indexSource,/window\.confirm\(/);
+  assert.match(indexSource,/explicitConfirmation:true/);
+  assert.match(indexSource,/No memory was modified/);
+});
+
 test("MEHRAN INTELLIGENCE serves exact project and SOCIAL status queries without Workers AI", () => {
   const start = workerSource.indexOf('if (path === "/intelligence/chat" && method === "POST")');
   const end = workerSource.indexOf('if (path === "/admin/overview"', start);
