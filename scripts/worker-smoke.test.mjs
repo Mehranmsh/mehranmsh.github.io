@@ -437,7 +437,7 @@ test("proposal-only work-package tasks require a bounded objective", () => {
     title: "Prepare a bounded test proposal",
     objective: "Generate one private regression-test proposal",
     priority: "normal",
-    scope: { modules: ["intelligence"], private: true, allowedActions: ["service_health_report", "repository_quality_check"] },
+    scope: { modules: ["intelligence"], private: true, allowedActions: ["propose_code_patch"] },
     tasks: [{
       taskId: "patch", title: "Propose a regression test", description: "Create a narrow test-only proposal",
       actionType: "propose_code_patch", dependsOn: [], objective: "Add regression coverage for an identified validation edge case"
@@ -2982,6 +2982,7 @@ test("repository inspection work packages enforce exact bounded paths and persis
     idempotencyKey: "inspect-plan-2026-11-23-a1",
     title: "Inspect Intelligence source",
     objective: "Read selected source files safely.",
+    scope: { allowedActions: ["inspect_repository"] },
     tasks: [{
       taskId: "inspect-core",
       title: "Inspect core source",
