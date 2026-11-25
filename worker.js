@@ -7309,25 +7309,6 @@ export default {
       try {
         await ensureIntelligenceTaskTable(env);
         await ensureIntelligenceProtocolTables(env);
-        if (path === "/agent/v1/modules/registry" && method === "GET") {
-          const integrity = validateModuleRegistry();
-          const modules = listRegisteredModules({ includePlanned: true }).map(module => ({
-            ...module,
-            integrationState: "registry_declared",
-            liveHealth: "not_checked",
-            integrationPlan: getModuleIntegrationPlan(module.id)
-          }));
-          return json({
-            success: true,
-            generatedAt: new Date().toISOString(),
-            registry: { ok: integrity.ok, moduleCount: integrity.moduleCount, issues: integrity.issues },
-            modules,
-            runtime: {
-              adaptersWired: false,
-              note: "Registry metadata only. This endpoint does not probe module services or claim live health."
-            }
-          });
-        }
         await ensureIntelligenceSchedulerRunsTable(env);
         await ingestPrivateIntelligenceInbox(env);
         await ingestGitHubIntelligenceInbox(env);
@@ -7519,6 +7500,25 @@ export default {
         if (mismatch !== 0) return error(ownerOrchestrationRoute ? "Owner orchestration authentication required." : "Agent authentication required.", 401);
         await ensureIntelligenceTaskTable(env);
         await ensureIntelligenceProtocolTables(env);
+        if (path === "/agent/v1/modules/registry" && method === "GET") {
+          const integrity = validateModuleRegistry();
+          const modules = listRegisteredModules({ includePlanned: true }).map(module => ({
+            ...module,
+            integrationState: "registry_declared",
+            liveHealth: "not_checked",
+            integrationPlan: getModuleIntegrationPlan(module.id)
+          }));
+          return json({
+            success: true,
+            generatedAt: new Date().toISOString(),
+            registry: { ok: integrity.ok, moduleCount: integrity.moduleCount, issues: integrity.issues },
+            modules,
+            runtime: {
+              adaptersWired: false,
+              note: "Registry metadata only. This endpoint does not probe module services or claim live health."
+            }
+          });
+        }
         if (path === "/agent/v1/ai-diagnostics/archive" && method === "POST") {
           const archived = await archiveLatestIntelligenceAIProviderDiagnostics(env);
           return json({success:true,...archived},archived.stored?200:202);
