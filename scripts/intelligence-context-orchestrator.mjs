@@ -127,6 +127,17 @@ export function buildIntelligenceContextSnapshot(records, options = {}) {
     compact.projectDiagnostics = { staleRecords: [], blockedProjects: [], unknownDependencyStates: [], projectsMissingMetadata: [], diagnostics: { advisoryOnly: true, outputBudgetTrimmed: true } };
     compact.executionPlan = { orderedTasks: [], blockedTasks: [], unresolvedTasks: [], diagnostics: { advisoryOnly: true, executionPerformed: false, outputBudgetTrimmed: true } };
     compact.preferenceProfile = { approvedPreferences: [], rejectedDecisions: [], diagnostics: { advisoryOnly: true, preferencesChanged: false, applied: false, outputBudgetTrimmed: true } };
+    compact.graph = { nodes: [], edges: [], diagnostics: { omittedNodes: snapshot.graph.nodes.length, omittedEdges: snapshot.graph.edges.length, outputBudgetTrimmed: true } };
+    compact.memories = [];
+  }
+  if (JSON.stringify(compact).length > limits.maxOutputChars) {
+    return {
+      memories: [], graph: { nodes: [], edges: [], diagnostics: { outputBudgetTrimmed: true } },
+      projectDiagnostics: { staleRecords: [], blockedProjects: [], unknownDependencyStates: [], projectsMissingMetadata: [] },
+      executionPlan: { orderedTasks: [], blockedTasks: [], unresolvedTasks: [] },
+      preferenceProfile: { approvedPreferences: [], rejectedDecisions: [] },
+      diagnostics: { ownerScoped: true, advisoryOnly: true, memoryChanged: false, preferencesChanged: false, decisionMade: false, executionPerformed: false, outputTrimmed: true }
+    };
   }
   return compact;
 }
