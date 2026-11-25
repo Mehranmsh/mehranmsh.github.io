@@ -8292,6 +8292,14 @@ export default {
             try { parsedReport = JSON.parse(resultText); } catch { return error("Completed task results must be valid JSON reports.",422); }
             const acceptance = verifyIntelligenceReport(before.action_type, parsedReport);
             if (!acceptance.passed) return error("Task result failed independent schema verification: " + acceptance.checks.join(","),422);
+            if (before.action_type === "inspect_repository") {
+              let expectedPayload;
+              try { expectedPayload = JSON.parse(before.action_payload || "{}"); } catch { return error("Stored inspection-task payload is invalid.",422); }
+              const expectedAnalysisMode = expectedPayload?.analysisMode || "inventory";
+              if (!["inventory", "semantic"].includes(expectedAnalysisMode) || parsedReport.analysisMode !== expectedAnalysisMode) {
+                return error("Inspection report mode does not match the immutable task request.",422);
+              }
+            }
             if (before.action_type === "run_repository_tests") {
               let expectedPayload;
               try { expectedPayload = JSON.parse(before.action_payload || "{}"); } catch { return error("Stored test-task payload is invalid.",422); }
