@@ -3274,8 +3274,8 @@ test("Agent task claim tokens fence checkpoint and result commits to the current
     "every package-bound runner guard must safely handle malformed legacy JSON");
   assert.match(claimRoute, /agent_claim_token_hash='',last_error_code='claim_expired_max_attempts'/);
   assert.match(claimRoute, /agent_claim_token_hash='',last_error_code='claim_expired_retry'/);
-  assert.match(schedulerClaim, /agent_claim_token_hash=\\?/);
-  assert.match(schedulerClaim, /\\.bind\\(claimTokenHash,candidate\\.id,candidate\\.status\\)/);
+  assert.match(schedulerClaim, /agent_claim_token_hash=\?/);
+  assert.match(schedulerClaim, /\.bind\(claimTokenHash,candidate\.id,candidate\.status\)/);
   assert.ok(workerSource.includes("WHERE id=? AND status='in_progress' AND agent_claim_token_hash=?"), "scheduler completion and failure must be fenced by the current claim token");
   assert.ok(workerSource.includes(".bind(resultText,candidate.id,claimTokenHash)"), "completion must bind the current claim token");
   assert.match(workerSource, /WHERE changes\\(\\)>0/);
