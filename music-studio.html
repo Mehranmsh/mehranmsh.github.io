@@ -13,6 +13,48 @@
  #patternStudio .step-grid{display:grid;grid-template-columns:repeat(16,minmax(0,1fr));gap:4px;margin-top:7px}#patternStudio .step-cell{min-width:0;padding:8px 0;border:1px solid var(--line);border-radius:6px;background:var(--surface2);color:var(--muted);font-size:10px;cursor:pointer}#patternStudio .step-cell.active{background:var(--accent);border-color:var(--accent);color:#06131f;font-weight:800}@media(max-width:680px){#patternStudio .step-grid{gap:2px}#patternStudio .step-cell{padding:7px 0;font-size:9px}}
  .experience-mode{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin:0 0 14px;padding:10px 12px;border:1px solid var(--line);border-radius:12px;background:var(--surface2);color:var(--muted);font-size:12px}.experience-mode>div{display:flex;gap:6px;flex-wrap:wrap}.experience-mode button{border:1px solid var(--line);background:transparent;color:var(--muted);border-radius:8px;padding:8px 11px;font:inherit;cursor:pointer}.experience-mode button[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:#06131f;font-weight:700}section[data-experience-mode="smart"] details[data-advanced-panel]{display:none}section[data-experience-mode="pro"] details[data-advanced-panel]{display:block} .piano-roll-scroll{overflow-x:auto;margin-top:10px;padding-bottom:6px}.piano-roll-grid{display:grid;grid-template-columns:42px repeat(16,22px);gap:3px;min-width:max-content;align-items:center}.piano-roll-grid .piano-note-label{font-size:10px;color:var(--muted);text-align:right;padding-right:5px}.piano-roll-grid .piano-step-cell{height:22px;min-width:0;padding:0;border:1px solid var(--line);border-radius:4px;background:var(--surface2);cursor:pointer}.piano-roll-grid .piano-step-cell.active{background:var(--accent);border-color:var(--accent);box-shadow:inset 0 0 0 1px rgba(0,0,0,.15)}.piano-roll-grid .piano-step-cell.selected-step{outline:2px solid var(--text);outline-offset:1px}.piano-roll-grid .piano-note-label.octave-mark{font-weight:800;color:var(--text);padding-top:5px}.piano-roll-grid .piano-step-head{font-size:9px;color:var(--muted);text-align:center}
 </style>
+
+<style id="mehran-studio-identity-v1">
+/* STUDIO: warm analog console, instrument wood and signal amber */
+:root{color-scheme:dark;--bg:#100f0d;--panel:#1b1915;--panel2:#242019;--line:#51402b;--cyan:#e6b86b;--blue:#c58a4a;--text:#f7f0e4;--muted:#b5a58e;--green:#a9c88d;--accent:#e6b86b}
+body{background:radial-gradient(ellipse at 72% -10%,rgba(173,112,49,.22),transparent 43%),radial-gradient(ellipse at 4% 45%,rgba(103,68,36,.12),transparent 35%),#100f0d;color:#f7f0e4}
+aside{background:rgba(20,18,15,.97);border-right:1px solid #493a28;box-shadow:12px 0 40px rgba(0,0,0,.16)}
+.brand-mark{background:linear-gradient(145deg,#f0cf8d,#b7793f);color:#21160b;box-shadow:0 8px 25px rgba(218,164,91,.2)}
+.brand strong{letter-spacing:1.7px}.brand small{color:#c19a63}
+.nav-label{color:#9c7a4c}
+.nav button{color:#c6b69c;border-radius:9px}
+.nav button span{color:#e2b76e}
+.nav button.active,.nav button:hover{background:linear-gradient(100deg,rgba(179,120,57,.2),rgba(116,76,39,.12));border-color:#6a4c2d;color:#fff2dc;box-shadow:inset 3px 0 #e6b86b}
+.side-note{border-top-color:#4c3a27;color:#a9967b}.side-note b{color:#ead2a8}
+main{max-width:1650px;margin:auto;width:100%;padding-top:30px}
+.crumb{color:#a28d70;letter-spacing:1.5px}.crumb b{color:#f0d4a4}
+.status{border:1px solid #75552d;background:#2c2114;color:#f0c77f}
+.hero{border:1px solid #725333;border-radius:20px;background:radial-gradient(circle at 84% 20%,rgba(226,176,99,.18),transparent 27%),linear-gradient(115deg,#39291b,#211b15 66%,#1c1915);box-shadow:0 20px 55px rgba(0,0,0,.25);padding:clamp(25px,4vw,42px)}
+.eyebrow{color:#e9bd73;letter-spacing:2.4px}
+.hero h1{font-family:Georgia,serif;font-weight:600;letter-spacing:-.8px}
+.hero p{color:#c7b69b;line-height:1.85}
+.hero-mark{color:#edc47d;opacity:.16}
+.section-head h2{font-family:Georgia,serif;font-size:20px;letter-spacing:.1px}
+.section-head p{color:#b7a58b}
+.grid{gap:14px}
+.tile,.panel{background:linear-gradient(145deg,#282219,#1a1814);border:1px solid #51402c;border-radius:14px;box-shadow:0 10px 30px rgba(0,0,0,.14)}
+.tile{transition:transform .18s,border-color .18s}
+.tile:hover{transform:translateY(-2px);border-color:#b7894f}
+.tile .ico{color:#e6b86b}
+.tag{border-color:#775a35;background:rgba(210,155,83,.08);color:#e9c78f;letter-spacing:.7px}
+.notice{border:1px solid #72532e;background:#2b2116;color:#e8c995;border-radius:11px}
+.field label{color:#c8b28f}
+.field input,.field select,.field textarea{background:#110f0c;border:1px solid #59452e;border-radius:9px;color:#f7f0e4}
+.field input:focus,.field select:focus,.field textarea:focus{border-color:#e6b86b;box-shadow:0 0 0 3px rgba(230,184,107,.13)}
+.btn{background:linear-gradient(110deg,#e9c27c,#b8793e);border:1px solid #e7bd76;color:#24170b;border-radius:9px;font-weight:850;box-shadow:0 7px 18px rgba(181,121,62,.16)}
+.btn:hover{filter:brightness(1.08)}
+.btn.secondary{background:#30271d;border-color:#715536;color:#f0d9b2;box-shadow:none}
+.project{background:#1c1914;border-color:#4b3a27}
+.project-icon{background:#3b2c1b;color:#edc27b}
+.project-copy small{color:#b5a184}
+input[type=checkbox]{accent-color:#e6b86b}
+@media(max-width:760px){.app{grid-template-columns:1fr}aside{position:relative;height:auto;padding:12px;border-right:0;border-bottom:1px solid #493a28}.brand{padding:4px 8px 12px}.nav{display:flex;overflow-x:auto;gap:5px;padding-bottom:4px}.nav button{white-space:nowrap;width:auto;flex:0 0 auto;padding:9px 11px}.nav-label,.side-note{display:none}main{padding:16px 13px 40px}.hero{padding:22px 18px}.grid{gap:10px}}
+</style>
 </head>
 <body>
 <div class="app">
