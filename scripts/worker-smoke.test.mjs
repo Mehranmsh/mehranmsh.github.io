@@ -22,7 +22,7 @@ const answerQualityImport = 'import { normalizeIntelligenceAnswer } from "./scri
 const retryPolicyImport = 'import { planIntelligenceRetry } from "./scripts/intelligence-retry-policy.mjs";';
 if (!workerSource.includes(capabilityImport) || !workerSource.includes(patchStoreImport) ||
     !workerSource.includes(patchGenerationImport) || !workerSource.includes(inboxSchemaImport) ||
-    !workerSource.includes(routinePlannerImport) || !workerSource.includes(memoryRankingImport) || !workerSource.includes(answerQualityImport) || !workerSource.includes(retryPolicyImport)) {
+    !workerSource.includes(routinePlannerImport) || !workerSource.includes(memoryRankingImport) || !workerSource.includes(answerQualityImport) || !workerSource.includes(retryPolicyImport) || !workerSource.includes('import { buildIntelligenceFeedbackReview } from "./scripts/intelligence-feedback-review.mjs";')) {
   throw new Error("Worker capability, patch storage, or private inbox schema imports were not found");
 }
 const policySource = await readFile(new URL("./intelligence-patch-policy.mjs", import.meta.url), "utf8");
@@ -346,7 +346,9 @@ test("owner-confirmed feedback is stored and converted into bounded review propo
   assert.equal((routes.match(/verifyAdmin\(request, env\)/g)||[]).length,2);
   assert.match(routes,/body\.explicitConfirmation !== true/);
   assert.match(routes,/feedback_confirmed|explicit_confirmation=1/);
-  assert.match(routes,/minimumObservations|observations < 2/);
+  assert.match(routes,/buildIntelligenceFeedbackReview\(memoryRecords,feedbackRecords/);
+  assert.match(routes,/minimumObservations:2/);
+  assert.match(routes,/feedback_confirmed: Number\(row\.explicit_confirmation\)===1/);
   assert.match(routes,/0\.75/);
   assert.match(routes,/ownerApprovalRequired:true/);
   assert.match(routes,/processed_at IS NULL/);
