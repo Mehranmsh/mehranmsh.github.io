@@ -477,16 +477,16 @@ test("Agent API stale-claim recovery includes package-bound allowlisted tasks", 
   assert.equal((route.match(/UPDATE intelligence_tasks SET status='accepted'/g) || []).length, 1);
   assert.match(route, /datetime\(agent_claimed_at\) < datetime\('now','-15 minutes'\)/);
   assert.match(route, /action_type IN \('repository_quality_check','service_health_report','source_security_audit','inspect_repository','run_repository_tests','propose_code_patch'\)/);
-  assert.match(route, /work_package_id IS NULL OR EXISTS \(SELECT 1 FROM intelligence_work_packages wp, json_each\(wp\.scope_json, '\$\.allowedActions'\) scoped WHERE wp\.id=t\.work_package_id AND scoped\.value=t\.action_type\)/,
+  assert.match(route, /work_package_id IS NULL OR EXISTS \(SELECT 1 FROM intelligence_work_packages wp, json_each\(CASE WHEN json_valid\(wp\.scope_json\) THEN wp\.scope_json ELSE '\{\}' END, '\$\.allowedActions'\) scoped WHERE wp\.id=t\.work_package_id AND scoped\.value=t\.action_type\)/,
     "claim selection must revalidate each package task against its persisted allowedActions");
   assert.match(route, /WHERE id=\? AND status IN \('queued','accepted','retry_wait'\).*work_package_id IS NULL OR EXISTS/s,
     "the atomic claim update must repeat the package scope guard");
   const checkpointStart = workerSource.indexOf("const checkpointMatch", start);
   const resultStart = workerSource.indexOf("const agentResultMatch", checkpointStart);
   const resultEnd = workerSource.indexOf('return error("Not found",404);', resultStart);
-  assert.match(workerSource.slice(checkpointStart, resultStart), /json_each\(wp\.scope_json, '\$\.allowedActions'\)/,
+  assert.match(workerSource.slice(checkpointStart, resultStart), /json_each\\(CASE WHEN json_valid\\(wp\\.scope_json\\) THEN wp\\.scope_json ELSE '\\{\\}' END, '\\$\\.allowedActions'\\)/,
     "checkpoint writes must reject tasks outside their package scope");
-  assert.match(workerSource.slice(resultStart, resultEnd), /json_each\(wp\.scope_json, '\$\.allowedActions'\)/,
+  assert.match(workerSource.slice(resultStart, resultEnd), /json_each\\(CASE WHEN json_valid\\(wp\\.scope_json\\) THEN wp\\.scope_json ELSE '\\{\\}' END, '\\$\\.allowedActions'\\)/,
     "result commits must reject tasks outside their package scope");
 });
 
