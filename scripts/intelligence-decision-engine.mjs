@@ -8,7 +8,7 @@ export function evaluateIntelligenceOptions(options, criteria, settings={}) {
  if(!Array.isArray(options)||!Array.isArray(criteria)) return empty;
  const owner=clean(settings.ownerUid);
  const preferenceResult=buildDecisionCriteriaWithApprovedPreferences(criteria,settings.approvedPreferenceProfile,{
-  ownerUid:owner,allowApprovedPreferences:settings.allowApprovedPreferences===true
+  ownerUid:owner,actorUid:clean(settings.actorUid),allowApprovedPreferences:settings.allowApprovedPreferences===true
  });
  const effectiveCriteria=preferenceResult.criteria;
  const boundedCriteria=effectiveCriteria.slice(0,MAX_CRITERIA).filter(c=>c&&typeof c==="object"&&clean(c.key)&&finite(c.weight,0,100)&&(c.direction==="higher"||c.direction==="lower"));
