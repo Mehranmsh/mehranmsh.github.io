@@ -798,6 +798,20 @@ input:focus,textarea:focus,select:focus,button:focus-visible,a:focus-visible{out
 #page-ai .prompt-hero{background:radial-gradient(ellipse at 85% 0%,rgba(52,117,190,.25),transparent 55%),linear-gradient(145deg,#172943,#101b2c)}
 @media(max-width:650px){#page-ai .panel{padding:15px}#page-ai .ai-nav-btn{flex:1}}
 </style>
+<style id="mehran-ai-quickstart-v1">
+#page-ai .ai-signin-gate{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:15px 17px;margin:0 0 14px;border:1px solid rgba(104,171,220,.35);border-radius:16px;background:linear-gradient(115deg,rgba(24,66,99,.55),rgba(18,31,51,.9))}
+#page-ai .ai-signin-gate[hidden]{display:none}
+#page-ai .ai-signin-gate p{margin:5px 0 0}
+#page-ai .ai-quick-start{padding:15px;margin:0 0 15px;border:1px solid rgba(119,153,201,.18);border-radius:17px;background:rgba(10,22,38,.72)}
+#page-ai .ai-quick-heading{display:flex;align-items:baseline;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:12px}
+#page-ai .ai-quick-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px}
+#page-ai .ai-quick-grid button{display:flex;flex-direction:column;align-items:flex-start;gap:4px;min-width:0;padding:12px;border:1px solid rgba(119,153,201,.2);border-radius:13px;background:linear-gradient(145deg,#15263b,#101a2b);color:#edf4ff;text-align:left}
+#page-ai .ai-quick-grid button:active{transform:translateY(1px)}
+#page-ai .ai-quick-grid button>span{font-size:19px;color:#80cfff}
+#page-ai .ai-quick-grid button strong{font-size:13px}
+#page-ai .ai-quick-grid button small{font-size:11px;color:#9fb1c8;line-height:1.4}
+@media(max-width:560px){#page-ai .ai-quick-grid{grid-template-columns:repeat(2,minmax(0,1fr))}#page-ai .ai-signin-gate{align-items:flex-start;flex-direction:column}}
+</style>
 </head>
 <body>
 <div class="app">
@@ -1027,7 +1041,21 @@ input:focus,textarea:focus,select:focus,button:focus-visible,a:focus-visible{out
 <button type="button" class="ai-nav-btn active" data-ai-view="workspace" onclick="switchAIView('workspace')">✧ AI Workspace</button>
 <button type="button" class="ai-nav-btn" data-ai-view="prompt-creator" onclick="switchAIView('prompt-creator')">✦ Prompt Creator</button>
 </div>
-<div class="ai-view active" id="social-ai"><div class="section-title"><h2>MEHRAN AI</h2><span class="small-text">AI execution workspace</span></div><div class="panel"><div class="notice" style="margin-bottom:12px"><strong>Your AI workspace</strong><p class="small-text" style="margin:6px 0 0">Send a request directly, or bring a ready-made text prompt from Prompt Creator. MEHRAN AI is the place where the selected AI model processes your request. Image understanding and image generation require compatible vision/image models and are not enabled just by choosing a provider.</p></div><p id="assistantStatus" class="notice">Checking AI providers...</p><div class="field"><label for="assistantProviderSelect">AI workspace</label><select id="assistantProviderSelect"><option value="central">Central Assistant · Auto</option><option value="openai">OpenAI</option><option value="gemini">Google Gemini</option><option value="cloudflare">Cloudflare AI</option><option value="groq">Groq</option></select><small class="small-text">Central Assistant selects an available provider. Image analysis is available with configured OpenAI GPT-4.1 mini or Gemini 2.5 Flash. Each provider keeps a separate conversation. Audio, video and document analysis are not connected yet.</small></div><div id="assistantProviderStatus" class="small-text" style="margin:8px 0"></div><div id="assistantMessages" class="social-card" style="min-height:180px;max-height:420px;overflow:auto;margin:12px 0"><div class="empty">Your MEHRAN AI conversation will appear here.</div></div><div class="assistant-composer-wrap">
+<div class="ai-view active" id="social-ai"><div class="section-title"><h2>MEHRAN AI</h2><span class="small-text">AI execution workspace</span></div><div class="panel"><div class="notice" style="margin-bottom:12px"><strong>Your AI workspace</strong><p class="small-text" style="margin:6px 0 0">Send a request directly, or bring a ready-made text prompt from Prompt Creator. MEHRAN AI is the place where the selected AI model processes your request. Image understanding and image generation require compatible vision/image models and are not enabled just by choosing a provider.</p></div><div class="ai-signin-gate" id="aiSignInGate" hidden>
+<div><strong>Sign in to use MEHRAN AI</strong><p class="small-text">Your private AI conversations use the same secure account as SOCIAL.</p></div>
+<button class="btn small" type="button" onclick="mehranAIRequestSignIn()">Sign in</button>
+</div>
+<div class="ai-quick-start" aria-label="Quick AI tasks">
+<div class="ai-quick-heading"><strong>Start with a task</strong><span class="small-text">Choose a starting point, then customize your request</span></div>
+<div class="ai-quick-grid">
+<button type="button" onclick="mehranAIStartTask('write')"><span>✎</span><strong>Write</strong><small>Draft and refine content</small></button>
+<button type="button" onclick="mehranAIStartTask('explain')"><span>⌘</span><strong>Explain</strong><small>Understand a topic</small></button>
+<button type="button" onclick="mehranAIStartTask('code')"><span>⌁</span><strong>Build & code</strong><small>Plan or debug software</small></button>
+<button type="button" onclick="mehranAIStartTask('analyze')"><span>◫</span><strong>Analyze</strong><small>Compare and reason</small></button>
+<button type="button" onclick="mehranAIStartTask('plan')"><span>☷</span><strong>Plan</strong><small>Turn goals into steps</small></button>
+<button type="button" onclick="mehranAIStartTask('ideas')"><span>✧</span><strong>Explore ideas</strong><small>Brainstorm new directions</small></button>
+</div></div>
+<p id="assistantStatus" class="notice">Checking AI providers...</p><div class="field"><label for="assistantProviderSelect">AI workspace</label><select id="assistantProviderSelect"><option value="central">Central Assistant · Auto</option><option value="openai">OpenAI</option><option value="gemini">Google Gemini</option><option value="cloudflare">Cloudflare AI</option><option value="groq">Groq</option></select><small class="small-text">Central Assistant selects an available provider. Image analysis is available with configured OpenAI GPT-4.1 mini or Gemini 2.5 Flash. Each provider keeps a separate conversation. Audio, video and document analysis are not connected yet.</small></div><div id="assistantProviderStatus" class="small-text" style="margin:8px 0"></div><div id="assistantMessages" class="social-card" style="min-height:180px;max-height:420px;overflow:auto;margin:12px 0"><div class="empty">Your MEHRAN AI conversation will appear here.</div></div><div class="assistant-composer-wrap">
 <div id="assistantAttachmentPreview" class="assistant-attachment-preview" hidden></div>
 <div class="assistant-composer">
 <div class="assistant-attach-wrap"><button type="button" class="assistant-attach-btn" id="assistantAttachBtn" aria-label="Attach media" aria-expanded="false" title="Attach image, audio, video or file" onclick="socialToggleAttachMenu()">＋</button>
@@ -1356,6 +1384,26 @@ function socialOpenStudioPrompt(type){
  if(tool)tool.value=item.tool;
  showPage("ai");switchAIView("prompt-creator");
  const heading=$("pcGoal");if(heading){heading.focus();heading.scrollIntoView({block:"center",behavior:"smooth"});}
+}
+function mehranAIRequestSignIn(){
+ openAuth("login");
+ setSocialAuthMessage("Sign in with your MEHRAN MSH / SOCIAL account to use your private AI workspace.","notice");
+}
+function mehranAIStartTask(kind){
+ const starters={
+  write:"Help me write and refine the following. Ask only for essential missing details, then produce a polished, ready-to-use result:\n\n",
+  explain:"Explain the following topic clearly, starting with the core idea and then building up with practical examples:\n\n",
+  code:"Help me design or debug this software task. First clarify the requirements, then propose a safe implementation and explain important trade-offs:\n\n",
+  analyze:"Analyze the following carefully. Separate verified facts from assumptions, identify risks and alternatives, and give a reasoned conclusion:\n\n",
+  plan:"Turn this goal into a realistic step-by-step plan. Include dependencies, priorities, risks and clear completion criteria:\n\n",
+  ideas:"Help me brainstorm original, practical ideas for this topic. Group them by direction and briefly evaluate their strengths and challenges:\n\n"
+ };
+ const input=$("assistantInput");
+ if(!socialUser){mehranAIRequestSignIn();return;}
+ if(!input)return;
+ input.value=starters[kind]||"Help me with this task:\n\n";
+ input.focus();
+ input.setSelectionRange(input.value.length,input.value.length);
 }
 function switchAIView(name){
  const allowed=new Set(["workspace","prompt-creator"]);
@@ -1892,6 +1940,7 @@ if(!verified&&getSocialToken()===data.token&&!socialMePromise){
 }
 if(!verified||!socialUser?.id||!socialUser?.username||!socialSessionVerified)throw new Error("Sign-in succeeded, but SOCIAL could not verify which account this session belongs to. Please retry.");
 closeAuth();
+if($("page-ai")?.classList.contains("active"))socialLoadAssistant();
 toast("Welcome to SOCIAL");
 if(typeof loadSocialFeed==="function")loadSocialFeed().catch(error=>console.warn("SOCIAL feed:",error));
 }catch(error){
@@ -3428,6 +3477,7 @@ function socialSelectedAIProvider(){return $("assistantProviderSelect")?.value||
 function socialAIProviderName(key){return ({central:"Central Assistant",openai:"OpenAI",gemini:"Google Gemini",cloudflare:"Cloudflare AI",groq:"Groq"})[key]||key;}
 async function socialLoadAssistant(){
  const status=$("assistantStatus"),box=$("assistantMessages"),send=$("assistantSendBtn"),provider=socialSelectedAIProvider();
+ const signInGate=$("aiSignInGate");if(signInGate)signInGate.hidden=!!socialUser;
  if(!socialUser){status.textContent="Sign in to use MEHRAN AI.";send.disabled=true;box.innerHTML='<div class="empty">Sign in to start your private AI conversations.</div>';return;}
  send.disabled=true;status.textContent="Checking AI providers...";
  try{
