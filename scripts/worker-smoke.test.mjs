@@ -3187,7 +3187,7 @@ test("Agent task claim tokens fence checkpoint and result commits to the current
   const schedulerClaim = workerSource.slice(schedulerClaimStart, schedulerClaimEnd);
   assert.match(schedulerClaim, /json_each\\(wp\\.scope_json, '\$\\.allowedActions'\\)/,
     "scheduled claim must atomically enforce the package action scope");
-  assert.match(claimRoute, /work_package_id IS NULL OR EXISTS \\(SELECT 1 FROM intelligence_work_packages wp, json_each\\(wp\\.scope_json, '\$\\.allowedActions'\\)/,
+  assert.ok(claimRoute.includes("work_package_id IS NULL OR EXISTS (SELECT 1 FROM intelligence_work_packages wp, json_each(wp.scope_json, '$.allowedActions')"),
     "agent claim and stale-retry recovery must reject package tasks without explicit action authorization");
   assert.match(claimRoute, /agent_claim_token_hash='',last_error_code='claim_expired_max_attempts'/);
   assert.match(claimRoute, /agent_claim_token_hash='',last_error_code='claim_expired_retry'/);
