@@ -111,7 +111,7 @@ const workerRest = workerSource.replace(capabilityImport, "")
   .replace(answerQualityImport, "")
   .replace(retryPolicyImport, "")
   .replace(feedbackReviewImport, "");
-const workerSourceForTest = knowledgeGraphSource + "\n" + memoryRankingSource + "\n" + feedbackLearningSource + "\n" + feedbackReviewSource + "\n" + routinePlannerSource + "\n" + retryPolicySource + `\nimport { storePrivatePatchArtifact, verifyPrivatePatchArtifactAtPath, getPrivatePatchArtifactPath, getVerifiedPrivatePatchArtifactAtPath } from "${patchStoreTestUrl}";
+const workerSourceForTest = knowledgeGraphSource + "\n" + memoryRankingSource + "\n" + feedbackReviewSource + "\n" + routinePlannerSource + "\n" + retryPolicySource + `\nimport { storePrivatePatchArtifact, verifyPrivatePatchArtifactAtPath, getPrivatePatchArtifactPath, getVerifiedPrivatePatchArtifactAtPath } from "${patchStoreTestUrl}";
 import { generatePatchArtifact } from "${patchGenerationTestUrl}";
 import { validatePrivateIntelligenceMission } from "${inboxSchemaUrl}";
 const INTELLIGENCE_ACTION_TYPES = ${JSON.stringify(INTELLIGENCE_ACTION_TYPES)};
