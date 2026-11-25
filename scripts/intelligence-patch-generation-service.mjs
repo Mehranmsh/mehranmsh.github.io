@@ -10,8 +10,15 @@ function fail(code) {
   return { ok: false, code };
 }
 
-function extractModelText(result) {
+export function extractPatchModelText(result) {
   if (typeof result?.response === "string") return result.response;
+  if (result?.response && typeof result.response === "object" && !Array.isArray(result.response)) {
+    try {
+      return JSON.stringify(result.response);
+    } catch {
+      return "";
+    }
+  }
   if (typeof result?.output_text === "string") return result.output_text;
   return "";
 }
@@ -279,7 +286,7 @@ export async function generatePatchArtifact({
     if (Array.isArray(modelResult?.errors) && modelResult.errors.length) {
       return fail("model_returned_error");
     }
-    raw = extractModelText(modelResult);
+    raw = extractPatchModelText(modelResult);
   }
   if (!raw || raw.length > 24000) return {
     ok: false,
