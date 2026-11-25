@@ -9355,7 +9355,7 @@ export default {
             const categories = ["goal","decision","architecture","preference","constraint","progress"];
             const importance = args.importance === undefined ? 3 : Number(args.importance);
             if (!/^[a-z0-9][a-z0-9._:-]{1,79}$/.test(key) || !categories.includes(category) || !content || content.length < 8 || !Number.isInteger(importance) || importance < 1 || importance > 5) throw new Error("Invalid durable memory entry.");
-            if (/(password|api[_ -]?key|private[_ -]?key|seed phrase|recovery phrase|wallet passphrase)/i.test(content)) throw new Error("Credentials and wallet secrets cannot be stored in memory.");
+            if (/(password|passphrase|api[_ -]?key|private[_ -]?key|seed phrase|recovery phrase|mnemonic|wallet|bank|credit card|debit card|account number|personal balance)/i.test(content)) throw new Error("Credentials, wallet data and personal financial details cannot be stored in memory.");
             await env.DB.prepare("INSERT INTO intelligence_memory_items(id,owner_uid,memory_key,category,content,importance,source) VALUES(?,?,?,?,?,?, 'owner_chat') ON CONFLICT(owner_uid,memory_key) DO UPDATE SET category=excluded.category,content=excluded.content,importance=excluded.importance,source='owner_chat',updated_at=CURRENT_TIMESTAMP")
               .bind(crypto.randomUUID(),"mehran_intelligence",key,category,content,importance).run();
             return {saved:true,key,category,updated:true};
