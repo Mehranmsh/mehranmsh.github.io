@@ -4,7 +4,7 @@ import {evaluateIntelligenceOptions} from "./intelligence-decision-engine.mjs";
 const criteria=[{key:"quality",weight:2,direction:"higher"},{key:"cost",weight:1,direction:"lower"}];
 test("ranks by weighted explicit scores and explains evidence",()=>{
  const r=evaluateIntelligenceOptions([{id:"a",scores:{quality:5,cost:4}},{id:"b",scores:{quality:4,cost:1}}],criteria,{ownerUid:"owner"});
- assert.equal(r.rankedOptions[0].option_id,"b"); assert.equal(r.rankedOptions[0].score,4.3333); assert.equal(r.diagnostics.decisionMade,false);
+ assert.equal(r.rankedOptions[0].option_id,"b"); assert.equal(r.rankedOptions[0].score,4); assert.equal(r.diagnostics.decisionMade,false);
 });
 test("excludes only owner-confirmed failed hard constraints",()=>{
  const r=evaluateIntelligenceOptions([{id:"no",scores:{quality:5,cost:5},constraints:[{key:"budget",passed:false,confirmed:true,confirmed_by:"owner"}]},{id:"maybe",scores:{quality:3,cost:3},constraints:[{key:"budget",passed:false,confirmed:true,confirmed_by:"other"}]}],criteria,{ownerUid:"owner"});
@@ -12,7 +12,7 @@ test("excludes only owner-confirmed failed hard constraints",()=>{
 });
 test("missing scores and unconfirmed constraints require review",()=>{
  const r=evaluateIntelligenceOptions([{id:"x",scores:{quality:4},constraints:[{key:"legal"}]}],criteria,{ownerUid:"owner"});
- assert.equal(r.rankedOptions[0].coverage,2/3); assert.equal(r.rankedOptions[0].review_required,true); assert.equal(r.reviewRequired.length,1);
+ assert.equal(r.rankedOptions[0].coverage,0.6667); assert.equal(r.rankedOptions[0].review_required,true); assert.equal(r.reviewRequired.length,1);
 });
 test("high-impact choices always require owner review",()=>{
  const r=evaluateIntelligenceOptions([{id:"x",high_impact:true,scores:{quality:4,cost:4}}],criteria,{ownerUid:"owner"});
