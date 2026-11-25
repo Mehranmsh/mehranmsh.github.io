@@ -7514,7 +7514,7 @@ export default {
               try {
                 const routed = await runIntelligenceAI(env, {
                   messages,
-                  jsonMode: false,
+                  jsonMode: true,
                   temperature,
                   maxTokens,
                   cloudflareReservation: 100
