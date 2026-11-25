@@ -448,7 +448,7 @@ jobs:
                 let excerpt = "";
                 for (const index of ordered) {
                   const line = `L${index + 1}: ${redactExcerpt(sourceLines[index])}`;
-                  if ((excerpt + (excerpt ? "\n" : "") + line).length > 2700) break;
+                  if ((excerpt + (excerpt ? "\n" : "") + line).length > 2400) break;
                   excerpt += (excerpt ? "\n" : "") + line;
                 }
                 return excerpt.slice(0, 2800);
@@ -506,7 +506,9 @@ jobs:
                   method: "POST",
                   body: JSON.stringify({
                     commitSha: commit.sha,
-                    focus: String(task.description || "Review the supplied source for concrete correctness, security, data-integrity, authorization, and reliability defects.").slice(0, 800),
+                    focus: (String(task.description || "").trim().length >= 12
+                      ? String(task.description).trim().slice(0, 800)
+                      : "Review the supplied source for concrete correctness, security, data-integrity, authorization, and reliability defects."),
                     files: analysisEvidence
                   })
                 }, ownerHeaders, 90000);
