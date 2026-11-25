@@ -23,7 +23,6 @@ const retryPolicyImport = 'import { planIntelligenceRetry } from "./scripts/inte
 const feedbackReviewImport = 'import { buildIntelligenceFeedbackReview } from "./scripts/intelligence-feedback-review.mjs";';
 const planHistoryImport = 'import { compareIntelligencePlanVersions } from "./scripts/intelligence-plan-history.mjs";';
 const planLearningImport = 'import { learnFromIntelligencePlanOutcomes } from "./scripts/intelligence-plan-learning.mjs";';
-const planLearningImport = 'import { learnFromIntelligencePlanOutcomes } from "./scripts/intelligence-plan-learning.mjs";';
 if (!workerSource.includes(capabilityImport) || !workerSource.includes(patchStoreImport) ||
     !workerSource.includes(patchGenerationImport) || !workerSource.includes(inboxSchemaImport) ||
     !workerSource.includes(routinePlannerImport) || !workerSource.includes(memoryRankingImport) || !workerSource.includes(answerQualityImport) || !workerSource.includes(retryPolicyImport) || !workerSource.includes(feedbackReviewImport) || !workerSource.includes(planHistoryImport) || !workerSource.includes(planLearningImport)) {
