@@ -103,6 +103,108 @@ function normalizeManifest(input) {
   }) };
 }
 
+/**
+ * Validate the static registry before any adapter or scheduler consumes it.
+ * This is deterministic and requires no AI quota or external service access.
+ */
+export function validateModuleRegistry() {
+  const ids = new Set();
+  const issues = [];
+  for (const module of MODULES) {
+    if (ids.has(module.id)) issues.push({ code: "duplicate_module_id", moduleId: module.id });
+    ids.add(module.id);
+    if (!["active", "planned", "disabled", "pending"].includes(module.status)) {
+      issues.push({ code: "invalid_module_status", moduleId: module.id });
+    }
+    if (module.status === "active" && !["first_party", "platform"].includes(module.trust)) {
+      issues.push({ code: "active_module_untrusted", moduleId: module.id });
+    }
+    for (const dependency of module.dependencies) {
+      if (!MODULES.some(candidate => candidate.id === dependency)) {
+        issues.push({ code: "missing_dependency", moduleId: module.id, dependency });
+      }
+    }
+    if (module.status !== "active" && (module.capabilities.length || module.dataScopes.length)) {
+      issues.push({ code: "inactive_module_has_access", moduleId: module.id });
+    }
+  }
+
+  const visiting = new Set();
+  const visited = new Set();
+  function visit(id, chain = []) {
+    if (visiting.has(id)) {
+      issues.push({ code: "dependency_cycle", moduleId: id, chain: [...chain, id] });
+      return;
+    }
+    if (visited.has(id)) return;
+    visiting.add(id);
+    const module = MODULES.find(item => item.id === id);
+    for (const dependency of module?.dependencies || []) {
+      if (MODULES.some(item => item.id === dependency)) visit(dependency, [...chain, id]);
+    }
+    visiting.delete(id);
+    visited.add(id);
+  }
+  for (const module of MODULES) visit(module.id);
+  return { ok: issues.length === 0, moduleCount: MODULES.length, issues };
+}
+
+/** Return a dependency-first plan; unknown or inactive modules fail closed. */
+export function getModuleIntegrationPlan(moduleId) {
+  const root = MODULES.find(module => module.id === moduleId);
+  if (!root) return { ok: false, code: "unknown_module", order: [] };
+  if (root.status !== "active") return { ok: false, code: "module_not_active", order: [] };
+  const integrity = validateModuleRegistry();
+  if (!integrity.ok) return { ok: false, code: "registry_integrity_failed", issues: integrity.issues, order: [] };
+  const order = [];
+  const visited = new Set();
+  function visit(id) {
+    if (visited.has(id)) return;
+    visited.add(id);
+    const module = MODULES.find(item => item.id === id);
+    for (const dependency of module.dependencies) visit(dependency);
+    order.push(id);
+  }
+  visit(moduleId);
+  return { ok: true, order, moduleId, capabilities: [...root.capabilities], dataScopes: [...root.dataScopes] };
+}
+
+/**
+ * Build a sanitized module health report from caller-supplied checks.
+ * The caller performs only registered, allowlisted healthchecks.
+ */
+export function buildModuleHealthReport(observations = {}) {
+  const integrity = validateModuleRegistry();
+  const modules = MODULES.map(module => {
+    const observed = observations[module.id];
+    const dependencies = module.dependencies.map(id => {
+      const dependency = MODULES.find(item => item.id === id);
+      const dependencyObservation = observations[id];
+      return {
+        id,
+        available: dependency?.status === "active" &&
+          (dependencyObservation === undefined || dependencyObservation?.status === "healthy")
+      };
+    });
+    const status = module.status !== "active" ? module.status
+      : !integrity.ok ? "blocked"
+      : dependencies.some(item => !item.available) ? "degraded"
+      : observed?.status === "unhealthy" ? "unhealthy"
+      : observed?.status === "healthy" ? "healthy"
+      : "not_checked";
+    return {
+      id: module.id, name: module.name, status,
+      dependencyFailures: dependencies.filter(item => !item.available).map(item => item.id),
+      checkedAt: typeof observed?.checkedAt === "string" ? observed.checkedAt.slice(0, 32) : null
+    };
+  });
+  return {
+    ok: integrity.ok && modules.every(item => !["blocked", "unhealthy"].includes(item.status)),
+    registry: { ok: integrity.ok, moduleCount: integrity.moduleCount, issues: integrity.issues },
+    modules
+  };
+}
+
 export function listRegisteredModules({ includePlanned = true } = {}) {
   return MODULES.filter(module => includePlanned || module.status !== "planned").map(module => ({
     ...module,
@@ -146,7 +248,7 @@ export function resolveModuleCapability(moduleId, capability, { approved = false
   if (!module) return { ok: false, code: "unknown_module" };
   if (module.status !== "active" || !["first_party", "platform"].includes(module.trust)) return { ok: false, code: "module_not_trusted" };
   if (!module.capabilities.includes(capability)) return { ok: false, code: "capability_not_granted" };
-  if (capability.endsWith(".write") && !approved) return { ok: false, code: "approval_required" };
+  if (/(?:^|[._-])(write|create|update|delete|execute|publish|send|deploy|admin)(?:$|[._-])/.test(capability) && !approved) return { ok: false, code: "approval_required" };
   return { ok: true, moduleId, capability, dataScopes: [...module.dataScopes] };
 }
 
