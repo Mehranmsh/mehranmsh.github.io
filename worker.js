@@ -4,6 +4,7 @@ import { storePrivatePatchArtifact, verifyPrivatePatchArtifactAtPath, getPrivate
 import { extractPatchModelText, generatePatchArtifact } from "./scripts/intelligence-patch-generation-service.mjs";
 import { validatePrivateIntelligenceMission } from "./scripts/intelligence-inbox-schema.mjs";
 import { listRegisteredModules, validateModuleRegistry, getModuleIntegrationPlan } from "./scripts/intelligence-module-registry.mjs";
+import { createModuleAdapter, dispatchModuleCapability } from "./scripts/intelligence-module-adapter.mjs";
 
 function nextWorkersAIDailyResetAt(attemptedAt) {
   const timestamp = typeof attemptedAt === "number" ? attemptedAt : Date.parse(attemptedAt);
@@ -9597,10 +9598,27 @@ export default {
 
         // Exact, low-ambiguity operational queries use D1 directly instead of Workers AI.
         if (/^(وضعیتپروژهها|وضعیتپروژه|projectstatus|projectsstatus)$/u.test(lightweightMessage)) {
-          const rows = await env.DB.prepare("SELECT name,status FROM projects ORDER BY created_at DESC LIMIT 30").all();
-          const projects = rows.results || [];
+          const rows = await env.DB.prepare("SELECT name,status FROM projects ORDER BY created_at DESC LIMIT 20").all();
+          const projectAdapter = createModuleAdapter({
+            moduleId: "msh_core",
+            handlers: {
+              "projects.read": async ({ projects }) => ({
+                projects: projects.map(project => ({
+                  name: String(project.name || "بدون نام").slice(0,80),
+                  status: String(project.status || "نامشخص").slice(0,40)
+                }))
+              })
+            }
+          });
+          const adapted = await dispatchModuleCapability({
+            adapter: projectAdapter,
+            capability: "projects.read",
+            input: { projects: rows.results || [] }
+          });
+          if (!adapted.ok) return error("MEHRAN MSH project adapter is unavailable.",503);
+          const projects = adapted.result.projects;
           const reply = projects.length
-            ? "وضعیت پروژه‌ها:\n" + projects.map(p => "• " + String(p.name || "بدون نام").slice(0,80) + ": " + String(p.status || "نامشخص").slice(0,40)).join("\n")
+            ? "وضعیت پروژه‌ها:\n" + projects.map(p => p.name + ": " + p.status).join("\n")
             : "در حال حاضر پروژه‌ای برای نمایش ثبت نشده است.";
           await appendIntelligenceChatTurn(env,admin.uid,sessionKey,"assistant",reply);
           return json({success:true,reply,usage:{aiRequests:0,reason:"deterministic_project_status"}});
@@ -9612,12 +9630,35 @@ export default {
             env.DB.prepare("SELECT COUNT(*) AS total FROM social_posts").first(),
             env.DB.prepare("SELECT COUNT(*) AS total FROM social_reports WHERE status='open'").first()
           ]);
+          const socialAdapter = createModuleAdapter({
+            moduleId: "social",
+            handlers: {
+              "social.metrics.read": async metrics => ({
+                registeredUsers: Number(metrics.registeredUsers || 0),
+                activeUsers: Number(metrics.activeUsers || 0),
+                posts: Number(metrics.posts || 0),
+                openReports: Number(metrics.openReports || 0)
+              })
+            }
+          });
+          const adapted = await dispatchModuleCapability({
+            adapter: socialAdapter,
+            capability: "social.metrics.read",
+            input: {
+              registeredUsers: rows[0]?.total,
+              activeUsers: rows[1]?.total,
+              posts: rows[2]?.total,
+              openReports: rows[3]?.total
+            }
+          });
+          if (!adapted.ok) return error("SOCIAL metrics adapter is unavailable.",503);
+          const metrics = adapted.result;
           const reply = [
             "آمار فعلی SOCIAL:",
-            "• کاربران ثبت‌نام‌شده: " + Number(rows[0]?.total || 0),
-            "• کاربران فعال: " + Number(rows[1]?.total || 0),
-            "• پست‌ها: " + Number(rows[2]?.total || 0),
-            "• گزارش‌های باز: " + Number(rows[3]?.total || 0)
+            "• کاربران ثبت‌نام‌شده: " + metrics.registeredUsers,
+            "• کاربران فعال: " + metrics.activeUsers,
+            "• پست‌ها: " + metrics.posts,
+            "• گزارش‌های باز: " + metrics.openReports
           ].join("\n");
           await appendIntelligenceChatTurn(env,admin.uid,sessionKey,"assistant",reply);
           return json({success:true,reply,usage:{aiRequests:0,reason:"deterministic_social_metrics"}});
