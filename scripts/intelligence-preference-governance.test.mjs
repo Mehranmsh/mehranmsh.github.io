@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import {recordIntelligencePreferenceDecision,buildApprovedPreferenceProfile} from "./intelligence-preference-governance.mjs";
+import {recordIntelligencePreferenceDecision,buildApprovedPreferenceProfile,buildDecisionCriteriaWithApprovedPreferences} from "./intelligence-preference-governance.mjs";
 
 const proposals=[{target_key:"concise",recommendation:"increase_preference",approval_required:true,applied:false,
  memory:{memory_key:"concise",memory_type:"preference"}}];
@@ -49,4 +49,25 @@ test("is deterministic, bounded, and fails closed without owner scope",()=>{
  const b=buildApprovedPreferenceProfile(r.ledger,{ownerUid:"owner"});
  assert.deepEqual(a,b);
  assert.equal(buildApprovedPreferenceProfile(r.ledger).approvedPreferences.length,0);
+});
+
+test("feeds approved preferences into decision criteria only with explicit owner opt-in",()=>{
+ const recorded=recordIntelligencePreferenceDecision(proposals,[],decision(),{ownerUid:"owner"});
+ const profile=buildApprovedPreferenceProfile(recorded.ledger,{ownerUid:"owner"});
+ const source=[{key:"concise",weight:50,direction:"higher"},{key:"quality",weight:40,direction:"higher"}];
+ const denied=buildDecisionCriteriaWithApprovedPreferences(source,profile,{ownerUid:"owner"});
+ assert.equal(denied.diagnostics.preferencesApplied,false);
+ assert.deepEqual(source,[{key:"concise",weight:50,direction:"higher"},{key:"quality",weight:40,direction:"higher"}]);
+ const allowed=buildDecisionCriteriaWithApprovedPreferences(source,profile,{ownerUid:"owner",allowApprovedPreferences:true});
+ assert.equal(allowed.criteria[0].weight,55);
+ assert.equal(allowed.criteria[1].weight,40);
+ assert.equal(allowed.diagnostics.preferencesApplied,true);
+ assert.deepEqual(source,[{key:"concise",weight:50,direction:"higher"},{key:"quality",weight:40,direction:"higher"}]);
+});
+test("preference overlay rejects a profile from another owner",()=>{
+ const recorded=recordIntelligencePreferenceDecision(proposals,[],decision(),{ownerUid:"owner"});
+ const profile=buildApprovedPreferenceProfile(recorded.ledger,{ownerUid:"owner"});
+ const r=buildDecisionCriteriaWithApprovedPreferences([{key:"concise",weight:50}],profile,{ownerUid:"other",allowApprovedPreferences:true});
+ assert.equal(r.diagnostics.preferencesApplied,false);
+ assert.equal(r.criteria[0].weight,50);
 });
