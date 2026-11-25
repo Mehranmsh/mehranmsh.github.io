@@ -812,6 +812,13 @@ input:focus,textarea:focus,select:focus,button:focus-visible,a:focus-visible{out
 #page-ai .ai-quick-grid button small{font-size:11px;color:#9fb1c8;line-height:1.4}
 @media(max-width:560px){#page-ai .ai-quick-grid{grid-template-columns:repeat(2,minmax(0,1fr))}#page-ai .ai-signin-gate{align-items:flex-start;flex-direction:column}}
 </style>
+<style id="mehran-ai-prompt-search-v1">
+#page-ai .prompt-gallery-search{display:flex;align-items:center;gap:12px;margin:12px 0 15px}
+#page-ai .prompt-gallery-search input{flex:1;min-width:0;background:#0c1726;border:1px solid rgba(119,153,201,.28);border-radius:12px;padding:12px 14px;color:#edf4ff}
+#page-ai #pcPromptGalleryGrid .prompt-template[hidden]{display:none!important}
+#page-ai #pcGalleryCount{white-space:nowrap}
+@media(max-width:520px){#page-ai .prompt-gallery-search{align-items:stretch;flex-direction:column;gap:5px}}
+</style>
 </head>
 <body>
 <div class="app">
@@ -1087,7 +1094,8 @@ input:focus,textarea:focus,select:focus,button:focus-visible,a:focus-visible{out
 <div class="panel prompt-gallery">
 <div class="section-title" style="margin-top:0"><div><h3>🔥 Popular prompt ideas</h3><span class="small-text">A curated starter gallery based on common creative requests</span></div></div>
 <p class="small-text">Choose an idea to load it into Prompt Creator, then customize it. These are starter templates, not live community rankings.</p>
-<div class="prompt-gallery-grid">
+<div class="prompt-gallery-search"><input id="pcGallerySearch" type="search" maxlength="80" placeholder="Search prompt ideas, tools or categories..." aria-label="Search prompt ideas" oninput="mehranFilterPromptGallery()"><span id="pcGalleryCount" class="small-text" aria-live="polite"></span></div>
+<div class="prompt-gallery-grid" id="pcPromptGalleryGrid">
 <article class="prompt-template"><div class="prompt-template-media"><img src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=720&auto=format&fit=crop&q=80" alt="Portrait photography example"><span class="prompt-media-tag">IMAGE</span></div><strong>🎨 Cinematic Portrait</strong><p>Build a photorealistic portrait with precise lighting, atmosphere and composition.</p><button class="btn secondary small" onclick="socialUsePromptTemplate('portrait')">Use this prompt</button></article>
 <article class="prompt-template"><div class="prompt-template-media"><img src="https://images.unsplash.com/photo-1634942536790-253f2f7e5c3b?w=720&auto=format&fit=crop&q=80" alt="Brand identity design example"><span class="prompt-media-tag">DESIGN</span></div><strong>✨ Brand Identity</strong><p>Create a memorable logo direction, colors, typography and brand personality.</p><button class="btn secondary small" onclick="socialUsePromptTemplate('brand')">Use this prompt</button></article>
 <article class="prompt-template"><div class="prompt-template-media"><img src="https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=720&auto=format&fit=crop&q=80" alt="Product campaign example"><span class="prompt-media-tag">PRODUCT</span></div><strong>🛍️ Product Campaign</strong><p>Plan a polished product advertisement with a clear message and visual concept.</p><button class="btn secondary small" onclick="socialUsePromptTemplate('product')">Use this prompt</button></article>
@@ -3824,6 +3832,18 @@ room:{category:"image",goal:"Rework layout, furniture, lighting, materials, stor
  $("pcLanguage").value="English";$("pcDetail").value="professional";
  $("pcGoal").scrollIntoView({behavior:"smooth",block:"center"});$("pcGoal").focus({preventScroll:true});
  toast("Template loaded. Customize it and create your prompt.");
+}
+function mehranFilterPromptGallery(){
+ const query=($("pcGallerySearch")?.value||"").trim().toLocaleLowerCase();
+ const cards=[...document.querySelectorAll("#pcPromptGalleryGrid .prompt-template")];
+ let visible=0;
+ cards.forEach(card=>{
+  const match=!query||card.textContent.toLocaleLowerCase().includes(query);
+  card.hidden=!match;
+  if(match)visible++;
+ });
+ const count=$("pcGalleryCount");
+ if(count)count.textContent=query?visible+" of "+cards.length+" ideas":" "+cards.length+" ideas";
 }
 function socialCreatePrompt(){
  const get=id=>$(id)?.value?.trim()||"",goal=get("pcGoal");
