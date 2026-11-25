@@ -24,7 +24,8 @@ export function recordIntelligencePreferenceDecision(reviewableProposals, ledger
   item.memory&&clean(item.memory.memory_key)===target&&
   !blocked.has(String(item.memory.sensitivity||"").toLowerCase()));
  if(!proposal) return {...result,reason:"proposal_not_in_current_review_queue"};
- const safeLedger=ledger.filter(item=>validLedgerRecord(item,owner)).slice(0,MAX_LEDGER);
+ const safeLedger=ledger.filter(item=>validLedgerRecord(item,owner))
+  .sort((a,b)=>Date.parse(a.decided_at)-Date.parse(b.decided_at)||a.decision_id.localeCompare(b.decision_id)).slice(-MAX_LEDGER);
  if(safeLedger.some(item=>item.decision_id===id)) return {...result,reason:"duplicate_decision_id"};
  const event={record_type:"intelligence_preference_decision",decision_id:id,owner_uid:owner,actor_uid:owner,
   proposal_key:proposalKey(target,recommendation),target_key:target,recommendation,decision:choice,
@@ -38,7 +39,9 @@ export function buildApprovedPreferenceProfile(ledger, options={}) {
  const owner=clean(options.ownerUid);
  if(!owner||!Array.isArray(ledger)) return {approvedPreferences:[],rejectedDecisions:[],diagnostics:{ownerScoped:false,advisoryOnly:true,preferencesChanged:false,applied:false}};
  const eligible=ledger.filter(item=>validLedgerRecord(item,owner));
- const unique=[...new Map(eligible.slice().sort((a,b)=>a.decision_id.localeCompare(b.decision_id)).map(item=>[item.decision_id,item])).values()];
+ const deduplicated=[...new Map(eligible.slice().sort((a,b)=>a.decision_id.localeCompare(b.decision_id)).map(item=>[item.decision_id,item])).values()];
+ const bounded=deduplicated.sort((a,b)=>Date.parse(a.decided_at)-Date.parse(b.decided_at)||a.decision_id.localeCompare(b.decision_id)).slice(-MAX_LEDGER);
+ const unique=bounded;
  const latest=new Map();
  for(const item of unique) {
   const prior=latest.get(item.proposal_key);
@@ -54,7 +57,7 @@ export function buildApprovedPreferenceProfile(ledger, options={}) {
   target_key:item.target_key,recommendation:item.recommendation,decision_id:item.decision_id,decided_at:item.decided_at
  }));
  return {ownerUid:owner,approvedPreferences,rejectedDecisions,diagnostics:{ownerScoped:true,inspectedDecisions:unique.length,
-  omittedDecisions:Math.max(0,eligible.length-unique.length),advisoryOnly:true,preferencesChanged:false,applied:false}};
+  omittedDecisions:Math.max(0,deduplicated.length-unique.length),advisoryOnly:true,preferencesChanged:false,applied:false}};
 }
 
 /**
