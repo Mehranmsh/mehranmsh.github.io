@@ -78,3 +78,9 @@ test("enforces the serialized output budget even for dense owner records", () =>
   assert.ok(JSON.stringify(result).length <= 512);
   assert.equal(result.diagnostics.outputTrimmed, true);
 });
+
+test("clamps tiny requested output budgets to a safe metadata floor", () => {
+  const result = buildIntelligenceContextSnapshot([], { ownerUid: "owner-a", maxOutputChars: 1 });
+  assert.ok(JSON.stringify(result).length <= 512);
+  assert.equal(result.diagnostics.ownerScoped, true);
+});
