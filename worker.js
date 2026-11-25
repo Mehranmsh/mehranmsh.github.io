@@ -5533,6 +5533,7 @@ async function ensureIntelligencePreferenceTables(env) {
 
 async function ensureIntelligencePlanHistoryTables(env) {
   await ensureIntelligenceTaskTable(env);
+  await ensureIntelligenceProtocolTables(env);
   await env.DB.prepare(`
     CREATE TABLE IF NOT EXISTS intelligence_plan_revisions(
       revision_id TEXT PRIMARY KEY,
