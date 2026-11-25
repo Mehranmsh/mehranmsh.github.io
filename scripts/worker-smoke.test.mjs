@@ -17,10 +17,11 @@ const patchStoreImport = 'import { storePrivatePatchArtifact, verifyPrivatePatch
 const patchGenerationImport = 'import { extractPatchModelText, generatePatchArtifact } from "./scripts/intelligence-patch-generation-service.mjs";';
 const inboxSchemaImport = 'import { validatePrivateIntelligenceMission } from "./scripts/intelligence-inbox-schema.mjs";';
 const moduleRegistryImport = 'import { listRegisteredModules, validateModuleRegistry, getModuleIntegrationPlan } from "./scripts/intelligence-module-registry.mjs";';
+const moduleAdapterImport = 'import { createModuleAdapter, dispatchModuleCapability } from "./scripts/intelligence-module-adapter.mjs";';
 const routinePlannerImport = 'import { buildDeterministicRoutinePlan } from "./scripts/intelligence-routine-planner.mjs";';
 if (!workerSource.includes(capabilityImport) || !workerSource.includes(patchStoreImport) ||
     !workerSource.includes(patchGenerationImport) || !workerSource.includes(inboxSchemaImport) ||
-    !workerSource.includes(routinePlannerImport) || !workerSource.includes(moduleRegistryImport)) {
+    !workerSource.includes(routinePlannerImport) || !workerSource.includes(moduleRegistryImport) || !workerSource.includes(moduleAdapterImport)) {
   throw new Error("Worker capability, patch storage, or private inbox schema imports were not found");
 }
 const policySource = await readFile(new URL("./intelligence-patch-policy.mjs", import.meta.url), "utf8");
@@ -30,11 +31,13 @@ const patchGenerationPromptSource = await readFile(new URL("./intelligence-patch
 const patchGenerationServiceSource = await readFile(new URL("./intelligence-patch-generation-service.mjs", import.meta.url), "utf8");
 const inboxSchemaSource = await readFile(new URL("./intelligence-inbox-schema.mjs", import.meta.url), "utf8");
 const moduleRegistrySource = await readFile(new URL("./intelligence-module-registry.mjs", import.meta.url), "utf8");
+const moduleAdapterSource = await readFile(new URL("./intelligence-module-adapter.mjs", import.meta.url), "utf8");
 const routinePlannerSource = (await readFile(new URL("./intelligence-routine-planner.mjs", import.meta.url), "utf8"))
   .replace("export function buildDeterministicRoutinePlan", "function buildDeterministicRoutinePlan");
 const moduleUrl = source => "data:text/javascript;base64," + Buffer.from(source).toString("base64");
 const inboxSchemaUrl = moduleUrl(inboxSchemaSource);
 const moduleRegistryUrl = moduleUrl(moduleRegistrySource);
+const moduleAdapterUrl = moduleUrl(moduleAdapterSource.replace('from "./intelligence-module-registry.mjs"', `from "${moduleRegistryUrl}"`));
 const policyUrl = moduleUrl(policySource);
 const artifactUrl = moduleUrl(artifactSource.replace(
   'from "./intelligence-patch-policy.mjs"',
@@ -83,11 +86,13 @@ const workerRest = workerSource.replace(capabilityImport, "")
   .replace(patchGenerationImport, "")
   .replace(inboxSchemaImport, "")
   .replace(routinePlannerImport, "")
-  .replace(moduleRegistryImport, "");
+  .replace(moduleRegistryImport, "")
+  .replace(moduleAdapterImport, "");
 const workerSourceForTest = routinePlannerSource + `\nimport { storePrivatePatchArtifact, verifyPrivatePatchArtifactAtPath, getPrivatePatchArtifactPath, getVerifiedPrivatePatchArtifactAtPath } from "${patchStoreTestUrl}";
 import { generatePatchArtifact } from "${patchGenerationTestUrl}";
 import { validatePrivateIntelligenceMission } from "${inboxSchemaUrl}";
 import { listRegisteredModules, validateModuleRegistry, getModuleIntegrationPlan } from "${moduleRegistryUrl}";
+import { createModuleAdapter, dispatchModuleCapability } from "${moduleAdapterUrl}";
 const INTELLIGENCE_ACTION_TYPES = ${JSON.stringify(INTELLIGENCE_ACTION_TYPES)};
 const PREAPPROVED_INTELLIGENCE_ACTION_TYPES = ${JSON.stringify(PREAPPROVED_INTELLIGENCE_ACTION_TYPES)};
 ` + workerRest;
@@ -323,8 +328,13 @@ test("MEHRAN INTELLIGENCE serves exact project and SOCIAL status queries without
   assert.ok(route.indexOf("deterministic_social_metrics") < route.indexOf("reserveSocialWorkersAIBudget"));
   assert.ok(route.indexOf("deterministic_project_status") < route.indexOf('if (!env.AI || typeof env.AI.run'));
   assert.ok(route.indexOf("deterministic_social_metrics") < route.indexOf('if (!env.AI || typeof env.AI.run'));
-  assert.match(route, /SELECT name,status FROM projects ORDER BY created_at DESC LIMIT 30/);
+  assert.match(route, /SELECT name,status FROM projects ORDER BY created_at DESC LIMIT 20/);
   assert.match(route, /SELECT COUNT\(\*\) AS total FROM social_users/);
+  assert.match(route, /moduleId: "msh_core"/);
+  assert.match(route, /capability: "projects.read"/);
+  assert.match(route, /moduleId: "social"/);
+  assert.match(route, /capability: "social.metrics.read"/);
+  assert.match(route, /dispatchModuleCapability/);
   assert.match(route, /aiRequests:0,reason:"deterministic_project_status"/);
   assert.match(route, /aiRequests:0,reason:"deterministic_social_metrics"/);
   assert.ok(workerSource.includes(String.raw`replace(/[!؟?.،,\s\u200c]+/gu, "")`));
