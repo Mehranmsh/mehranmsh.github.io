@@ -34,12 +34,20 @@ function recencyScore(updatedAt, now) {
   return Math.exp(-ageDays / 45);
 }
 
-function queryTokens(value) {
-  return new Set(String(value || "")
+function normalizeSearchText(value) {
+  return String(value || "")
     .toLocaleLowerCase()
     .normalize("NFKC")
     .replace(/[\u064a\u0649]/g, "ی")
     .replace(/[\u0643]/g, "ک")
+    .replace(/[\u064b-\u065f\u0670\u0640]/g, "")
+    .replace(/[\u200c\u200d]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function queryTokens(value) {
+  return new Set(normalizeSearchText(value)
     .split(/[^\p{L}\p{N}]+/u)
     .filter(token => token.length > 1)
     .slice(0, 32));
@@ -50,12 +58,18 @@ function containsSensitivePersonalData(value) {
   return /(?:\b(?:password|passphrase|api[_ -]?key|private[_ -]?key|seed phrase|recovery phrase|mnemonic)\b|\b(?:wallet|bank|card)\s+(?:address|balance|number|details|credentials)\b|\b(?:my|personal)\s+(?:wallet|bank|account|balance|transactions?)\b|\b(?:credit|debit)\s+card\b)/i.test(text);
 }
 
-function relevanceScore(record, query) {
+function relevanceScore(record, query, normalizedQuery) {
   if (!query.size) return 0;
-  const content = queryTokens([record.memory_key, record.memory_type, record.content].join(" "));
+  const searchableText = [record.memory_key, record.memory_type, record.content].join(" ");
+  const content = queryTokens(searchableText);
   let matched = 0;
   for (const token of query) if (content.has(token)) matched++;
-  return matched / query.size;
+  const tokenCoverage = matched / query.size;
+  // A phrase bonus distinguishes the intended topic from records that merely
+  // contain the same words in an unrelated order.
+  const phraseMatch = normalizedQuery.length > 3 &&
+    normalizeSearchText(searchableText).includes(normalizedQuery);
+  return Math.min(1, tokenCoverage + (phraseMatch ? 0.15 : 0));
 }
 
 /**
@@ -69,7 +83,8 @@ export function selectMemoryContext(records, options = {}) {
     ? Math.min(options.maxItems, 50) : DEFAULT_LIMITS.maxItems;
   const maxChars = Number.isInteger(options.maxChars) && options.maxChars > 0
     ? Math.min(options.maxChars, 20_000) : DEFAULT_LIMITS.maxChars;
-  const query = queryTokens(options.query);
+  const normalizedQuery = normalizeSearchText(options.query);
+  const query = queryTokens(normalizedQuery);
   const maxItemChars = Number.isInteger(options.maxItemChars) && options.maxItemChars > 0
     ? Math.min(options.maxItemChars, 4000) : DEFAULT_LIMITS.maxItemChars;
 
@@ -102,7 +117,7 @@ export function selectMemoryContext(records, options = {}) {
       ? 1 : finiteUnit(record.source_trust, 0.5);
     const recency = recencyScore(updatedAt, now);
     const baseScore = (importance * 0.35) + (confidence * 0.25) + (trust * 0.20) + (recency * 0.20);
-    const relevance = relevanceScore(record, query);
+    const relevance = relevanceScore(record, query, normalizedQuery);
     const score = query.size ? (baseScore * 0.75) + (relevance * 0.25) : baseScore;
 
     candidates.push({
