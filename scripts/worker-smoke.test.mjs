@@ -3924,3 +3924,33 @@ test("deterministic routine planner refuses to downgrade change requests into re
     assert.equal(buildDeterministicRoutinePlan(mission), null, `change intent must not be downgraded: ${mission}`);
   }
 });
+
+test("persistent Intelligence plan history is owner-scoped, immutable, and explicitly confirmed", () => {
+  const get=workerSource.indexOf('if (path === "/intelligence/plan-history" && method === "GET")');
+  const save=workerSource.indexOf('if (path === "/intelligence/plan-history" && method === "POST")');
+  const event=workerSource.indexOf('if (path === "/intelligence/plan-history/events" && method === "POST")');
+  const prefs=workerSource.indexOf('if (path === "/intelligence/preferences" && method === "GET")');
+  assert.ok(get>=0&&save>get&&event>save&&prefs>event);
+  const routes=workerSource.slice(get,prefs);
+  assert.equal((routes.match(/verifyAdmin\\(request, env\\)/g)||[]).length,3);
+  assert.match(routes,/WHERE owner_uid=\\?/);
+  assert.match(routes,/body\\.explicitConfirmation !== true/);
+  assert.match(routes,/admin\\.uid,admin\\.uid/);
+  assert.match(routes,/compareIntelligencePlanVersions/);
+  assert.match(routes,/CREATE TABLE IF NOT EXISTS intelligence_plan_revisions/);
+  assert.match(routes,/CREATE TABLE IF NOT EXISTS intelligence_plan_progress_events/);
+  assert.match(routes,/UNIQUE\\(owner_uid,version\\)/);
+  assert.match(routes,/recordsChanged:false/);
+  assert.doesNotMatch(routes,/body\\.ownerUid|body\\.actorUid/);
+});
+
+test("Intelligence plan history UI requires explicit confirmation and displays revision comparison", () => {
+  assert.match(indexSource,/id="intelPlanSnapshotForm"/);
+  assert.match(indexSource,/id="intelPlanHistoryComparison"/);
+  assert.match(indexSource,/id="intelPlanHistoryList"/);
+  assert.match(indexSource,/id="intelPlanProgressList"/);
+  assert.match(indexSource,/api\\("\\/intelligence\\/plan-history"/);
+  assert.match(indexSource,/api\\("\\/intelligence\\/plan-history\\/events"/);
+  assert.match(indexSource,/window\\.confirm\\(/);
+  assert.match(indexSource,/explicitConfirmation:true/);
+});
