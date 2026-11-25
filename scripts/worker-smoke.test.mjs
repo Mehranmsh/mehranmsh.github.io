@@ -35,6 +35,8 @@ const moduleRegistrySource = await readFile(new URL("./intelligence-module-regis
 const moduleAdapterSource = await readFile(new URL("./intelligence-module-adapter.mjs", import.meta.url), "utf8");
 const routinePlannerSource = (await readFile(new URL("./intelligence-routine-planner.mjs", import.meta.url), "utf8"))
   .replace("export function buildDeterministicRoutinePlan", "function buildDeterministicRoutinePlan");
+const memoryRankingSource = (await readFile(new URL("./intelligence-memory-ranking.mjs", import.meta.url), "utf8"))
+  .replace("export function selectMemoryContext", "function selectMemoryContext");
 const moduleUrl = source => "data:text/javascript;base64," + Buffer.from(source).toString("base64");
 const inboxSchemaUrl = moduleUrl(inboxSchemaSource);
 const moduleRegistryUrl = moduleUrl(moduleRegistrySource);
@@ -87,9 +89,10 @@ const workerRest = workerSource.replace(capabilityImport, "")
   .replace(patchGenerationImport, "")
   .replace(inboxSchemaImport, "")
   .replace(routinePlannerImport, "")
+  .replace(memoryRankingImport, "")
   .replace(moduleRegistryImport, "")
   .replace(moduleAdapterImport, "");
-const workerSourceForTest = routinePlannerSource + `\nimport { storePrivatePatchArtifact, verifyPrivatePatchArtifactAtPath, getPrivatePatchArtifactPath, getVerifiedPrivatePatchArtifactAtPath } from "${patchStoreTestUrl}";
+const workerSourceForTest = routinePlannerSource + "\n" + memoryRankingSource + `\nimport { storePrivatePatchArtifact, verifyPrivatePatchArtifactAtPath, getPrivatePatchArtifactPath, getVerifiedPrivatePatchArtifactAtPath } from "${patchStoreTestUrl}";
 import { generatePatchArtifact } from "${patchGenerationTestUrl}";
 import { validatePrivateIntelligenceMission } from "${inboxSchemaUrl}";
 import { listRegisteredModules, validateModuleRegistry, getModuleIntegrationPlan } from "${moduleRegistryUrl}";
