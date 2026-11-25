@@ -490,7 +490,6 @@ jobs:
               const commit = await commitResponse.json();
               if (typeof commit.sha !== "string" || !/^[a-f0-9]{40}$/i.test(commit.sha)) throw new Error("GitHub returned an invalid main commit SHA.");
               const files = [];
-              const evidenceFiles = [];
               let totalBytes = 0;
               for (const path of paths) {
                 const apiPath = path.split("/").map(encodeURIComponent).join("/");
@@ -525,19 +524,6 @@ jobs:
                   lineCount: source.length ? source.split(/\r\n|\n|\r/).length : 0,
                   symbols: [...symbols].map(symbol => symbol.slice(0, 60))
                 });
-                const sourceLines = source.split(/\r?\n/);
-                const focus = /persistIntelligencePackageReport|verifyExistingReport|generatePatchArtifact|generated_diff_validation|canonicalizeAppendOnly|inspect_repository|propose_code_patch|source_security_audit|planIntelligenceMission|verifyIntelligenceReport|validateIntelligenceWorkPackage|runFixedRepositoryTests|function execute\(/i;
-                const selected = new Set();
-                for (let lineIndex = 0; lineIndex < sourceLines.length; lineIndex++) {
-                  if (!focus.test(sourceLines[lineIndex])) continue;
-                  for (let offset = Math.max(0, lineIndex - 18); offset <= Math.min(sourceLines.length - 1, lineIndex + 28); offset++) selected.add(offset);
-                  if (selected.size >= 180) break;
-                }
-                const excerpt = [...selected].sort((a,b)=>a-b).map(index => `${index+1}: ${sourceLines[index]}`).join("\n").slice(0,2800);
-                if (excerpt) evidenceFiles.push({path,sha:file.sha,excerpt});
-              }
-              if (evidenceFiles.length < 1) {
-                throw new Error("Bounded source evidence could not be prepared from the exact inspection allowlist.");
               }
               return {
                 type: task.actionType,
