@@ -254,7 +254,7 @@ test("MEHRAN module registry endpoint is owner-only and never claims live health
   assert.match(route, /: "registry_declared"/);
   assert.match(route, /liveHealth: "not_checked"/);
   assert.match(route, /adapterCoverage: "partial"/);
-  assert.match(route, /"msh_core\.projects\.read", "social\.social\.metrics\.read"/);
+  assert.match(route, /"msh_core\\.projects\\.read", "social\\.social\\.metrics\\.read", "studio_music\\.studio\\.health\\.read"/);
   assert.match(route, /"partially_wired"/);
   assert.match(route, /does not probe module services or claim live health/);
 });
@@ -279,11 +279,27 @@ test("owner can retrieve the validated module registry and partial adapter cover
   assert.deepEqual(core.wiredCapabilities, ["projects.read"]);
   assert.equal(social.integrationState, "partially_wired");
   assert.deepEqual(social.wiredCapabilities, ["social.metrics.read"]);
-  assert.equal(studio.integrationState, "registry_declared");
+  assert.equal(studio.integrationState, "partially_wired");
+  assert.deepEqual(studio.wiredCapabilities, ["studio.health.read"]);
   assert.equal(core.liveHealth, "not_checked");
   assert.equal(payload.runtime.adapterCoverage, "partial");
-  assert.deepEqual(payload.runtime.wiredCapabilities, ["msh_core.projects.read", "social.social.metrics.read"]);
+  assert.deepEqual(payload.runtime.wiredCapabilities, ["msh_core.projects.read", "social.social.metrics.read", "studio_music.studio.health.read"]);
   assert.equal(studio.liveHealth, "not_checked");
+});
+
+test("Studio status adapter reports browser-local storage without claiming project access", () => {
+  const start = workerSource.indexOf('if (/^(وضعیتاستودیو|استودیواستاتوس|studiohealth|studiostatus)$/u.test(lightweightMessage))');
+  const end = workerSource.indexOf('if (/^(وضعیتپروژهها|وضعیتپروژه|projectstatus|projectsstatus)$/u.test(lightweightMessage))', start);
+  assert.ok(start >= 0 && end > start, "read-only Studio status branch must exist");
+  const route = workerSource.slice(start, end);
+  assert.match(route, /moduleId: "studio_music"/);
+  assert.match(route, /"studio\\.health\\.read"/);
+  assert.match(route, /browser_localStorage/);
+  assert.match(route, /browser_indexedDB/);
+  assert.match(route, /workerCanReadLocalProjects: false/);
+  assert.match(route, /liveServiceProbe: "not_performed"/);
+  assert.match(route, /user_initiated_one_time_code/);
+  assert.doesNotMatch(route, /localStorage\\.getItem|indexedDB\\.open|SELECT .*music_project/i);
 });
 
 test("module registry route does not accept the ordinary agent token", async () => {
