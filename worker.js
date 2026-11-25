@@ -5994,12 +5994,14 @@ export function validateIntelligenceWorkPackage(input) {
     const dependencies = Array.isArray(item?.dependsOn) ? item.dependsOn : [];
     const paths = actionType === "inspect_repository" ? item?.paths : undefined;
     const validInspectPaths = actionType !== "inspect_repository" || (Array.isArray(paths) && paths.length >= 1 && paths.length <= 6 && new Set(paths).size === paths.length && paths.every(path => typeof path === "string" && INTELLIGENCE_INSPECT_ALLOWED_PATHS.includes(path)));
+    const analysisMode = actionType === "inspect_repository" ? (item?.analysisMode ?? "inventory") : undefined;
+    const validAnalysisMode = actionType !== "inspect_repository" || ["inventory", "semantic"].includes(analysisMode);
     const baseSha = actionType === "run_repository_tests" ? item?.baseSha : undefined;
     const validTestBaseSha = actionType !== "run_repository_tests" || (typeof baseSha === "string" && /^[a-f0-9]{40}$/.test(baseSha));
     const patchObjective = actionType === "propose_code_patch" ? item?.objective : undefined;
     const validPatchObjective = actionType !== "propose_code_patch" || (typeof patchObjective === "string" && patchObjective.trim().length >= 12 && patchObjective.length <= 800);
     if (!taskId || !/^[A-Za-z0-9._:-]{1,80}$/.test(taskId) || known.has(taskId) || !taskTitle ||
-        !globalAllowedActions.includes(actionType) || (scopedActionsDeclared && !scopedActions.includes(actionType)) || !validInspectPaths || !validTestBaseSha || !validPatchObjective || (actionType !== "inspect_repository" && Object.hasOwn(item || {}, "paths")) || (actionType !== "run_repository_tests" && Object.hasOwn(item || {}, "baseSha")) || (actionType !== "propose_code_patch" && Object.hasOwn(item || {}, "objective")) || dependencies.length > 10) {
+        !globalAllowedActions.includes(actionType) || (scopedActionsDeclared && !scopedActions.includes(actionType)) || !validInspectPaths || !validAnalysisMode || !validTestBaseSha || !validPatchObjective || (actionType !== "inspect_repository" && (Object.hasOwn(item || {}, "paths") || Object.hasOwn(item || {}, "analysisMode"))) || (actionType !== "run_repository_tests" && Object.hasOwn(item || {}, "baseSha")) || (actionType !== "propose_code_patch" && Object.hasOwn(item || {}, "objective")) || dependencies.length > 10) {
       return fail("Invalid task definition or action outside the bounded capability allowlist.");
     }
     if (new Set(dependencies).size !== dependencies.length ||
@@ -6007,7 +6009,7 @@ export function validateIntelligenceWorkPackage(input) {
       return fail("Dependencies must be unique and reference earlier tasks in this package; cycles and forward references are rejected.");
     }
     known.add(taskId);
-    normalized.push({ taskId, title: taskTitle, description, actionType, dependencies, ...(paths ? { paths } : {}), ...(baseSha ? { baseSha } : {}), ...(patchObjective ? { objective: patchObjective.trim() } : {}) });
+    normalized.push({ taskId, title: taskTitle, description, actionType, dependencies, ...(paths ? { paths, analysisMode } : {}), ...(baseSha ? { baseSha } : {}), ...(patchObjective ? { objective: patchObjective.trim() } : {}) });
   }
   return { ok: true, idempotencyKey, title, objective, priority, scope, scopeJson, tasks: normalized };
 }
@@ -6084,7 +6086,7 @@ async function createIntelligenceWorkPackage(env, input) {
   ];
   for (const item of tasks) {
     statements.push(env.DB.prepare("INSERT INTO intelligence_tasks(id,title,description,assigned_to,priority,status,requires_approval,result_text,created_by,action_type,action_payload,work_package_id,max_attempts) VALUES(?,?,?,'mehran_intelligence',?,'queued',0,'','mehran_intelligence',?,?,?,3)")
-      .bind(packageId + ":" + item.taskId, item.title, item.description, priority, item.actionType, JSON.stringify({ sourceTaskId: item.taskId, ...(item.paths ? { paths: item.paths } : {}), ...(item.baseSha ? { baseSha: item.baseSha } : {}), ...(item.objective ? { objective: item.objective } : {}) }), packageId));
+      .bind(packageId + ":" + item.taskId, item.title, item.description, priority, item.actionType, JSON.stringify({ sourceTaskId: item.taskId, ...(item.paths ? { paths: item.paths, analysisMode: item.analysisMode || "inventory" } : {}), ...(item.baseSha ? { baseSha: item.baseSha } : {}), ...(item.objective ? { objective: item.objective } : {}) }), packageId));
     for (const dependency of item.dependencies) {
       statements.push(env.DB.prepare("INSERT INTO intelligence_task_dependencies(task_id,depends_on_task_id) VALUES(?,?)")
         .bind(packageId + ":" + item.taskId, packageId + ":" + dependency));
@@ -7144,8 +7146,9 @@ async function ingestPrivateIntelligenceInbox(env) {
           {
             taskId: "inspect-source",
             title: "Inspect exact Intelligence source and runner files",
-            description: "Read the allowlisted source files at the current repository commit. Trace the generated diff validation and private report persistence paths. Do not execute repository content or modify files.",
+            description: cleanText([mission.title, mission.objective, ...(Array.isArray(mission.deliverables) ? mission.deliverables.slice(0, 6) : [])].join(" | "), 1500),
             actionType: "inspect_repository",
+            analysisMode: mission.analysis_mode === "semantic" ? "semantic" : "inventory",
             dependsOn: [],
             paths: [
               "worker.js",
@@ -7865,8 +7868,10 @@ export default {
         if (path === "/agent/v1/repository/analyze" && method === "POST") {
           const body = await readBody(request);
           const allowed = new Set(INTELLIGENCE_INSPECT_ALLOWED_PATHS);
-          if (!body || Object.keys(body).sort().join(",") !== "commitSha,files" ||
+          const allowedBodyKeys = ["commitSha,files", "commitSha,files,focus"];
+          if (!body || !allowedBodyKeys.includes(Object.keys(body).sort().join(",")) ||
               typeof body.commitSha !== "string" || !/^[a-f0-9]{40}$/i.test(body.commitSha) ||
+              (body.focus !== undefined && (typeof body.focus !== "string" || body.focus.trim().length < 12 || body.focus.length > 800)) ||
               !Array.isArray(body.files) || body.files.length < 1 || body.files.length > 6) {
             return error("A bounded immutable source-evidence envelope is required.",400);
           }
@@ -7908,7 +7913,7 @@ export default {
             const routed = await runIntelligenceAI(env,{
               messages:[
                 {role:"system",content:system},
-                {role:"user",content:JSON.stringify({repository:"Mehranmsh/mehranmsh.github.io",commitSha:body.commitSha,files})}
+                {role:"user",content:JSON.stringify({repository:"Mehranmsh/mehranmsh.github.io",commitSha:body.commitSha,focus:cleanText(body.focus || "Review the supplied source for correctness, security, data integrity, authorization, and reliability defects.",800),files})}
               ],
               jsonMode:true,temperature:0,maxTokens:1500,cloudflareReservation:500
             });
