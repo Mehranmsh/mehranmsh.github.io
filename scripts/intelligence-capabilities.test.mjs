@@ -1552,3 +1552,13 @@ test("runner disables automatic self-improvement planning and proposal PR creati
   assert.doesNotMatch(runnerSource, /contents: write|pull-requests: write/);
 });
 
+
+
+test("bounded repository architecture inventory is routed deterministically without AI", () => {
+  assert.ok(routinePlannerSource.includes('actionType: "inspect_repository"'));
+  assert.ok(routinePlannerSource.includes("No AI inference or repository writes are used"));
+  assert.ok(routinePlannerSource.includes('"worker.js"'));
+  assert.ok(routinePlannerSource.includes('"scripts/intelligence-agent.mjs"'));
+  assert.ok(workerSource.includes("const deterministicPlan = buildDeterministicRoutinePlan(mission)"));
+  assert.ok(workerSource.includes("aiInferenceUsed: false"));
+});
