@@ -421,6 +421,14 @@ test("work-package action types must stay within the declared per-package scope"
   assert.equal(validateIntelligenceWorkPackage({
     ...base, scope: { ...base.scope, allowedActions: "service_health_report" }
   }).ok, false);
+  for (const malformed of ["health", { task: "health" }, null, 7]) {
+    assert.equal(validateIntelligenceWorkPackage({
+      ...base, tasks: [{ ...base.tasks[0], dependsOn: malformed }]
+    }).ok, false, "malformed dependsOn must not be silently discarded");
+  }
+  assert.equal(validateIntelligenceWorkPackage({
+    ...base, tasks: [{ ...base.tasks[0], dependsOn: [] }]
+  }).ok, true, "an explicitly empty dependency list is valid");
 });
 
 test("proposal-only work-package tasks require a bounded objective", () => {
