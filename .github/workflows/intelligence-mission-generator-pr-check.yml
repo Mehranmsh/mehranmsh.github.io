@@ -1,0 +1,37 @@
+name: MEHRAN INTELLIGENCE mission generator PR checks
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "worker.js"
+      - "scripts/intelligence-mission-generator-policy.mjs"
+      - "scripts/intelligence-mission-generator-policy.test.mjs"
+      - "scripts/intelligence-capabilities.test.mjs"
+      - ".github/workflows/intelligence-mission-generator-pr-check.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: intelligence-mission-generator-pr-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  isolated-policy-and-worker-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out pull request revision without persisted credentials
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - name: Validate Worker and mission generator policy syntax
+        run: |
+          node --version
+          node --check worker.js
+          node --check scripts/intelligence-mission-generator-policy.mjs
+          node --check scripts/intelligence-mission-generator-policy.test.mjs
+      - name: Run the complete fixed Intelligence test suite
+        run: node --test --test-reporter=tap scripts/intelligence-capabilities.test.mjs
