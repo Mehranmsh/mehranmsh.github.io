@@ -61,6 +61,8 @@ test("Worker generator endpoint is owner-protected and accepts only a bounded UT
   assert.ok(workerSource.includes('path === "/agent/v1/missions/generate" && method === "POST"'));
   assert.ok(workerSource.includes('missions/generate'));
   assert.ok(workerSource.includes("cycleKey, 32"));
+  assert.ok(workerSource.includes(String.raw`!/^\\d{8}T\\d{4}$/.test(cycleKey)`));
+  assert.ok(workerSource.includes(String.raw`Number(cycleMatch[5]) % 15 !== 0`));
   assert.ok(workerSource.includes("cycleKey)) return error"));
   assert.ok(workerSource.includes('const mission = "service health check, repository quality check, and source security audit"'));
   assert.ok(workerSource.includes("allowDeterministicFallback: false"));
