@@ -48,6 +48,7 @@ jobs:
           import { tmpdir } from "node:os";
           import { join } from "node:path";
           import { createHash } from "node:crypto";
+          import { verifyIntelligenceResultCheckpoint } from "./scripts/intelligence-checkpoint.mjs";
           const base = process.env.MEHRAN_AGENT_URL;
           const agentToken = process.env.MEHRAN_AGENT_TOKEN || "";
           const orchestratorToken = process.env.MEHRAN_ORCHESTRATOR_TOKEN || "";
@@ -744,14 +745,10 @@ jobs:
             }
             let checkpointMatchesCurrentSchema = true;
             if (savedCheckpoint.phase === "result_ready") {
-              const checkpointResult = typeof savedCheckpoint.result === "string" ? savedCheckpoint.result : "";
-              const checkpointDigest = typeof savedCheckpoint.resultSha256 === "string" ? savedCheckpoint.resultSha256 : "";
-              checkpointMatchesCurrentSchema = checkpointResult.length > 0 &&
-                checkpointResult.length <= 3000 &&
-                /^[a-f0-9]{64}$/.test(checkpointDigest) &&
-                createHash("sha256").update(checkpointResult).digest("hex") === checkpointDigest;
-              if (!checkpointMatchesCurrentSchema) {
-                console.log("Ignoring result checkpoint whose content digest is missing or invalid.");
+              const integrity = verifyIntelligenceResultCheckpoint(savedCheckpoint, { maxResultChars: 3000 });
+              checkpointMatchesCurrentSchema = integrity.valid;
+              if (!integrity.valid) {
+                console.log("Ignoring result checkpoint whose content digest is missing or invalid: " + integrity.reason);
               }
             }
             if (savedCheckpoint.phase === "result_ready" && task.actionType === "inspect_repository") {
