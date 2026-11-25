@@ -80,7 +80,7 @@ test("a newer explicit decision supersedes the older decision without deleting h
   const memories = [
     record("ui-theme-old", "decision", "Use a gold and black interface", { updated_at: "2026-11-20T12:00:00.000Z" }),
     record("ui-theme-new", "decision", "Use a blue and black interface", {
-      updated_at: "2026-11-24T12:00:00.000Z", supersedes_key: "ui-theme-old"
+      updated_at: "2026-11-24T12:00:00.000Z", supersedes_key: "ui-theme-old", relation_confirmed: true, relation_confirmed_by: "owner-1"
     })
   ];
   const relations = analyzeMemoryRelations(memories);
@@ -94,10 +94,10 @@ test("an older or cross-owner record cannot supersede another owner's decision",
   const memories = [
     record("current", "decision", "Current owner decision", { updated_at: "2026-11-24T12:00:00.000Z" }),
     record("stale", "decision", "Stale attempted replacement", {
-      updated_at: "2026-11-20T12:00:00.000Z", supersedes_key: "current"
+      updated_at: "2026-11-20T12:00:00.000Z", supersedes_key: "current", relation_confirmed: true, relation_confirmed_by: "owner-1"
     }),
     record("foreign", "decision", "Foreign owner replacement", {
-      owner_uid: "owner-2", updated_at: "2026-11-25T11:00:00.000Z", supersedes_key: "current"
+      owner_uid: "owner-2", updated_at: "2026-11-25T11:00:00.000Z", supersedes_key: "current", relation_confirmed: true, relation_confirmed_by: "owner-2"
     })
   ];
   const relations = analyzeMemoryRelations(memories);
@@ -106,7 +106,7 @@ test("an older or cross-owner record cannot supersede another owner's decision",
 
 test("explicit conflicts are surfaced instead of silently choosing a winner", () => {
   const memories = [
-    record("choice-a", "decision", "Enable public registration", { conflicts_with: ["choice-b"] }),
+    record("choice-a", "decision", "Enable public registration", { conflicts_with: ["choice-b"], relation_confirmed: true, relation_confirmed_by: "owner-1" }),
     record("choice-b", "decision", "Disable public registration")
   ];
   const selected = selectMemoryContext(memories, { ownerUid: "owner-1", now });
@@ -115,7 +115,7 @@ test("explicit conflicts are surfaced instead of silently choosing a winner", ()
 
 test("memory relations never cross owner boundaries", () => {
   const memories = [
-    record("private-a", "decision", "A private decision", { conflicts_with: ["private-b"] }),
+    record("private-a", "decision", "A private decision", { conflicts_with: ["private-b"], relation_confirmed: true, relation_confirmed_by: "owner-1" }),
     record("private-b", "decision", "Another owner's decision", { owner_uid: "owner-2" })
   ];
   const relations = analyzeMemoryRelations(memories);
