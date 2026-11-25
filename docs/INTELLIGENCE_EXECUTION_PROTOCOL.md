@@ -182,3 +182,23 @@ The request lifecycle is deliberately fail-closed. A newly reserved request ente
 The atomic request reservation occurs before IP rate-limit accounting, so only the single winning delivery consumes one of the three daily attempts. A rejected rate-limit reservation is recorded as terminal and never reaches AI generation or budget reservation. These guarantees are covered by mocked Worker/D1 and artifact-store tests; they are not evidence of a live production D1 or production GitHub storage run.
 
 PR #217 consolidates the bounded generation API, private artifact storage, and queue executor on a clean branch based on `main`. Its CI checks pass, but the pull request remains open as a draft and has not been merged or deployed. Therefore none of these capabilities is production-active. Even after deployment, this executor will **not** apply patches, write to the source repository, create branches or pull requests, merge changes, or deploy code. Generated artifacts remain private proposals requiring a separate owner review path.
+
+
+## Central module integration contract (draft, not production-active)
+
+The central registry in `scripts/intelligence-module-registry.mjs` is the source of truth for how MEHRAN INTELLIGENCE discovers current and planned application modules. The initial inventory includes MEHRAN MSH Core, Studio/Music, SOCIAL, MEHRAN AI, and shared authentication, database, and audit services. MEHRAN Instruments and Robotics are listed as planned modules with no granted capabilities or data scopes.
+
+Every future module must declare a stable module ID, display name, semantic version, dependencies, explicitly requested capabilities, data scopes, and one supported health-check descriptor. A module must not integrate by exposing arbitrary URLs, shell commands, database handles, or secrets. Health-check descriptors are metadata for a future allowlisted adapter; they are not permission to execute arbitrary checks.
+
+The registry provides deterministic integrity validation, dependency-first integration planning, capability resolution, and sanitized health-report composition. The integrity check rejects duplicate IDs, missing dependencies, invalid trust/status combinations, inactive modules with access, and dependency cycles. A dependent module is marked degraded when a required dependency is unhealthy. Planned or newly discovered modules remain pending and receive no capabilities or data scopes automatically.
+
+The default-deny boundary is mandatory:
+- Unknown modules and unapproved manifests receive no access.
+- Only explicitly registered capabilities and aggregate or metadata scopes may be resolved.
+- Secrets, credentials, passwords, private messages, wallet keys, and wallet assets are outside the Intelligence data boundary.
+- Write-like actions require a separate approval decision and audit event.
+- Merge, production deployment, destructive database changes, and financial or wallet operations remain unavailable to autonomous execution.
+
+The private Runner's repository-inspection allowlist includes the registry source and its tests. Its fixed isolated test workflow syntax-checks the registry and executes the repository's bounded test suite. This makes the registry inspectable and testable by Intelligence without granting it repository write or production access.
+
+This registry and its CI integration are currently on the unmerged draft development branch. Do not describe module adapters, live module health checks, or end-to-end Intelligence control of every module as production-active until each real adapter is implemented, tested against its owning service, and accepted through the live Runner after an approved merge and deployment.
