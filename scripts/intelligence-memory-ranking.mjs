@@ -102,7 +102,8 @@ export function selectMemoryContext(records, options = {}) {
       ? 1 : finiteUnit(record.source_trust, 0.5);
     const recency = recencyScore(updatedAt, now);
     const baseScore = (importance * 0.35) + (confidence * 0.25) + (trust * 0.20) + (recency * 0.20);
-    const relevance = relevanceScore(record, query);\n    const score = query.size ? (baseScore * 0.75) + (relevance * 0.25) : baseScore;
+    const relevance = relevanceScore(record, query);
+    const score = query.size ? (baseScore * 0.75) + (relevance * 0.25) : baseScore;
 
     candidates.push({
       memory_key: key,
