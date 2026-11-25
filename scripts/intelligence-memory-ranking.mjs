@@ -117,6 +117,7 @@ export function selectMemoryContext(records, options = {}) {
   const normalizedQuery = normalizeSearchText(options.query);
   const query = queryTokens(normalizedQuery);
   if (!ownerUid || !Array.isArray(records)) return [];
+  const relations = analyzeMemoryRelations(records);
 
   const candidates = [];
   for (const record of records) {
