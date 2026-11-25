@@ -106,7 +106,9 @@ export function buildIntelligenceGoalLifecycle(records, proposedTasks, progressE
       ...task, task_state: stateByTask.get(task.task_id) || task.task_state
     }));
     if (!tasks.length) continue;
-    const plan = buildIntelligenceExecutionPlan(tasks, { ownerUid, maxTasks });
+    const heldTasks = tasks.filter(task => ["failed", "blocked"].includes(task.task_state)).map(task => ({ task_id: task.task_id, state: task.task_state }));
+    const planTasks = tasks.map(task => heldTasks.some(item => item.task_id === task.task_id) ? { ...task, task_state: "in_progress" } : task);
+    const plan = buildIntelligenceExecutionPlan(planTasks, { ownerUid, maxTasks });
     const failedOrBlocked = tasks.filter(task => ["failed", "blocked"].includes(task.task_state));
     const replanningSuggestions = failedOrBlocked.map(task => ({
       goal_id: goal.goal_id, task_id: task.task_id,
@@ -125,6 +127,7 @@ export function buildIntelligenceGoalLifecycle(records, proposedTasks, progressE
       goal_id: goal.goal_id,
       orderedTasks: plan.orderedTasks,
       blockedTasks: plan.blockedTasks,
+      heldTasks,
       unresolvedTasks: plan.unresolvedTasks,
       replanningSuggestions,
       diagnostics: { ...plan.diagnostics, advisoryOnly: true, tasksCreated: false, tasksExecuted: false }
