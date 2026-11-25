@@ -80,7 +80,7 @@ export function analyzeMemoryRelations(records) {
     if (!record || typeof record !== "object" || Array.isArray(record)) continue;
     const owner = typeof record.owner_uid === "string" ? record.owner_uid.trim() : "";
     const key = typeof record.memory_key === "string" ? record.memory_key.trim() : "";
-    if (!owner || !key) continue;
+    if (!owner || !key || record.relation_confirmed !== true || record.relation_confirmed_by !== owner) continue;
     const updatedAt = timestamp(record.updated_at);
     const supersedes = [record.supersedes_key, record.supersedes_memory_key]
       .filter(value => typeof value === "string" && value.trim())
