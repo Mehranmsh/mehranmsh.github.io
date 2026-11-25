@@ -7,6 +7,7 @@ import { createPatchArtifactRecord, verifyPatchArtifactRecord } from "./intellig
 import { storePrivatePatchArtifact, verifyPrivatePatchArtifactAtPath, getVerifiedPrivatePatchArtifactAtPath, getPrivatePatchArtifactPath, PRIVATE_PATCH_ARTIFACT_STORE_POLICY } from "./intelligence-private-patch-store.mjs";
 import { buildPatchGenerationPrompt, validateGeneratedPatch, PATCH_GENERATION_POLICY } from "./intelligence-patch-generation.mjs";
 import { generatePatchArtifact, PATCH_GENERATION_SERVICE_POLICY, canonicalizeAppendOnlyHunkHeader } from "./intelligence-patch-generation-service.mjs";
+import { nextWorkersAIDailyResetAt, isWorkersAIDailyQuotaCircuitOpen } from "./intelligence-ai-quota.mjs";
 import {
   INTELLIGENCE_CAPABILITIES,
   INTELLIGENCE_ACTION_TYPES,
@@ -194,7 +195,7 @@ test("AI mission planner uses JSON mode and extracts one complete balanced objec
   const plannerEnd = workerSource.indexOf("export function verifyIntelligenceReport", plannerStart);
   assert.ok(start >= 0 && plannerStart > start && plannerEnd > plannerStart);
   const planner = workerSource.slice(plannerStart, plannerEnd);
-  assert.match(planner, /jsonMode: true, temperature: 0, maxTokens: 1600/);
+  assert.match(planner, /jsonMode: true, temperature: 0, maxTokens: 1000/);
   assert.match(planner, /runIntelligenceAI\(env/);
   assert.match(planner, /extractIntelligenceJsonObject\(modelResponse\)/);
   assert.match(workerSource.slice(start, plannerStart), /if \(depth === 0 && start >= 0\) return text\.slice\(start, index \+ 1\)/);
@@ -352,6 +353,7 @@ test("isolated test workflow runs one fixed suite without secrets or network acc
     "./intelligence-private-patch-store.mjs",
     "./intelligence-patch-generation.mjs",
     "./intelligence-patch-generation-service.mjs",
+    "./intelligence-ai-quota.mjs",
     "./intelligence-capabilities.mjs"
   ]);
   for (const forbidden of [
@@ -879,7 +881,7 @@ test("Intelligence mission planning uses a bounded, more efficient daily reserva
   assert.match(workerSource, /intelligence: \{ column: "intelligence_reserved", cap: WORKERS_AI_INTELLIGENCE_DAILY_RESERVATION_CREDITS \}/);
   assert.match(workerSource, /WORKERS_AI_GLOBAL_DAILY_RESERVATION_CREDITS = 9000/);
   assert.match(workerSource, /cloudflareReservation: 25/);
-  assert.match(workerSource, /maxTokens: 1600/);
+  assert.match(workerSource, /maxTokens: 1000/);
 });
 
 test("scheduled Intelligence runner serializes ticks and bounds per-tick task execution", () => {
@@ -1124,7 +1126,7 @@ test("private report storage preserves safe HTTP status diagnostics", () => {
   assert.ok(diagnosticStart >= 0 && diagnosticEnd > diagnosticStart, "private report storage diagnostic must be locatable");
   const diagnostic = workerSource.slice(diagnosticStart, diagnosticEnd);
   assert.ok(diagnostic.includes("status \\d{3}\\."), "HTTP status regex must match a three-digit status code");
-  assert.equal(diagnostic.includes("status \\\\d{3}\\\\."), false, "regex must not search for a literal backslash-d sequence");
+  assert.equal(diagnostic.includes("status \\\\d{3}\\."), false, "regex must not search for a literal backslash-d sequence");
 });
 
 
@@ -1412,6 +1414,12 @@ test("patch generation uses the approved provider router without a second budget
 });
 
 test("Cloudflare AI diagnostics distinguish budget reservation failures from inference failures", () => {
+  assert.match(workerSource, /const DEFAULT_INTELLIGENCE_MODEL = "@cf\/meta\/llama-3\.1-8b-instruct-fp8-fast"/);
+  assert.match(workerSource, /LIMIT 12"\)\.bind\("mehran_intelligence"\)/);
+  assert.match(workerSource, /content:String\(item\.content\|\|""\)\.slice\(0,450\)/);
+  assert.match(workerSource, /jsonMode: true, temperature: 0, maxTokens: 1000, cloudflareReservation: 25/);
+  assert.match(workerSource, /jsonMode:true,temperature:0,maxTokens:1500,cloudflareReservation:500/);
+
   const cloudflareStart = workerSource.indexOf('if (provider === "cloudflare")');
   const cloudflareEnd = workerSource.indexOf('if (provider === "groq")', cloudflareStart);
   const cloudflare = workerSource.slice(cloudflareStart, cloudflareEnd);
@@ -1420,7 +1428,8 @@ test("Cloudflare AI diagnostics distinguish budget reservation failures from inf
   assert.match(cloudflare, /await env\.AI\.run\(model/);
   assert.match(workerSource, /stage: provider === "cloudflare" \? "inference" : "provider_request"/);
   assert.match(cloudflare, /reason:"daily_quota_circuit_open"/);
-  assert.match(cloudflare, /24 \* 60 \* 60 \* 1000/);
+  assert.match(cloudflare, /isWorkersAIDailyQuotaCircuitOpen\(exhausted\?\.attempted_at\)/);
+  assert.doesNotMatch(cloudflare, /24 \* 60 \* 60 \* 1000/);
   assert.match(workerSource, /used up your daily free allocation of 10,000 neurons/);
   assert.match(workerSource, /daily_quota_circuit_open/);
   assert.match(workerSource, /quotaRelevantAttempts/);
@@ -1441,4 +1450,19 @@ test("Cloudflare AI diagnostics distinguish budget reservation failures from inf
   assert.match(workerSource, /archiveLatestIntelligenceAIProviderDiagnostics\(env\)/);
   assert.match(workerSource, /mehran-intelligence-reports\/contents\/\" \+ path/);
   assert.match(workerSource, /Private AI diagnostics archive write failed/);
+});
+
+
+test("Workers AI daily quota circuit resets at Cloudflare UTC midnight", () => {
+  const exhaustedAt = "2026-11-24T22:49:00.000Z";
+  assert.equal(nextWorkersAIDailyResetAt(exhaustedAt), Date.parse("2026-11-25T00:00:00.000Z"));
+  assert.equal(isWorkersAIDailyQuotaCircuitOpen(exhaustedAt, Date.parse("2026-11-24T23:59:59.000Z")), true);
+  assert.equal(isWorkersAIDailyQuotaCircuitOpen(exhaustedAt, Date.parse("2026-11-25T00:00:00.000Z")), false);
+  assert.equal(isWorkersAIDailyQuotaCircuitOpen("not-a-timestamp", Date.parse("2026-11-25T00:00:00.000Z")), false);
+  assert.match(workerSource, /function isWorkersAIDailyQuotaCircuitOpen\(attemptedAt, now = Date\.now\(\)\)/);
+  assert.match(workerSource, /isWorkersAIDailyQuotaCircuitOpen\(exhausted\?\.attempted_at\)/);
+  const cloudflareStart = workerSource.indexOf('if (provider === "cloudflare")');
+  const cloudflareEnd = workerSource.indexOf('if (provider === "groq")', cloudflareStart);
+  const cloudflare = workerSource.slice(cloudflareStart, cloudflareEnd);
+  assert.doesNotMatch(cloudflare, /24 \* 60 \* 60 \* 1000/);
 });

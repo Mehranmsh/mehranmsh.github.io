@@ -1,7 +1,19 @@
+import { buildDeterministicRoutinePlan } from "./scripts/intelligence-routine-planner.mjs";
 import { INTELLIGENCE_ACTION_TYPES, PREAPPROVED_INTELLIGENCE_ACTION_TYPES } from "./scripts/intelligence-capabilities.mjs";
 import { storePrivatePatchArtifact, verifyPrivatePatchArtifactAtPath, getPrivatePatchArtifactPath, getVerifiedPrivatePatchArtifactAtPath } from "./scripts/intelligence-private-patch-store.mjs";
 import { generatePatchArtifact } from "./scripts/intelligence-patch-generation-service.mjs";
 import { validatePrivateIntelligenceMission } from "./scripts/intelligence-inbox-schema.mjs";
+
+function nextWorkersAIDailyResetAt(attemptedAt) {
+  const timestamp = typeof attemptedAt === "number" ? attemptedAt : Date.parse(attemptedAt);
+  if (!Number.isFinite(timestamp)) return null;
+  const date = new Date(timestamp);
+  return Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate() + 1);
+}
+function isWorkersAIDailyQuotaCircuitOpen(attemptedAt, now = Date.now()) {
+  const resetAt = nextWorkersAIDailyResetAt(attemptedAt);
+  return resetAt !== null && Number.isFinite(now) && now < resetAt;
+}
 
 const ALLOWED_ORIGIN = "https://mehranmsh.github.io";
 const FIREBASE_WEB_API_KEY = "AIzaSyBNezoCzAUXi1D7vC_stoUnQuN_JHR-rDM";
@@ -330,6 +342,7 @@ async function releaseSocialWorkersAIBudget(env, reservation) {
 
 
 const INTELLIGENCE_AI_PROVIDER_ORDER = Object.freeze(["cloudflare", "groq", "gemini", "openrouter"]);
+const DEFAULT_INTELLIGENCE_MODEL = "@cf/meta/llama-3.1-8b-instruct-fp8-fast";
 function intelligenceProviderError(provider, status, message) {
   const error = new Error(String(message || "Provider request failed").slice(0, 180));
   error.provider = provider;
@@ -355,19 +368,18 @@ async function runIntelligenceAI(env, options) {
     try {
       if (provider === "cloudflare") {
         if (!env.AI || typeof env.AI.run !== "function") { attempts.push({provider, reason:"not_configured"}); continue; }
-        const model = cleanText(env.MEHRAN_INTELLIGENCE_MODEL, 120) || "@cf/meta/llama-3.3-70b-instruct-fp8-fast";
+        const model = cleanText(env.MEHRAN_INTELLIGENCE_MODEL, 120) || DEFAULT_INTELLIGENCE_MODEL;
         if (env.DB) {
           try {
             await ensureIntelligenceAIProviderDiagnostics(env);
             const exhausted = await env.DB.prepare(
               "SELECT attempted_at FROM intelligence_ai_provider_diagnostics WHERE provider='cloudflare' AND reason='daily_quota' ORDER BY id DESC LIMIT 1"
             ).first();
-            const exhaustedAt = exhausted?.attempted_at ? Date.parse(exhausted.attempted_at) : NaN;
-            if (Number.isFinite(exhaustedAt) && Date.now() - exhaustedAt < 24 * 60 * 60 * 1000) {
+            if (isWorkersAIDailyQuotaCircuitOpen(exhausted?.attempted_at)) {
               attempts.push({
                 provider,reason:"daily_quota_circuit_open",stage:"inference",status:0,
                 errorName:"AiError",errorCode:"4006",
-                errorMessage:"Cloudflare Workers AI calls are paused after the confirmed daily free-allocation error; the 24-hour safety window has not elapsed.",
+                errorMessage:"Cloudflare Workers AI calls are paused until the next daily allocation reset at 00:00 UTC.",
                 model
               });
               continue;
@@ -481,7 +493,7 @@ async function runIntelligenceAI(env, options) {
         status: Number.isInteger(status) ? status : 0,
         errorName: details.name, errorCode:provider === "cloudflare" && (/\b4006\b/.test(details.message) || /used up your daily free allocation of 10,000 neurons/i.test(details.message)) ? "4006" : details.code, errorMessage: details.message,
         causeName: details.causeName, causeMessage: details.causeMessage,
-        errorStack: details.stack, model: provider === "cloudflare" ? (cleanText(env.MEHRAN_INTELLIGENCE_MODEL,120) || "@cf/meta/llama-3.3-70b-instruct-fp8-fast") : ""
+        errorStack: details.stack, model: provider === "cloudflare" ? (cleanText(env.MEHRAN_INTELLIGENCE_MODEL,120) || DEFAULT_INTELLIGENCE_MODEL) : ""
       };
       attempts.push(attempt);
       console.warn("INTELLIGENCE_AI_PROVIDER_FAILED",JSON.stringify({
@@ -5925,6 +5937,12 @@ export function validateIntelligenceWorkPackage(input) {
   }
   if (!["low", "normal", "high"].includes(priority)) return fail("Invalid work package priority.");
   if (!scopeJson || scopeJson.length > 4000) return fail("Work package scope exceeds the 4 KB limit.");
+  const globalAllowedActions = ["service_health_report", "repository_quality_check", "source_security_audit", "inspect_repository", "run_repository_tests", "propose_code_patch"];
+  const scopedActionsDeclared = Object.hasOwn(scope, "allowedActions");
+  const scopedActions = scope.allowedActions;
+  if (scopedActionsDeclared && (!Array.isArray(scopedActions) || scopedActions.length < 1 || scopedActions.length > globalAllowedActions.length || new Set(scopedActions).size !== scopedActions.length || scopedActions.some(action => typeof action !== "string" || !globalAllowedActions.includes(action)))) {
+    return fail("Work package scope.allowedActions must be a unique, non-empty subset of the bounded capability allowlist.");
+  }
   const normalized = [];
   const known = new Set();
   for (let index = 0; index < tasks.length; index++) {
@@ -5941,7 +5959,7 @@ export function validateIntelligenceWorkPackage(input) {
     const patchObjective = actionType === "propose_code_patch" ? item?.objective : undefined;
     const validPatchObjective = actionType !== "propose_code_patch" || (typeof patchObjective === "string" && patchObjective.trim().length >= 12 && patchObjective.length <= 800);
     if (!taskId || !/^[A-Za-z0-9._:-]{1,80}$/.test(taskId) || known.has(taskId) || !taskTitle ||
-        !["service_health_report", "repository_quality_check", "source_security_audit", "inspect_repository", "run_repository_tests", "propose_code_patch"].includes(actionType) || !validInspectPaths || !validTestBaseSha || !validPatchObjective || (actionType !== "inspect_repository" && Object.hasOwn(item || {}, "paths")) || (actionType !== "run_repository_tests" && Object.hasOwn(item || {}, "baseSha")) || (actionType !== "propose_code_patch" && Object.hasOwn(item || {}, "objective")) || dependencies.length > 10) {
+        !globalAllowedActions.includes(actionType) || (scopedActionsDeclared && !scopedActions.includes(actionType)) || !validInspectPaths || !validTestBaseSha || !validPatchObjective || (actionType !== "inspect_repository" && Object.hasOwn(item || {}, "paths")) || (actionType !== "run_repository_tests" && Object.hasOwn(item || {}, "baseSha")) || (actionType !== "propose_code_patch" && Object.hasOwn(item || {}, "objective")) || dependencies.length > 10) {
       return fail("Invalid task definition or action outside the bounded capability allowlist.");
     }
     if (new Set(dependencies).size !== dependencies.length ||
@@ -6082,6 +6100,36 @@ function extractIntelligenceJsonObject(raw) {
   return "";
 }
 
+async function createDeterministicRoutinePackage(env, mission, idempotencyKey, ownerUid, plan) {
+  const scope = {
+    mode: "read_only",
+    planner: "deterministic_rules_v1",
+    mission,
+    planSummary: plan.planSummary,
+    allowedActions: plan.tasks.map((task) => task.actionType),
+    forbidden: ["source_changes", "patch_application", "branch_creation", "pull_request_creation", "merge", "deployment", "secret_access", "arbitrary_shell", "wallet_or_financial_actions", "account_mutations"]
+  };
+  const created = await createIntelligenceWorkPackage(env, {
+    idempotencyKey,
+    title: plan.title,
+    objective: plan.objective,
+    priority: plan.priority,
+    scope,
+    tasks: plan.tasks,
+    ownerUid
+  });
+  if (!created.success) return created;
+  return {
+    ...created,
+    planner: { provider: "deterministic_rules_v1" },
+    planSummary: plan.planSummary,
+    taskCount: created.taskCount || plan.tasks.length,
+    deterministic: true,
+    aiInferenceUsed: false,
+    safety: "Only explicitly recognized read-only actions are included; no AI provider, source writes, deployment, secret access, or external actions."
+  };
+}
+
 async function planIntelligenceMission(env, input) {
   const traceId = cleanText(input?.traceId, 100).replace(/[^A-Za-z0-9._:-]/g, "").slice(0, 100) || crypto.randomUUID();
   const inferenceStartedAt = Date.now();
@@ -6101,11 +6149,15 @@ async function planIntelligenceMission(env, input) {
     "SELECT id,status FROM intelligence_work_packages WHERE idempotency_key=? LIMIT 1"
   ).bind(idempotencyKey).first();
   if (existing) return { success: true, duplicate: true, workPackageId: existing.id, status: existing.status };
+  const deterministicPlan = buildDeterministicRoutinePlan(mission);
+  if (deterministicPlan) {
+    return createDeterministicRoutinePackage(env, mission, idempotencyKey, input?.ownerUid, deterministicPlan);
+  }
   await ensureIntelligenceMemoryTables(env);
   await seedIntelligenceOwnerMemory(env,"mehran_intelligence");
-  const memoryRows = await env.DB.prepare("SELECT memory_key,category,content,importance,updated_at FROM intelligence_memory_items WHERE owner_uid=? ORDER BY updated_at DESC,importance DESC LIMIT 24").bind("mehran_intelligence").all();
-  const durableMemoryContext = (memoryRows.results || []).map(item => ({key:item.memory_key,category:item.category,content:String(item.content||"").slice(0,700),importance:Number(item.importance||3)}));
-  const model = cleanText(env.MEHRAN_INTELLIGENCE_MODEL, 120) || "@cf/meta/llama-3.3-70b-instruct-fp8-fast";
+  const memoryRows = await env.DB.prepare("SELECT memory_key,category,content,importance,updated_at FROM intelligence_memory_items WHERE owner_uid=? ORDER BY updated_at DESC,importance DESC LIMIT 12").bind("mehran_intelligence").all();
+  const durableMemoryContext = (memoryRows.results || []).map(item => ({key:item.memory_key,category:item.category,content:String(item.content||"").slice(0,450),importance:Number(item.importance||3)}));
+  const model = cleanText(env.MEHRAN_INTELLIGENCE_MODEL, 120) || DEFAULT_INTELLIGENCE_MODEL;
   let selectedProvider = "unknown";
   let selectedModel = model;
   const system = [
@@ -6142,7 +6194,7 @@ async function planIntelligenceMission(env, input) {
   try {
     const routed = await runIntelligenceAI(env, {
       messages: [{ role: "system", content: system }, { role: "user", content: userPrompt }],
-      jsonMode: true, temperature: 0, maxTokens: 1600, cloudflareReservation: 25
+      jsonMode: true, temperature: 0, maxTokens: 1000, cloudflareReservation: 25
     });
     modelResult = routed.result;
     selectedProvider = routed.provider;
@@ -7161,7 +7213,7 @@ export default {
 
         // Recover abandoned package claims so a crashed executor cannot strand work forever.
         const staleClaims = await env.DB.prepare(
-          "SELECT id,work_package_id,attempts,max_attempts FROM intelligence_tasks WHERE work_package_id IS NOT NULL AND status='in_progress' AND agent_claimed_at IS NOT NULL AND datetime(agent_claimed_at)<datetime('now','-15 minutes') AND requires_approval=0 AND assigned_to IN ('mehran_intelligence','shared') AND action_type IN ('service_health_report','repository_quality_check')"
+          "SELECT id,work_package_id,attempts,max_attempts FROM intelligence_tasks WHERE work_package_id IS NOT NULL AND status='in_progress' AND agent_claimed_at IS NOT NULL AND datetime(agent_claimed_at)<datetime('now','-15 minutes') AND requires_approval=0 AND assigned_to IN ('mehran_intelligence','shared') AND action_type IN ('service_health_report','repository_quality_check') AND EXISTS (SELECT 1 FROM intelligence_work_packages wp, json_each(CASE WHEN json_valid(wp.scope_json) THEN wp.scope_json ELSE '{}' END, '$.allowedActions') scoped WHERE wp.id=intelligence_tasks.work_package_id AND scoped.value=intelligence_tasks.action_type)"
         ).all();
         for (const stale of staleClaims.results || []) {
           const exhausted = Number(stale.attempts || 0) >= Number(stale.max_attempts || 3);
@@ -7169,7 +7221,7 @@ export default {
           const delay = Math.min(3600,30 * (2 ** Math.max(0,Number(stale.attempts || 1)-1)));
           const nextAt = exhausted ? null : new Date(Date.now()+delay*1000).toISOString();
           const updated = await env.DB.prepare(
-            "UPDATE intelligence_tasks SET status=?,agent_claimed_at=NULL,agent_claim_token_hash='',next_attempt_at=?,last_error_code=?,result_text=?,updated_at=CURRENT_TIMESTAMP WHERE id=? AND status='in_progress' AND agent_claimed_at IS NOT NULL AND datetime(agent_claimed_at)<datetime('now','-15 minutes')"
+            "UPDATE intelligence_tasks SET status=?,agent_claimed_at=NULL,agent_claim_token_hash='',next_attempt_at=?,last_error_code=?,result_text=?,updated_at=CURRENT_TIMESTAMP WHERE id=? AND status='in_progress' AND agent_claimed_at IS NOT NULL AND datetime(agent_claimed_at)<datetime('now','-15 minutes') AND EXISTS (SELECT 1 FROM intelligence_work_packages wp, json_each(CASE WHEN json_valid(wp.scope_json) THEN wp.scope_json ELSE '{}' END, '$.allowedActions') scoped WHERE wp.id=intelligence_tasks.work_package_id AND scoped.value=intelligence_tasks.action_type)"
           ).bind(nextStatus,nextAt,exhausted?"claim_expired_max_attempts":"claim_expired_retry",exhausted?"Executor claim expired and retry limit was reached.":"Executor claim expired; task scheduled for retry.",stale.id).run();
           if (Number(updated?.meta?.changes || 0)) {
             await env.DB.prepare("INSERT INTO intelligence_task_events(id,work_package_id,task_id,event_type,from_status,to_status,actor,details_json) VALUES(?,?,?,'claim_expired','in_progress',?,?,?)")
@@ -7185,11 +7237,11 @@ export default {
 
         for (let n = 0; n < 5; n++) {
           const candidate = await env.DB.prepare(
-            "SELECT t.id,t.action_type,t.status,t.work_package_id,t.attempts,t.max_attempts FROM intelligence_tasks t WHERE t.requires_approval=0 AND t.assigned_to IN ('mehran_intelligence','shared') AND ((t.status IN ('queued','accepted') AND t.action_type IN ('project_status_report','social_metrics_report')) OR (t.work_package_id IS NOT NULL AND t.status IN ('queued','accepted','retry_wait') AND t.action_type IN ('service_health_report','repository_quality_check') AND COALESCE(t.attempts,0)<COALESCE(t.max_attempts,3) AND (t.next_attempt_at IS NULL OR datetime(t.next_attempt_at)<=datetime('now')) AND NOT EXISTS (SELECT 1 FROM intelligence_task_dependencies d JOIN intelligence_tasks p ON p.id=d.depends_on_task_id WHERE d.task_id=t.id AND p.status<>'completed'))) ORDER BY CASE t.priority WHEN 'high' THEN 0 WHEN 'normal' THEN 1 ELSE 2 END,CASE WHEN t.work_package_id IS NOT NULL AND EXISTS (SELECT 1 FROM intelligence_tasks prior WHERE prior.work_package_id=t.work_package_id AND prior.status='completed') THEN 0 ELSE 1 END,t.created_at ASC LIMIT 1"
+            "SELECT t.id,t.action_type,t.status,t.work_package_id,t.attempts,t.max_attempts FROM intelligence_tasks t WHERE t.requires_approval=0 AND t.assigned_to IN ('mehran_intelligence','shared') AND ((t.status IN ('queued','accepted') AND t.action_type IN ('project_status_report','social_metrics_report')) OR (t.work_package_id IS NOT NULL AND t.status IN ('queued','accepted','retry_wait') AND t.action_type IN ('service_health_report','repository_quality_check') AND EXISTS (SELECT 1 FROM intelligence_work_packages wp, json_each(CASE WHEN json_valid(wp.scope_json) THEN wp.scope_json ELSE '{}' END, '$.allowedActions') scoped WHERE wp.id=t.work_package_id AND scoped.value=t.action_type) AND COALESCE(t.attempts,0)<COALESCE(t.max_attempts,3) AND (t.next_attempt_at IS NULL OR datetime(t.next_attempt_at)<=datetime('now')) AND NOT EXISTS (SELECT 1 FROM intelligence_task_dependencies d JOIN intelligence_tasks p ON p.id=d.depends_on_task_id WHERE d.task_id=t.id AND p.status<>'completed'))) ORDER BY CASE t.priority WHEN 'high' THEN 0 WHEN 'normal' THEN 1 ELSE 2 END,CASE WHEN t.work_package_id IS NOT NULL AND EXISTS (SELECT 1 FROM intelligence_tasks prior WHERE prior.work_package_id=t.work_package_id AND prior.status='completed') THEN 0 ELSE 1 END,t.created_at ASC LIMIT 1"
           ).first();
           if (!candidate) break;
           const claimed = await env.DB.prepare(
-            "UPDATE intelligence_tasks SET status='in_progress',attempts=CASE WHEN work_package_id IS NOT NULL THEN COALESCE(attempts,0)+1 ELSE attempts END,agent_claimed_at=CURRENT_TIMESTAMP,agent_claim_token_hash='',updated_at=CURRENT_TIMESTAMP WHERE id=? AND status=? AND requires_approval=0 AND assigned_to IN ('mehran_intelligence','shared') AND (action_type IN ('project_status_report','social_metrics_report') OR (work_package_id IS NOT NULL AND action_type IN ('service_health_report','repository_quality_check')))"
+            "UPDATE intelligence_tasks SET status='in_progress',attempts=CASE WHEN work_package_id IS NOT NULL THEN COALESCE(attempts,0)+1 ELSE attempts END,agent_claimed_at=CURRENT_TIMESTAMP,agent_claim_token_hash='',updated_at=CURRENT_TIMESTAMP WHERE id=? AND status=? AND requires_approval=0 AND assigned_to IN ('mehran_intelligence','shared') AND (action_type IN ('project_status_report','social_metrics_report') OR (work_package_id IS NOT NULL AND action_type IN ('service_health_report','repository_quality_check') AND EXISTS (SELECT 1 FROM intelligence_work_packages wp, json_each(CASE WHEN json_valid(wp.scope_json) THEN wp.scope_json ELSE '{}' END, '$.allowedActions') scoped WHERE wp.id=intelligence_tasks.work_package_id AND scoped.value=intelligence_tasks.action_type)))"
           ).bind(candidate.id,candidate.status).run();
           if (!Number(claimed?.meta?.changes || 0)) continue;
           processed++;
@@ -7676,7 +7728,7 @@ export default {
           if (totalChars > 16000) return error("Source evidence exceeds the 16,000-character analysis limit.",413);
           const traceId = cleanText(request.headers.get("X-Intelligence-Trace-Id"),100).replace(/[^A-Za-z0-9._:-]/g,"").slice(0,100) || crypto.randomUUID();
           const inferenceStartedAt = Date.now();
-          const model = cleanText(env.MEHRAN_INTELLIGENCE_MODEL,120) || "@cf/meta/llama-3.3-70b-instruct-fp8-fast";
+          const model = cleanText(env.MEHRAN_INTELLIGENCE_MODEL,120) || DEFAULT_INTELLIGENCE_MODEL;
           console.log("INTELLIGENCE_CODE_ANALYSIS_START",JSON.stringify({traceId,commitShaPrefix:body.commitSha.slice(0,12),fileCount:files.length,totalChars,model}));
           const system = [
             "You are the bounded code-analysis engine for MEHRAN INTELLIGENCE.",
@@ -7699,7 +7751,7 @@ export default {
                 {role:"system",content:system},
                 {role:"user",content:JSON.stringify({repository:"Mehranmsh/mehranmsh.github.io",commitSha:body.commitSha,files})}
               ],
-              jsonMode:true,temperature:0,maxTokens:2200,cloudflareReservation:500
+              jsonMode:true,temperature:0,maxTokens:1500,cloudflareReservation:500
             });
             result = routed.result;
             console.log("INTELLIGENCE_CODE_ANALYSIS_PROVIDER",JSON.stringify({traceId,provider:routed.provider,model:routed.model,priorAttempts:routed.attempts.length}));
@@ -7780,6 +7832,14 @@ export default {
           const scope = body?.scope && typeof body.scope === "object" && !Array.isArray(body.scope) ? body.scope : {};
           const scopeJson = JSON.stringify(scope);
           if (!scopeJson || scopeJson.length > 4000) return error("Work package scope exceeds the 4 KB limit.",400);
+          const packageAllowedActions = scope.allowedActions;
+          const packageActionAllowlist = ["service_health_report","repository_quality_check","source_security_audit","inspect_repository","run_repository_tests","propose_code_patch"];
+          if (!Array.isArray(packageAllowedActions) || packageAllowedActions.length < 1 || packageAllowedActions.length > packageActionAllowlist.length ||
+              new Set(packageAllowedActions).size !== packageAllowedActions.length ||
+              packageAllowedActions.some(action => typeof action !== "string" || !packageActionAllowlist.includes(action)) ||
+              tasks.some(task => !packageAllowedActions.includes(cleanText(task?.actionType,80)))) {
+            return error("Work package scope.allowedActions must explicitly authorize every task using a unique bounded action list.",400);
+          }
           if (!idempotencyKey || !/^[A-Za-z0-9._:-]{8,120}$/.test(idempotencyKey) || !title || !tasks.length || tasks.length > 20) {
             return error("A valid idempotencyKey, title, and 1-20 tasks are required.",400);
           }
@@ -7886,6 +7946,29 @@ export default {
           if (!Number(updated?.meta?.changes || 0)) return error("Notification lease changed before acknowledgement.",409);
           return json({success:true,status:finalStatus},200);
         }
+        if (path === "/agent/v1/work-packages/scope-diagnostics" && method === "GET") {
+          // Aggregate-only owner diagnostic: never return package IDs, task payloads, scope contents, or secrets.
+          const diagnostics = await env.DB.prepare(
+            "SELECT status,COUNT(*) AS package_count,SUM(CASE WHEN json_type(CASE WHEN json_valid(scope_json) THEN scope_json ELSE '{}' END,'$.allowedActions')='array' AND json_array_length(CASE WHEN json_valid(scope_json) THEN scope_json ELSE '{}' END,'$.allowedActions') BETWEEN 1 AND 6 AND NOT EXISTS (SELECT 1 FROM json_each(CASE WHEN json_valid(scope_json) THEN scope_json ELSE '{}' END,'$.allowedActions') a WHERE a.type!='text' OR a.value NOT IN ('service_health_report','repository_quality_check','source_security_audit','inspect_repository','run_repository_tests','propose_code_patch')) AND (SELECT COUNT(DISTINCT value) FROM json_each(CASE WHEN json_valid(scope_json) THEN scope_json ELSE '{}' END,'$.allowedActions'))=json_array_length(CASE WHEN json_valid(scope_json) THEN scope_json ELSE '{}' END,'$.allowedActions') AND EXISTS (SELECT 1 FROM intelligence_tasks it WHERE it.work_package_id=intelligence_work_packages.id) AND NOT EXISTS (SELECT 1 FROM intelligence_tasks it WHERE it.work_package_id=intelligence_work_packages.id AND (it.action_type='' OR NOT EXISTS (SELECT 1 FROM json_each(CASE WHEN json_valid(scope_json) THEN scope_json ELSE '{}' END,'$.allowedActions') authorized WHERE authorized.type='text' AND authorized.value=it.action_type))) THEN 1 ELSE 0 END) AS explicitly_authorized_count FROM intelligence_work_packages GROUP BY status ORDER BY status LIMIT 20"
+          ).all();
+          const rows = (diagnostics.results || []).map(row => ({
+            status: cleanText(row.status, 40) || "unknown",
+            packageCount: Math.max(0, Number(row.package_count) || 0),
+            explicitlyAuthorizedCount: Math.max(0, Number(row.explicitly_authorized_count) || 0),
+            reviewRequiredCount: Math.max(0, (Number(row.package_count) || 0) - (Number(row.explicitly_authorized_count) || 0))
+          }));
+          return json({
+            success: true,
+            readOnly: true,
+            aggregateOnly: true,
+            packages: {
+              total: rows.reduce((sum, row) => sum + row.packageCount, 0),
+              explicitlyAuthorized: rows.reduce((sum, row) => sum + row.explicitlyAuthorizedCount, 0),
+              reviewRequired: rows.reduce((sum, row) => sum + row.reviewRequiredCount, 0),
+              byStatus: rows
+            }
+          });
+        }
         if (path === "/agent/v1/work-packages/pending-finalization" && method === "GET") {
           const pending = await env.DB.prepare(
             "SELECT id FROM intelligence_work_packages WHERE status IN ('completed','attention_required') AND report_stored_at IS NULL ORDER BY created_at ASC LIMIT 20"
@@ -7955,23 +8038,23 @@ export default {
         if (path === "/agent/v1/tasks/next" && method === "GET") {
           // Recover only claims made by this agent API; never reset manually managed in-progress tasks.
           await env.DB.prepare(
-            "UPDATE intelligence_tasks SET status='blocked',agent_claimed_at=NULL,agent_claim_token_hash='',last_error_code='claim_expired_max_attempts',result_text='Agent claim expired and retry limit was reached.',updated_at=CURRENT_TIMESTAMP WHERE status='in_progress' AND agent_claimed_at IS NOT NULL AND datetime(agent_claimed_at) < datetime('now','-15 minutes') AND requires_approval=0 AND assigned_to IN ('mehran_intelligence','shared') AND action_type IN ('repository_quality_check','service_health_report','source_security_audit','inspect_repository','run_repository_tests','propose_code_patch') AND COALESCE(attempts,0)>=COALESCE(max_attempts,3)"
+            "UPDATE intelligence_tasks SET status='blocked',agent_claimed_at=NULL,agent_claim_token_hash='',last_error_code='claim_expired_max_attempts',result_text='Agent claim expired and retry limit was reached.',updated_at=CURRENT_TIMESTAMP WHERE status='in_progress' AND agent_claimed_at IS NOT NULL AND datetime(agent_claimed_at) < datetime('now','-15 minutes') AND requires_approval=0 AND assigned_to IN ('mehran_intelligence','shared') AND action_type IN ('repository_quality_check','service_health_report','source_security_audit','inspect_repository','run_repository_tests','propose_code_patch') AND (work_package_id IS NULL OR EXISTS (SELECT 1 FROM intelligence_work_packages wp, json_each(CASE WHEN json_valid(wp.scope_json) THEN wp.scope_json ELSE '{}' END, '$.allowedActions') scoped WHERE wp.id=intelligence_tasks.work_package_id AND scoped.value=intelligence_tasks.action_type)) AND COALESCE(attempts,0)>=COALESCE(max_attempts,3)"
           ).run();
           await env.DB.prepare(
-            "UPDATE intelligence_tasks SET status='accepted',agent_claimed_at=NULL,agent_claim_token_hash='',last_error_code='claim_expired_retry',updated_at=CURRENT_TIMESTAMP WHERE status='in_progress' AND agent_claimed_at IS NOT NULL AND datetime(agent_claimed_at) < datetime('now','-15 minutes') AND requires_approval=0 AND assigned_to IN ('mehran_intelligence','shared') AND action_type IN ('repository_quality_check','service_health_report','source_security_audit','inspect_repository','run_repository_tests','propose_code_patch') AND COALESCE(attempts,0)<COALESCE(max_attempts,3)"
+            "UPDATE intelligence_tasks SET status='accepted',agent_claimed_at=NULL,agent_claim_token_hash='',last_error_code='claim_expired_retry',updated_at=CURRENT_TIMESTAMP WHERE status='in_progress' AND agent_claimed_at IS NOT NULL AND datetime(agent_claimed_at) < datetime('now','-15 minutes') AND requires_approval=0 AND assigned_to IN ('mehran_intelligence','shared') AND action_type IN ('repository_quality_check','service_health_report','source_security_audit','inspect_repository','run_repository_tests','propose_code_patch') AND COALESCE(attempts,0)<COALESCE(max_attempts,3) AND (work_package_id IS NULL OR EXISTS (SELECT 1 FROM intelligence_work_packages wp, json_each(CASE WHEN json_valid(wp.scope_json) THEN wp.scope_json ELSE '{}' END, '$.allowedActions') scoped WHERE wp.id=intelligence_tasks.work_package_id AND scoped.value=intelligence_tasks.action_type))"
           ).run();
           // Repair only stale approval labels on pre-authorized bounded tasks before claiming them.
           await env.DB.prepare(
-            "UPDATE intelligence_tasks SET status='queued',updated_at=CURRENT_TIMESTAMP WHERE status='awaiting_approval' AND requires_approval=0 AND assigned_to IN ('mehran_intelligence','shared') AND action_type IN ('repository_quality_check','service_health_report','source_security_audit','inspect_repository','run_repository_tests','propose_code_patch')"
+            "UPDATE intelligence_tasks SET status='queued',updated_at=CURRENT_TIMESTAMP WHERE status='awaiting_approval' AND requires_approval=0 AND assigned_to IN ('mehran_intelligence','shared') AND action_type IN ('repository_quality_check','service_health_report','source_security_audit','inspect_repository','run_repository_tests','propose_code_patch') AND (work_package_id IS NULL OR EXISTS (SELECT 1 FROM intelligence_work_packages wp, json_each(CASE WHEN json_valid(wp.scope_json) THEN wp.scope_json ELSE '{}' END, '$.allowedActions') scoped WHERE wp.id=intelligence_tasks.work_package_id AND scoped.value=intelligence_tasks.action_type))"
           ).run();
           const candidate = await env.DB.prepare(
-            "SELECT t.id,t.status FROM intelligence_tasks t WHERE t.assigned_to IN ('mehran_intelligence','shared') AND t.status IN ('queued','accepted','retry_wait') AND t.requires_approval=0 AND t.action_type IN ('repository_quality_check','service_health_report','source_security_audit','inspect_repository','run_repository_tests','propose_code_patch') AND COALESCE(t.attempts,0)<COALESCE(t.max_attempts,3) AND (t.next_attempt_at IS NULL OR datetime(t.next_attempt_at)<=datetime('now')) AND NOT EXISTS (SELECT 1 FROM intelligence_task_dependencies d JOIN intelligence_tasks p ON p.id=d.depends_on_task_id WHERE d.task_id=t.id AND p.status<>'completed') ORDER BY CASE t.priority WHEN 'high' THEN 0 WHEN 'normal' THEN 1 ELSE 2 END,CASE WHEN t.work_package_id IS NOT NULL AND EXISTS (SELECT 1 FROM intelligence_tasks prior WHERE prior.work_package_id=t.work_package_id AND prior.status='completed') THEN 0 ELSE 1 END,t.created_at ASC LIMIT 1"
+            "SELECT t.id,t.status FROM intelligence_tasks t WHERE t.assigned_to IN ('mehran_intelligence','shared') AND t.status IN ('queued','accepted','retry_wait') AND t.requires_approval=0 AND t.action_type IN ('repository_quality_check','service_health_report','source_security_audit','inspect_repository','run_repository_tests','propose_code_patch') AND (t.work_package_id IS NULL OR EXISTS (SELECT 1 FROM intelligence_work_packages wp, json_each(CASE WHEN json_valid(wp.scope_json) THEN wp.scope_json ELSE '{}' END, '$.allowedActions') scoped WHERE wp.id=t.work_package_id AND scoped.value=t.action_type)) AND COALESCE(t.attempts,0)<COALESCE(t.max_attempts,3) AND (t.next_attempt_at IS NULL OR datetime(t.next_attempt_at)<=datetime('now')) AND NOT EXISTS (SELECT 1 FROM intelligence_task_dependencies d JOIN intelligence_tasks p ON p.id=d.depends_on_task_id WHERE d.task_id=t.id AND p.status<>'completed') ORDER BY CASE t.priority WHEN 'high' THEN 0 WHEN 'normal' THEN 1 ELSE 2 END,CASE WHEN t.work_package_id IS NOT NULL AND EXISTS (SELECT 1 FROM intelligence_tasks prior WHERE prior.work_package_id=t.work_package_id AND prior.status='completed') THEN 0 ELSE 1 END,t.created_at ASC LIMIT 1"
           ).first();
           if (!candidate) return json({success:true,task:null});
           const claimToken = toBase64Url(crypto.getRandomValues(new Uint8Array(32)));
           const claimTokenHash = await sha256(claimToken);
           const claimed = await env.DB.prepare(
-            "UPDATE intelligence_tasks SET status='in_progress',attempts=COALESCE(attempts,0)+1,agent_claimed_at=CURRENT_TIMESTAMP,agent_claim_token_hash=?,updated_at=CURRENT_TIMESTAMP WHERE id=? AND status IN ('queued','accepted','retry_wait') AND requires_approval=0 AND assigned_to IN ('mehran_intelligence','shared') AND action_type IN ('repository_quality_check','service_health_report','source_security_audit','inspect_repository','run_repository_tests','propose_code_patch')"
+            "UPDATE intelligence_tasks SET status='in_progress',attempts=COALESCE(attempts,0)+1,agent_claimed_at=CURRENT_TIMESTAMP,agent_claim_token_hash=?,updated_at=CURRENT_TIMESTAMP WHERE id=? AND status IN ('queued','accepted','retry_wait') AND requires_approval=0 AND assigned_to IN ('mehran_intelligence','shared') AND action_type IN ('repository_quality_check','service_health_report','source_security_audit','inspect_repository','run_repository_tests','propose_code_patch') AND (work_package_id IS NULL OR EXISTS (SELECT 1 FROM intelligence_work_packages wp, json_each(CASE WHEN json_valid(wp.scope_json) THEN wp.scope_json ELSE '{}' END, '$.allowedActions') scoped WHERE wp.id=intelligence_tasks.work_package_id AND scoped.value=intelligence_tasks.action_type))"
           ).bind(claimTokenHash,candidate.id).run();
           if (!Number(claimed?.meta?.changes || 0)) return json({success:true,task:null,retry:true});
           const row = await env.DB.prepare("SELECT * FROM intelligence_tasks WHERE id=?").bind(candidate.id).first();
@@ -7993,9 +8076,9 @@ export default {
           const claimToken = typeof body.claimToken === "string" ? body.claimToken : "";
           const claimTokenHash = claimToken ? await sha256(claimToken) : "";
           if (!/^[A-Za-z0-9_-]{43}$/.test(claimToken)) return error("A valid task claim token is required.",401);
-          const before = await env.DB.prepare("SELECT id,work_package_id FROM intelligence_tasks WHERE id=? AND status='in_progress' AND agent_claim_token_hash=? AND agent_claimed_at IS NOT NULL AND datetime(agent_claimed_at)>=datetime('now','-15 minutes') AND requires_approval=0 AND assigned_to IN ('mehran_intelligence','shared') AND action_type IN ('repository_quality_check','service_health_report','source_security_audit','inspect_repository','run_repository_tests','propose_code_patch')").bind(id,claimTokenHash).first();
+          const before = await env.DB.prepare("SELECT id,work_package_id FROM intelligence_tasks WHERE id=? AND status='in_progress' AND agent_claim_token_hash=? AND agent_claimed_at IS NOT NULL AND datetime(agent_claimed_at)>=datetime('now','-15 minutes') AND requires_approval=0 AND assigned_to IN ('mehran_intelligence','shared') AND action_type IN ('repository_quality_check','service_health_report','source_security_audit','inspect_repository','run_repository_tests','propose_code_patch') AND (work_package_id IS NULL OR EXISTS (SELECT 1 FROM intelligence_work_packages wp, json_each(CASE WHEN json_valid(wp.scope_json) THEN wp.scope_json ELSE '{}' END, '$.allowedActions') scoped WHERE wp.id=intelligence_tasks.work_package_id AND scoped.value=intelligence_tasks.action_type))").bind(id,claimTokenHash).first();
           if (!before) return error("Task claim not found, superseded, or expired.",409);
-          const update = await env.DB.prepare("UPDATE intelligence_tasks SET checkpoint_json=?,updated_at=CURRENT_TIMESTAMP WHERE id=? AND status='in_progress' AND agent_claim_token_hash=? AND agent_claimed_at IS NOT NULL AND datetime(agent_claimed_at)>=datetime('now','-15 minutes') AND requires_approval=0 AND assigned_to IN ('mehran_intelligence','shared') AND action_type IN ('repository_quality_check','service_health_report','source_security_audit','inspect_repository','run_repository_tests','propose_code_patch')").bind(checkpointJson,id,claimTokenHash).run();
+          const update = await env.DB.prepare("UPDATE intelligence_tasks SET checkpoint_json=?,updated_at=CURRENT_TIMESTAMP WHERE id=? AND status='in_progress' AND agent_claim_token_hash=? AND agent_claimed_at IS NOT NULL AND datetime(agent_claimed_at)>=datetime('now','-15 minutes') AND requires_approval=0 AND assigned_to IN ('mehran_intelligence','shared') AND action_type IN ('repository_quality_check','service_health_report','source_security_audit','inspect_repository','run_repository_tests','propose_code_patch') AND (work_package_id IS NULL OR EXISTS (SELECT 1 FROM intelligence_work_packages wp, json_each(CASE WHEN json_valid(wp.scope_json) THEN wp.scope_json ELSE '{}' END, '$.allowedActions') scoped WHERE wp.id=intelligence_tasks.work_package_id AND scoped.value=intelligence_tasks.action_type))").bind(checkpointJson,id,claimTokenHash).run();
           if (!Number(update?.meta?.changes || 0)) return error("Task claim expired before checkpoint commit.",409);
           await env.DB.prepare("INSERT INTO intelligence_task_events(id,work_package_id,task_id,event_type,from_status,to_status,actor,details_json) VALUES(?,?,?,'checkpoint_saved','in_progress','in_progress','mehran_intelligence',?)")
             .bind(crypto.randomUUID(),before.work_package_id || null,id,JSON.stringify({checkpointLength:checkpointJson.length})).run();
@@ -8014,7 +8097,7 @@ export default {
           const claimToken = typeof body.claimToken === "string" ? body.claimToken : "";
           const claimTokenHash = claimToken ? await sha256(claimToken) : "";
           if (!/^[A-Za-z0-9_-]{43}$/.test(claimToken)) return error("A valid task claim token is required.",401);
-          const before = await env.DB.prepare("SELECT id,work_package_id,status,attempts,max_attempts,action_type,action_payload,checkpoint_json FROM intelligence_tasks WHERE id=? AND status='in_progress' AND agent_claim_token_hash=? AND agent_claimed_at IS NOT NULL AND datetime(agent_claimed_at)>=datetime('now','-15 minutes') AND requires_approval=0 AND assigned_to IN ('mehran_intelligence','shared') AND action_type IN ('repository_quality_check','service_health_report','source_security_audit','inspect_repository','run_repository_tests','propose_code_patch')").bind(id,claimTokenHash).first();
+          const before = await env.DB.prepare("SELECT id,work_package_id,status,attempts,max_attempts,action_type,action_payload,checkpoint_json FROM intelligence_tasks WHERE id=? AND status='in_progress' AND agent_claim_token_hash=? AND agent_claimed_at IS NOT NULL AND datetime(agent_claimed_at)>=datetime('now','-15 minutes') AND requires_approval=0 AND assigned_to IN ('mehran_intelligence','shared') AND action_type IN ('repository_quality_check','service_health_report','source_security_audit','inspect_repository','run_repository_tests','propose_code_patch') AND (work_package_id IS NULL OR EXISTS (SELECT 1 FROM intelligence_work_packages wp, json_each(CASE WHEN json_valid(wp.scope_json) THEN wp.scope_json ELSE '{}' END, '$.allowedActions') scoped WHERE wp.id=intelligence_tasks.work_package_id AND scoped.value=intelligence_tasks.action_type))").bind(id,claimTokenHash).first();
           if (!before) return error("Task claim not found, superseded, or expired.",409);
           const requestedStatus = body.status || "completed";
           if (requestedStatus === "completed") {
@@ -8049,7 +8132,7 @@ export default {
           const nextAttemptAt = retryable ? new Date(Date.now() + retryDelaySeconds * 1000).toISOString() : null;
           const finalStatus = retryable ? "retry_wait" : requestedStatus;
           const update = await env.DB.prepare(
-            "UPDATE intelligence_tasks SET status=?,result_text=?,agent_claimed_at=NULL,agent_claim_token_hash='',next_attempt_at=?,last_error_code=?,updated_at=CURRENT_TIMESTAMP WHERE id=? AND status='in_progress' AND agent_claim_token_hash=? AND agent_claimed_at IS NOT NULL AND datetime(agent_claimed_at)>=datetime('now','-15 minutes') AND requires_approval=0 AND assigned_to IN ('mehran_intelligence','shared') AND action_type IN ('repository_quality_check','service_health_report','source_security_audit','inspect_repository','run_repository_tests','propose_code_patch')"
+            "UPDATE intelligence_tasks SET status=?,result_text=?,agent_claimed_at=NULL,agent_claim_token_hash='',next_attempt_at=?,last_error_code=?,updated_at=CURRENT_TIMESTAMP WHERE id=? AND status='in_progress' AND agent_claim_token_hash=? AND agent_claimed_at IS NOT NULL AND datetime(agent_claimed_at)>=datetime('now','-15 minutes') AND requires_approval=0 AND assigned_to IN ('mehran_intelligence','shared') AND action_type IN ('repository_quality_check','service_health_report','source_security_audit','inspect_repository','run_repository_tests','propose_code_patch') AND (work_package_id IS NULL OR EXISTS (SELECT 1 FROM intelligence_work_packages wp, json_each(CASE WHEN json_valid(wp.scope_json) THEN wp.scope_json ELSE '{}' END, '$.allowedActions') scoped WHERE wp.id=intelligence_tasks.work_package_id AND scoped.value=intelligence_tasks.action_type))"
           ).bind(finalStatus,resultText,nextAttemptAt,retryable?"retryable_agent_error":requestedStatus==="blocked"?"non_retryable_agent_error":"",id,claimTokenHash).run();
           if (!Number(update?.meta?.changes || 0)) return error("Task claim expired or changed before result commit.",409);
           await env.DB.prepare("INSERT INTO intelligence_task_events(id,work_package_id,task_id,event_type,from_status,to_status,actor,details_json) VALUES(?,?,?,?,?,?, 'mehran_intelligence',?)")

@@ -16,8 +16,10 @@ const capabilityImport = 'import { INTELLIGENCE_ACTION_TYPES, PREAPPROVED_INTELL
 const patchStoreImport = 'import { storePrivatePatchArtifact, verifyPrivatePatchArtifactAtPath, getPrivatePatchArtifactPath, getVerifiedPrivatePatchArtifactAtPath } from "./scripts/intelligence-private-patch-store.mjs";';
 const patchGenerationImport = 'import { generatePatchArtifact } from "./scripts/intelligence-patch-generation-service.mjs";';
 const inboxSchemaImport = 'import { validatePrivateIntelligenceMission } from "./scripts/intelligence-inbox-schema.mjs";';
-if (!workerSource.startsWith(capabilityImport) || !workerSource.includes(patchStoreImport) ||
-    !workerSource.includes(patchGenerationImport) || !workerSource.includes(inboxSchemaImport)) {
+const routinePlannerImport = 'import { buildDeterministicRoutinePlan } from "./scripts/intelligence-routine-planner.mjs";';
+if (!workerSource.includes(capabilityImport) || !workerSource.includes(patchStoreImport) ||
+    !workerSource.includes(patchGenerationImport) || !workerSource.includes(inboxSchemaImport) ||
+    !workerSource.includes(routinePlannerImport)) {
   throw new Error("Worker capability, patch storage, or private inbox schema imports were not found");
 }
 const policySource = await readFile(new URL("./intelligence-patch-policy.mjs", import.meta.url), "utf8");
@@ -26,6 +28,8 @@ const patchStoreSource = await readFile(new URL("./intelligence-private-patch-st
 const patchGenerationPromptSource = await readFile(new URL("./intelligence-patch-generation.mjs", import.meta.url), "utf8");
 const patchGenerationServiceSource = await readFile(new URL("./intelligence-patch-generation-service.mjs", import.meta.url), "utf8");
 const inboxSchemaSource = await readFile(new URL("./intelligence-inbox-schema.mjs", import.meta.url), "utf8");
+const routinePlannerSource = (await readFile(new URL("./intelligence-routine-planner.mjs", import.meta.url), "utf8"))
+  .replace("export function buildDeterministicRoutinePlan", "function buildDeterministicRoutinePlan");
 const moduleUrl = source => "data:text/javascript;base64," + Buffer.from(source).toString("base64");
 const inboxSchemaUrl = moduleUrl(inboxSchemaSource);
 const policyUrl = moduleUrl(policySource);
@@ -71,11 +75,12 @@ export async function generatePatchArtifact(args) {
   return hook(args);
 }
 `);
-const workerRest = workerSource.slice(capabilityImport.length)
+const workerRest = workerSource.replace(capabilityImport, "")
   .replace(patchStoreImport, "")
   .replace(patchGenerationImport, "")
-  .replace(inboxSchemaImport, "");
-const workerSourceForTest = `import { storePrivatePatchArtifact, verifyPrivatePatchArtifactAtPath, getPrivatePatchArtifactPath, getVerifiedPrivatePatchArtifactAtPath } from "${patchStoreTestUrl}";
+  .replace(inboxSchemaImport, "")
+  .replace(routinePlannerImport, "");
+const workerSourceForTest = routinePlannerSource + `\nimport { storePrivatePatchArtifact, verifyPrivatePatchArtifactAtPath, getPrivatePatchArtifactPath, getVerifiedPrivatePatchArtifactAtPath } from "${patchStoreTestUrl}";
 import { generatePatchArtifact } from "${patchGenerationTestUrl}";
 import { validatePrivateIntelligenceMission } from "${inboxSchemaUrl}";
 const INTELLIGENCE_ACTION_TYPES = ${JSON.stringify(INTELLIGENCE_ACTION_TYPES)};
@@ -357,6 +362,29 @@ test("Intelligence task listing repairs only stale approval labels on explicitly
   assert.ok(route.indexOf("UPDATE intelligence_tasks") < route.indexOf("SELECT * FROM intelligence_tasks"));
 });
 
+test("work-package action types must stay within the declared per-package scope", () => {
+  const base = {
+    idempotencyKey: "scope-check-2026-11-25-a1",
+    title: "Scoped capability validation",
+    objective: "Ensure task actions cannot exceed the package scope.",
+    scope: { mode: "read_only", allowedActions: ["service_health_report"] },
+    tasks: [{ taskId: "health", title: "Check health", actionType: "service_health_report" }]
+  };
+  assert.equal(validateIntelligenceWorkPackage(base).ok, true);
+  assert.equal(validateIntelligenceWorkPackage({
+    ...base, tasks: [{ ...base.tasks[0], actionType: "repository_quality_check" }]
+  }).ok, false);
+  assert.equal(validateIntelligenceWorkPackage({
+    ...base, scope: { ...base.scope, allowedActions: ["service_health_report", "service_health_report"] }
+  }).ok, false);
+  assert.equal(validateIntelligenceWorkPackage({
+    ...base, scope: { ...base.scope, allowedActions: ["shell_command"] }
+  }).ok, false);
+  assert.equal(validateIntelligenceWorkPackage({
+    ...base, scope: { ...base.scope, allowedActions: "service_health_report" }
+  }).ok, false);
+});
+
 test("proposal-only work-package tasks require a bounded objective", () => {
   const base = {
     idempotencyKey: "patch-proposal-queue-001",
@@ -449,8 +477,17 @@ test("Agent API stale-claim recovery includes package-bound allowlisted tasks", 
   assert.equal((route.match(/UPDATE intelligence_tasks SET status='accepted'/g) || []).length, 1);
   assert.match(route, /datetime\(agent_claimed_at\) < datetime\('now','-15 minutes'\)/);
   assert.match(route, /action_type IN \('repository_quality_check','service_health_report','source_security_audit','inspect_repository','run_repository_tests','propose_code_patch'\)/);
-  assert.doesNotMatch(route, /work_package_id IS NULL/,
-    "stale recovery must include tasks claimed from durable work packages");
+  assert.match(route, /work_package_id IS NULL OR EXISTS \(SELECT 1 FROM intelligence_work_packages wp, json_each\(CASE WHEN json_valid\(wp\.scope_json\) THEN wp\.scope_json ELSE '\{\}' END, '\$\.allowedActions'\) scoped WHERE wp\.id=t\.work_package_id AND scoped\.value=t\.action_type\)/,
+    "claim selection must revalidate each package task against its persisted allowedActions");
+  assert.match(route, /WHERE id=\? AND status IN \('queued','accepted','retry_wait'\).*work_package_id IS NULL OR EXISTS/s,
+    "the atomic claim update must repeat the package scope guard");
+  const checkpointStart = workerSource.indexOf("const checkpointMatch", start);
+  const resultStart = workerSource.indexOf("const agentResultMatch", checkpointStart);
+  const resultEnd = workerSource.indexOf('return error("Not found",404);', resultStart);
+  assert.match(workerSource.slice(checkpointStart, resultStart), /json_each\(CASE WHEN json_valid\(wp\.scope_json\) THEN wp\.scope_json ELSE '\{\}' END, '\$\.allowedActions'\)/,
+    "checkpoint writes must reject tasks outside their package scope");
+  assert.match(workerSource.slice(resultStart, resultEnd), /json_each\(CASE WHEN json_valid\(wp\.scope_json\) THEN wp\.scope_json ELSE '\{\}' END, '\$\.allowedActions'\)/,
+    "result commits must reject tasks outside their package scope");
 });
 
 test("owner task hub validates proposal-only payloads before queueing", () => {
@@ -2605,6 +2642,9 @@ test("MEHRAN INTELLIGENCE private work packages are idempotent, bounded, depende
     [route, "Idempotency key was already used with a different work package payload."],
     [route, "new Set(dependencies).size !== dependencies.length"],
     [route, "scopeJson.length > 4000"],
+    [route, "const packageAllowedActions = scope.allowedActions"],
+    [route, "tasks.some(task => !packageAllowedActions.includes(cleanText(task?.actionType,80)))"],
+    [route, "Work package scope.allowedActions must explicitly authorize every task"],
     [workerSource, "request_hash TEXT NOT NULL DEFAULT ''"],
     [workerSource, "idempotency_key TEXT NOT NULL UNIQUE"],
     [route, "tasks.length > 20"],
@@ -2650,6 +2690,14 @@ test("MEHRAN INTELLIGENCE owner notification outbox is authenticated and lease-b
   assert.ok(route.includes('const ownerOrchestrationRoute ='), "owner orchestration routes must be explicitly separated");
   assert.ok(route.includes('path === "/agent/v1/missions/plan" && method === "POST"'), "mission planning must require the separate owner orchestration identity");
   assert.ok(route.includes('path === "/agent/v1/work-packages" && method === "POST"'));
+  assert.ok(route.includes('path === "/agent/v1/work-packages/scope-diagnostics" && method === "GET"'), "scope diagnostics must be an explicit owner-only GET route");
+  assert.ok(route.includes('packages: {') && route.includes('aggregateOnly: true') && route.includes('reviewRequiredCount'), "scope diagnostics must return bounded aggregate counts only");
+  assert.ok(route.includes("json_each(CASE WHEN json_valid(scope_json) THEN scope_json ELSE '{}' END,'$.allowedActions')"), "scope diagnostics must safely classify malformed or missing legacy scope JSON");
+  assert.ok(route.includes("it.work_package_id=intelligence_work_packages.id") && route.includes("authorized.value=it.action_type"), "scope diagnostics must verify every package task against its declared action authorization");
+  assert.ok(route.includes("EXISTS (SELECT 1 FROM intelligence_tasks it WHERE it.work_package_id=intelligence_work_packages.id)"), "empty legacy packages must be flagged for review");
+  assert.ok(route.includes("GROUP BY status ORDER BY status LIMIT 20"), "scope diagnostics must bound grouped output");
+  assert.ok(route.includes("const ownerOrchestrationRoute =") && route.includes('path === "/agent/v1/work-packages/scope-diagnostics" && method === "GET"'), "scope diagnostics must use owner orchestration authentication");
+
   assert.ok(route.includes('path.startsWith("/agent/v1/work-packages/") && method === "GET"'));
   assert.ok(route.includes('path.startsWith("/agent/v1/notifications/") && method === "POST"'), "notification delivery must require the separate owner orchestration identity");
   assert.ok(route.includes('status IN (\'pending\',\'retry_wait\')'));
@@ -2749,12 +2797,33 @@ test("INTELLIGENCE package status transitions use compare-and-set and enqueue at
 });
 
 
+test("routine read-only missions are classified before any AI memory or inference work", () => {
+  const helperStart = routinePlannerSource.indexOf("function buildDeterministicRoutinePlan");
+  const helperEnd = routinePlannerSource.length;
+  const plannerStart = workerSource.indexOf("async function planIntelligenceMission");
+  const plannerEnd = workerSource.indexOf("export function verifyIntelligenceReport", plannerStart);
+  assert.ok(helperStart >= 0 && helperEnd > helperStart, "deterministic classifier must exist");
+  assert.ok(plannerStart >= 0 && plannerEnd > plannerStart, "mission planner must exist");
+  const classifier = routinePlannerSource.slice(helperStart, helperEnd);
+  const planner = workerSource.slice(plannerStart, plannerEnd);
+  assert.match(classifier, /service_health_report/);
+  assert.match(classifier, /repository_quality_check/);
+  assert.match(classifier, /source_security_audit/);
+  assert.match(classifier, /بررسی سلامت/);
+  assert.match(classifier, /بررسی امنیت/);
+  assert.match(planner, /const deterministicPlan = buildDeterministicRoutinePlan\(mission\)/);
+  assert.match(planner, /return createDeterministicRoutinePackage\(env, mission, idempotencyKey, input\?\.ownerUid, deterministicPlan\)/);
+  assert.ok(planner.indexOf("buildDeterministicRoutinePlan(mission)") < planner.indexOf("await ensureIntelligenceMemoryTables(env)"), "routine tasks must bypass memory reads and AI planning");
+  assert.match(workerSource, /aiInferenceUsed: false/);
+  assert.match(workerSource, /deterministic_rules_v1/);
+});
+
 test("MEHRAN INTELLIGENCE mission planner uses Workers AI JSON Mode and accepts structured object responses", () => {
   const start = workerSource.indexOf("async function planIntelligenceMission");
   const end = workerSource.indexOf("export function verifyIntelligenceReport", start);
   assert.ok(start >= 0 && end > start, "mission planner must exist");
   const planner = workerSource.slice(start, end);
-  assert.match(planner, /jsonMode: true, temperature: 0, maxTokens: 1600/);
+  assert.match(planner, /jsonMode: true, temperature: 0, maxTokens: 1000/);
   assert.match(planner, /runIntelligenceAI\(env/);
   assert.match(planner, /extractIntelligenceJsonObject\(modelResponse\)/);
   assert.doesNotMatch(planner, /json_schema:/);
@@ -3119,11 +3188,20 @@ test("Agent task claim tokens fence checkpoint and result commits to the current
   assert.match(schedulerRecovery, /SET status=\?,agent_claimed_at=NULL,agent_claim_token_hash=''/);
   assert.match(schedulerRecovery, /WHERE id=\? AND status='in_progress' AND agent_claimed_at IS NOT NULL AND datetime\(agent_claimed_at\)<datetime\('now','-15 minutes'\)/,
     "scheduler recovery must re-check stale ownership atomically before revoking a claim");
-  assert.match(claimRoute, /agent_claim_token_hash='',last_error_code='claim_expired_max_attempts'/);
-  assert.match(claimRoute, /agent_claim_token_hash='',last_error_code='claim_expired_retry'/);
+  assert.ok(schedulerRecovery.includes("json_each(CASE WHEN json_valid(wp.scope_json) THEN wp.scope_json ELSE '{}' END, '$.allowedActions')"),
+    "scheduled recovery must exclude package tasks without explicit action authorization");
   const schedulerClaimStart = workerSource.indexOf('const claimed = await env.DB.prepare(', schedulerRecoveryEnd);
   const schedulerClaimEnd = workerSource.indexOf('if (!Number(claimed?.meta?.changes || 0)) continue;', schedulerClaimStart);
-  assert.match(workerSource.slice(schedulerClaimStart, schedulerClaimEnd), /agent_claim_token_hash=''/);
+  const schedulerClaim = workerSource.slice(schedulerClaimStart, schedulerClaimEnd);
+  assert.ok(schedulerClaim.includes("json_each(CASE WHEN json_valid(wp.scope_json) THEN wp.scope_json ELSE '{}' END, '$.allowedActions')"),
+    "scheduled claim must atomically enforce the package action scope");
+  assert.ok(claimRoute.includes("work_package_id IS NULL OR EXISTS (SELECT 1 FROM intelligence_work_packages wp, json_each(CASE WHEN json_valid(wp.scope_json) THEN wp.scope_json ELSE '{}' END, '$.allowedActions')"),
+    "agent claim and stale-retry recovery must reject package tasks without explicit action authorization");
+  assert.ok(workerSource.includes("json_each(CASE WHEN json_valid(wp.scope_json) THEN wp.scope_json ELSE '{}' END, '$.allowedActions')"),
+    "every package-bound runner guard must safely handle malformed legacy JSON");
+  assert.match(claimRoute, /agent_claim_token_hash='',last_error_code='claim_expired_max_attempts'/);
+  assert.match(claimRoute, /agent_claim_token_hash='',last_error_code='claim_expired_retry'/);
+  assert.match(schedulerClaim, /agent_claim_token_hash=''/);
   assert.match(runnerSource, /claimToken: task\.claimToken/);
   const runnerLogLines = runnerSource.split("\n").filter(line => /console\.(?:log|error|warn)\(/.test(line));
   assert.ok(runnerLogLines.length > 0, "runner should retain bounded operational diagnostics");
@@ -3619,4 +3697,45 @@ test("Intelligence OpenRouter default uses dynamic free-only routing and rejects
   assert.match(workerSource, /model !== "openrouter\/free" && !model\.endsWith\(":free"\)/);
   assert.match(workerSource, /non_free_model_blocked/);
   assert.match(workerSource, /MEHRAN_AI_FREE_PROVIDERS/);
+});
+
+
+test("deterministic routine planner returns only fixed read-only actions for explicit intents", async () => {
+  const { buildDeterministicRoutinePlan } = await import("./intelligence-routine-planner.mjs");
+  const health = buildDeterministicRoutinePlan("بررسی سلامت سرویس و D1");
+  assert.deepEqual(health.tasks.map(task => task.actionType), ["service_health_report"]);
+  const security = buildDeterministicRoutinePlan("لطفاً ممیزی امنیتی سورس را انجام بده");
+  assert.deepEqual(security.tasks.map(task => task.actionType), ["source_security_audit"]);
+  const combined = buildDeterministicRoutinePlan("worker health, repository status, and security audit");
+  assert.deepEqual(combined.tasks.map(task => task.actionType), [
+    "service_health_report", "repository_quality_check", "source_security_audit"
+  ]);
+  assert.equal(buildDeterministicRoutinePlan("Please improve the whole project and make it smarter"), null);
+  assert.equal(buildDeterministicRoutinePlan("check the project"), null);
+  for (const task of combined.tasks) {
+    assert.deepEqual(task.dependsOn, []);
+    assert.equal(task.requiresApproval, undefined);
+    assert.ok(["service_health_report", "repository_quality_check", "source_security_audit"].includes(task.actionType));
+  }
+});
+
+
+test("deterministic routine planner refuses to downgrade change requests into read-only checks", async () => {
+  const { buildDeterministicRoutinePlan } = await import("./intelligence-routine-planner.mjs");
+  const missions = [
+    "Check repository status and fix the failing workflow",
+    "Run a security check and improve the security controls",
+    "بررسی سلامت سرویس و اصلاح مشکل دیتابیس",
+    "ممیزی امنیتی سورس را انجام بده و آسیب‌پذیری‌ها را برطرف کن",
+    "Update the repository health dashboard",
+    "پیاده‌سازی بررسی سلامت خودکار",
+    "Run a security audit and remediate the vulnerabilities",
+    "Check repository health and resolve the issue",
+    "ممیزی امنیتی را انجام بده و سیستم را ایمن‌سازی کن",
+    "بررسی سلامت سرویس و مشکل را حل کن",
+    "به‌روزرسانی داشبورد سلامت مخزن"
+  ];
+  for (const mission of missions) {
+    assert.equal(buildDeterministicRoutinePlan(mission), null, `change intent must not be downgraded: ${mission}`);
+  }
 });
