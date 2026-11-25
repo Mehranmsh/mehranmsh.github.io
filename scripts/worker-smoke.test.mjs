@@ -16,10 +16,11 @@ const capabilityImport = 'import { INTELLIGENCE_ACTION_TYPES, PREAPPROVED_INTELL
 const patchStoreImport = 'import { storePrivatePatchArtifact, verifyPrivatePatchArtifactAtPath, getPrivatePatchArtifactPath, getVerifiedPrivatePatchArtifactAtPath } from "./scripts/intelligence-private-patch-store.mjs";';
 const patchGenerationImport = 'import { extractPatchModelText, generatePatchArtifact } from "./scripts/intelligence-patch-generation-service.mjs";';
 const inboxSchemaImport = 'import { validatePrivateIntelligenceMission } from "./scripts/intelligence-inbox-schema.mjs";';
+const moduleRegistryImport = 'import { listRegisteredModules, validateModuleRegistry, getModuleIntegrationPlan } from "./scripts/intelligence-module-registry.mjs";';
 const routinePlannerImport = 'import { buildDeterministicRoutinePlan } from "./scripts/intelligence-routine-planner.mjs";';
 if (!workerSource.includes(capabilityImport) || !workerSource.includes(patchStoreImport) ||
     !workerSource.includes(patchGenerationImport) || !workerSource.includes(inboxSchemaImport) ||
-    !workerSource.includes(routinePlannerImport)) {
+    !workerSource.includes(routinePlannerImport) || !workerSource.includes(moduleRegistryImport)) {
   throw new Error("Worker capability, patch storage, or private inbox schema imports were not found");
 }
 const policySource = await readFile(new URL("./intelligence-patch-policy.mjs", import.meta.url), "utf8");
@@ -28,10 +29,12 @@ const patchStoreSource = await readFile(new URL("./intelligence-private-patch-st
 const patchGenerationPromptSource = await readFile(new URL("./intelligence-patch-generation.mjs", import.meta.url), "utf8");
 const patchGenerationServiceSource = await readFile(new URL("./intelligence-patch-generation-service.mjs", import.meta.url), "utf8");
 const inboxSchemaSource = await readFile(new URL("./intelligence-inbox-schema.mjs", import.meta.url), "utf8");
+const moduleRegistrySource = await readFile(new URL("./intelligence-module-registry.mjs", import.meta.url), "utf8");
 const routinePlannerSource = (await readFile(new URL("./intelligence-routine-planner.mjs", import.meta.url), "utf8"))
   .replace("export function buildDeterministicRoutinePlan", "function buildDeterministicRoutinePlan");
 const moduleUrl = source => "data:text/javascript;base64," + Buffer.from(source).toString("base64");
 const inboxSchemaUrl = moduleUrl(inboxSchemaSource);
+const moduleRegistryUrl = moduleUrl(moduleRegistrySource);
 const policyUrl = moduleUrl(policySource);
 const artifactUrl = moduleUrl(artifactSource.replace(
   'from "./intelligence-patch-policy.mjs"',
@@ -79,10 +82,12 @@ const workerRest = workerSource.replace(capabilityImport, "")
   .replace(patchStoreImport, "")
   .replace(patchGenerationImport, "")
   .replace(inboxSchemaImport, "")
-  .replace(routinePlannerImport, "");
+  .replace(routinePlannerImport, "")
+  .replace(moduleRegistryImport, "");
 const workerSourceForTest = routinePlannerSource + `\nimport { storePrivatePatchArtifact, verifyPrivatePatchArtifactAtPath, getPrivatePatchArtifactPath, getVerifiedPrivatePatchArtifactAtPath } from "${patchStoreTestUrl}";
 import { generatePatchArtifact } from "${patchGenerationTestUrl}";
 import { validatePrivateIntelligenceMission } from "${inboxSchemaUrl}";
+import { listRegisteredModules, validateModuleRegistry, getModuleIntegrationPlan } from "${moduleRegistryUrl}";
 const INTELLIGENCE_ACTION_TYPES = ${JSON.stringify(INTELLIGENCE_ACTION_TYPES)};
 const PREAPPROVED_INTELLIGENCE_ACTION_TYPES = ${JSON.stringify(PREAPPROVED_INTELLIGENCE_ACTION_TYPES)};
 ` + workerRest;
@@ -214,6 +219,31 @@ test("health endpoint exposes only bounded private inbox diagnostics", async () 
     lastErrorCode: null
   });
   assert.equal(JSON.stringify(payload.privateInbox).includes("mission_id"), false);
+});
+
+test("MEHRAN module registry endpoint is owner-only and never claims live health", () => {
+  assert.match(workerSource, /path === "\/agent\/v1\/modules\/registry" && method === "GET"/);
+  assert.match(workerSource, /const ownerOrchestrationRoute = .*modules\/registry/s);
+  const start = workerSource.indexOf('if (path === "/agent/v1/modules/registry" && method === "GET")');
+  const end = workerSource.indexOf('if (path === "/agent/v1/ai-diagnostics/archive"', start);
+  assert.ok(start >= 0 && end > start, "owner-only module registry route must exist");
+  const route = workerSource.slice(start, end);
+  assert.match(route, /listRegisteredModules/);
+  assert.match(route, /validateModuleRegistry/);
+  assert.match(route, /integrationState: "registry_declared"/);
+  assert.match(route, /liveHealth: "not_checked"/);
+  assert.match(route, /adaptersWired: false/);
+  assert.match(route, /does not probe module services or claim live health/);
+});
+
+test("module registry route does not accept the ordinary agent token", async () => {
+  const response = await request("/agent/v1/modules/registry", {}, {
+    DB: mockDb(),
+    MEHRAN_AGENT_TOKEN: "a".repeat(48)
+  });
+  assert.equal(response.status, 503);
+  const payload = await response.json();
+  assert.match(payload.error, /Owner orchestration identity is not configured/);
 });
 
 test("private inbox uses the shared schema validator and fair round-robin scanning", () => {
