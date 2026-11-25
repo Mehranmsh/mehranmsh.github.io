@@ -16,7 +16,7 @@ test("compares task additions, removals, field changes and ordering", () => {
     revision(1, [task("a"), task("b"), task("c")]),
     revision(2, [task("c"), task("b", { priority: "high" }), task("d")])
   ], [], options);
-  assert.deepEqual(result.comparison.added.map(x => x.task_id), ["c"]);
+  assert.deepEqual(result.comparison.added.map(x => x.task_id), ["d"]);
   assert.deepEqual(result.comparison.removed.map(x => x.task_id), ["a"]);
   assert.equal(result.comparison.changed[0].task_id, "b");
   assert.equal(result.comparison.orderChanged, true);
