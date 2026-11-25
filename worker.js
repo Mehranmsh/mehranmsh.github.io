@@ -3,7 +3,6 @@ import { INTELLIGENCE_ACTION_TYPES, PREAPPROVED_INTELLIGENCE_ACTION_TYPES } from
 import { storePrivatePatchArtifact, verifyPrivatePatchArtifactAtPath, getPrivatePatchArtifactPath, getVerifiedPrivatePatchArtifactAtPath } from "./scripts/intelligence-private-patch-store.mjs";
 import { generatePatchArtifact } from "./scripts/intelligence-patch-generation-service.mjs";
 import { validatePrivateIntelligenceMission } from "./scripts/intelligence-inbox-schema.mjs";
-import { isIntelligenceReportQuiescent } from "./scripts/intelligence-report-finalization.mjs";
 
 function nextWorkersAIDailyResetAt(attemptedAt) {
   const timestamp = typeof attemptedAt === "number" ? attemptedAt : Date.parse(attemptedAt);
@@ -7187,6 +7186,16 @@ async function ingestGitHubIntelligenceInbox(env) {
     clearTimeout(timeout);
   }
   return imported;
+}
+
+function isIntelligenceReportQuiescent(counts) {
+  if (!counts || typeof counts !== "object" || Array.isArray(counts)) return false;
+  const fields = ["inProgress", "retryWaiting", "awaitingApproval", "queued", "blockedDependencies"];
+  if (fields.some(key => !Number.isSafeInteger(counts[key]) || counts[key] < 0)) return false;
+  return counts.inProgress === 0 &&
+    counts.retryWaiting === 0 &&
+    counts.awaitingApproval === 0 &&
+    counts.queued <= counts.blockedDependencies;
 }
 
 export default {
