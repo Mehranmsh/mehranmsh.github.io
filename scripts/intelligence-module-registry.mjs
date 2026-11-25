@@ -180,21 +180,25 @@ export function buildModuleHealthReport(observations = {}) {
     const dependencies = module.dependencies.map(id => {
       const dependency = MODULES.find(item => item.id === id);
       const dependencyObservation = observations[id];
-      return {
-        id,
-        available: dependency?.status === "active" &&
-          (dependencyObservation === undefined || dependencyObservation?.status === "healthy")
-      };
+      const dependencyStatus = dependency?.status !== "active" ? "unavailable"
+        : dependencyObservation?.status === "healthy" ? "healthy"
+        : dependencyObservation?.status === "unhealthy" ? "unhealthy"
+        : "not_checked";
+      return { id, status: dependencyStatus };
     });
+    const failedDependencies = dependencies.filter(item => item.status === "unhealthy" || item.status === "unavailable");
+    const uncheckedDependencies = dependencies.filter(item => item.status === "not_checked");
     const status = module.status !== "active" ? module.status
       : !integrity.ok ? "blocked"
-      : dependencies.some(item => !item.available) ? "degraded"
+      : failedDependencies.length ? "degraded"
+      : uncheckedDependencies.length ? "not_checked"
       : observed?.status === "unhealthy" ? "unhealthy"
       : observed?.status === "healthy" ? "healthy"
       : "not_checked";
     return {
       id: module.id, name: module.name, status,
-      dependencyFailures: dependencies.filter(item => !item.available).map(item => item.id),
+      dependencyFailures: failedDependencies.map(item => item.id),
+      dependenciesNotChecked: uncheckedDependencies.map(item => item.id),
       checkedAt: typeof observed?.checkedAt === "string" ? observed.checkedAt.slice(0, 32) : null
     };
   });
