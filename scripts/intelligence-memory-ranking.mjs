@@ -38,9 +38,9 @@ function queryTokens(value) {
   return new Set(String(value || "")
     .toLocaleLowerCase()
     .normalize("NFKC")
-    .replace(/[\\u064a\\u0649]/g, "ی")
-    .replace(/[\\u0643]/g, "ک")
-    .split(/[^\\p{L}\\p{N}]+/u)
+    .replace(/[\u064a\u0649]/g, "ی")
+    .replace(/[\u0643]/g, "ک")
+    .split(/[^\p{L}\p{N}]+/u)
     .filter(token => token.length > 1)
     .slice(0, 32));
 }
