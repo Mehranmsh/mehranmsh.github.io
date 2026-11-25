@@ -9652,7 +9652,7 @@ export default {
             "• دسترسی Worker به پروژه‌های محلی: ندارد",
             "• انتقال بین دستگاه‌ها: فقط با درخواست و کد یک‌بارمصرف کاربر",
             "• بررسی زنده سرویس: انجام نشده"
-          ].join("\\n");
+          ].join("\n");
           await appendIntelligenceChatTurn(env,admin.uid,sessionKey,"assistant",reply);
           return json({success:true,reply,studio,usage:{aiRequests:0,reason:"deterministic_studio_integration_status"}});
         }
