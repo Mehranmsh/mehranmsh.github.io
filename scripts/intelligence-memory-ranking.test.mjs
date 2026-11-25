@@ -40,3 +40,13 @@ test("progress is normalized as episodic memory and context is bounded", () => {
   assert.equal(selected[0].memory_type, "episodic");
   assert.ok(selected[0].content.length <= 1200);
 });
+
+test("personal credentials and financial details never enter model memory context", () => {
+  const memories = [
+    record("wallet-note", "decision", "My wallet balance is private"),
+    record("credential-note", "decision", "The API key is confidential"),
+    record("safe-pi-goal", "goal", "Build the Pi Network ecosystem applications")
+  ];
+  const selected = selectMemoryContext(memories, { ownerUid: "owner-1", now });
+  assert.deepEqual(selected.map(item => item.memory_key), ["safe-pi-goal"]);
+});
