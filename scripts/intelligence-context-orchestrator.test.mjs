@@ -80,7 +80,7 @@ test("fails closed without owner scope and stays deterministic, bounded and read
   const records = [base("b"), base("a")], before = structuredClone(records);
   const missingOwner = buildIntelligenceContextSnapshot(records);
   assert.equal(missingOwner.diagnostics.ownerScoped, false);
-  const options = { ownerUid: "owner-a", maxMemoryItems: 1, maxGraphNodes: 1, maxTasks: 1 };
+  const options = { ownerUid: "owner-a", now: "2026-11-26T00:00:00.000Z", maxMemoryItems: 1, maxGraphNodes: 1, maxTasks: 1 };
   const first = buildIntelligenceContextSnapshot(records, options);
   const second = buildIntelligenceContextSnapshot(records, options);
   assert.deepEqual(first, second);
