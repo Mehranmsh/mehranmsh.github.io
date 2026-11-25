@@ -8,7 +8,7 @@ function sqlAfter(marker) {
   const i = source.indexOf(marker);
   assert.notEqual(i, -1, "Missing Worker SQL: " + marker);
   const tick = String.fromCharCode(96);
-  const a = source.indexOf(tick, i), b = source.indexOf(tick, a + 1);
+  const a = source.lastIndexOf(tick, i), b = source.indexOf(tick, i);
   assert.ok(a >= 0 && b > a, "Missing SQL template: " + marker);
   return source.slice(a + 1, b);
 }
