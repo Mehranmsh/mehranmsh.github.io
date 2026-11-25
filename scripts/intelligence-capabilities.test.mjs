@@ -72,6 +72,8 @@ test("repository inventory is deterministic and never depends on Workers AI", ()
   assert.match(inspect, /Deterministic repository inventory completed/);
   assert.ok(inspect.includes('"scripts/intelligence-module-registry.mjs"'));
   assert.ok(inspect.includes('"scripts/intelligence-module-registry.test.mjs"'));
+  assert.ok(inspect.includes('"scripts/intelligence-module-adapter.mjs"'));
+  assert.ok(inspect.includes('"scripts/intelligence-module-adapter.test.mjs"'));
   assert.doesNotMatch(inspect, /repository\/analyze|runIntelligenceAI|MEHRAN_ORCHESTRATOR_TOKEN/);
   assert.match(workerSource, /inspect_repository_inventory_only/);
   assert.match(workerSource, /inspect_repository_schema/);
