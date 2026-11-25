@@ -100,14 +100,13 @@ export function buildIntelligenceGoalLifecycle(records, proposedTasks, progressE
     owner_confirmed: true
   }));
   const stateByTask = new Map(taskStates.map(item => [item.task_id, item.state]));
-  const goalTasks = new Map();
+  const plans = [];
   for (const goal of goals) {
     const tasks = acceptedTaskProposals.filter(task => task.goal_id === goal.goal_id).map(task => ({
       ...task, task_state: stateByTask.get(task.task_id) || task.task_state
     }));
     if (!tasks.length) continue;
     const plan = buildIntelligenceExecutionPlan(tasks, { ownerUid, maxTasks });
-    goalTasks.set(goal.goal_id, tasks);
     const failedOrBlocked = tasks.filter(task => ["failed", "blocked"].includes(task.task_state));
     const replanningSuggestions = failedOrBlocked.map(task => ({
       goal_id: goal.goal_id, task_id: task.task_id,
