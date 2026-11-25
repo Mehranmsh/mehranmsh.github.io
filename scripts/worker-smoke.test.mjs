@@ -343,7 +343,7 @@ test("owner-confirmed feedback is stored and converted into bounded review propo
   const preferences=workerSource.indexOf('if (path === "/intelligence/preferences" && method === "GET")');
   assert.ok(feedback>=0&&review>feedback&&preferences>review);
   const routes=workerSource.slice(feedback,preferences);
-  assert.equal((routes.match(/verifyAdmin\\(request, env\\)/g)||[]).length,2);
+  assert.equal((routes.match(/verifyAdmin\(request, env\)/g)||[]).length,2);
   assert.match(routes,/body\.explicitConfirmation !== true/);
   assert.match(routes,/feedback_confirmed|explicit_confirmation=1/);
   assert.match(routes,/minimumObservations|observations < 2/);
