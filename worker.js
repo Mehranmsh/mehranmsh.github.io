@@ -9866,16 +9866,18 @@ export default {
         if (reason.length < 5) return error("A clear change reason of at least 5 characters is required.", 400);
         await ensureIntelligencePlanHistoryTables(env);
         const taskRows = await env.DB.prepare(
-          "SELECT t.id,t.title,t.priority,t.status FROM intelligence_tasks t LEFT JOIN intelligence_work_packages p ON p.id=t.work_package_id WHERE t.created_by=? OR p.owner_uid=? ORDER BY t.created_at ASC,t.id ASC LIMIT 100"
+          "SELECT t.id,t.title,t.priority,t.status FROM intelligence_tasks t LEFT JOIN intelligence_work_packages p ON p.id=t.work_package_id WHERE p.owner_uid=? OR (t.work_package_id IS NULL AND t.created_by=?) ORDER BY t.created_at ASC,t.id ASC LIMIT 100"
         ).bind(admin.uid,admin.uid).all();
         const rows = taskRows.results || [];
         const taskIds = rows.map(row => String(row.id));
+        const ownedTaskIds = new Set(taskIds);
         const dependencyRows = taskIds.length
           ? await env.DB.prepare("SELECT task_id,depends_on_task_id FROM intelligence_task_dependencies WHERE task_id IN ("+taskIds.map(()=>"?").join(",")+")")
               .bind(...taskIds).all()
           : { results: [] };
         const dependencyMap = new Map();
         for (const dependency of dependencyRows.results || []) {
+          if (!ownedTaskIds.has(String(dependency.depends_on_task_id))) continue;
           if (!dependencyMap.has(dependency.task_id)) dependencyMap.set(dependency.task_id, []);
           dependencyMap.get(dependency.task_id).push(String(dependency.depends_on_task_id));
         }
