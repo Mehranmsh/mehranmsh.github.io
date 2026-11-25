@@ -2782,6 +2782,14 @@ test("MEHRAN INTELLIGENCE owner notification outbox is authenticated and lease-b
   assert.ok(route.includes('path === "/agent/v1/notifications/next" && method === "GET"'));
 });
 
+test("MEHRAN INTELLIGENCE propagates terminal dependency failures and prevents zombie queued tasks", () => {
+  assert.match(workerSource, /async function blockIntelligenceTasksWithTerminalDependencies\(env, packageId\)/);
+  assert.match(workerSource, /parent\.status IN \('blocked','failed','cancelled'\)/);
+  assert.match(workerSource, /last_error_code='dependency_terminal'/);
+  assert.match(workerSource, /event_type,from_status,to_status,actor,details_json\) SELECT \?,\?,\?, 'dependency_blocked'/);
+  assert.match(workerSource, /await blockIntelligenceTasksWithTerminalDependencies\(env, packageId\)/);
+});
+
 test("MEHRAN INTELLIGENCE scheduler executes only dependency-ready package tasks with bounded retries", () => {
   const start = workerSource.indexOf("async scheduled(controller, env, ctx)");
   const end = workerSource.indexOf("async fetch(request, env)", start);
