@@ -9,13 +9,14 @@ const confirmed = { relation_confirmed: true, relation_confirmed_by: "owner-a" }
 
 test("builds deterministic owner-confirmed project and dependency links", () => {
   const records = [
-    record("project", { related_keys: ["goal"], ...confirmed }),
+    record("project", { related_keys: ["goal"], depends_on_keys: ["goal"], ...confirmed }),
     record("goal", { depends_on_keys: ["project"], ...confirmed })
   ];
   const graph = buildIntelligenceKnowledgeGraph(records, { ownerUid: "owner-a" });
   assert.deepEqual(graph.nodes.map(node => node.id), ["goal", "project"]);
   assert.deepEqual(graph.edges, [
     { from: "goal", to: "project", relation: "depends_on" },
+    { from: "project", to: "goal", relation: "depends_on" },
     { from: "project", to: "goal", relation: "related" }
   ]);
   assert.equal(graph.diagnostics.dependencyCycles.length, 1);
@@ -23,9 +24,9 @@ test("builds deterministic owner-confirmed project and dependency links", () => 
 
 test("never links across owners or accepts unconfirmed model suggestions", () => {
   const graph = buildIntelligenceKnowledgeGraph([
-    record("local", { related_keys: ["foreign", "suggested"], ...confirmed }),
+    record("local", { related_keys: ["foreign"], ...confirmed }),
     record("foreign", { owner_uid: "owner-b" }),
-    record("suggested")
+    record("suggested", { related_keys: ["local"] })
   ], { ownerUid: "owner-a" });
   assert.deepEqual(graph.nodes.map(node => node.id), ["local", "suggested"]);
   assert.deepEqual(graph.edges, []);
