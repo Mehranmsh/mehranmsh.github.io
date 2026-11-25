@@ -71,7 +71,7 @@ export function selectMemoryContext(records, options = {}) {
     const rawImportance = Number(record.importance);
     const importance = finiteUnit(Number.isFinite(rawImportance) && rawImportance > 1 ? rawImportance / 5 : rawImportance);
     const confidence = finiteUnit(record.confidence, 0.5);
-    const trust = finiteUnit(record.source_trust, 0.5);
+    const trust = record.source === "project_baseline" || record.source === "owner_confirmed"\n      ? 1 : finiteUnit(record.source_trust, 0.5);
     const recency = recencyScore(updatedAt, now);
     const score = (importance * 0.35) + (confidence * 0.25) + (trust * 0.20) + (recency * 0.20);
 
