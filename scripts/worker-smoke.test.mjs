@@ -348,7 +348,7 @@ test("owner-confirmed feedback is stored and converted into bounded review propo
   assert.match(routes,/feedback_confirmed|explicit_confirmation=1/);
   assert.match(routes,/buildIntelligenceFeedbackReview\(memoryRecords,feedbackRecords/);
   assert.match(routes,/minimumObservations:2/);
-  assert.match(routes,/feedback_confirmed: Number\(row\.explicit_confirmation\)===1/);
+  assert.match(routes,/feedback_confirmed:Number\(row\.explicit_confirmation\)===1/);
   assert.match(routes,/0\.75/);
   assert.match(routes,/ownerApprovalRequired:true/);
   assert.match(routes,/processed_at IS NULL/);
