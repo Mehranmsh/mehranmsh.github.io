@@ -53,8 +53,39 @@ export function buildApprovedPreferenceProfile(ledger, options={}) {
  const rejectedDecisions=decisions.filter(item=>item.decision==="rejected").map(item=>({
   target_key:item.target_key,recommendation:item.recommendation,decision_id:item.decision_id,decided_at:item.decided_at
  }));
- return {approvedPreferences,rejectedDecisions,diagnostics:{ownerScoped:true,inspectedDecisions:unique.length,
+ return {ownerUid:owner,approvedPreferences,rejectedDecisions,diagnostics:{ownerScoped:true,inspectedDecisions:unique.length,
   omittedDecisions:Math.max(0,eligible.length-unique.length),advisoryOnly:true,preferencesChanged:false,applied:false}};
+}
+
+/**
+ * Apply approved feedback as a temporary criteria-weight overlay only when the
+ * owner explicitly opts in for this evaluation. Source criteria stay untouched.
+ */
+export function buildDecisionCriteriaWithApprovedPreferences(criteria, profile, options={}) {
+ const owner=clean(options.ownerUid);
+ const empty={criteria:Array.isArray(criteria)?criteria.map(item=>item&&typeof item==="object"?{...item}:item):[],
+  diagnostics:{ownerOptInRequired:true,preferencesApplied:false,advisoryOnly:true}};
+ if(!owner||options.allowApprovedPreferences!==true||!profile||profile.ownerUid!==owner||
+  !Array.isArray(profile.approvedPreferences)||!Array.isArray(criteria)) return empty;
+ const influence=new Map();
+ for(const item of profile.approvedPreferences) {
+  if(!item||item.approved_by_owner!==true||item.read_only!==true||
+   !["increase_preference","decrease_preference"].includes(item.recommendation)||
+   !clean(item.target_key)||!clean(item.decision_id)) continue;
+  influence.set(clean(item.target_key),item.recommendation);
+ }
+ let applied=0;
+ const adjusted=criteria.map(item=>{
+  if(!item||typeof item!=="object"||!clean(item.key)||!Number.isFinite(item.weight)||item.weight<0||item.weight>100) return item&&typeof item==="object"?{...item}:item;
+  const direction=influence.get(clean(item.key));
+  if(!direction) return {...item};
+  applied++;
+  const factor=direction==="increase_preference"?1.1:0.9;
+  return {...item,weight:Number(Math.min(100,Math.max(0,item.weight*factor)).toFixed(4)),
+   preference_overlay:direction,preference_source:"owner_approved_feedback"};
+ });
+ return {criteria:adjusted,diagnostics:{ownerOptInRequired:true,preferencesApplied:applied>0,
+  adjustedCriteria:applied,advisoryOnly:true,sourceCriteriaChanged:false}};
 }
 
 function validLedgerRecord(item,owner) {
