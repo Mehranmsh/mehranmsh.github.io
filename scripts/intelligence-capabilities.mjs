@@ -67,10 +67,11 @@ export const INTELLIGENCE_CAPABILITIES = Object.freeze({
     executors: ["github_actions_runner"],
     requiresApproval: false,
     autonomous: true,
-    description: "Inventory exact allowlisted source files from one immutable commit without executing repository content or writing files.",
+    description: "Inspect exact allowlisted source files from one immutable commit in inventory-only mode by default, or request bounded semantic analysis of redacted excerpts without executing repository content or writing files.",
     inputSchema: {
       required: ["paths"],
       properties: {
+        analysisMode: { type: "string", enum: ["inventory", "semantic"] },
         paths: {
           type: "array",
           minItems: 1,
