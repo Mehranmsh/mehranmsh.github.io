@@ -1,4 +1,4 @@
-const BLOCKED_SENSITIVITY = new Set(["secret", "credential", "wallet", "financial", "private_social"]);
+const GRAPH_BLOCKED_SENSITIVITY = new Set(["secret", "credential", "wallet", "financial", "private_social"]);
 const RELATION_FIELDS = Object.freeze({
   related_keys: "related",
   supports_keys: "supports",
@@ -15,7 +15,7 @@ function isSafeRecord(record) {
     typeof record.owner_uid === "string" && record.owner_uid.trim() &&
     safeKey(record.memory_key) && !record.deleted_at &&
     (!record.status || record.status === "active") &&
-    !BLOCKED_SENSITIVITY.has(String(record.sensitivity || "").toLowerCase());
+    !GRAPH_BLOCKED_SENSITIVITY.has(String(record.sensitivity || "").toLowerCase());
 }
 
 /**
