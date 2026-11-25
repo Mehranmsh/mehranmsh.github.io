@@ -5963,7 +5963,7 @@ export async function persistIntelligencePackageReport(env, packageId, snapshot)
 async function blockIntelligenceTasksWithTerminalDependencies(env, packageId) {
   if (!packageId) return 0;
   const candidates = await env.DB.prepare(`
-    SELECT child.id,
+    SELECT child.id,child.status AS child_status,
       (SELECT parent.id FROM intelligence_task_dependencies d JOIN intelligence_tasks parent ON parent.id=d.depends_on_task_id
        WHERE d.task_id=child.id AND parent.work_package_id=child.work_package_id AND parent.status IN ('blocked','failed','cancelled')
        ORDER BY parent.id LIMIT 1) AS dependency_id,
@@ -5988,7 +5988,7 @@ async function blockIntelligenceTasksWithTerminalDependencies(env, packageId) {
       env.DB.prepare("UPDATE intelligence_tasks SET status='blocked',agent_claimed_at=NULL,agent_claim_token_hash='',next_attempt_at=NULL,last_error_code='dependency_terminal',result_text=?,updated_at=CURRENT_TIMESTAMP WHERE id=? AND work_package_id=? AND status IN ('queued','accepted','retry_wait') AND EXISTS (SELECT 1 FROM intelligence_task_dependencies d JOIN intelligence_tasks parent ON parent.id=d.depends_on_task_id WHERE d.task_id=intelligence_tasks.id AND parent.work_package_id=intelligence_tasks.work_package_id AND parent.status IN ('blocked','failed','cancelled'))")
         .bind(reason,child.id,packageId),
       env.DB.prepare("INSERT INTO intelligence_task_events(id,work_package_id,task_id,event_type,from_status,to_status,actor,details_json) SELECT ?,?,?, 'dependency_blocked',?,'blocked','scheduled_runner',? WHERE changes()>0")
-        .bind(eventId,packageId,child.id,"queued",JSON.stringify({dependencyTaskId:child.dependency_id || null,dependencyStatus:child.dependency_status || null}))
+        .bind(eventId,packageId,child.id,child.child_status || "queued",JSON.stringify({dependencyTaskId:child.dependency_id || null,dependencyStatus:child.dependency_status || null}))
     ]);
     if (Number(result?.[0]?.meta?.changes || 0)) blocked++;
   }
