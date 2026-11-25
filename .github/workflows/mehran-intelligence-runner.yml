@@ -396,6 +396,8 @@ jobs:
               const allowedPaths = new Set([
                 "worker.js",
                 "scripts/intelligence-agent.mjs",
+                "scripts/intelligence-agent-runtime.mjs",
+                "scripts/intelligence-agent-runtime.test.mjs",
                 "scripts/intelligence-capabilities.mjs",
                 "scripts/intelligence-module-registry.mjs",
                 "scripts/intelligence-module-registry.test.mjs",
@@ -824,6 +826,8 @@ jobs:
                 const allowedPaths = new Set([
                   "worker.js",
                   "scripts/intelligence-agent.mjs",
+                  "scripts/intelligence-agent-runtime.mjs",
+                  "scripts/intelligence-agent-runtime.test.mjs",
                   "scripts/intelligence-capabilities.mjs",
                   "scripts/intelligence-module-registry.mjs",
                   "scripts/intelligence-module-registry.test.mjs",
