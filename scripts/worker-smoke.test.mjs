@@ -289,10 +289,9 @@ test("MEHRAN INTELLIGENCE serves exact project and SOCIAL status queries without
   const end = workerSource.indexOf('if (path === "/admin/overview"', start);
   assert.ok(start >= 0 && end > start, "Intelligence chat route must exist");
   const route = workerSource.slice(start, end);
-  assert.ok(route.indexOf("deterministic_project_status") < route.indexOf("reserveSocialWorkersAIBudget"));
-  assert.ok(route.indexOf("deterministic_social_metrics") < route.indexOf("reserveSocialWorkersAIBudget"));
-  assert.ok(route.indexOf("deterministic_project_status") < route.indexOf('if (!env.AI || typeof env.AI.run'));
-  assert.ok(route.indexOf("deterministic_social_metrics") < route.indexOf('if (!env.AI || typeof env.AI.run'));
+  assert.ok(route.indexOf("deterministic_project_status") < route.indexOf("runIntelligenceAI"));
+  assert.ok(route.indexOf("deterministic_social_metrics") < route.indexOf("runIntelligenceAI"));
+  assert.doesNotMatch(route, /if \(!env\.AI \|\| typeof env\.AI\.run/);
   assert.match(route, /SELECT name,status FROM projects ORDER BY created_at DESC LIMIT 30/);
   assert.match(route, /SELECT COUNT\(\*\) AS total FROM social_users/);
   assert.match(route, /aiRequests:0,reason:"deterministic_project_status"/);
@@ -300,21 +299,25 @@ test("MEHRAN INTELLIGENCE serves exact project and SOCIAL status queries without
   assert.ok(workerSource.includes(String.raw`replace(/[!؟?.،,\s\u200c]+/gu, "")`));
 });
 
-test("MEHRAN INTELLIGENCE chat uses one inference and formats safe tool results deterministically", () => {
+test("MEHRAN INTELLIGENCE chat uses provider routing and a second reasoning pass for tool results", () => {
   const start = workerSource.indexOf('if (path === "/intelligence/chat" && method === "POST")');
   const end = workerSource.indexOf('if (path === "/admin/overview" && method === "GET")', start);
   assert.ok(start >= 0 && end > start);
   const route = workerSource.slice(start, end);
-  assert.ok(route.indexOf("deterministic_short_circuit") < route.indexOf("reserveSocialWorkersAIBudget"));
-  assert.equal(route.split("env.AI.run(").length - 1, 1, "one user request may invoke Workers AI only once");
+  assert.ok(route.indexOf("deterministic_short_circuit") < route.indexOf("runIntelligenceAI"));
+  assert.equal(route.split("env.AI.run(").length - 1, 0, "Intelligence chat must use the shared provider router, not call one provider directly");
   assert.ok(route.includes("Array.isArray(result?.tool_calls) ? result.tool_calls.slice(0,2) : []"));
-  assert.ok(route.includes("single_inference_tool_execution"));
+  assert.ok(route.includes("two_stage_tool_reasoning"));
+  assert.ok(route.includes("INTELLIGENCE_TOOL_SYNTHESIS_FALLBACK"));
+  assert.ok(route.includes("provider:routed.provider"));
+  assert.ok(route.includes('model:"@cf/meta/llama-3.3-70b-instruct-fp8-fast"'));
   assert.ok(route.includes("get_project_status"));
   assert.ok(route.includes("get_social_metrics"));
   assert.ok(route.includes("list_collaboration_tasks"));
   assert.ok(route.includes("propose_collaboration_task"));
   assert.ok(!route.includes('messages.push({role:"tool"'));
-  assert.equal(route.split("max_tokens:650").length - 1, 1);
+  assert.ok(route.includes("maxTokens:900"));
+  assert.ok(route.includes("maxTokens:1100"));
 });
 
 test("security guardrails keep request bodies bounded and CORS restricted", () => {
@@ -1425,7 +1428,7 @@ test("Workers AI has separate Music, SOCIAL and MEHRAN INTELLIGENCE budgets unde
   assert.match(workerSource, /intelligence_reserved/);
   assert.match(workerSource, /reserveSocialWorkersAIBudget\(env, structure === "short" \? 250 : 500, "music"\)/);
   assert.match(workerSource, /reserveSocialWorkersAIBudget\(env, 500, "social"\)/);
-  assert.match(workerSource, /reserveSocialWorkersAIBudget\(env, 300, "intelligence"\)/);
+  assert.match(workerSource, /reserveSocialWorkersAIBudget\(env, Number\(options\.cloudflareReservation \|\| 500\), "intelligence"\)/);
   assert.match(workerSource, /WORKERS_AI_GLOBAL_DAILY_RESERVATION_CREDITS,selected\.cap/);
   assert.doesNotMatch(workerSource, /intelligence_ai_daily_budget/);
 });
