@@ -38,6 +38,20 @@ test("read dispatch receives only bounded input and minimal scoped context", asy
   });
 });
 
+test("dispatch rejects sensitive keys hidden beyond the inspection depth", async () => {
+  const adapter = createModuleAdapter({
+    moduleId: "social",
+    handlers: { "social.metrics.read": async () => ({ users: 1 }) }
+  });
+  const deeplyNested = {
+    level1: { level2: { level3: { level4: { level5: { level6: { password: "must-not-pass" } } } } } }
+  };
+  const result = await dispatchModuleCapability({
+    adapter, capability: "social.metrics.read", input: deeplyNested
+  });
+  assert.deepEqual(result, { ok: false, code: "input_rejected" });
+});
+
 test("dispatch rejects sensitive, oversized, and non-record inputs", async () => {
   const adapter = createModuleAdapter({
     moduleId: "social",
