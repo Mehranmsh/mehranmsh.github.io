@@ -31,9 +31,13 @@ const patchStoreSource = await readFile(new URL("./intelligence-private-patch-st
 const patchGenerationPromptSource = await readFile(new URL("./intelligence-patch-generation.mjs", import.meta.url), "utf8");
 const patchGenerationServiceSource = await readFile(new URL("./intelligence-patch-generation-service.mjs", import.meta.url), "utf8");
 const inboxSchemaSource = await readFile(new URL("./intelligence-inbox-schema.mjs", import.meta.url), "utf8");
+const knowledgeGraphSource = (await readFile(new URL("./intelligence-knowledge-graph.mjs", import.meta.url), "utf8"))
+  .replace('export function buildIntelligenceKnowledgeGraph', 'function buildIntelligenceKnowledgeGraph');
 const memoryRankingSource = (await readFile(new URL("./intelligence-memory-ranking.mjs", import.meta.url), "utf8"))
+  .replace('import { buildIntelligenceKnowledgeGraph } from "./intelligence-knowledge-graph.mjs";', "")
   .replace("export function analyzeMemoryRelations", "function analyzeMemoryRelations")
-  .replace("export function selectMemoryContext", "function selectMemoryContext");
+  .replace("export function selectMemoryContext", "function selectMemoryContext")
+  .replace("export function selectMemoryContextWithGraph", "function selectMemoryContextWithGraph");
 const answerQualitySource = (await readFile(new URL("./intelligence-answer-quality.mjs", import.meta.url), "utf8"))
   .replace("export function normalizeIntelligenceAnswer", "function normalizeIntelligenceAnswer");
 const routinePlannerSource = (await readFile(new URL("./intelligence-routine-planner.mjs", import.meta.url), "utf8"))
@@ -93,7 +97,7 @@ const workerRest = workerSource.replace(capabilityImport, "")
   .replace(memoryRankingImport, "")
   .replace(answerQualityImport, "")
   .replace(retryPolicyImport, "");
-const workerSourceForTest = memoryRankingSource + "\n" + routinePlannerSource + "\n" + retryPolicySource + `\nimport { storePrivatePatchArtifact, verifyPrivatePatchArtifactAtPath, getPrivatePatchArtifactPath, getVerifiedPrivatePatchArtifactAtPath } from "${patchStoreTestUrl}";
+const workerSourceForTest = knowledgeGraphSource + "\n" + memoryRankingSource + "\n" + routinePlannerSource + "\n" + retryPolicySource + `\nimport { storePrivatePatchArtifact, verifyPrivatePatchArtifactAtPath, getPrivatePatchArtifactPath, getVerifiedPrivatePatchArtifactAtPath } from "${patchStoreTestUrl}";
 import { generatePatchArtifact } from "${patchGenerationTestUrl}";
 import { validatePrivateIntelligenceMission } from "${inboxSchemaUrl}";
 const INTELLIGENCE_ACTION_TYPES = ${JSON.stringify(INTELLIGENCE_ACTION_TYPES)};
