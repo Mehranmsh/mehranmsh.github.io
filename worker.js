@@ -6025,7 +6025,7 @@ async function refreshIntelligenceWorkPackageSnapshot(env, packageId) {
     else if (row.status === "retry_wait") counts.retryWaiting += n;
     else counts.queued += n;
   }
-  const dependencyResult = await env.DB.prepare("SELECT COUNT(*) AS total FROM intelligence_task_dependencies d JOIN intelligence_tasks child ON child.id=d.task_id JOIN intelligence_tasks parent ON parent.id=d.depends_on_task_id WHERE child.work_package_id=? AND child.status IN ('queued','accepted','retry_wait') AND parent.status IN ('blocked','failed','cancelled')").bind(packageId).first();
+  const dependencyResult = await env.DB.prepare("SELECT COUNT(DISTINCT child.id) AS total FROM intelligence_task_dependencies d JOIN intelligence_tasks child ON child.id=d.task_id JOIN intelligence_tasks parent ON parent.id=d.depends_on_task_id WHERE child.work_package_id=? AND child.status IN ('queued','accepted','retry_wait') AND parent.status IN ('blocked','failed','cancelled')").bind(packageId).first();
   counts.blockedDependencies = Number(dependencyResult?.total || 0);
   const allCompleted = counts.total > 0 && counts.completed === counts.total;
   const hasRunnableQueued = counts.queued > counts.blockedDependencies;
@@ -8284,7 +8284,7 @@ export default {
             else if (task.status === "retry_wait") counts.retryWaiting++;
             else counts.queued++;
           }
-          const blockedDependencies = await env.DB.prepare("SELECT COUNT(*) AS total FROM intelligence_task_dependencies d JOIN intelligence_tasks child ON child.id=d.task_id JOIN intelligence_tasks parent ON parent.id=d.depends_on_task_id WHERE child.work_package_id=? AND child.status IN ('queued','accepted','retry_wait') AND parent.status IN ('blocked','failed','cancelled')").bind(packageId).first();
+          const blockedDependencies = await env.DB.prepare("SELECT COUNT(DISTINCT child.id) AS total FROM intelligence_task_dependencies d JOIN intelligence_tasks child ON child.id=d.task_id JOIN intelligence_tasks parent ON parent.id=d.depends_on_task_id WHERE child.work_package_id=? AND child.status IN ('queued','accepted','retry_wait') AND parent.status IN ('blocked','failed','cancelled')").bind(packageId).first();
           counts.blockedDependencies = Number(blockedDependencies?.total || 0);
           const reportIsQuiescent = isIntelligenceReportQuiescent(counts);
           const status = counts.completed === counts.total ? "completed" : (counts.blocked || counts.failed || counts.cancelled || counts.awaitingApproval || counts.blockedDependencies) ? "attention_required" : counts.inProgress ? "in_progress" : counts.retryWaiting && !counts.queued ? "waiting_retry" : "queued";
