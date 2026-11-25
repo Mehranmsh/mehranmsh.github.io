@@ -1,0 +1,38 @@
+name: MEHRAN INTELLIGENCE verified draft PR runner
+
+on:
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: intelligence-verified-draft-pr-runner
+  cancel-in-progress: false
+
+jobs:
+  create-verified-draft-prs:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - name: Check out immutable main history without persisted credentials
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: main
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Validate proposal executor syntax
+        run: node --check scripts/intelligence-proposal-pr-runner.mjs
+      - name: Create draft PRs only from verified private proposals
+        env:
+          MEHRAN_AGENT_URL: https://mehran-msh-auth.mehran79mehran.workers.dev
+          MEHRAN_AGENT_TOKEN: ${{ secrets.MEHRAN_AGENT_TOKEN }}
+          MEHRAN_ORCHESTRATOR_TOKEN: ${{ secrets.MEHRAN_ORCHESTRATOR_TOKEN }}
+          GITHUB_TOKEN: ${{ github.token }}
+        run: node scripts/intelligence-proposal-pr-runner.mjs
