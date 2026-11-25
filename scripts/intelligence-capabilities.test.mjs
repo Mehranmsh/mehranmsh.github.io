@@ -1,4 +1,5 @@
 import test from "node:test";
+import { buildDeterministicRoutinePlan } from "./intelligence-routine-planner.mjs";
 import { applyValidatedPatchInMemory } from "./intelligence-patch-apply.mjs";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
@@ -1483,4 +1484,30 @@ test("Workers AI daily quota circuit resets at Cloudflare UTC midnight", () => {
   const cloudflareEnd = workerSource.indexOf('if (provider === "groq")', cloudflareStart);
   const cloudflare = workerSource.slice(cloudflareStart, cloudflareEnd);
   assert.doesNotMatch(cloudflare, /24 \* 60 \* 60 \* 1000/);
+});
+
+test("routine missions are routed through the deterministic planner before any AI inference", () => {
+  const healthPlan = buildDeterministicRoutinePlan("Check service health and database status");
+  assert.ok(healthPlan);
+  assert.equal(healthPlan.tasks.length, 1);
+  assert.equal(healthPlan.tasks[0].actionType, "service_health_report");
+
+  const securityPlan = buildDeterministicRoutinePlan("Run a source security audit");
+  assert.ok(securityPlan);
+  assert.equal(securityPlan.tasks[0].actionType, "source_security_audit");
+
+  // A change request must never be downgraded into a read-only routine task.
+  assert.equal(buildDeterministicRoutinePlan("Fix the Worker security bug"), null);
+
+  const plannerStart = workerSource.indexOf("async function planIntelligenceMission(");
+  const deterministicStart = workerSource.indexOf("const deterministicPlan = buildDeterministicRoutinePlan(mission)", plannerStart);
+  const deterministicReturn = workerSource.indexOf("return createDeterministicRoutinePackage", deterministicStart);
+  const memoryStart = workerSource.indexOf("await ensureIntelligenceMemoryTables(env)", plannerStart);
+  const inferenceStart = workerSource.indexOf("runIntelligenceAI(env", plannerStart);
+  assert.ok(plannerStart >= 0 && deterministicStart > plannerStart);
+  assert.ok(deterministicReturn > deterministicStart);
+  assert.ok(memoryStart > deterministicReturn);
+  assert.ok(inferenceStart > memoryStart);
+  assert.match(workerSource, /aiInferenceUsed:\s*false/);
+  assert.match(workerSource, /planner:\s*"deterministic_rules_v1"/);
 });
