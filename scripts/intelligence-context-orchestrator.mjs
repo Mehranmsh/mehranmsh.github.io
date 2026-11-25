@@ -2,6 +2,7 @@ import { selectMemoryContextWithGraph } from "./intelligence-memory-ranking.mjs"
 import { diagnoseIntelligenceProjectState } from "./intelligence-project-diagnostics.mjs";
 import { buildIntelligenceExecutionPlan } from "./intelligence-execution-planner.mjs";
 import { buildApprovedPreferenceProfile } from "./intelligence-preference-governance.mjs";
+import { evaluateIntelligenceOptions } from "./intelligence-decision-engine.mjs";
 
 const DEFAULT_LIMITS = Object.freeze({
   maxMemoryItems: 12,
@@ -30,6 +31,7 @@ export function buildIntelligenceContextSnapshot(records, options = {}) {
     projectDiagnostics: { staleRecords: [], blockedProjects: [], unknownDependencyStates: [], projectsMissingMetadata: [], diagnostics: { omittedRecords: 0, inspectedRecords: 0, advisoryOnly: true } },
     executionPlan: { orderedTasks: [], blockedTasks: [], unresolvedTasks: [], diagnostics: { inspectedTasks: 0, omittedTasks: 0, completedTasksExcluded: 0, activeTasksExcluded: 0, advisoryOnly: true, executionPerformed: false } },
     preferenceProfile: { approvedPreferences: [], rejectedDecisions: [], diagnostics: { ownerScoped: false, advisoryOnly: true, preferencesChanged: false, applied: false } },
+    decisionEvaluation: { rankedOptions: [], excludedOptions: [], reviewRequired: [], diagnostics: { advisoryOnly: true, decisionMade: false, executionPerformed: false, preferencesApplied: false } },
     diagnostics: { ownerScoped: false, advisoryOnly: true, memoryChanged: false, preferencesChanged: false, decisionMade: false, executionPerformed: false, outputTrimmed: false }
   };
   if (!ownerUid || !Array.isArray(records)) return empty;
@@ -68,12 +70,25 @@ export function buildIntelligenceContextSnapshot(records, options = {}) {
     { ownerUid }
   );
 
+  const decisionEvaluation = Array.isArray(options.decisionOptions) && Array.isArray(options.decisionCriteria)
+    ? evaluateIntelligenceOptions(options.decisionOptions, options.decisionCriteria, {
+        ownerUid,
+        actorUid: options.actorUid,
+        approvedPreferenceProfile: preferenceProfile,
+        allowApprovedPreferences: options.allowApprovedPreferences === true
+      })
+    : {
+        rankedOptions: [], excludedOptions: [], reviewRequired: [],
+        diagnostics: { advisoryOnly: true, decisionMade: false, executionPerformed: false, preferencesApplied: false, skipped: true }
+      };
+
   const snapshot = {
     memories: memory.memories,
     graph: memory.graph,
     projectDiagnostics,
     executionPlan,
     preferenceProfile,
+    decisionEvaluation,
     diagnostics: {
       ownerScoped: true,
       inputRecords: records.length,
@@ -85,6 +100,9 @@ export function buildIntelligenceContextSnapshot(records, options = {}) {
       blockedTasks: executionPlan.blockedTasks.length,
       unresolvedTasks: executionPlan.unresolvedTasks.length,
       approvedPreferences: preferenceProfile.approvedPreferences.length,
+      decisionOptionsRanked: decisionEvaluation.rankedOptions.length,
+      decisionReviewRequired: decisionEvaluation.reviewRequired.length,
+      preferencesAppliedForEvaluation: decisionEvaluation.diagnostics.preferencesApplied === true,
       advisoryOnly: true,
       memoryChanged: false,
       preferencesChanged: false,
@@ -119,6 +137,12 @@ export function buildIntelligenceContextSnapshot(records, options = {}) {
       approvedPreferences: snapshot.preferenceProfile.approvedPreferences.slice(0, 20),
       rejectedDecisions: snapshot.preferenceProfile.rejectedDecisions.slice(0, 20)
     },
+    decisionEvaluation: {
+      ...snapshot.decisionEvaluation,
+      rankedOptions: snapshot.decisionEvaluation.rankedOptions.slice(0, 20),
+      excludedOptions: snapshot.decisionEvaluation.excludedOptions.slice(0, 20),
+      reviewRequired: snapshot.decisionEvaluation.reviewRequired.slice(0, 20)
+    },
     diagnostics: { ...snapshot.diagnostics, outputTrimmed: true }
   };
   while (JSON.stringify(compact).length > limits.maxOutputChars && compact.memories.length) compact.memories.pop();
@@ -127,6 +151,7 @@ export function buildIntelligenceContextSnapshot(records, options = {}) {
     compact.projectDiagnostics = { staleRecords: [], blockedProjects: [], unknownDependencyStates: [], projectsMissingMetadata: [], diagnostics: { advisoryOnly: true, outputBudgetTrimmed: true } };
     compact.executionPlan = { orderedTasks: [], blockedTasks: [], unresolvedTasks: [], diagnostics: { advisoryOnly: true, executionPerformed: false, outputBudgetTrimmed: true } };
     compact.preferenceProfile = { approvedPreferences: [], rejectedDecisions: [], diagnostics: { advisoryOnly: true, preferencesChanged: false, applied: false, outputBudgetTrimmed: true } };
+    compact.decisionEvaluation = { rankedOptions: [], excludedOptions: [], reviewRequired: [], diagnostics: { advisoryOnly: true, decisionMade: false, executionPerformed: false, outputBudgetTrimmed: true } };
     compact.graph = { nodes: [], edges: [], diagnostics: { omittedNodes: snapshot.graph.nodes.length, omittedEdges: snapshot.graph.edges.length, outputBudgetTrimmed: true } };
     compact.memories = [];
   }
@@ -137,6 +162,7 @@ export function buildIntelligenceContextSnapshot(records, options = {}) {
       projectDiagnostics: {},
       executionPlan: {},
       preferenceProfile: {},
+      decisionEvaluation: {},
       diagnostics: { ownerScoped: true, advisoryOnly: true, outputTrimmed: true }
     };
   }
