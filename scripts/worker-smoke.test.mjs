@@ -2801,7 +2801,8 @@ test("MEHRAN INTELLIGENCE scheduler executes only dependency-ready package tasks
     "task_verified",
     'const nextStatus = retryable ? "retry_wait" : "blocked"',
     "task_retry_scheduled",
-    "Math.min(3600,30 * (2 ** Math.max(0,Number(candidate.attempts || 0))))"
+    "const retryPlan = planIntelligenceRetry(",
+    "retryPlan.errorCode"
   ];
   for (const expected of required) assert.ok(scheduler.includes(expected), "Missing scheduler invariant: " + expected);
 });
