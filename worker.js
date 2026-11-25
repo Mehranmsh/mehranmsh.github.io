@@ -9855,8 +9855,14 @@ export default {
             } catch (synthesisError) {
               console.warn("INTELLIGENCE_TOOL_SYNTHESIS_FALLBACK",String(synthesisError?.message||synthesisError).slice(0,180));
             }
+            const checkedFinalReply=normalizeIntelligenceAnswer(finalReply);
+            if(!checkedFinalReply.ok) {
+              finalReply = summaries.filter(Boolean).join("\n\n").slice(0,12000).trim() || "نتیجه قابل اتکایی از ابزارها دریافت نشد. می‌توانیم دوباره تلاش کنیم.";
+            } else {
+              finalReply = checkedFinalReply.text;
+            }
             await appendIntelligenceChatTurn(env,admin.uid,sessionKey,"assistant",finalReply);
-            return json({success:true,reply:finalReply,usage:{aiRequests:toolCalls.length?2:1,toolCalls:toolCalls.length,provider:routed.provider,model:routed.model,reason:toolCalls.length?"two_stage_tool_reasoning":"provider_routed_inference"}});
+            return json({success:true,reply:finalReply,usage:{aiRequests:toolCalls.length?2:1,toolCalls:toolCalls.length,provider:routed.provider,model:routed.model,reason:toolCalls.length?"two_stage_tool_reasoning":"provider_routed_inference",qualityGate:"bounded_output_v1"}});
           }
           const reply=result?.response||result?.result?.response||"";
           const checkedReply=normalizeIntelligenceAnswer(reply);
