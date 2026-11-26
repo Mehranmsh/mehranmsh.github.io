@@ -29,6 +29,7 @@ if (!workerSource.includes(capabilityImport) || !workerSource.includes(patchStor
     !workerSource.includes(routinePlannerImport) || !workerSource.includes(memoryRankingImport) || !workerSource.includes(answerQualityImport) || !workerSource.includes(retryPolicyImport) || !workerSource.includes(feedbackReviewImport) || !workerSource.includes(planHistoryImport) || !workerSource.includes(planLearningImport)) {
   throw new Error("Worker capability, patch storage, or private inbox schema imports were not found");
 }
+const patchTargetsSource = await readFile(new URL("./intelligence-patch-targets.mjs", import.meta.url), "utf8");
 const policySource = await readFile(new URL("./intelligence-patch-policy.mjs", import.meta.url), "utf8");
 const artifactSource = await readFile(new URL("./intelligence-patch-artifact.mjs", import.meta.url), "utf8");
 const patchStoreSource = await readFile(new URL("./intelligence-private-patch-store.mjs", import.meta.url), "utf8");
@@ -66,7 +67,11 @@ const feedbackReviewSource = (await readFile(new URL("./intelligence-feedback-re
   .replaceAll("clean(", "cleanFeedbackReview(");
 function moduleUrl(source) { return "data:text/javascript;base64," + Buffer.from(source).toString("base64"); }
 const inboxSchemaUrl = moduleUrl(inboxSchemaSource);
-const policyUrl = moduleUrl(policySource);
+const patchTargetsUrl = moduleUrl(patchTargetsSource);
+const policyUrl = moduleUrl(policySource.replace(
+  'from "./intelligence-patch-targets.mjs"',
+  `from "${patchTargetsUrl}"`
+));
 const artifactUrl = moduleUrl(artifactSource.replace(
   'from "./intelligence-patch-policy.mjs"',
   `from "${policyUrl}"`
@@ -75,13 +80,14 @@ const patchStoreUrl = moduleUrl(patchStoreSource.replace(
   'from "./intelligence-patch-artifact.mjs"',
   `from "${artifactUrl}"`
 ));
-const patchGenerationPromptUrl = moduleUrl(patchGenerationPromptSource.replace(
-  'from "./intelligence-patch-policy.mjs"',
-  `from "${policyUrl}"`
-));
+const patchGenerationPromptUrl = moduleUrl(patchGenerationPromptSource
+  .replace('from "./intelligence-patch-policy.mjs"', `from "${policyUrl}"`)
+  .replace('from "./intelligence-patch-targets.mjs"', `from "${patchTargetsUrl}"`)
+);
 const patchGenerationServiceUrl = moduleUrl(patchGenerationServiceSource
   .replace('from "./intelligence-patch-generation.mjs"', `from "${patchGenerationPromptUrl}"`)
   .replace('from "./intelligence-patch-artifact.mjs"', `from "${artifactUrl}"`)
+  .replace('from "./intelligence-patch-targets.mjs"', `from "${patchTargetsUrl}"`)
 );
 const patchStoreTestUrl = moduleUrl(`
 import { getPrivatePatchArtifactPath } from "${patchStoreUrl}";
