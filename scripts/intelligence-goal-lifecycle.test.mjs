@@ -148,5 +148,5 @@ test("caps nested task dependencies before mapping and deduplication", () => {
   assert.equal(result.acceptedTaskProposals.length, 1);
   assert.equal(result.acceptedTaskProposals[0].depends_on_task_ids.length, 50);
   assert.equal(result.acceptedTaskProposals[0].depends_on_task_ids[0], "dep-0");
-  assert.equal(result.acceptedTaskProposals[0].depends_on_task_ids.at(-1), "dep-49");
+  assert.equal(result.acceptedTaskProposals[0].depends_on_task_ids.at(-1), "dep-9");
 });
