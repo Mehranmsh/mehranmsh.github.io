@@ -1205,6 +1205,95 @@ input:focus,textarea:focus,select:focus,button:focus-visible,a:focus-visible{out
 @media(max-width:360px){#page-nexus .nx-shortcuts{grid-template-columns:repeat(3,minmax(0,1fr))}#page-nexus .nx-categories{grid-template-columns:1fr}}
 </style>
 
+<style id="nexus-reference-precision-v3">
+#page-nexus{background:#fff0e2!important;color:#39291e!important;padding-bottom:100px!important}
+#page-nexus .nx-wrap{max-width:1180px;padding-inline:clamp(14px,3vw,36px)}
+#page-nexus .nx-top{height:88px;display:grid;grid-template-columns:52px 1fr 106px;align-items:center;gap:12px}
+#page-nexus .nx-menu-btn{grid-column:1}
+#page-nexus .nx-brand{grid-column:2;justify-content:center;gap:10px}
+#page-nexus .nx-brand-mark{width:56px;height:56px;font-size:30px;background:linear-gradient(145deg,#d8b276,#78502d)}
+#page-nexus .nx-brand strong{font-size:clamp(28px,4vw,43px);letter-spacing:1px;color:#21150f}
+#page-nexus .nx-brand small{font-size:9px;letter-spacing:2px;color:#493528}
+#page-nexus .nx-top-actions{grid-column:3;grid-row:1;justify-content:flex-end;gap:9px}
+#page-nexus .nx-icon-btn{width:48px;height:48px;border-radius:50%;border:1px solid #fff;background:#f9eadb;color:#4c3525;font-size:23px;box-shadow:0 4px 12px #5a3b241c}
+#page-nexus .nx-bell{position:relative}
+#page-nexus .nx-bell i{position:absolute;right:-3px;top:-4px;width:19px;height:19px;border-radius:50%;background:#e74d36;color:#fff;font-size:10px;font-style:normal;display:grid;place-items:center}
+#page-nexus .nx-avatar{position:relative;width:49px;height:49px;border-radius:50%;border:2px solid white;background:linear-gradient(145deg,#bd9a72,#543927);color:white;font-weight:800;font-size:18px}
+#page-nexus .nx-avatar span{position:absolute;right:-5px;bottom:-4px;background:#bd8b42;border-radius:50%;padding:3px;font-size:10px}
+#page-nexus .nx-hero{min-height:clamp(255px,34vw,390px);margin:0 0 0;border-radius:0;box-shadow:none;overflow:hidden}
+#page-nexus .nx-hero:before{background-image:url('https://images.unsplash.com/photo-1524666041070-9a87656c0f5a?auto=format&fit=crop&w=2200&q=90');background-size:cover;background-position:center 48%;transform:none;filter:saturate(.95)}
+#page-nexus .nx-hero:after{background:linear-gradient(90deg,rgba(255,235,214,.91) 0%,rgba(255,235,214,.65) 38%,rgba(42,30,22,.03) 76%),linear-gradient(0deg,rgba(65,42,25,.18),transparent 55%)}
+#page-nexus .nx-hero-copy{padding:clamp(38px,6vw,75px) clamp(20px,5vw,70px);max-width:640px;color:#2a1d14}
+#page-nexus .nx-hero h1{font-size:clamp(25px,3.8vw,39px);font-weight:500;line-height:1.25;color:#281b13;direction:ltr;text-align:left;margin:0 0 9px}
+#page-nexus .nx-hero p{font-size:clamp(13px,1.7vw,18px);line-height:1.5;color:#38271b;direction:ltr;text-align:left}
+#page-nexus .nx-kicker,#page-nexus .nx-hero-tag{display:none}
+#page-nexus .nx-search{width:calc(100% - 38px);max-width:1080px;min-height:64px;margin:-29px auto 24px;padding:8px 22px;border:2px solid #fff;border-radius:50px;background:#f7e6d6;box-shadow:0 7px 20px #61452d24;gap:14px}
+#page-nexus .nx-search-icon{font-size:32px;color:#594437;line-height:1}
+#page-nexus .nx-search input{font-size:clamp(13px,1.6vw,18px);padding:9px;color:#594437}
+#page-nexus .nx-search input::placeholder{color:#8f7866}
+#page-nexus .nx-search button.nx-filter{display:block;width:42px;height:42px;padding:0;border:0;border-radius:0;background:transparent;color:#594437;font-size:29px}
+#page-nexus .nx-shortcuts{gap:10px;margin:0 auto 25px;max-width:1100px;padding:0 16px}
+#page-nexus .nx-shortcut{min-height:91px;border:1px solid #fff;border-radius:21px;background:linear-gradient(145deg,#faecdf,#f0ddca);padding:13px 7px;color:#5a402d;box-shadow:0 5px 11px #5a3b2420}
+#page-nexus .nx-shortcut b{font-size:28px;margin-bottom:6px}
+#page-nexus .nx-shortcut span{font-size:clamp(10px,1.3vw,14px)}
+#page-nexus .nx-section-head{margin:22px 18px 15px;align-items:center}
+#page-nexus .nx-section-head h2{font-size:clamp(20px,2.4vw,28px);font-weight:900;color:#281b13}
+#page-nexus .nx-section-head p{font-size:clamp(11px,1.4vw,15px);color:#927a66}
+#page-nexus .nx-text-link{border:0;border-radius:40px;background:#ead2b9;padding:12px 17px;color:#4c3525}
+#page-nexus .nx-categories{grid-template-columns:repeat(2,minmax(0,1fr));gap:11px;padding:0 14px;direction:ltr}
+#page-nexus .nx-category{min-height:clamp(145px,17vw,210px);border-radius:19px;box-shadow:0 6px 14px #563b2518}
+#page-nexus .nx-category:after{background:linear-gradient(90deg,rgba(20,18,16,.02),rgba(20,18,16,.7))}
+#page-nexus .nx-category:nth-child(3):before{background-image:url('https://images.unsplash.com/photo-1470770841072-f978cf4d019e?auto=format&fit=crop&w=1000&q=88')}
+#page-nexus .nx-category:nth-child(4):before{background-image:url('https://images.unsplash.com/photo-1441986300917-64674bd600d8?auto=format&fit=crop&w=1000&q=88')}
+#page-nexus .nx-category:nth-child(6):before{background-image:url('https://images.unsplash.com/photo-1516321318423-f06f85e504b3?auto=format&fit=crop&w=1000&q=88')}
+#page-nexus .nx-cat-copy{inset:auto 16px 14px;text-align:right;direction:rtl}
+#page-nexus .nx-cat-copy small{display:none}
+#page-nexus .nx-cat-copy strong{font-size:clamp(14px,1.8vw,20px)}
+#page-nexus .nx-cat-copy span{font-size:11px}
+#page-nexus .nx-bottom-note{margin:22px 14px 0}
+#page-nexus .nx-bottom-nav{position:fixed;z-index:30;bottom:0;left:0;right:0;display:grid;grid-template-columns:repeat(5,1fr);align-items:end;padding:8px 10px calc(8px + env(safe-area-inset-bottom));border:1px solid #fff9;border-bottom:0;border-radius:26px 26px 0 0;background:rgba(255,241,226,.97);box-shadow:0 -5px 24px #5c3e281c;backdrop-filter:blur(14px)}
+#page-nexus .nx-bottom-nav button{border:0;background:transparent;color:#594437;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;font-size:11px;font-weight:700;padding:4px 1px}
+#page-nexus .nx-bottom-nav button span{font-size:23px;line-height:1}
+#page-nexus .nx-bottom-nav .nx-home-nav span{width:62px;height:62px;margin-top:-31px;border:4px solid #f4dfc9;border-radius:50%;display:grid;place-items:center;background:#5b4030;color:#fff;font-size:31px;box-shadow:0 0 0 3px #fff,0 5px 14px #54372044}
+@media(max-width:760px){
+#page-nexus{margin:-17px -13px -85px!important;padding-bottom:116px!important}
+#page-nexus .nx-wrap{padding:0 12px}
+#page-nexus .nx-top{height:76px;padding:0 12px;grid-template-columns:39px 1fr 83px;gap:5px}
+#page-nexus .nx-brand{gap:6px}
+#page-nexus .nx-brand-mark{width:39px;height:39px;font-size:20px}
+#page-nexus .nx-brand strong{font-size:clamp(21px,5.8vw,30px);letter-spacing:.5px}
+#page-nexus .nx-brand small{font-size:6px;letter-spacing:1px}
+#page-nexus .nx-icon-btn{width:38px;height:38px;font-size:19px}
+#page-nexus .nx-avatar{width:39px;height:39px}
+#page-nexus .nx-top-actions{gap:5px}
+#page-nexus .nx-hero{min-height:clamp(220px,64vw,285px)}
+#page-nexus .nx-hero-copy{padding:clamp(36px,10vw,55px) 16px;max-width:73%}
+#page-nexus .nx-hero h1{font-size:clamp(19px,5.4vw,27px)}
+#page-nexus .nx-hero p{font-size:clamp(11px,3vw,13px)}
+#page-nexus .nx-search{width:calc(100% - 28px);min-height:54px;margin:-25px auto 19px;padding:5px 12px;gap:8px}
+#page-nexus .nx-search-icon{font-size:25px}
+#page-nexus .nx-search input{font-size:11px;padding:8px 3px}
+#page-nexus .nx-search button.nx-filter{width:34px;height:36px;font-size:24px}
+#page-nexus .nx-shortcuts{gap:6px;padding:0 11px;margin-bottom:21px}
+#page-nexus .nx-shortcut{min-height:77px;padding:9px 2px;border-radius:16px}
+#page-nexus .nx-shortcut b{font-size:23px}
+#page-nexus .nx-shortcut span{font-size:9px}
+#page-nexus .nx-section-head{margin:17px 14px 12px}
+#page-nexus .nx-section-head h2{font-size:18px}
+#page-nexus .nx-section-head p{font-size:10px}
+#page-nexus .nx-text-link{font-size:9px;padding:9px 11px}
+#page-nexus .nx-categories{gap:8px;padding:0 11px}
+#page-nexus .nx-category{min-height:clamp(132px,36vw,165px);border-radius:15px}
+#page-nexus .nx-cat-copy{inset:auto 10px 10px}
+#page-nexus .nx-cat-copy strong{font-size:13px}
+#page-nexus .nx-cat-copy span{font-size:9px}
+#page-nexus .nx-bottom-note{display:none}
+body:has(#page-nexus.active) .topbar,body:has(#page-nexus.active) .mobile-nav{display:none!important}
+body:has(#page-nexus.active) .main{padding-top:17px!important;padding-bottom:0!important}
+}
+@media(max-width:370px){#page-nexus .nx-brand small{letter-spacing:.5px}#page-nexus .nx-shortcuts{gap:4px;padding:0 7px}}
+</style>
+
 </head>
 <body>
 <div class="app">
@@ -1311,17 +1400,16 @@ body:has(#page-nexus.active) .main{padding-top:17px!important;padding-bottom:0!i
 }
 </style>
 <section class="page" id="page-nexus">
- <div class="nx-wrap">
-  <header class="nx-top">
-   <div class="nx-brand"><div class="nx-brand-mark">✧</div><div><strong>NEXUS</strong><small>GLOBAL BUSINESS NETWORK</small></div></div>
-   <div class="nx-top-actions"><button class="nx-icon-btn" type="button" aria-label="Notifications">♧</button><button class="nx-icon-btn" type="button" aria-label="Language" onclick="toast('Language selection will be connected to global language settings.')">文</button></div>
-  </header>
- </div>
+ <div class="nx-wrap"><header class="nx-top">
+<button class="nx-icon-btn nx-menu-btn" type="button" aria-label="Menu" onclick="showPage('user')">☰</button>
+<div class="nx-brand"><div class="nx-brand-mark">🌐</div><div><strong>NEXUS</strong><small>GLOBAL BUSINESS NETWORK</small></div></div>
+<div class="nx-top-actions"><button class="nx-icon-btn nx-bell" type="button" aria-label="Notifications" onclick="toast('اعلان‌های NEXUS به‌زودی فعال می‌شوند.')">♧<i>3</i></button><button class="nx-avatar" type="button" aria-label="Profile" onclick="showPage('user')">M<span>♛</span></button></div>
+</header></div>
  <section class="nx-hero">
-  <div class="nx-hero-copy"><span class="nx-kicker">GLOBAL BUSINESS NETWORK</span><h1>کشف کن. ارتباط بگیر.<br>فرصت‌های تازه بساز.</h1><p>در میان کسب‌وکارها، تولیدکنندگان، فروشگاه‌ها و ارائه‌دهندگان خدمات در سراسر جهان جستجو کن.</p><span class="nx-hero-tag">◉ &nbsp; Connect · Discover · Grow</span></div>
+  <div class="nx-hero-copy"><h1>Connect · Discover · Grow</h1><p>A Global Platform for Business<br>and Opportunities</p></div>
  </section>
  <div class="nx-wrap">
-  <form class="nx-search" id="nexusSearchForm"><span style="font-size:20px;color:#8b6a4c">⌕</span><input id="nexusSearchInput" type="search" placeholder="جستجوی کسب‌وکار در سراسر جهان..." aria-label="جستجوی کسب‌وکار"><button type="submit">جستجو</button></form>
+  <form class="nx-search" id="nexusSearchForm"><span class="nx-search-icon">⌕</span><input id="nexusSearchInput" type="search" placeholder="جستجوی کسب‌وکار در سراسر جهان..." aria-label="جستجوی کسب‌وکار"><button class="nx-filter" type="button" aria-label="فیلترها" onclick="toast('فیلترهای جستجو پس از اتصال فهرست کسب‌وکارها فعال می‌شوند.')">☷</button></form>
   <div class="nx-shortcuts">
    <button class="nx-shortcut" type="button" data-nx-filter="countries"><b>◎</b><span>کشورها</span></button>
    <button class="nx-shortcut" type="button" data-nx-filter="categories"><b>▦</b><span>دسته‌بندی‌ها</span></button>
@@ -1331,14 +1419,13 @@ body:has(#page-nexus.active) .main{padding-top:17px!important;padding-bottom:0!i
   </div>
   <div class="nx-section-head"><div><h2>دنیای کسب‌وکارها را کشف کن</h2><p>از کسب‌وکارهای محلی تا برندهای بین‌المللی</p></div><button class="nx-text-link" type="button" onclick="toast('فهرست کسب‌وکارها پس از اتصال داده‌ها نمایش داده می‌شود.')">مشاهده همه ←</button></div>
   <div class="nx-categories" id="nexusCategoryGrid">
-   <article class="nx-category" data-nx-category="music"><div class="nx-cat-copy"><small>MUSIC & ART</small><strong>موسیقی و هنر</strong><span>سازها، استودیوها و تولید موسیقی</span></div></article>
-   <article class="nx-category" data-nx-category="technology"><div class="nx-cat-copy"><small>TECHNOLOGY</small><strong>فناوری و هوش مصنوعی</strong><span>نرم‌افزار، سخت‌افزار و رباتیک</span></div></article>
-   <article class="nx-category" data-nx-category="retail"><div class="nx-cat-copy"><small>RETAIL & COMMERCE</small><strong>فروشگاه و تجارت</strong><span>محصولات و برندهای متنوع</span></div></article>
-   <article class="nx-category" data-nx-category="services"><div class="nx-cat-copy"><small>PROFESSIONAL SERVICES</small><strong>خدمات تخصصی</strong><span>متخصصان و ارائه‌دهندگان خدمات</span></div></article>
-   <article class="nx-category" data-nx-category="industry"><div class="nx-cat-copy"><small>INDUSTRY & PRODUCTION</small><strong>صنعت و تولید</strong><span>تولیدکنندگان و کارخانه‌ها</span></div></article>
-   <article class="nx-category" data-nx-category="travel"><div class="nx-cat-copy"><small>TRAVEL & HOSPITALITY</small><strong>گردشگری و اقامت</strong><span>مقصدها، هتل‌ها و تجربه‌ها</span></div></article>
-  </div>
-  <div class="nx-bottom-note"><strong>یک جهان فرصت، در یک نقطه</strong><span>پروفایل کسب‌وکارها · معرفی محصولات و خدمات · ارتباط مستقیم</span></div>
+<article class="nx-category" data-nx-category="music"><div class="nx-cat-copy"><small>MUSIC</small><strong>موسیقی</strong><span>استودیوها و تولید موسیقی</span></div></article>
+<article class="nx-category" data-nx-category="technology"><div class="nx-cat-copy"><small>TECHNOLOGY</small><strong>فناوری و AI</strong><span>نرم‌افزار، هوش مصنوعی و رباتیک</span></div></article>
+<article class="nx-category" data-nx-category="travel"><div class="nx-cat-copy"><small>TRAVEL</small><strong>گردشگری</strong><span>سفر، اقامت و تجربه‌ها</span></div></article>
+<article class="nx-category" data-nx-category="retail"><div class="nx-cat-copy"><small>SHOPPING</small><strong>خرید و فروش</strong><span>فروشگاه‌ها و محصولات</span></div></article>
+<article class="nx-category" data-nx-category="industry"><div class="nx-cat-copy"><small>INDUSTRY</small><strong>صنایع و تولید</strong><span>تولیدکنندگان و کارخانه‌ها</span></div></article>
+<article class="nx-category" data-nx-category="services"><div class="nx-cat-copy"><small>SERVICES</small><strong>خدمات</strong><span>متخصصان و ارائه‌دهندگان خدمات</span></div></article>
+  </div>  <div class="nx-bottom-note"><strong>یک جهان فرصت، در یک نقطه</strong><span>پروفایل کسب‌وکارها · معرفی محصولات و خدمات · ارتباط مستقیم</span></div>
  </div>
 <nav class="nx-bottom-nav" aria-label="NEXUS navigation">
 <button type="button" onclick="showPage('dashboard')"><span>▥</span>پروژه‌ها</button>
