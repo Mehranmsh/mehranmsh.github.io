@@ -1,4 +1,4 @@
-const GRAPH_BLOCKED_SENSITIVITY = new Set(["secret", "credential", "wallet", "financial", "private_social"]);
+const GRAPH_BLOCKED_SENSITIVITY = new Set(["secret", "credential", "wallet", "financial", "private_social", "health", "identity"]);
 const RELATION_FIELDS = Object.freeze({
   related_keys: "related",
   supports_keys: "supports",
