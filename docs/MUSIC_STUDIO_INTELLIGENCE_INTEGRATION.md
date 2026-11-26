@@ -146,6 +146,8 @@ The current browser storage model also needs a deliberate migration plan before 
 - The analyzer now emits a versioned, structured result envelope: `mehran.music-studio.audio-analysis` v1, with analysis ID, project/track references, local-only provenance, bounded metrics, findings, and explicit limitations. This is an in-memory result only; it is not persisted or sent to the remote Intelligence service.
 - The Run button now remains disabled until a specific recording is selected, and project/track changes clear stale reports.
 - After these changes, the complete inline Studio script passed a fresh V8 syntax compilation check. This is syntax validation only, not a real-browser audio fixture test.
+- PCM metric calculation is now isolated in the pure `analyzeStudioIntelSamples` helper and covered by `tests/music-studio-audio-analysis.test.js`. The Node test file extracts the production helper from the page, so tests exercise the shipped implementation rather than a separately copied algorithm.
+- Regression cases cover silence, symmetric clean signal, near-full-scale/clipping ratio, DC offset, stereo sample weighting, and invalid channel/sample-rate inputs. The six cases were also executed directly against the extracted production helper in the current V8 validation run and all passed. The Node runner itself has not been invoked in this environment; run with `node --test tests/music-studio-audio-analysis.test.js` in a Node-enabled checkout.
 
 ### Known limitations and next work
 
