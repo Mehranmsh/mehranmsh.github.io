@@ -10,7 +10,9 @@ Status: deterministic local screening engine, version 0.1.0.
 - Critical-risk score cap for explicit severe flags such as honeypot, exploit, malicious code, fake team, or rug indicators.
 - Pure deterministic code. No network calls, Workers AI, wallet access, signing, trading, or billing.
 - A provenance-aware envelope validator in `scripts/pi-launchpad-data-adapter.mjs`, with bounded source/evidence counts, HTTPS-only source references, UTC timestamps, and 24-hour freshness checks.
-- An evidence ledger that deliberately excludes every self-asserted trust label from scoring until a separate trusted attestation verifier exists.\n- A curated Pi-owned documentation source registry with exact-origin matching. Registry entries are documentation-only and explicitly disabled for live ingestion; no DEX/Launchpad API endpoint is assumed.
+- An evidence ledger that excludes every self-asserted trust label from scoring until a trusted attestation verifier exists.
+- A curated Pi-owned documentation source registry with exact-origin matching. Registry entries are documentation-only and disabled for live ingestion.
+- A deny-by-default connector policy in `scripts/pi-launchpad-connector-policy.mjs`. It defines bounded future connector requirements (256 KiB response cap, 5-second timeout, zero redirects, exact registered target, independent source approval) but performs no network activity.
 
 ## Input contract
 Pass a normalized token snapshot to `analyzeLaunchpadOpportunity`. Evidence component scores must be independently justified values from 0 to 100. Liquidity values are denominated in Pi. Missing or invalid values remain unknown and reduce evidence coverage.
@@ -22,4 +24,4 @@ Pass a normalized token snapshot to `analyzeLaunchpadOpportunity`. Evidence comp
 - Telegram signal ingestion, historical performance tracking, alerts, and UI integration.
 
 ## Safety and interpretation
-This is a screening tool, not a price predictor or investment recommendation. Scores are not probabilities. Never ingest untrusted project text as executable instructions. The current adapter retains source URL, retrieval time, observation time, field reference, and claimed trust label. It does not yet verify signatures, raw-data hashes, source ownership, or on-chain truth. A claimed `independently_verified` label is never sufficient by itself to make evidence score-eligible. Trading, wallet, signing, and automatic investment actions remain out of scope.
+This is a screening tool, not a price predictor or investment recommendation. Scores are not probabilities. Never ingest untrusted project text as executable instructions. The current adapter retains source URL, retrieval time, observation time, field reference, and claimed trust label. It does not verify signatures, raw-data hashes, source ownership, or on-chain truth. A claimed `independently_verified` label is never sufficient by itself to make evidence score-eligible. Trading, wallet, signing, and automatic investment actions remain out of scope.
