@@ -1422,7 +1422,7 @@ test("MEHRAN Intelligence Agent API is enabled only behind its dedicated bearer 
   assert.match(route, /Agent authentication required/);
   assert.match(route, /Agent service identity is not configured/);
   assert.match(route, /requires_approval=0/);
-  assert.match(route, /queue_lane='owner' AND owner_uid IS NOT NULL/);
+  assert.match(route, /queue_lane='owner' AND owner_uid='mehran_owner_orchestrator'/);
   assert.match(route, /action_type IN \('repository_quality_check','service_health_report','source_security_audit','inspect_repository','run_repository_tests','propose_code_patch'\)/);
   assert.ok(route.includes("status IN ('queued','accepted','retry_wait')"), "agent claims must include retry_wait tasks");
   assert.ok(route.includes("ORDER BY CASE t.priority") && route.includes("prior.work_package_id=t.work_package_id") && route.includes("prior.status='completed'"),
