@@ -24,7 +24,7 @@ const canonical = v => v === null || typeof v !== "object" ? JSON.stringify(v)
   : Array.isArray(v) ? "[" + v.map(canonical).join(",") + "]"
   : "{" + Object.keys(v).sort().map(k => JSON.stringify(k) + ":" + canonical(v[k])).join(",") + "}";
 const envelope = (selected = specs) => ({
-  schemaVersion: 1, tokenId: "pi-token-1", observedAt: "2026-11-26T11:00:00.000Z",
+  schemaVersion: 1, networkId: "pi-mainnet", tokenId: "pi-token-1", observedAt: "2026-11-26T11:00:00.000Z",
   sources: [{ sourceId: "indexer", kind: "dex_indexer", url: "https://indexer.example/snapshot",
     trustLevel: "publisher_claim", retrievedAt: "2026-11-26T11:01:00.000Z",
     evidence: selected.map(([field, value], i) => ({ field, value, trustLevel: "publisher_claim",
@@ -32,7 +32,7 @@ const envelope = (selected = specs) => ({
   }]
 });
 const attestations = (selected = specs) => selected.map(([field, value], i) => {
-  const payload = { issuer: "independent-indexer", tokenId: "pi-token-1", evidenceId: "metric-" + i,
+  const payload = { issuer: "independent-indexer", networkId: "pi-mainnet", tokenId: "pi-token-1", evidenceId: "metric-" + i,
     field, sourceUrl: "https://indexer.example/snapshot", observedAt: "2026-11-26T11:00:00.000Z",
     expiresAt: "2026-11-27T11:00:00.000Z", value };
   return { keyId: "indexer-a", algorithm: "Ed25519", payload,
