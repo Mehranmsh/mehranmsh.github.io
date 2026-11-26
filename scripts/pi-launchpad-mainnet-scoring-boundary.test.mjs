@@ -53,13 +53,15 @@ test("blocks missing and unknown snapshot network identities", () => {
   }
 });
 
-test("allows the Mainnet-only boundary to proceed to the existing evidence gates", () => {
-  assert.throws(() => analyzeVerifiedLaunchpadOpportunity({
+test("permits Mainnet identity but still yields no score without trusted evidence", () => {
+  const result = analyzeVerifiedLaunchpadOpportunity({
     snapshot: { networkId: "pi-mainnet", tokenId: "candidate-1" },
     envelope: envelope("pi-mainnet"),
     attestations: [],
     metricAttestations: [],
     trustRecords: [],
     now: NOW
-  }), /does not match/);
+  });
+  assert.equal(result.networkId, "pi-mainnet");
+  assert.equal(result.score, null);
 });
