@@ -9833,9 +9833,9 @@ export default {
         await ensureIntelligencePlanHistoryTables(env);
         const [revisionRows,eventRows] = await Promise.all([
           env.DB.prepare("SELECT revision_id,owner_uid,version,change_reason,tasks_json,created_at FROM intelligence_plan_revisions WHERE owner_uid=? ORDER BY version DESC LIMIT 20").bind(admin.uid).all(),
-          env.DB.prepare("SELECT event_id,owner_uid,actor_uid,revision_id,task_id,progress_state,explicit_confirmation,occurred_at FROM intelligence_plan_progress_events WHERE owner_uid=? ORDER BY occurred_at ASC,event_id ASC LIMIT 500").bind(admin.uid).all()
+          env.DB.prepare("SELECT event_id,owner_uid,actor_uid,revision_id,task_id,progress_state,explicit_confirmation,occurred_at FROM intelligence_plan_progress_events WHERE owner_uid=? ORDER BY occurred_at DESC,event_id DESC LIMIT 500").bind(admin.uid).all()
         ]);
-        const events = eventRows.results || [];
+        const events = (eventRows.results || []).reverse();
         const revisions = (revisionRows.results || []).reverse().map(row => {
           let tasks = [];
           try { tasks = JSON.parse(row.tasks_json); } catch {}
