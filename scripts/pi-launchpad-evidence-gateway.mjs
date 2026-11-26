@@ -1,55 +1,39 @@
 /**
  * Verified-evidence gateway for Pi Launchpad scoring.
- * Re-verifies raw attestations against operator trust records and only emits
- * allowlisted, exact-match component scores. No network, persistence, or AI.
+ * Validates the raw envelope itself, re-verifies attestations against operator
+ * trust records, and emits only exact-match allowlisted component scores.
  */
+import { validateLaunchpadDataEnvelope } from "./pi-launchpad-data-adapter.mjs";
 import { verifyPiLaunchpadAttestation } from "./pi-launchpad-attestation-verifier.mjs";
 import { buildPiLaunchpadTrustStore } from "./pi-launchpad-trust-store.mjs";
 
-export const PI_LAUNCHPAD_EVIDENCE_GATEWAY_VERSION = "0.1.0";
-const SCORE_FIELDS = new Set([
-  "utility", "teamTransparency", "tokenomics", "marketActivity", "contractSecurity"
-]);
+export const PI_LAUNCHPAD_EVIDENCE_GATEWAY_VERSION = "0.2.0";
+const SCORE_FIELDS = new Set(["utility", "teamTransparency", "tokenomics", "marketActivity", "contractSecurity"]);
 const isRecord = (v) => v !== null && typeof v === "object" && !Array.isArray(v) &&
   (Object.getPrototypeOf(v) === Object.prototype || Object.getPrototypeOf(v) === null);
 const rejected = (evidenceId, code) => Object.freeze({ evidenceId: evidenceId ?? null, accepted: false, code });
 
-/**
- * validation must be the normalized output of validateLaunchpadDataEnvelope.
- * trustRecords are operator-provisioned raw trust-store records, never candidate input.
- * Attestation payload evidenceId maps to the adapter's stable evidence.reference.
- */
 export function buildPiLaunchpadVerifiedScoringEvidence({
-  validation, attestations, trustRecords, now
+  envelope, attestations, trustRecords, now
 } = {}) {
   const timestamp = now instanceof Date ? now.getTime() : now;
   if (!Number.isFinite(timestamp)) throw new TypeError("A finite gateway timestamp is required.");
-  if (!isRecord(validation) || validation.accepted !== true ||
-      typeof validation.tokenId !== "string" || !Array.isArray(validation.sources) ||
-      !Array.isArray(validation.evidence)) {
-    throw new TypeError("An accepted normalized Launchpad validation result is required.");
-  }
   if (!Array.isArray(attestations) || attestations.length > 80) {
     throw new TypeError("Attestations must be an array of at most 80 entries.");
   }
 
-  const trustStore = buildPiLaunchpadTrustStore(trustRecords, { now: timestamp });
-  const sourceById = new Map();
-  for (const source of validation.sources) {
-    if (!isRecord(source) || typeof source.sourceId !== "string" ||
-        typeof source.url !== "string" || sourceById.has(source.sourceId)) {
-      throw new TypeError("Normalized source records are malformed or duplicated.");
-    }
-    sourceById.set(source.sourceId, source);
+  // Never trust a caller-supplied { accepted:true } validation object.
+  const validation = validateLaunchpadDataEnvelope(envelope, { now: timestamp });
+  if (!validation.accepted) {
+    const error = new TypeError("Launchpad envelope failed validation: " + validation.code);
+    error.code = validation.code;
+    throw error;
   }
 
+  const trustStore = buildPiLaunchpadTrustStore(trustRecords, { now: timestamp });
+  const sourceById = new Map(validation.sources.map(source => [source.sourceId, source]));
   const evidenceById = new Map();
   for (const item of validation.evidence) {
-    if (!isRecord(item) || typeof item.reference !== "string" ||
-        typeof item.field !== "string" || typeof item.sourceId !== "string" ||
-        !sourceById.has(item.sourceId)) {
-      throw new TypeError("Normalized evidence records are malformed.");
-    }
     if (!evidenceById.has(item.reference)) evidenceById.set(item.reference, []);
     evidenceById.get(item.reference).push(item);
   }
@@ -71,7 +55,6 @@ export function buildPiLaunchpadVerifiedScoringEvidence({
       continue;
     }
     seenAttestationIds.add(identity);
-
     const matches = evidenceById.get(identity) ?? [];
     if (matches.length !== 1) {
       rejectedRecords.push(rejected(identity, matches.length ? "ambiguous_evidence_reference" : "evidence_not_found"));
@@ -96,14 +79,9 @@ export function buildPiLaunchpadVerifiedScoringEvidence({
     }
     if (!acceptedByField.has(verified.field)) acceptedByField.set(verified.field, []);
     acceptedByField.get(verified.field).push(Object.freeze({
-      evidenceId: identity,
-      field: verified.field,
-      value: verified.value,
-      issuer: verified.issuer,
-      keyId: verified.keyId,
-      observedAt: verified.observedAt,
-      sourceUrl: verified.sourceUrl,
-      cryptographicallyVerified: true
+      evidenceId: identity, field: verified.field, value: verified.value,
+      issuer: verified.issuer, keyId: verified.keyId, observedAt: verified.observedAt,
+      sourceUrl: verified.sourceUrl, cryptographicallyVerified: true
     }));
   }
 
@@ -127,6 +105,6 @@ export function buildPiLaunchpadVerifiedScoringEvidence({
     acceptedCount: acceptedRecords.length,
     rejectedCount: rejectedRecords.length,
     trustStoreAcceptedKeyCount: trustStore.acceptedKeyCount,
-    notice: "Only fresh Ed25519 attestations matching the validated token, evidence ID, field, source URL, timestamp, and value are emitted. Cryptographic verification does not establish factual or on-chain truth. sourceVerification is never accepted from this gateway."
+    notice: "Only fresh Ed25519 attestations matching a freshly validated envelope and operator trust anchor are emitted. Cryptographic verification does not establish factual or on-chain truth. sourceVerification and liquidity metrics are never accepted by this gateway."
   });
 }
