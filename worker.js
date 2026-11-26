@@ -311,6 +311,9 @@ async function reserveSocialWorkersAIBudget(env, reservedCredits, productKey = "
   await ensureSocialTables(env);
   const dayKey = new Date().toISOString().slice(0, 10);
   const column = selected.column;
+  const totalReservationCondition = productKey === "intelligence"
+    ? "workers_ai_daily_budget.total_reserved+excluded.total_reserved<=?"
+    : "(workers_ai_daily_budget.music_reserved+workers_ai_daily_budget.social_reserved+excluded.total_reserved)<=?";
   const totalReservationCap = productKey === "intelligence"
     ? WORKERS_AI_GLOBAL_DAILY_RESERVATION_CREDITS
     : WORKERS_AI_CUSTOMER_DAILY_RESERVATION_CREDITS;
@@ -322,7 +325,7 @@ async function reserveSocialWorkersAIBudget(env, reservedCredits, productKey = "
       total_reserved=workers_ai_daily_budget.total_reserved+excluded.total_reserved,
       request_count=workers_ai_daily_budget.request_count+1,
       updated_at=CURRENT_TIMESTAMP
-    WHERE workers_ai_daily_budget.total_reserved+excluded.total_reserved<=?
+    WHERE ${totalReservationCondition}
       AND workers_ai_daily_budget.${column}+excluded.${column}<=?
     RETURNING ${column} AS product_reserved,total_reserved,request_count
   `).bind(dayKey,reservedCredits,reservedCredits,
