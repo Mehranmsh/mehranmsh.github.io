@@ -1,3 +1,6 @@
+import { createHash } from "node:crypto";
+import { verifyPiTestnetArchiveReplacementJournal } from "./pi-testnet-observation-replacement-journal.mjs";
+
 const HEX_256 = /^[a-f0-9]{64}$/;
 const SCOPE = /^[a-zA-Z0-9._:-]{1,100}$/;
 const OPERATION_ID = /^[a-zA-Z0-9._:-]{1,120}$/;
@@ -40,6 +43,33 @@ export function buildPiTestnetArchiveD1ReplacementPlan(input) {
     return Object.freeze({ accepted: false, code: "invalid_d1_replacement_plan_input" });
   }
 
+  let replacementEnvelope, preparedRecord, committedRecord;
+  try {
+    replacementEnvelope = JSON.parse(input.replacementEnvelopeJson);
+    preparedRecord = JSON.parse(input.preparedRecordJson);
+    committedRecord = JSON.parse(input.committedRecordJson);
+  } catch {
+    return Object.freeze({ accepted: false, code: "invalid_d1_plan_json" });
+  }
+  const replacementDigest = createHash("sha256")
+    .update(JSON.stringify(replacementEnvelope), "utf8").digest("hex");
+  const journalCheck = verifyPiTestnetArchiveReplacementJournal([preparedRecord, committedRecord]);
+  if (!isPlainRecord(replacementEnvelope) ||
+      replacementEnvelope.archiveScope !== input.archiveScope ||
+      replacementDigest !== input.replacementEnvelopeSha256 ||
+      JSON.stringify(replacementEnvelope) !== input.replacementEnvelopeJson ||
+      JSON.stringify(preparedRecord) !== input.preparedRecordJson ||
+      JSON.stringify(committedRecord) !== input.committedRecordJson ||
+      !journalCheck.accepted || journalCheck.state !== "committed" ||
+      journalCheck.archiveScope !== input.archiveScope ||
+      journalCheck.archiveId !== input.archiveId ||
+      journalCheck.sourceEnvelopeSha256 !== input.sourceEnvelopeSha256 ||
+      journalCheck.replacementEnvelopeSha256 !== input.replacementEnvelopeSha256 ||
+      preparedRecord.recordSha256 !== input.preparedRecordSha256 ||
+      committedRecord.recordSha256 !== input.committedRecordSha256) {
+    return Object.freeze({ accepted: false, code: "d1_plan_integrity_validation_failed" });
+  }
+
   const phase1 = Object.freeze([
     statement(
       `INSERT INTO pi_testnet_archive_replacement_ops
@@ -59,7 +89,8 @@ export function buildPiTestnetArchiveD1ReplacementPlan(input) {
     ),
     statement(
       `UPDATE pi_testnet_archives
-       SET envelope_json = (
+       SET updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now'),
+           envelope_json = (
              SELECT replacement_envelope_json
              FROM pi_testnet_archive_replacement_ops
              WHERE operation_id = ? AND state = 'prepared'
