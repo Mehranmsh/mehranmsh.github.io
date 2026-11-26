@@ -82,3 +82,20 @@ test("rejects duplicate identities inside a hand-crafted manifest", () => {
   malformed.recordCount++;
   assert.equal(verifyPiTestnetObservationArchive(malformed).code, "observation_identity_mismatch");
 });
+
+test("rejects conflicting payloads that reuse the same observation identity", () => {
+  const first = makeObservation("same-id", "original");
+  const conflicting = makeObservation("same-id", "altered");
+  assert.equal(
+    createPiTestnetObservationArchive([first, conflicting]).code,
+    "conflicting_duplicate_identity"
+  );
+});
+
+test("rejects sparse arrays hidden inside observation results", () => {
+  const observation = makeObservation();
+  observation.result = [];
+  observation.result.length = 2;
+  observation.result[1] = "value";
+  assert.equal(createPiTestnetObservationArchive([observation]).code, "invalid_json_record");
+});
