@@ -42,3 +42,13 @@ test("rejects a missing or revoked active key", () => {
     { keyId: "revoked", key: oldKey, revoked: true }
   ] }).code, "active_key_unavailable");
 });
+
+test("does not let later configuration mutation change the active key", () => {
+  const config = { activeKeyId: "key-v1", keys: [
+    { keyId: "key-v1", key: oldKey }, { keyId: "key-v2", key: activeKey }
+  ] };
+  const ring = createPiTestnetArchiveKeyring(config);
+  config.activeKeyId = "key-v2";
+  assert.equal(ring.activeKeyId, "key-v1");
+  assert.equal(ring.getActiveEncryptionKey().keyId, "key-v1");
+});
