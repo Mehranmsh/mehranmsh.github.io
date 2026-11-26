@@ -1602,7 +1602,7 @@ test("capability pattern validation rejects trailing line terminators", () => {
   assert.equal(validateIntelligenceCapabilityRequest("create_pull_request", valid).ok, true);
   assert.equal(validateIntelligenceCapabilityRequest("create_pull_request", {
     ...valid,
-    branch: valid.branch + "\\n"
+    branch: valid.branch + String.fromCharCode(10)
   }).code, "invalid_input_value");
 });
 
