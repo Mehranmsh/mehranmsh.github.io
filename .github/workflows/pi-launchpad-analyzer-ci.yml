@@ -6,6 +6,7 @@ on:
       - intelligence/pi-launchpad-analyzer-mvp
       - feat/launchpad-mainnet-readiness-gate
       - feat/pi-launchpad-candidate-intake
+      - fix/launchpad-mainnet-scoring-boundary
     paths:
       - "scripts/pi-launchpad-analyzer.mjs"
       - "scripts/pi-launchpad-analyzer.test.mjs"
@@ -19,6 +20,7 @@ on:
       - "scripts/pi-launchpad-metrics-gateway.test.mjs"
       - "scripts/pi-launchpad-verified-analyzer.mjs"
       - "scripts/pi-launchpad-verified-analyzer.test.mjs"
+      - "scripts/pi-launchpad-mainnet-scoring-boundary.test.mjs"
       - "scripts/pi-launchpad-verified-analyzer-metrics.test.mjs"
       - "scripts/pi-testnet-rpc-policy.mjs"
       - "scripts/pi-testnet-rpc-policy.test.mjs"
