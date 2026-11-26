@@ -1,5 +1,5 @@
 const MAX_TASKS = 300;
-const SENSITIVE = new Set(["secret","credential","wallet","financial","private_social"]);
+const SENSITIVE = new Set(["secret","credential","wallet","financial","private_social","health","identity"]);
 const DONE = new Set(["done","complete","completed"]);
 const INACTIVE = new Set(["deleted","archived","cancelled","canceled"]);
 const clean = (v,n=160) => typeof v === "string" ? v.trim().slice(0,n) : "";
