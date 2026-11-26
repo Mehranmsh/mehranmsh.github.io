@@ -253,3 +253,22 @@ The D1 batch-plan module validates the replacement envelope's exact serialized d
 This increment adds no D1 binding, migration, live write, key custody, or deployment.
 
 Official reference: https://developers.cloudflare.com/d1/worker-api/d1-database/ (D1 Database, `batch()` and `withSession()`, last updated 2026-06-22).
+
+
+## Pi Mainnet connector readiness gate (2026-11-26)
+
+A pure, fail-closed readiness gate now defines the minimum operator evidence required before a future Mainnet read-only connector can even proceed to separate implementation review:
+- Requires an explicit `pi-mainnet` identity and rejects Testnet endpoints.
+- Requires an exact endpoint URL published by official Pi documentation hosted on `minepi.com` or `developers.minepi.com`; lookalike domains, credentials, custom ports, query strings, and fragments are rejected.
+- Requires documented protocol version, canonical ledger identity (sequence and hash), finality semantics, and coverage for ledger, assets, pools, and trades.
+- Requires a known-good Mainnet fixture, an explicit bounded read-only method list, and a declaration that state-changing methods are excluded.
+- Requires documented authentication and rate-limit policies plus independent review identity and timestamp.
+- Returns every blocker rather than partially accepting a source.
+
+The gate validates trusted operator-supplied metadata only. It does not prove that the metadata is truthful, fetch a source, authenticate ledger data, create or enable a connector, or permit writes. A passing result means only that a source record is complete enough to enter a separate connector design/review step.
+
+Official Pi Network's November 17, 2026 Summit announcement still describes Launchpad, DEX, and AMM Mainnet availability as Q1 2027. Pi's April 8, 2026 RPC announcement documents the Testnet endpoint and says Mainnet RPC will follow; it does not publish a Mainnet RPC endpoint. Therefore no real Mainnet endpoint or live Mainnet data is configured by this increment.
+
+Official references:
+- https://minepi.com/blog/ecosystem-summit-begins/
+- https://minepi.com/blog/rpc-server/
