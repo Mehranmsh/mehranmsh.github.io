@@ -120,7 +120,10 @@ export function verifyPiTestnetArchiveReplacementJournal(records) {
     accepted: true,
     recordCount: records.length,
     state: previous.state,
+    archiveScope: previous.archiveScope,
     archiveId: previous.archiveId,
+    sourceEnvelopeSha256: previous.sourceEnvelopeSha256,
+    replacementEnvelopeSha256: previous.replacementEnvelopeSha256,
     lastRecordSha256: previous.recordSha256,
     recovery: previous.state === "prepared" ? "reconcile_storage_before_retry" : "terminal"
   });
