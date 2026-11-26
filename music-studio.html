@@ -2513,7 +2513,9 @@ async function generatePatternTrack(){const allowedMode=["drums","chords"].inclu
    for(let start=0;start<data.length;start+=blockSize){
     const stop=Math.min(data.length,start+blockSize);let blockSquares=0;
     for(let i=start;i<stop;i++){
-     const value=data[i],absolute=Math.abs(value);
+     const value=data[i];
+     if(!Number.isFinite(value))throw new Error("Audio samples must be finite numbers.");
+     const absolute=Math.abs(value);
      if(absolute>peak)peak=absolute;
      if(absolute>=0.999)clipped++;
      sumSquares+=value*value;dcSum+=value;blockSquares+=value*value;
