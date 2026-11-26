@@ -4065,3 +4065,22 @@ test("Worker JSON body reader validates media type and declared lengths and rele
   assert.match(reader, /total > maxBytes/);
   assert.match(reader, /await reader\.cancel\(\)/);
 });
+
+
+test("private inbox resolves and attaches an immutable base SHA before creating isolated test tasks", () => {
+  const resolverStart = workerSource.indexOf("async function resolvePrivateInboxRepositoryBaseSha()");
+  const resolverEnd = workerSource.indexOf("async function ingestPrivateIntelligenceInbox", resolverStart);
+  assert.ok(resolverStart >= 0 && resolverEnd > resolverStart);
+  const resolver = workerSource.slice(resolverStart, resolverEnd);
+  assert.ok(resolver.includes("api.github.com/repos/Mehranmsh/mehranmsh.github.io/commits/main"));
+  assert.ok(resolver.includes("AbortSignal.timeout(8000)"));
+  assert.ok(resolver.includes("total > 65536"));
+  assert.ok(resolver.includes("/^[a-f0-9]{40}$/.test(sha)"));
+  const inboxStart = workerSource.indexOf("async function ingestPrivateIntelligenceInbox");
+  const inboxEnd = workerSource.indexOf("async function ingestGitHubIntelligenceInbox", inboxStart);
+  const inbox = workerSource.slice(inboxStart, inboxEnd);
+  assert.ok(inbox.includes('const repositoryBaseSha = mission.scope.allowed_actions.includes("run_repository_tests")'));
+  assert.ok(inbox.includes('actionType: "run_repository_tests"'));
+  assert.ok(inbox.includes("baseSha: repositoryBaseSha"));
+  assert.ok(inbox.includes("private_inbox_package_creation_failed"));
+});
