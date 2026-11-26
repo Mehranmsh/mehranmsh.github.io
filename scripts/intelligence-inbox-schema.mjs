@@ -10,7 +10,8 @@ export const PRIVATE_INTELLIGENCE_INSPECTION_PATHS = Object.freeze([
   "scripts/intelligence-capabilities.mjs",
   "scripts/intelligence-capabilities.test.mjs",
   ".github/workflows/mehran-intelligence-runner.yml",
-  "docs/INTELLIGENCE_EXECUTION_PROTOCOL.md"
+  "docs/INTELLIGENCE_EXECUTION_PROTOCOL.md",
+  "scripts/intelligence-architecture-review.mjs"
 ]);
 
 const DEFAULT_INSPECTION_PATHS = Object.freeze([
