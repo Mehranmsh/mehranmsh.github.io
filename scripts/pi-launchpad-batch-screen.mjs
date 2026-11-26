@@ -61,8 +61,8 @@ export function screenPiLaunchpadBatch(input, options = {}) {
 
   for (const item of normalized) {
     const analysis = item.analysis && typeof item.analysis === "object" ? item.analysis : item;
-    const classification = classifications[analysis.classification] === undefined
-      ? "invalid_or_unclassified" : analysis.classification;
+    const classification = Object.hasOwn(classifications, analysis.classification)
+      ? analysis.classification : "invalid_or_unclassified";
     classifications[classification] += 1;
     if (typeof analysis.coveragePercent === "number" &&
         Number.isFinite(analysis.coveragePercent) &&
