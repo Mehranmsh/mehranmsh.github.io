@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - "scripts/intelligence-patch-*.mjs"
+      - "scripts/intelligence-patch-*.test.mjs"
       - "scripts/intelligence-capabilities.test.mjs"
       - ".github/workflows/intelligence-patch-tests.yml"
 
@@ -26,4 +27,4 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha }}
           persist-credentials: false
       - name: Run bounded patch policy regression tests
-        run: node --test scripts/intelligence-capabilities.test.mjs
+        run: node --check scripts/intelligence-patch-targets.mjs && node --check scripts/intelligence-patch-policy.mjs && node --check scripts/intelligence-patch-generation.mjs && node --check scripts/intelligence-patch-generation-service.mjs && node --check scripts/intelligence-patch-apply.mjs && node --check scripts/intelligence-patch-artifact.mjs && node --test scripts/intelligence-capabilities.test.mjs scripts/intelligence-patch-targets.test.mjs scripts/intelligence-patch-policy.test.mjs scripts/intelligence-patch-generation-service.test.mjs scripts/intelligence-patch-apply.test.mjs scripts/intelligence-patch-artifact.test.mjs

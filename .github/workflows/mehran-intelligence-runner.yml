@@ -306,8 +306,13 @@ jobs:
                 throw new Error("Patch proposal task payload or checkpoint is not valid JSON.");
               }
               const objective = typeof payload.objective === "string" ? payload.objective.trim() : "";
-              if (objective.length < 12 || objective.length > 800) {
-                throw new Error("Patch proposal task requires one bounded objective.");
+              const targetPath = typeof payload.targetPath === "string" ? payload.targetPath : "scripts/intelligence-capabilities.test.mjs";
+              const allowedPatchTargets = new Set([
+                "scripts/intelligence-capabilities.test.mjs",
+                "scripts/intelligence-inbox-schema.test.mjs"
+              ]);
+              if (objective.length < 12 || objective.length > 800 || !allowedPatchTargets.has(targetPath)) {
+                throw new Error("Patch proposal task requires one bounded objective and one exact test-only target.");
               }
               let baseSha = String(checkpoint.baseSha || "").toLowerCase();
               if (!/^[a-f0-9]{40}$/.test(baseSha)) {
@@ -331,7 +336,7 @@ jobs:
               }
               const proposal = await request("/agent/v1/patch-proposals/generate", {
                 method: "POST",
-                body: JSON.stringify({ baseSha, objective, requestId: task.id })
+                body: JSON.stringify({ baseSha, objective, requestId: task.id, targetPath })
               }, agentHeaders, 90000);
               if (proposal.requestId !== task.id || proposal.status !== "stored" ||
                   !/^[A-Za-z0-9_-]{43}$/.test(proposal.requestHash || "") ||
@@ -831,7 +836,7 @@ jobs:
                 const patchReport = JSON.parse(savedCheckpoint.result || "null");
                 const payload = typeof task.actionPayload === "string" ? JSON.parse(task.actionPayload || "{}") : (task.actionPayload || {});
                 const expectedDigest = createHash("sha256")
-                  .update(String(patchReport?.baseSha || "") + "\n" + String(payload?.objective || "").trim())
+                  .update(String(patchReport?.baseSha || "") + "\n" + String(payload?.objective || "").trim() + "\n" + String(payload?.targetPath || "scripts/intelligence-capabilities.test.mjs"))
                   .digest("base64url");
                 checkpointMatchesCurrentSchema = checkpointMatchesCurrentSchema && patchReport?.type === "propose_code_patch" &&
                   patchReport?.requestId === task.id &&

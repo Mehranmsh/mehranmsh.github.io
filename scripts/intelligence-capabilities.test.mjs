@@ -22,6 +22,7 @@ const workerSource = readFileSync(new URL("../worker.js", import.meta.url), "utf
 const indexSource = readFileSync(new URL("../index.html", import.meta.url), "utf8");
 const runnerSource = readFileSync(new URL("../.github/workflows/mehran-intelligence-runner.yml", import.meta.url), "utf8");
 const proposalRunnerSource = readFileSync(new URL("./intelligence-proposal-pr-runner.mjs", import.meta.url), "utf8");
+const patchTargetsSource = readFileSync(new URL("./intelligence-patch-targets.mjs", import.meta.url), "utf8");
 const agentSource = readFileSync(new URL("./intelligence-agent.mjs", import.meta.url), "utf8");
 const proposalWorkflowSource = readFileSync(new URL("../.github/workflows/intelligence-proposal-pr-runner.yml", import.meta.url), "utf8");
 const routinePlannerSource = readFileSync(new URL("./intelligence-routine-planner.mjs", import.meta.url), "utf8");
@@ -224,7 +225,7 @@ test("AI planner strips schema-optional fields that are invalid for another acti
   assert.match(workerSource, /const normalizedTasks = plan\.tasks\.map\(item =>/);
   assert.match(workerSource, /if \(normalized\.actionType !== "inspect_repository"\) delete normalized\.paths/);
   assert.match(workerSource, /if \(normalized\.actionType !== "run_repository_tests"\) delete normalized\.baseSha/);
-  assert.match(workerSource, /if \(normalized\.actionType !== "propose_code_patch"\) delete normalized\.objective/);
+  assert.match(workerSource, /if \(normalized\.actionType !== "propose_code_patch"\) \{ delete normalized\.objective; delete normalized\.targetPath; \}/);
   assert.match(workerSource, /const acceptedTaskIds = new Set\(\)/);
   assert.match(workerSource, /acceptedTaskIds\.has\(dep\)/);
   assert.match(workerSource, /seenDependencies\.has\(dep\)/);
@@ -328,8 +329,11 @@ test("draft PR automation is isolated, main-only, test-gated, and never merges o
   assert.match(proposalWorkflowSource, /GITHUB_TOKEN:/);
 
   assert.match(proposalRunnerSource, /proposals\.slice\(0,3\)/);
-  assert.match(proposalRunnerSource, /proposal\.targetPath !== targetPath/);
-  assert.match(proposalRunnerSource, /scripts\/intelligence-capabilities\.test\.mjs/);
+  assert.match(proposalRunnerSource, /!targetPolicy/);
+  assert.match(proposalRunnerSource, /getIntelligencePatchTarget\(targetPath\)/);
+  assert.match(proposalRunnerSource, /targetPolicy\.testCommand/);
+  assert.match(patchTargetsSource, /scripts\/intelligence-capabilities\.test\.mjs/);
+  assert.match(patchTargetsSource, /scripts\/intelligence-inbox-schema\.test\.mjs/);
   assert.match(proposalRunnerSource, /--network", "none"/);
   assert.match(proposalRunnerSource, /draft: true/);
   assert.match(proposalRunnerSource, /base: "main"/);
@@ -453,7 +457,7 @@ test("patch proposal validator accepts only a bounded single-file test diff and 
   assert.equal(PATCH_PROPOSAL_POLICY.appliesChanges, false);
   assert.equal(PATCH_PROPOSAL_POLICY.createsBranches, false);
   assert.equal(PATCH_PROPOSAL_POLICY.createsPullRequests, false);
-  assert.deepEqual(PATCH_PROPOSAL_POLICY.allowedPaths, [targetPath]);
+  assert.deepEqual(PATCH_PROPOSAL_POLICY.allowedPaths, [targetPath, "scripts/intelligence-inbox-schema.test.mjs"]);
 });
 
 test("patch proposal validator rejects paths, multi-file input, malformed hunks, and oversized diffs", () => {

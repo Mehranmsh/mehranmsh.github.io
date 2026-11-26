@@ -1,8 +1,9 @@
 import { buildPatchGenerationPrompt, validateGeneratedPatch } from "./intelligence-patch-generation.mjs";
 import { createPatchArtifactRecord } from "./intelligence-patch-artifact.mjs";
+import { isAllowedIntelligencePatchTarget } from "./intelligence-patch-targets.mjs";
 
 const REPOSITORY = "Mehranmsh/mehranmsh.github.io";
-const TARGET_PATH = "scripts/intelligence-capabilities.test.mjs";
+const DEFAULT_TARGET_PATH = "scripts/intelligence-capabilities.test.mjs";
 const MODEL = "@cf/meta/llama-3.3-70b-instruct-fp8-fast";
 const MAX_SOURCE_BYTES = 128 * 1024;
 
@@ -150,11 +151,12 @@ async function readBoundedText(response, maxBytes) {
  * Generate one bounded proposal from the exact current main commit.
  * The returned artifact is validated but not stored or applied.
  */
-export function canonicalizeAppendOnlyHunkHeader(diff, sourceLineCount) {
+export function canonicalizeAppendOnlyHunkHeader(diff, sourceLineCount, targetPath = DEFAULT_TARGET_PATH) {
   if (typeof diff !== "string" || !Number.isInteger(sourceLineCount) || sourceLineCount < 1) return diff;
   const lines = diff.endsWith("\n") ? diff.slice(0, -1).split("\n") : diff.split("\n");
-  const target = "--- a/scripts/intelligence-capabilities.test.mjs";
-  const replacement = "+++ b/scripts/intelligence-capabilities.test.mjs";
+  if (!isAllowedIntelligencePatchTarget(targetPath)) return diff;
+  const target = "--- a/" + targetPath;
+  const replacement = "+++ b/" + targetPath;
   if (lines.length < 4 || lines[0] !== target || lines[1] !== replacement) return diff;
   const payload = lines.slice(3);
   // Model output commonly includes unchanged context lines even though this
@@ -171,11 +173,11 @@ export function canonicalizeAppendOnlyHunkHeader(diff, sourceLineCount) {
   return lines.join("\n") + "\n";
 }
 
-export function inspectGeneratedDiffShape(diff) {
+export function inspectGeneratedDiffShape(diff, targetPath = DEFAULT_TARGET_PATH) {
   if (typeof diff !== "string") return { reason: "not_string" };
   const lines = diff.replace(/\r\n/g, "\n").replace(/\n$/, "").split("\n");
-  const exactPath = lines[0] === "--- a/scripts/intelligence-capabilities.test.mjs" &&
-    lines[1] === "+++ b/scripts/intelligence-capabilities.test.mjs";
+  const exactPath = isAllowedIntelligencePatchTarget(targetPath) &&
+    lines[0] === "--- a/" + targetPath && lines[1] === "+++ b/" + targetPath;
   const payload = lines.slice(3);
   const additions = payload.filter(line => line.startsWith("+") && !line.startsWith("+++")).length;
   const deletions = payload.filter(line => line.startsWith("-") && !line.startsWith("---")).length;
@@ -210,11 +212,13 @@ export async function generatePatchArtifact({
   runAI,
   fetchImpl = fetch,
   now = () => new Date().toISOString(),
-  proposalId = () => crypto.randomUUID()
+  proposalId = () => crypto.randomUUID(),
+  targetPath = DEFAULT_TARGET_PATH
 } = {}) {
   if (!env || (!runAI && (!env.AI || typeof env.AI.run !== "function"))) return fail("ai_unavailable");
   if (!runAI && typeof reserveBudget !== "function") return fail("budget_guard_unavailable");
   if (typeof baseSha !== "string" || !/^[a-f0-9]{40}$/.test(baseSha)) return fail("invalid_base_sha");
+  if (!isAllowedIntelligencePatchTarget(targetPath)) return fail("path_not_allowed");
 
   const mainCommit = await fetchCurrentMainCommit(fetchImpl);
   if (!mainCommit.ok) return mainCommit;
@@ -223,7 +227,7 @@ export async function generatePatchArtifact({
   let sourceResponse;
   try {
     sourceResponse = await fetchImpl(
-      `https://raw.githubusercontent.com/${REPOSITORY}/${baseSha}/${TARGET_PATH}`,
+      `https://raw.githubusercontent.com/${REPOSITORY}/${baseSha}/${targetPath}`,
       { headers: { "Accept": "text/plain" } }
     );
   } catch {
@@ -233,7 +237,7 @@ export async function generatePatchArtifact({
   const source = await readBoundedText(sourceResponse, MAX_SOURCE_BYTES);
   if (source === null || !source.trim()) return fail("source_size_invalid");
 
-  const prompt = buildPatchGenerationPrompt({ baseSha, objective, source });
+  const prompt = buildPatchGenerationPrompt({ baseSha, objective, source, targetPath });
   if (!prompt.ok) return prompt;
 
   let raw = "";
@@ -316,19 +320,20 @@ export async function generatePatchArtifact({
   if (normalizedDiff === null) return fail("model_diff_encoding_invalid");
   // Repair only the unified-diff count header when the file path is exact and
   // every payload line is already an addition. No patch content is changed.
-  const canonicalDiff = canonicalizeAppendOnlyHunkHeader(normalizedDiff, sourceLineCount);
+  const canonicalDiff = canonicalizeAppendOnlyHunkHeader(normalizedDiff, sourceLineCount, targetPath);
   const validated = validateGeneratedPatch({
     baseSha,
     sourceLineCount,
     summary: generated.summary,
-    diff: canonicalDiff
+    diff: canonicalDiff,
+    targetPath
   });
   if (!validated.ok) {
     return {
       ...validated,
       diagnostic: {
         stage: "generated_diff_validation",
-        shape: inspectGeneratedDiffShape(canonicalDiff),
+        shape: inspectGeneratedDiffShape(canonicalDiff, targetPath),
         canonicalizerApplied: canonicalDiff !== normalizedDiff
       }
     };
@@ -340,7 +345,7 @@ export async function generatePatchArtifact({
       proposalId: proposalId(),
       createdAt: now(),
       baseSha,
-      targetPaths: [TARGET_PATH],
+      targetPaths: [targetPath],
       summary: generated.summary,
       diff: canonicalDiff
     });
@@ -362,7 +367,7 @@ export async function generatePatchArtifact({
 
 export const PATCH_GENERATION_SERVICE_POLICY = Object.freeze({
   repository: REPOSITORY,
-  targetPath: TARGET_PATH,
+  defaultTargetPath: DEFAULT_TARGET_PATH,
   model: MODEL,
   maxSourceBytes: MAX_SOURCE_BYTES,
   reservedCreditsPerAttempt: 100,
