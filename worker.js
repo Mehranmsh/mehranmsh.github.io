@@ -8453,7 +8453,8 @@ export default {
           if (!body || !body.checkpoint || typeof body.checkpoint !== "object" || Array.isArray(body.checkpoint)) return error("A checkpoint object is required.");
           let checkpointJson;
           try { checkpointJson = JSON.stringify(body.checkpoint); } catch { return error("Checkpoint must be valid JSON."); }
-          if (!checkpointJson || checkpointJson.length > 4000) return error("Checkpoint exceeds the 4 KB limit.");
+          const checkpointBytes = checkpointJson ? new TextEncoder().encode(checkpointJson).byteLength : 0;
+          if (!checkpointJson || checkpointBytes > 4096) return error("Checkpoint exceeds the 4 KB limit.");
           const claimToken = typeof body.claimToken === "string" ? body.claimToken : "";
           const claimTokenHash = claimToken ? await sha256(claimToken) : "";
           if (!/^[A-Za-z0-9_-]{43}$/.test(claimToken)) return error("A valid task claim token is required.",401);
@@ -8462,7 +8463,7 @@ export default {
           const update = await env.DB.prepare("UPDATE intelligence_tasks SET checkpoint_json=?,updated_at=CURRENT_TIMESTAMP WHERE id=? AND status='in_progress' AND agent_claim_token_hash=? AND agent_claimed_at IS NOT NULL AND datetime(agent_claimed_at)>=datetime('now','-15 minutes') AND requires_approval=0 AND assigned_to IN ('mehran_intelligence','shared') AND action_type IN ('repository_quality_check','service_health_report','source_security_audit','inspect_repository','run_repository_tests','propose_code_patch') AND (work_package_id IS NULL OR EXISTS (SELECT 1 FROM intelligence_work_packages wp, json_each(CASE WHEN json_valid(wp.scope_json) THEN wp.scope_json ELSE '{}' END, '$.allowedActions') scoped WHERE wp.id=intelligence_tasks.work_package_id AND scoped.value=intelligence_tasks.action_type))").bind(checkpointJson,id,claimTokenHash).run();
           if (!Number(update?.meta?.changes || 0)) return error("Task claim expired before checkpoint commit.",409);
           await env.DB.prepare("INSERT INTO intelligence_task_events(id,work_package_id,task_id,event_type,from_status,to_status,actor,details_json) VALUES(?,?,?,'checkpoint_saved','in_progress','in_progress','mehran_intelligence',?)")
-            .bind(crypto.randomUUID(),before.work_package_id || null,id,JSON.stringify({checkpointLength:checkpointJson.length})).run();
+            .bind(crypto.randomUUID(),before.work_package_id || null,id,JSON.stringify({checkpointBytes})).run();
           return json({success:true,taskId:id,checkpointSaved:true});
         }
         const agentResultMatch = path.match(/^\/agent\/v1\/tasks\/([^/]+)\/result$/);
