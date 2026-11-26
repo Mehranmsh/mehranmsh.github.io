@@ -51,18 +51,20 @@ A fail-closed policy primitive now exists in `scripts/intelligence-queue-policy.
 - Shared tasks require an explicit shared lane and no owner UID.
 - Legacy or malformed rows resolve to `quarantine`.
 
-This is a policy primitive, not yet connected to D1 migrations, Scheduler selection, agent claims, checkpoint/result acknowledgements, or separate worker capacity. It must not be described as live queue isolation. The current single agent endpoint also has one runner authorization boundary; a separate shared-worker authorization boundary must be designed without reading or exposing credentials.
+The policy primitive is now connected to the D1 schema, owner/shared claim endpoints, checkpoint/result acknowledgements, scheduled owner selection, and the private owner runner. Legacy rows remain quarantined. This provides lane-level claim isolation in code, but does not create separate Cloudflare account-level AI capacity or prove independent provider throughput.
 
 
 ## D1 schema groundwork
 
 The task table now has nullable `owner_uid` and `queue_lane TEXT NOT NULL DEFAULT 'quarantine'`, plus a lane/status/priority/created-at index. The migration is additive and idempotent for duplicate-column initialization. Existing records are intentionally not backfilled: neither `assigned_to` nor `created_by` is accepted as proof of owner identity.
 
-This schema change is not yet enforcing lane-specific claims. The existing scheduler and agent endpoints still use their legacy shared selection predicates until authenticated owner identity is wired end-to-end. Do not enable lane filtering or claim the queues are isolated until task creation, claim, checkpoint, result, and stale-claim recovery all enforce the same lane and owner binding.
+The schema now enforces lane-specific claims. Owner tasks require `queue_lane='owner'`, a nonempty owner principal, and matching package ownership where applicable. Shared tasks require `queue_lane='shared'` and a null owner. Legacy records default to quarantine and are not automatically backfilled.
 
 
 ## Authenticated task creation binding
 
-New tasks created through the authenticated owner task API now persist `admin.uid` as `owner_uid` when assigned to `mehran_intelligence`, and set `queue_lane='owner'`. Explicitly shared tasks are stored with a null owner and `queue_lane='shared'`; other assignments are quarantined. Owner mission work-package tasks inherit the supplied owner UID only when it is present; otherwise they are quarantined. The chat task proposal path follows the same owner/shared classification.
+New owner-created task-hub and chat tasks persist the authenticated `admin.uid` and enter the owner lane. Shared assignments have no owner UID and enter the shared lane. The owner work-package API is authenticated by the dedicated orchestration bearer and stores the explicit service principal `mehran_owner_orchestrator` on both package and tasks. This is a service identity, not a guessed personal account UID.
 
-The existing agent claim endpoint is still a combined legacy endpoint and has not yet been lane-filtered. This is intentional: switching its query before the owner runner has a distinct authenticated route would risk stranding or misrouting work. Next implementation slice must split owner orchestration claims from shared-agent claims, bind checkpoint/result acknowledgements to the same lane, and keep stale-claim recovery lane-specific.
+`GET /agent/v1/owner/tasks/next` plus owner checkpoint/result routes require `MEHRAN_ORCHESTRATOR_TOKEN`. The legacy `/agent/v1/tasks/next` plus checkpoint/result routes require `MEHRAN_AGENT_TOKEN` and can only claim shared-lane rows. Both claim recovery and acknowledgements enforce the same lane. The GitHub Actions private runner now claims and reports owner-lane work only, using the orchestration identity. The scheduled Worker scheduler also selects owner-lane tasks only.
+
+This separates the task queues and their claim authorization. It does not yet provide a distinct Cloudflare Workers AI provider quota or guarantee that owner and customer inference have separate provider-level throughput. Shared-lane tasks currently have no dedicated runner workflow in this branch and therefore remain queued until one is provisioned.
