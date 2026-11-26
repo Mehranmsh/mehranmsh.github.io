@@ -96,7 +96,7 @@ jobs:
             const raw = await readBoundedResponse(response, maxBytes);
             try {
               const value = raw ? JSON.parse(raw) : {};
-              if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("invalid JSON object");
+              if (!value || typeof value !== "object") throw new Error("invalid JSON value");
               return value;
             } catch {
               throw new Error("Remote API returned invalid or oversized JSON.");
