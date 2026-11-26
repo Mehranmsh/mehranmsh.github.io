@@ -1,6 +1,7 @@
 import { buildIntelligenceExecutionPlan } from "./intelligence-execution-planner.mjs";
 
 const MAX_ITEMS = 200;
+const MAX_RAW_RECORDS = 10000;
 const SENSITIVE = new Set(["secret", "credential", "wallet", "financial", "private_social", "health", "identity"]);
 const VALID_PROGRESS = new Set(["pending", "in_progress", "completed", "blocked", "failed"]);
 const clean = (value, limit = 160) => typeof value === "string" ? value.trim().slice(0, limit) : "";
@@ -28,7 +29,8 @@ export function buildIntelligenceGoalLifecycle(records, proposedTasks, progressE
   const actorUid = clean(options.actorUid, 256);
   if (!ownerUid || actorUid !== ownerUid || !Array.isArray(records) || !Array.isArray(proposedTasks) || !Array.isArray(progressEvents)) return empty;
 
-  const ownerRecords = records.filter(record =>
+  const boundedRecords = records.slice(0, Math.min(MAX_RAW_RECORDS, maxItems));
+  const ownerRecords = boundedRecords.filter(record =>
     record && typeof record === "object" && !Array.isArray(record) &&
     record.owner_uid === ownerUid && active(record)
   );
@@ -194,7 +196,9 @@ export function buildIntelligenceGoalLifecycle(records, proposedTasks, progressE
     executionPlans: plans,
     replanningSuggestions: plans.flatMap(plan => plan.replanningSuggestions),
     diagnostics: {
-      ownerScoped: true, goalsInspected: goals.length,
+      ownerScoped: true, rawRecordsInspected: boundedRecords.length,
+      rawRecordsOmitted: Math.max(0, records.length - boundedRecords.length),
+      goalsInspected: goals.length,
       taskProposalsInspected: Math.min(proposedTasks.length, maxItems),
       taskProposalsAccepted: acceptedTaskProposals.length,
       taskProposalsRejected: rejectedTaskProposals.length,
