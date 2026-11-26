@@ -6755,6 +6755,53 @@ export function verifyIntelligenceReport(actionType, report) {
       return { passed: false, checks: [...checks, "architecture_review_schema"] };
     }
     checks.push("architecture_review_identity", "architecture_review_evidence", "architecture_review_bounds", "architecture_review_no_ai_mode");
+  } else if (actionType === "architecture_review") {
+    const allowedPaths = [
+      "worker.js",
+      "scripts/intelligence-agent.mjs",
+      "scripts/intelligence-capabilities.mjs",
+      ".github/workflows/mehran-intelligence-runner.yml",
+      "docs/INTELLIGENCE_EXECUTION_PROTOCOL.md",
+      "scripts/intelligence-architecture-review.mjs"
+    ];
+    const layers = Array.isArray(report.architecture) ? report.architecture : [];
+    const layerIds = ["api_scheduler","orchestration","capabilities","memory","ai_quota","execution","security","evaluation"];
+    const validLayers = layers.length === layerIds.length && layers.every((item,index) =>
+      item && item.id === layerIds[index] && typeof item.title === "string" &&
+      ["present","partial","not_detected"].includes(item.status) &&
+      Array.isArray(item.evidence) && item.evidence.length <= 2 &&
+      item.evidence.every(ev => ev && allowedPaths.includes(ev.path) && integer(ev.line) && ev.line > 0)
+    );
+    const source = report.source && typeof report.source === "object" ? report.source : {};
+    const summary = report.summary && typeof report.summary === "object" ? report.summary : {};
+    const gaps = Array.isArray(report.gaps) ? report.gaps : [];
+    const roadmap = Array.isArray(report.roadmap) ? report.roadmap : [];
+    const blueprint = Array.isArray(report.targetBlueprint) ? report.targetBlueprint : [];
+    const limitations = Array.isArray(report.limitations) ? report.limitations : [];
+    const validGaps = gaps.length >= 1 && gaps.length <= 4 && gaps.every(item =>
+      item && typeof item.id === "string" && ["critical","high","medium","low"].includes(item.severity) &&
+      typeof item.detail === "string" && item.detail.length <= 160
+    );
+    const validRoadmap = roadmap.length >= 1 && roadmap.length <= 4 && roadmap.every((item,index) =>
+      item && item.phase === index + 1 && typeof item.name === "string" && item.name.length <= 60 &&
+      Array.isArray(item.actions) && item.actions.length >= 1 && item.actions.length <= 3 &&
+      item.actions.every(action => typeof action === "string" && action.length <= 120)
+    );
+    if (report.mode !== "deterministic_static_evidence_no_ai_inference" ||
+        report.repository !== "Mehranmsh/mehranmsh.github.io" ||
+        typeof report.commitSha !== "string" || !/^[a-f0-9]{40}$/.test(report.commitSha) ||
+        !isoDate(report.generatedAt) || source.filesInspected !== 6 ||
+        !integer(source.totalBytes) || source.totalBytes < 1 || source.totalBytes > 750000 ||
+        !validLayers || summary.layersDetected !== layers.filter(item => item.status === "present").length ||
+        summary.layersPartial !== layers.filter(item => item.status === "partial").length ||
+        summary.layersNotDetected !== layers.filter(item => item.status === "not_detected").length ||
+        summary.gaps !== gaps.length || !validGaps ||
+        blueprint.length < 1 || blueprint.length > 7 || blueprint.some(item => typeof item !== "string" || item.length > 80) ||
+        !validRoadmap || limitations.length < 1 || limitations.length > 3 ||
+        limitations.some(item => typeof item !== "string" || item.length > 120)) {
+      return { passed: false, checks: [...checks, "architecture_review_schema"] };
+    }
+    checks.push("architecture_review_identity", "architecture_review_evidence", "architecture_review_bounds", "architecture_review_no_ai_mode");
   } else if (actionType === "run_repository_tests") {
     const tests = report.tests && typeof report.tests === "object" ? report.tests : {};
     const container = report.container && typeof report.container === "object" ? report.container : {};
