@@ -434,6 +434,7 @@ jobs:
               const commit = await readJsonResponse(commitResponse, 65536);
               if (typeof commit.sha !== "string" || !/^[a-f0-9]{40}$/i.test(commit.sha)) throw new Error("GitHub returned an invalid main commit SHA.");
               const files = [];
+              const analysisEvidence = [];
               let totalBytes = 0;
               for (const path of paths) {
                 const apiPath = path.split("/").map(encodeURIComponent).join("/");
@@ -469,7 +470,70 @@ jobs:
                   symbols: [...symbols].map(symbol => symbol.slice(0, 60))
                 });
 
+                // Keep deterministic inventory independent from model availability.
+                // A separate, owner-authenticated analysis call receives bounded excerpts only.
+                const anchors = path === "worker.js"
+                  ? ["async function ingestPrivateIntelligenceInbox", 'if (path === "/agent/v1/repository/analyze"', 'if (path === "/agent/v1/tasks/next"']
+                  : path === ".github/workflows/mehran-intelligence-runner.yml"
+                    ? ["async function execute(task)", 'if (task.actionType === "inspect_repository")', 'if (task.actionType === "propose_code_patch")']
+                    : [];
+                const excerpts = anchors.map(anchor => {
+                  const index = source.indexOf(anchor);
+                  return index < 0 ? "" : source.slice(Math.max(0, index - 160), index + 760);
+                }).filter(Boolean);
+                const excerpt = (excerpts.length ? excerpts.join("\\n...\\n") : source).slice(0, 2500);
+                analysisEvidence.push({ path, sha: file.sha, excerpt });
               }
+
+              let semanticAnalysis = {
+                status: "blocked",
+                summary: "Deterministic inventory completed; semantic analysis was not run.",
+                findings: [],
+                limitations: ["Owner-authenticated semantic analysis was unavailable for this runner tick."]
+              };
+              if (orchestratorToken.length >= 40 && orchestratorToken.length <= 200) {
+                const analysisStartedAt = Date.now();
+                try {
+                  const analysisTraceId = traceRunId + "-semantic-" + commit.sha.slice(0, 8);
+                  const analysisResponse = await fetch(base + "/agent/v1/repository/analyze", {
+                    method: "POST",
+                    headers: { ...ownerHeaders, "X-Intelligence-Trace-Id": analysisTraceId },
+                    body: JSON.stringify({ commitSha: commit.sha, files: analysisEvidence }),
+                    signal: AbortSignal.timeout(90000)
+                  });
+                  const analysisPayload = await readJsonResponse(analysisResponse, 65536);
+                  if (!analysisResponse.ok || analysisPayload.success !== true ||
+                      analysisPayload.commitSha !== commit.sha || !analysisPayload.analysis) {
+                    const failure = new Error("Semantic analysis endpoint did not return a verified result.");
+                    failure.status = analysisResponse.status;
+                    throw failure;
+                  }
+                  semanticAnalysis = {
+                    status: "completed",
+                    model: String(analysisPayload.model || "").slice(0, 120),
+                    ...analysisPayload.analysis,
+                    diagnostic: {
+                      stage: "semantic_repository_analysis",
+                      traceId: analysisTraceId,
+                      elapsedMs: Math.max(0, Date.now() - analysisStartedAt)
+                    }
+                  };
+                } catch (analysisError) {
+                  semanticAnalysis = {
+                    status: "blocked",
+                    summary: "Deterministic inventory completed, but semantic analysis failed closed.",
+                    findings: [],
+                    limitations: ["Semantic analysis did not complete; no code defect or test result is inferred."],
+                    diagnostic: {
+                      stage: "semantic_repository_analysis",
+                      httpStatus: Number.isInteger(analysisError?.status) ? analysisError.status : null
+                    }
+                  };
+                } finally {
+                  recordTiming("semantic_repository_analysis", analysisStartedAt);
+                }
+              }
+
               return {
                 type: task.actionType,
                 generatedAt: new Date().toISOString(),
@@ -478,18 +542,11 @@ jobs:
                 commitSha: commit.sha,
                 summary: { filesInspected: files.length, totalBytes },
                 files,
-                analysis: {
-                  summary: "Deterministic repository inventory completed. No semantic AI analysis was requested or required.",
-                  findings: [],
-                  limitations: [
-                    "This task verifies bounded file metadata and declaration names only; it does not perform semantic code review.",
-                    "Source files were read from one immutable main commit and were not executed."
-                  ]
-                },
+                analysis: semanticAnalysis,
                 limitations: [
-                  "This task inventories bounded file metadata and declaration names only; it is not a semantic code review.",
+                  "Inventory is deterministic and read-only; semantic findings are model-generated and evidence-validated by the Worker.",
                   "Repository content was treated as untrusted data and was never executed or followed as instructions.",
-                  "No tests or code changes are claimed by this inventory task."
+                  "This task does not execute tests or modify source files."
                 ]
               };
             }
