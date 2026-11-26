@@ -212,3 +212,68 @@ export function buildPiTestnetArchiveD1ReplacementPlan(input) {
     limitation: "D1 batch provides atomicity per batch, not one interactive transaction across phase1, read-back, and phase2. A crash between phases leaves a recoverable prepared operation."
   });
 }
+
+
+/**
+ * Builds read-only D1 queries for crash recovery. The adapter must execute
+ * these reads before deciding whether to retry phase1, proceed to phase2,
+ * or stop for manual reconciliation. This function performs no I/O.
+ */
+export function buildPiTestnetArchiveD1RecoveryReadbackPlan(input) {
+  if (!isPlainRecord(input) ||
+      typeof input.operationId !== "string" || !OPERATION_ID.test(input.operationId) ||
+      typeof input.archiveScope !== "string" || !SCOPE.test(input.archiveScope) ||
+      typeof input.archiveId !== "string" || !HEX_256.test(input.archiveId) ||
+      typeof input.sourceEnvelopeSha256 !== "string" || !HEX_256.test(input.sourceEnvelopeSha256) ||
+      typeof input.replacementEnvelopeSha256 !== "string" || !HEX_256.test(input.replacementEnvelopeSha256) ||
+      input.sourceEnvelopeSha256 === input.replacementEnvelopeSha256) {
+    return Object.freeze({ accepted: false, code: "invalid_d1_recovery_readback_input" });
+  }
+
+  const archive = statement(
+    `SELECT archive_scope, archive_id, envelope_json, envelope_sha256
+     FROM pi_testnet_archives
+     WHERE archive_scope = ? AND archive_id = ?`,
+    [input.archiveScope, input.archiveId]
+  );
+  const operation = statement(
+    `SELECT operation_id, archive_scope, archive_id, source_sha256,
+            replacement_sha256, replacement_envelope_json,
+            prepared_record_json, prepared_record_sha256, state
+     FROM pi_testnet_archive_replacement_ops
+     WHERE operation_id = ? AND archive_scope = ? AND archive_id = ?
+       AND source_sha256 = ? AND replacement_sha256 = ?`,
+    [input.operationId, input.archiveScope, input.archiveId,
+     input.sourceEnvelopeSha256, input.replacementEnvelopeSha256]
+  );
+  const journal = statement(
+    `SELECT operation_id, sequence, state, record_json, record_sha256
+     FROM pi_testnet_archive_replacement_journal
+     WHERE operation_id = ? AND sequence IN (1, 2)
+     ORDER BY sequence ASC`,
+    [input.operationId]
+  );
+
+  return Object.freeze({
+    accepted: true,
+    adapter: "cloudflare-d1-read-only-recovery",
+    statements: Object.freeze([archive, operation, journal]),
+    expected: Object.freeze({
+      operationId: input.operationId,
+      archiveScope: input.archiveScope,
+      archiveId: input.archiveId,
+      sourceEnvelopeSha256: input.sourceEnvelopeSha256,
+      replacementEnvelopeSha256: input.replacementEnvelopeSha256
+    }),
+    decisionRules: Object.freeze([
+      "Require exactly one archive row and verify its envelope JSON digest and scope/id identity.",
+      "Require exactly one operation row whose complete immutable payload matches the requested operation.",
+      "Verify every returned journal row by parsing and validating the complete hash-linked journal.",
+      "If the archive digest equals source, a fresh compare-and-swap retry may be considered only after authorization and exact operation/journal checks.",
+      "If the archive digest equals replacement, proceed only when the prepared operation and sequence-1 journal match exactly; then build phase2 and verify sequence-2 readback.",
+      "If the archive digest matches neither source nor replacement, stop for manual reconciliation; never overwrite automatically.",
+      "Missing rows, duplicate or conflicting rows, malformed JSON, or any digest mismatch fail closed."
+    ]),
+    limitation: "Read-only query plan only. It does not execute D1 reads, authenticate principals, decrypt envelopes, run recovery, or commit phase2."
+  });
+}
