@@ -115,3 +115,48 @@ test("rejects providers that do not declare atomic transaction support", async (
   );
   assert.deepEqual(result, { accepted: false, code: "invalid_transaction_contract_or_input" });
 });
+
+
+test("denied authorization stops before reading or writing archive state", async () => {
+  const fixture = setup();
+  fixture.provider.withTransaction = async callback => {
+    const tx = {
+      ...fixture.provider,
+      assertAuthorized: async () => false,
+      readCurrentEnvelope: async () => { throw new Error("must_not_read"); },
+      readJournal: async () => { throw new Error("must_not_read"); },
+      appendJournalRecord: async () => { throw new Error("must_not_write"); },
+      compareAndSwapEnvelope: async () => { throw new Error("must_not_write"); }
+    };
+    return callback(tx);
+  };
+  await assert.rejects(
+    executePiTestnetArchiveReplacementTransaction(fixture.input, fixture.provider),
+    /archive_admin_authorization_failed/
+  );
+  assert.equal(fixture.state.envelope.keyId, "old");
+  assert.equal(fixture.state.journal.length, 0);
+});
+
+test("stale source digest is rejected before journal append or replacement", async () => {
+  const fixture = setup();
+  fixture.input.intent.expectedCurrentEnvelopeSha256 = "b".repeat(64);
+  await assert.rejects(
+    executePiTestnetArchiveReplacementTransaction(fixture.input, fixture.provider),
+    /compare_and_swap_source_conflict/
+  );
+  assert.deepEqual(fixture.calls, ["authorize", "read-current", "read-journal"]);
+  assert.equal(fixture.state.envelope.keyId, "old");
+  assert.equal(fixture.state.journal.length, 0);
+});
+
+test("an existing journal prevents a second replacement operation", async () => {
+  const fixture = setup();
+  fixture.state.journal.push({ state: "prepared" });
+  await assert.rejects(
+    executePiTestnetArchiveReplacementTransaction(fixture.input, fixture.provider),
+    /replacement_journal_already_exists/
+  );
+  assert.deepEqual(fixture.calls, ["authorize", "read-current", "read-journal"]);
+  assert.equal(fixture.state.envelope.keyId, "old");
+});
