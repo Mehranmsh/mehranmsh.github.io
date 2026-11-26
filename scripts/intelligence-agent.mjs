@@ -101,11 +101,11 @@ async function main() {
     outcome = { status: "blocked", result: bounded(error.message || error) };
   }
 
-  await request(`/agent/v1/tasks/${encodeURIComponent(task.id)}/result`, {
+  await request(`/agent/v1/tasks/${encodeURIComponent(taskId)}/result`, {
     method: "POST",
-    body: JSON.stringify({ status: outcome.status, result: bounded(outcome.result, 2900) })
+    body: JSON.stringify({ claimToken, status: outcome.status, result: bounded(outcome.result, 2900) })
   });
-  console.log(`Task ${task.id} finished with status: ${outcome.status}`);
+  console.log(`Task ${bounded(taskId, 80)} finished with status: ${outcome.status}`);
 }
 
 main().catch(error => {
