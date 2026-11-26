@@ -62,6 +62,25 @@ test("binds retries to the exact operation payload and exposes full journal read
   assert.equal(result.requiredReadback.committedRecordSha256, input.committedRecordSha256);
 });
 
+test("phase two requires exact prepared operation and journal records before commit", () => {
+  const result = buildPiTestnetArchiveD1ReplacementPlan(input);
+  assert.equal(result.accepted, true);
+  const commitOperation = result.phase2[0];
+  const appendCommitted = result.phase2[1];
+  for (const sql of [commitOperation.sql, appendCommitted.sql]) {
+    assert.match(sql, /replacement_envelope_json = \?/);
+    assert.match(sql, /prepared_record_json = \?/);
+    assert.match(sql, /prepared_record_sha256 = \?/);
+    assert.match(sql, /sequence = 1 AND state = 'prepared'/);
+    assert.match(sql, /record_json = \?/);
+    assert.match(sql, /record_sha256 = \?/);
+  }
+  assert.ok(commitOperation.params.includes(input.preparedRecordJson));
+  assert.ok(appendCommitted.params.includes(input.preparedRecordJson));
+  assert.ok(appendCommitted.params.includes(input.committedRecordJson));
+  assert.ok(result.executionRules.some(rule => rule.includes("ignored uniqueness conflict is not success")));
+});
+
 test("all D1 statements use bound values rather than interpolated user data", () => {
   const result = buildPiTestnetArchiveD1ReplacementPlan(input);
   for (const item of [...result.phase1, ...result.phase2]) {
