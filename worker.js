@@ -8487,7 +8487,7 @@ export default {
         if ((path === "/agent/v1/tasks/next" || path === "/agent/v1/owner/tasks/next") && method === "GET") {
           const taskQueueLane = path === "/agent/v1/owner/tasks/next" ? "owner" : "shared";
           const taskActionPredicate = taskQueueLane === "owner"
-            ? "${taskActionPredicate}"
+            ? "action_type IN ('repository_quality_check','service_health_report','source_security_audit','inspect_repository','run_repository_tests','propose_code_patch')"
             : "action_type IN ('repository_quality_check','service_health_report')";
           const lanePredicate = taskQueueLane === "owner"
             ? "queue_lane='owner' AND owner_uid IS NOT NULL AND assigned_to='mehran_intelligence' AND (work_package_id IS NULL OR EXISTS (SELECT 1 FROM intelligence_work_packages wp WHERE wp.id=intelligence_tasks.work_package_id AND wp.owner_uid=intelligence_tasks.owner_uid))"
