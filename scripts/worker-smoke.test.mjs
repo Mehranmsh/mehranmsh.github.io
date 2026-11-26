@@ -199,79 +199,24 @@ test("health endpoint reports online and confirms the database binding", async (
   assert.equal(payload.database, true);
 });
 
-test("health endpoint exposes only a safe scheduler heartbeat summary", async () => {
-  const db = {
-    prepare(sql) {
-      return {
-        async first() {
-          if (sql.includes("SELECT 1 AS test")) return { test: 1 };
-          if (sql.includes("FROM intelligence_scheduler_runs")) return {
-            started_at: "2026-11-18T04:00:00.000Z",
-            finished_at: "2026-11-18T04:00:02.000Z",
-            status: "completed", processed_count: 2,
-            completed_count: 2, blocked_count: 0
-          };
-          throw new Error("Unexpected SQL: " + sql);
-        }
-      };
-    }
-  };
-  const response = await request("/health", {}, { DB: db });
+test("public health endpoint exposes only minimal service status and database connectivity", async () => {
+  const response = await request("/health", {}, { DB: mockDb() });
+  assert.equal(response.status, 200);
   const payload = await response.json();
-  assert.equal(payload.version, "5.9");
-  assert.deepEqual(payload.scheduler, {
-    lastStartedAt: "2026-11-18T04:00:00.000Z",
-    lastFinishedAt: "2026-11-18T04:00:02.000Z",
-    lastStatus: "completed", processed: 2, completed: 2, blocked: 0
-  });
-  assert.equal("error" in payload.scheduler, false);
+  assert.deepEqual(Object.keys(payload).sort(), ["database","service","status","version"]);
+  assert.equal(payload.database, true);
+  assert.equal(payload.status, "online");
 });
 
-
-test("health endpoint exposes only bounded private inbox diagnostics", async () => {
-  const db = {
-    prepare(sql) {
-      return {
-        async first() {
-          if (sql.includes("SELECT 1 AS test")) return { test: 1 };
-          if (sql.includes("FROM intelligence_scheduler_runs")) return null;
-          if (sql.includes("FROM intelligence_inbox_diagnostics")) return {
-            last_checked_at: "2026-11-24T17:00:00.000Z",
-            last_status: "rejected",
-            scanned_count: 3,
-            imported_count: 0,
-            rejected_count: 1,
-            last_rejection_code: "status_mismatch",
-            last_error_code: ""
-          };
-          throw new Error("Unexpected SQL: " + sql);
-        }
-      };
-    }
-  };
-  const response = await request("/health", {}, { DB: db });
+test("public health endpoint does not expose scheduler, runner, inbox, or AI provider telemetry", async () => {
+  const response = await request("/health", {}, { DB: mockDb() });
   const payload = await response.json();
-  assert.deepEqual(payload.privateInbox, {
-    lastCheckedAt: "2026-11-24T17:00:00.000Z",
-    lastStatus: "rejected",
-    scanned: 3,
-    imported: 0,
-    rejected: 1,
-    lastRejectionCode: "status_mismatch",
-    lastErrorCode: null
-  });
-  assert.equal(JSON.stringify(payload.privateInbox).includes("mission_id"), false);
+  for (const field of ["scheduler","privateInbox","runner","runnerDispatch","aiProvider","aiProviderAttempts"]) {
+    assert.equal(Object.hasOwn(payload, field), false, field + " must remain private");
+  }
 });
 
-test("private inbox uses the shared schema validator and fair round-robin scanning", () => {
-  assert.match(workerSource, /validatePrivateIntelligenceMission\(mission\)/);
-  assert.match(workerSource, /INTELLIGENCE_PRIVATE_INBOX_REJECTED/);
-  assert.match(workerSource, /orderedCandidates\.slice\(0, 20\)/);
-  assert.match(workerSource, /last_entry_name/);
-  assert.match(workerSource, /mission\?\.status === "ingested"/);
-});
-
-test("health endpoint remains diagnostic when database binding is absent", async () => {
+test("health endpoint remains available when database binding is absent", async () => {
   const response = await request("/health");
   assert.equal(response.status, 200);
   const payload = await response.json();
