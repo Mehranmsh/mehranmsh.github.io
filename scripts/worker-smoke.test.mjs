@@ -1439,6 +1439,19 @@ test("MEHRAN Intelligence Agent API is enabled only behind its dedicated bearer 
   assert.match(route, /\["completed","blocked"\]/);
 });
 
+test("Agent result commits are atomic and consume the single-use claim token", () => {
+  const resultStart = workerSource.indexOf("const agentResultMatch");
+  const resultEnd = workerSource.indexOf('return error("Not found",404);', resultStart);
+  assert.ok(resultStart >= 0 && resultEnd > resultStart, "Agent result route must exist");
+  const route = workerSource.slice(resultStart, resultEnd);
+  assert.match(route, /UPDATE intelligence_tasks SET status=\?,result_text=\?,agent_claimed_at=NULL,agent_claim_token_hash=''/,
+    "a successful result must clear the claim timestamp and token hash");
+  assert.match(route, /WHERE id=\? AND status='in_progress' AND agent_claim_token_hash=\?/,
+    "the result update must atomically compare the active claim token");
+  assert.match(route, /if \(!Number\(update\?\.meta\?\.changes \|\| 0\)\)/,
+    "a stale or replayed result must fail when the conditional update changes no row");
+});
+
 test("MEHRAN Intelligence Agent API rejects missing and incorrect credentials", async () => {
   const db = mockDb();
   const missing = await request("/agent/v1/tasks/next", {}, { DB: db });
