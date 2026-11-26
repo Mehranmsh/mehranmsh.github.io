@@ -21,11 +21,11 @@ CREATE TABLE IF NOT EXISTS pi_launchpad_evidence_records (
   value_json TEXT NOT NULL CHECK(json_valid(value_json)),
   provenance_json TEXT NOT NULL CHECK(
     json_valid(provenance_json)
-    AND json_type(provenance_json, '$.source') = 'object'
-    AND json_type(provenance_json, '$.source.sourceId') = 'text'
-    AND json_type(provenance_json, '$.source.kind') = 'text'
-    AND json_type(provenance_json, '$.source.url') = 'text'
-    AND json_type(provenance_json, '$.observedAt') = 'text'
+    AND json_type(provenance_json, '$.source') IS 'object'
+    AND json_type(provenance_json, '$.source.sourceId') IS 'text'
+    AND json_type(provenance_json, '$.source.kind') IS 'text'
+    AND json_type(provenance_json, '$.source.url') IS 'text'
+    AND json_type(provenance_json, '$.observedAt') IS 'text'
   ),
   verification_status TEXT NOT NULL CHECK(verification_status IN (
     'unverified', 'signature_verified', 'attestation_rejected'
