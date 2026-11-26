@@ -56,6 +56,9 @@ jobs:
           if (!base || agentToken.length < 40 || agentToken.length > 200) {
             throw new Error("MEHRAN_AGENT_TOKEN repository secret is missing or invalid.");
           }
+          if (orchestratorToken.length < 40 || orchestratorToken.length > 200) {
+            throw new Error("Owner orchestration identity is unavailable; owner tasks remain queued.");
+          }
           const agentHeaders = {
             "Authorization": `Bearer ${agentToken}`,
             "Accept": "application/json",
@@ -86,7 +89,7 @@ jobs:
             if (path === "/agent/v1/missions/plan") return "mission_plan";
             if (path === "/agent/v1/missions/generate") return "mission_generate";
             if (path === "/agent/v1/repository/analyze") return "repository_analyze";
-            if (path === "/agent/v1/tasks/next") return "task_claim";
+            if (path === "/agent/v1/owner/tasks/next") return "owner_task_claim";
             if (path.endsWith("/result")) return "task_result";
             if (path.startsWith("/agent/v1/work-packages/")) return "package_finalize";
             if (path === "/health") return "worker_health";
@@ -290,7 +293,7 @@ jobs:
           }
 
           async function execute(task) {
-            if (!task || task.status !== "in_progress" || task.requiresApproval !== false || !["mehran_intelligence", "shared"].includes(task.assignedTo)) {
+            if (!task || task.status !== "in_progress" || task.requiresApproval !== false || task.assignedTo !== "mehran_intelligence" || task.queueLane !== "owner") {
               throw new Error("Claimed task failed assignment, approval, or status validation.");
             }
             if (task.actionType === "run_repository_tests") {
@@ -323,10 +326,10 @@ jobs:
                 const commit = await readJsonResponse(response, 65536);
                 baseSha = String(commit?.sha || "").toLowerCase();
                 if (!/^[a-f0-9]{40}$/.test(baseSha)) throw new Error("GitHub returned an invalid main commit SHA.");
-                const saved = await request(`/agent/v1/tasks/${encodeURIComponent(task.id)}/checkpoint`, {
+                const saved = await request(`/agent/v1/owner/tasks/${encodeURIComponent(task.id)}/checkpoint`, {
                   method: "POST",
                   body: JSON.stringify({ checkpoint: { baseSha }, claimToken: task.claimToken })
-                });
+                }, ownerHeaders);
                 if (!saved.checkpointSaved) throw new Error("Immutable patch base commit could not be checkpointed.");
               }
               const proposal = await request("/agent/v1/patch-proposals/generate", {
@@ -737,7 +740,7 @@ jobs:
             return bounded;
           }
           for (let count = 0; count < 5 && Date.now() < taskExecutionDeadline; count++) {
-            const claim = await request("/agent/v1/tasks/next");
+            const claim = await request("/agent/v1/owner/tasks/next", {}, ownerHeaders);
             const task = claim.task;
             if (task?.workPackageId) packageIds.add(task.workPackageId);
             if (!task) {
@@ -874,10 +877,10 @@ jobs:
                     resultSha256: createHash("sha256").update(result).digest("hex"),
                     preparedAt: new Date().toISOString()
                   };
-                  const saved = await request(`/agent/v1/tasks/${encodeURIComponent(task.id)}/checkpoint`, {
+                  const saved = await request(`/agent/v1/owner/tasks/${encodeURIComponent(task.id)}/checkpoint`, {
                     method: "POST",
                     body: JSON.stringify({ checkpoint, claimToken: task.claimToken })
-                  });
+                  }, ownerHeaders);
                   if (saved.checkpointSaved !== true) throw new Error("Completed task result could not be durably checkpointed.");
                   console.log("Durable result checkpoint saved for task " + task.id + ".");
                 }
@@ -900,10 +903,10 @@ jobs:
               result = `Bounded runner failed: ${diagnostic}`;
             }
             recordTiming(`task_execute:${task.actionType}`, executionStartedAt);
-            await request(`/agent/v1/tasks/${encodeURIComponent(task.id)}/result`, {
+            await request(`/agent/v1/owner/tasks/${encodeURIComponent(task.id)}/result`, {
               method: "POST",
               body: JSON.stringify({ status, result, retryable, claimToken: task.claimToken })
-            });
+            }, ownerHeaders);
             console.log(`Bounded task ${count + 1} finished with status: ${status}; retryable=${retryable}; resumedFromCheckpoint=${resumedFromCheckpoint}`);
           }
 
