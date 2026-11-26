@@ -50,21 +50,55 @@ export function createPiTestnetRpcRequest(options = {}) {
  * Checks only the JSON-RPC envelope and request correlation.
  * A valid envelope is not proof of ledger truth or Mainnet state.
  */
+function deepFreezeJson(value) {
+  if (value && typeof value === "object" && !Object.isFrozen(value)) {
+    for (const child of Object.values(value)) deepFreezeJson(child);
+    Object.freeze(value);
+  }
+  return value;
+}
+
 export function validatePiTestnetRpcResponse(response, expectedId) {
   if (!isPlainRecord(response)) return Object.freeze({ accepted: false, code: "invalid_response" });
+  if (!(typeof expectedId === "string" || Number.isSafeInteger(expectedId))) {
+    return Object.freeze({ accepted: false, code: "invalid_expected_id" });
+  }
   if (response.jsonrpc !== "2.0" || response.id !== expectedId) {
     return Object.freeze({ accepted: false, code: "rpc_envelope_mismatch" });
   }
-  if (Object.hasOwn(response, "error")) {
-    return Object.freeze({ accepted: false, code: "rpc_error", error: response.error });
+
+  let serialized;
+  try {
+    serialized = JSON.stringify(response);
+  } catch {
+    return Object.freeze({ accepted: false, code: "unserializable_response" });
   }
-  if (!Object.hasOwn(response, "result")) {
+  if (typeof serialized !== "string") {
+    return Object.freeze({ accepted: false, code: "unserializable_response" });
+  }
+  if (new TextEncoder().encode(serialized).byteLength > PI_TESTNET_RPC_POLICY.maxResponseBytes) {
+    return Object.freeze({ accepted: false, code: "response_too_large" });
+  }
+
+  let safeResponse;
+  try {
+    safeResponse = JSON.parse(serialized);
+  } catch {
+    return Object.freeze({ accepted: false, code: "invalid_response" });
+  }
+  if (Object.hasOwn(safeResponse, "error")) {
+    return Object.freeze({ accepted: false, code: "rpc_error" });
+  }
+  if (!Object.hasOwn(safeResponse, "result")) {
     return Object.freeze({ accepted: false, code: "missing_result" });
   }
+
+  deepFreezeJson(safeResponse.result);
   return Object.freeze({
     accepted: true,
     network: "testnet",
-    result: response.result,
-    trustNotice: "Testnet RPC response envelope only. Not Mainnet evidence, not a cryptographic proof, and not eligible for Mainnet scoring."
+    result: safeResponse.result,
+    responseBytes: new TextEncoder().encode(serialized).byteLength,
+    trustNotice: "Opaque Testnet RPC result only. Health semantics are not interpreted. Not Mainnet evidence, not a cryptographic proof, and not eligible for Mainnet scoring."
   });
 }
