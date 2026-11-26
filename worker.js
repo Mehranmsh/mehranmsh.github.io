@@ -7399,14 +7399,20 @@ async function ingestPrivateIntelligenceInbox(env) {
         ? await resolvePrivateInboxRepositoryBaseSha()
         : "";
       const inspectionPaths = resolvePrivateIntelligenceInspectionPaths(mission);
-      const inspectionTasks = inspectionPaths.map((path, index) => ({
-        taskId: "inspect-source-" + (index + 1),
-        title: "Inspect module source: " + path,
-        description: "Read this one allowlisted source file at the immutable repository commit, then perform evidence-bounded semantic analysis. Do not execute repository content or modify files.",
-        actionType: "inspect_repository",
-        dependsOn: [],
-        paths: [path]
-      }));
+      const inspectionTasks = [];
+      // Six source excerpts fit the semantic endpoint's 16 KB evidence contract.
+      // Grouping avoids one model reservation per file while keeping each task bounded.
+      for (let offset = 0; offset < inspectionPaths.length; offset += 6) {
+        const paths = inspectionPaths.slice(offset, offset + 6);
+        inspectionTasks.push({
+          taskId: "inspect-source-" + (inspectionTasks.length + 1),
+          title: "Inspect MEHRAN module group " + (inspectionTasks.length + 1),
+          description: "Read up to six allowlisted source files at one immutable repository commit, then perform one evidence-bounded semantic analysis. Do not execute repository content or modify files.",
+          actionType: "inspect_repository",
+          dependsOn: [],
+          paths
+        });
+      }
       const packageInput = {
         idempotencyKey: "private-inbox:" + mission.mission_id,
         title: cleanText(mission.title, 150) || "Private Intelligence diagnostic",
