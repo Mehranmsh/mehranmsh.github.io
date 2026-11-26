@@ -3984,6 +3984,19 @@ test("Intelligence plan outcome learning is wired to revision-linked owner-confi
 });
 
 
+
+
+test("Intelligence agent checkpoints enforce a UTF-8 byte limit, not a UTF-16 character limit", () => {
+  const start = workerSource.indexOf('const checkpointMatch = path.match');
+  const end = workerSource.indexOf('const agentResultMatch = path.match', start);
+  assert.ok(start >= 0 && end > start);
+  const route = workerSource.slice(start, end);
+  assert.match(route, /new TextEncoder\(\)\.encode\(checkpointJson\)\.byteLength/);
+  assert.match(route, /checkpointBytes > 4096/);
+  assert.match(route, /JSON\.stringify\(\{checkpointBytes\}\)/);
+  assert.doesNotMatch(route, /checkpointJson\.length > 4000/);
+});
+
 test("Worker JSON body reader validates media type and declared lengths and releases stream locks", () => {
   const start = workerSource.indexOf("async function readBody(request)");
   const end = workerSource.indexOf("\nfunction getBearer(request)", start);
