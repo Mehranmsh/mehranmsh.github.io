@@ -6174,7 +6174,8 @@ const INTELLIGENCE_INSPECT_ALLOWED_PATHS = Object.freeze([
   "scripts/intelligence-capabilities.mjs",
   "scripts/intelligence-capabilities.test.mjs",
   ".github/workflows/mehran-intelligence-runner.yml",
-  "docs/INTELLIGENCE_EXECUTION_PROTOCOL.md"
+  "docs/INTELLIGENCE_EXECUTION_PROTOCOL.md",
+  "scripts/intelligence-architecture-review.mjs"
 ]);
 
 export function validateIntelligenceWorkPackage(input) {
@@ -6192,7 +6193,7 @@ export function validateIntelligenceWorkPackage(input) {
   }
   if (!["low", "normal", "high"].includes(priority)) return fail("Invalid work package priority.");
   if (!scopeJson || scopeJson.length > 4000) return fail("Work package scope exceeds the 4 KB limit.");
-  const globalAllowedActions = ["service_health_report", "repository_quality_check", "source_security_audit", "inspect_repository", "run_repository_tests", "propose_code_patch"];
+  const globalAllowedActions = ["service_health_report", "repository_quality_check", "source_security_audit", "inspect_repository", "architecture_review", "run_repository_tests", "propose_code_patch"];
   const scopedActionsDeclared = Object.hasOwn(scope, "allowedActions");
   const scopedActions = scope.allowedActions;
   if (!scopedActionsDeclared || !Array.isArray(scopedActions) || scopedActions.length < 1 || scopedActions.length > globalAllowedActions.length || new Set(scopedActions).size !== scopedActions.length || scopedActions.some(action => typeof action !== "string" || !globalAllowedActions.includes(action))) {
@@ -7281,6 +7282,17 @@ async function ingestPrivateIntelligenceInbox(env) {
     }
     return btoa(binary);
   };
+  const resolveMainCommitSha = async () => {
+    const response = await request("https://api.github.com/repos/Mehranmsh/mehranmsh.github.io/commits/main");
+    if (!response.ok) throw new Error("private_inbox_test_base_lookup_http_" + response.status);
+    const raw = await response.text();
+    if (raw.length > 65536) throw new Error("private_inbox_test_base_lookup_oversized");
+    let commit;
+    try { commit = JSON.parse(raw); } catch { throw new Error("private_inbox_test_base_lookup_invalid_json"); }
+    const value = typeof commit?.sha === "string" ? commit.sha.toLowerCase() : "";
+    if (!/^[a-f0-9]{40}$/.test(value)) throw new Error("private_inbox_test_base_sha_invalid");
+    return value;
+  };
   try {
     const listingResponse = await request(base + "inbox/pending?ref=main");
     if (listingResponse.status === 404) {
@@ -7342,6 +7354,10 @@ async function ingestPrivateIntelligenceInbox(env) {
       }
       const evidence = Array.isArray(mission.known_evidence) ? mission.known_evidence.slice(0, 4) : [];
       const objective = cleanText(mission.objective, 1800);
+      // Resolve an immutable revision only when this mission explicitly authorizes isolated tests.
+      const testBaseSha = mission.scope.allowed_actions.includes("run_repository_tests")
+        ? await resolveMainCommitSha()
+        : null;
       const packageInput = {
         idempotencyKey: "private-inbox:" + mission.mission_id,
         title: cleanText(mission.title, 150) || "Private Intelligence diagnostic",
@@ -7351,7 +7367,7 @@ async function ingestPrivateIntelligenceInbox(env) {
           mode: "read_only",
           source: "private_owner_inbox",
           missionId: mission.mission_id,
-          allowedActions: ["inspect_repository","source_security_audit","repository_quality_check", ...(mission.scope.allowed_actions.includes("run_repository_tests") ? ["run_repository_tests"] : [])],
+          allowedActions: ["inspect_repository","architecture_review","source_security_audit","repository_quality_check", ...(mission.scope.allowed_actions.includes("run_repository_tests") ? ["run_repository_tests"] : [])],
           forbidden: ["source_changes","patch_application","branch_creation","pull_request_creation","merge","deployment","secret_access","credential_output","wallet_operations","financial_operations","arbitrary_shell","production_state_changes"],
           deliverables: Array.isArray(mission.deliverables) ? mission.deliverables.slice(0, 6).map(item => cleanText(item, 300)) : [],
           evidence
@@ -7364,6 +7380,13 @@ async function ingestPrivateIntelligenceInbox(env) {
             actionType: "inspect_repository",
             dependsOn: [],
             paths: resolvePrivateIntelligenceInspectionPaths(mission)
+          },
+          {
+            taskId: "architecture-review",
+            title: "Produce a deterministic cognitive architecture review and blueprint",
+            description: "Analyze fixed allowlisted source files using deterministic static evidence only. Produce an evidence-linked architecture map, explicit gaps, and a phased blueprint. Do not call AI providers, execute repository content, or modify files.",
+            actionType: "architecture_review",
+            dependsOn: ["inspect-source"]
           },
           {
             taskId: "security-review",
@@ -7384,6 +7407,7 @@ async function ingestPrivateIntelligenceInbox(env) {
             title: "Run the predefined isolated repository test suite",
             description: "Execute only the fixed, network-isolated repository test suite supported by the runner. Do not install packages, access external services, or modify source files.",
             actionType: "run_repository_tests",
+            baseSha: testBaseSha,
             dependsOn: []
           }] : [])
         ]
