@@ -3782,6 +3782,39 @@ test("real Worker result route accepts only one concurrent terminal commit for a
 });
 
 
+test("real Worker checkpoint route rejects unexpected envelope fields", async () => {
+  const token = "test-agent-token-".padEnd(48, "x");
+  const { db } = makeClaimLifecycleDb();
+  const env = { DB: db, MEHRAN_AGENT_TOKEN: token };
+  const auth = { Authorization: "Bearer " + token };
+  const claimResponse = await request("/agent/v1/tasks/next", { method: "GET", headers: auth }, env);
+  const claim = (await claimResponse.json()).task;
+  const response = await request("/agent/v1/tasks/" + claim.id + "/checkpoint", {
+    method: "POST", headers: auth,
+    body: { claimToken: claim.claimToken, checkpoint: { safe: true }, unexpected: "ignored?" }
+  }, env);
+  assert.equal(response.status, 400);
+});
+
+test("real Worker result route rejects unexpected fields and non-boolean retryable flags", async () => {
+  const token = "test-agent-token-".padEnd(48, "x");
+  const { db } = makeClaimLifecycleDb();
+  const env = { DB: db, MEHRAN_AGENT_TOKEN: token };
+  const auth = { Authorization: "Bearer " + token };
+  const claimResponse = await request("/agent/v1/tasks/next", { method: "GET", headers: auth }, env);
+  const claim = (await claimResponse.json()).task;
+  const unexpected = await request("/agent/v1/tasks/" + claim.id + "/result", {
+    method: "POST", headers: auth,
+    body: { claimToken: claim.claimToken, status: "blocked", result: "bounded", extra: "ignored?" }
+  }, env);
+  assert.equal(unexpected.status, 400);
+  const invalidRetryable = await request("/agent/v1/tasks/" + claim.id + "/result", {
+    method: "POST", headers: auth,
+    body: { claimToken: claim.claimToken, status: "blocked", retryable: "true", result: "bounded" }
+  }, env);
+  assert.equal(invalidRetryable.status, 400);
+});
+
 test("real Worker task recovery preserves durable checkpoints and fences the crashed runner", async () => {
   const token = "test-agent-token-".padEnd(48, "x");
   const { db, state } = makeClaimLifecycleDb();
