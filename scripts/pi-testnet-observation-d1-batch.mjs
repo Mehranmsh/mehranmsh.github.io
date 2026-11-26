@@ -106,11 +106,15 @@ export function buildPiTestnetArchiveD1ReplacementPlan(input) {
            SELECT 1 FROM pi_testnet_archive_replacement_ops
            WHERE operation_id = ? AND state = 'prepared'
              AND archive_scope = ? AND archive_id = ?
-             AND source_sha256 = ?
+             AND source_sha256 = ? AND replacement_sha256 = ?
+             AND replacement_envelope_json = ?
+             AND prepared_record_json = ? AND prepared_record_sha256 = ?
          )`,
       [input.operationId, input.operationId, input.archiveScope,
        input.archiveId, input.sourceEnvelopeSha256, input.operationId,
-       input.archiveScope, input.archiveId, input.sourceEnvelopeSha256]
+       input.archiveScope, input.archiveId, input.sourceEnvelopeSha256,
+       input.replacementEnvelopeSha256, input.replacementEnvelopeJson,
+       input.preparedRecordJson, input.preparedRecordSha256]
     ),
     statement(
       `INSERT INTO pi_testnet_archive_replacement_journal
@@ -165,8 +169,13 @@ export function buildPiTestnetArchiveD1ReplacementPlan(input) {
     requiredReadback: Object.freeze({
       archiveScope: input.archiveScope,
       archiveId: input.archiveId,
+      operationId: input.operationId,
+      expectedSourceEnvelopeSha256: input.sourceEnvelopeSha256,
       expectedEnvelopeSha256: input.replacementEnvelopeSha256,
-      preparedRecordSha256: input.preparedRecordSha256
+      expectedPreparedRecordJson: input.preparedRecordJson,
+      preparedRecordSha256: input.preparedRecordSha256,
+      expectedCommittedRecordJson: input.committedRecordJson,
+      committedRecordSha256: input.committedRecordSha256
     }),
     executionRules: Object.freeze([
       "Execute phase1 in exactly one D1Database.batch call.",
