@@ -6308,13 +6308,14 @@ async function createIntelligenceWorkPackage(env, input) {
     }
     generatorSlotReserved = true;
   }
+  const packageOwnerUid = typeof input.ownerUid === "string" && input.ownerUid.trim() ? input.ownerUid.trim() : null;
   const statements = [
     env.DB.prepare("INSERT INTO intelligence_work_packages(id,idempotency_key,request_hash,title,objective,scope_json,priority,status,created_by,owner_uid) VALUES(?,?,?,?,?,?,?,'queued','mehran_intelligence',?)")
-      .bind(packageId, idempotencyKey, requestHash, title, objective, scopeJson, priority, typeof input.ownerUid === "string" ? input.ownerUid : null)
+      .bind(packageId, idempotencyKey, requestHash, title, objective, scopeJson, priority, packageOwnerUid)
   ];
   for (const item of tasks) {
     statements.push(env.DB.prepare("INSERT INTO intelligence_tasks(id,title,description,assigned_to,priority,status,requires_approval,result_text,created_by,action_type,action_payload,work_package_id,max_attempts,owner_uid,queue_lane) VALUES(?,?,?,'mehran_intelligence',?,'queued',0,'','mehran_intelligence',?,?,?,?,?,?)")
-      .bind(packageId + ":" + item.taskId, item.title, item.description, priority, item.actionType, JSON.stringify({ sourceTaskId: item.taskId, ...(item.paths ? { paths: item.paths } : {}), ...(item.baseSha ? { baseSha: item.baseSha } : {}), ...(item.objective ? { objective: item.objective } : {}) }), packageId, typeof input.ownerUid === "string" && input.ownerUid.trim() ? input.ownerUid.trim() : null, typeof input.ownerUid === "string" && input.ownerUid.trim() ? "owner" : "quarantine"));
+      .bind(packageId + ":" + item.taskId, item.title, item.description, priority, item.actionType, JSON.stringify({ sourceTaskId: item.taskId, ...(item.paths ? { paths: item.paths } : {}), ...(item.baseSha ? { baseSha: item.baseSha } : {}), ...(item.objective ? { objective: item.objective } : {}) }), packageId, 3, packageOwnerUid, packageOwnerUid ? "owner" : "quarantine"));
     for (const dependency of item.dependencies) {
       statements.push(env.DB.prepare("INSERT INTO intelligence_task_dependencies(task_id,depends_on_task_id) VALUES(?,?)")
         .bind(packageId + ":" + item.taskId, packageId + ":" + dependency));
