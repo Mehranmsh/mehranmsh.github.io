@@ -93,14 +93,17 @@ test("rejects duplicate attestations and conflicting scores for one component", 
   const result = buildPiLaunchpadVerifiedScoringEvidence({
     envelope: envelope(), attestations: [first, duplicate], trustRecords, now: NOW
   });
-  assert.deepEqual({ ...result.scoringEvidence }, {});
+  assert.deepEqual({ ...result.scoringEvidence }, { teamTransparency: 88 });
+  assert.equal(result.acceptedCount, 1);
   assert.ok(result.rejectedRecords.some(x => x.code === "duplicate_attestation"));
 });
 
-test("fails closed when trust anchors are absent or validation is forged structurally", () => {
-  assert.throws(() => buildPiLaunchpadVerifiedScoringEvidence({
+test("fails closed when trust anchors are absent or envelope is forged structurally", () => {
+  const noTrust = buildPiLaunchpadVerifiedScoringEvidence({
     envelope: envelope(), attestations: [attestation()], trustRecords: [], now: NOW
-  }), TypeError);
+  });
+  assert.deepEqual({ ...noTrust.scoringEvidence }, {});
+  assert.equal(noTrust.rejectedRecords[0].code, "untrusted_signer");
   assert.throws(() => buildPiLaunchpadVerifiedScoringEvidence({
     envelope: { accepted: true, tokenId: "x", sources: [], evidence: [] },
     attestations: [], trustRecords, now: NOW
