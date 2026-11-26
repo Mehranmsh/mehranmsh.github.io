@@ -1586,9 +1586,14 @@ test("capability schemas are deeply immutable, including nested allowlists and v
   const pathsRule = capability.inputSchema.properties.paths;
   assert.deepEqual(pathsRule.itemEnum, [
     "worker.js",
+    "index.html",
+    "music-studio.html",
+    "instrument-sampler.js",
+    "engine/server.py",
+    "engine/model_policy.py",
+    "engine/preflight.py",
     "scripts/intelligence-agent.mjs",
     "scripts/intelligence-capabilities.mjs",
-    "scripts/intelligence-capabilities.test.mjs",
     ".github/workflows/mehran-intelligence-runner.yml",
     "docs/INTELLIGENCE_EXECUTION_PROTOCOL.md"
   ]);
