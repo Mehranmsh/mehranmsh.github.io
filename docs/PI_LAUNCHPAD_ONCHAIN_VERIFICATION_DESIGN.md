@@ -190,3 +190,14 @@ A pure replacement-intent helper now defines the preconditions for safely instal
 - Performs no storage read, write, transaction, or persistence. It does not make replacement atomic by itself.
 - A future storage adapter must atomically compare the stored digest and replace the envelope in one transaction, leaving the original unchanged on conflict or failure. It must re-verify the replacement after reading it back.
 - No D1, filesystem, KMS, secret manager, network, Workers AI, wallet, signing, or scoring integration is introduced. Testnet observations remain ineligible for Mainnet scoring.
+
+
+## Archive replacement crash-recovery journal contract (2026-11-26)
+
+A pure, bounded replacement-journal state machine now specifies crash recovery for a future atomic storage adapter:
+- Creates hash-linked immutable records for a replacement's prepared and terminal states (committed or aborted).
+- The record chain binds archive scope, archive identity, source envelope digest, replacement envelope digest, sequence number, and previous-record digest.
+- The verifier rejects broken hashes, reordered records, illegal transitions, mismatched archive identities, and invalid observed digests.
+- Recovery classification is conservative: if storage still has the source digest, a compare-and-swap retry may be considered; if it has the replacement digest, the adapter may record completion; any third digest requires manual reconciliation and must not be overwritten automatically.
+- The helper is pure and in-memory. It does not write a journal, make a database transaction, guarantee durability, or provide rollback. A production adapter must atomically persist the prepared record, perform the compare-and-swap, and persist the terminal record with crash-safe transaction semantics.
+- Hash chaining provides local tamper evidence only, not signer authenticity or protection against an attacker who can rewrite the entire journal. Testnet observations remain ineligible for Mainnet scoring.
