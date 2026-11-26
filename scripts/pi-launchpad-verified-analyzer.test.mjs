@@ -14,7 +14,7 @@ const trustRecords = [{
   notAfter: "2027-01-01T00:00:00.000Z", revoked: false
 }];
 const envelope = () => ({
-  schemaVersion: 1, tokenId: "pi-token-1", observedAt: "2026-11-26T11:00:00.000Z",
+  schemaVersion: 1, networkId: "pi-mainnet", tokenId: "pi-token-1", observedAt: "2026-11-26T11:00:00.000Z",
   sources: [{
     sourceId: "auditor", kind: "security_auditor", url: "https://auditor.example/report",
     trustLevel: "publisher_claim", retrievedAt: "2026-11-26T11:01:00.000Z",
@@ -27,7 +27,7 @@ const canonical = (v) => v === null || typeof v !== "object" ? JSON.stringify(v)
   : "{" + Object.keys(v).sort().map(k => JSON.stringify(k) + ":" + canonical(v[k])).join(",") + "}";
 const attestation = () => {
   const payload = {
-    issuer: "independent-auditor", tokenId: "pi-token-1", evidenceId: "utility-report-1",
+    issuer: "independent-auditor", networkId: "pi-mainnet", tokenId: "pi-token-1", evidenceId: "utility-report-1",
     field: "utility", sourceUrl: "https://auditor.example/report",
     observedAt: "2026-11-26T11:00:00.000Z", expiresAt: "2026-11-27T11:00:00.000Z", value: 92
   };
@@ -38,7 +38,7 @@ const attestation = () => {
 test("feeds only verified evidence into analyzer and leaves unsigned metrics unknown", () => {
   const result = analyzeVerifiedLaunchpadOpportunity({
     snapshot: {
-      tokenId: "pi-token-1", symbol: "PIT",
+      networkId: "pi-mainnet", tokenId: "pi-token-1", symbol: "PIT",
       evidence: { utility: 100, teamTransparency: 100, sourceVerification: 100 },
       fdvPi: 1, liquidity: { tvlPi: 999999, lockedPercent: 100 },
       holders: { top10Percent: 1 }, riskFlags: ["fake positive risk"]
@@ -62,7 +62,7 @@ test("rejects a snapshot whose token identity differs from the signed envelope",
 
 test("does not produce scores when there are no trusted attestations", () => {
   const result = analyzeVerifiedLaunchpadOpportunity({
-    snapshot: { tokenId: "pi-token-1", evidence: { utility: 100 } },
+    snapshot: { networkId: "pi-mainnet", tokenId: "pi-token-1", evidence: { utility: 100 } },
     envelope: envelope(), attestations: [], trustRecords: [], now: NOW
   });
   assert.equal(result.score, null);

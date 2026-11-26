@@ -3,7 +3,7 @@
  * Validation only: this module never fetches URLs or declares a source truthful.
  * Every accepted field retains bounded provenance and freshness metadata.
  */
-export const LAUNCHPAD_ADAPTER_VERSION = "0.1.0";
+export const LAUNCHPAD_ADAPTER_VERSION = "0.2.0";
 export const LAUNCHPAD_DATA_POLICY = Object.freeze({
   maxAgeMs: 24 * 60 * 60 * 1000,
   maxFutureSkewMs: 5 * 60 * 1000,
@@ -44,6 +44,7 @@ export function validateLaunchpadDataEnvelope(input, options = {}) {
   if (!isObject(input)) return reject("invalid_envelope", "A plain envelope object is required.");
   const now = options.now instanceof Date ? options.now.getTime() : options.now;
   if (!Number.isFinite(now)) throw new TypeError("A finite validation timestamp is required.");
+  if (!["pi-mainnet", "pi-testnet"].includes(input.networkId)) return reject("invalid_network_id", "networkId must be pi-mainnet or pi-testnet.");
   if (input.schemaVersion !== 1) return reject("unsupported_schema", "Only schemaVersion 1 is accepted.");
   if (!isText(input.tokenId, LAUNCHPAD_DATA_POLICY.maxIdLength)) return reject("invalid_token_id", "tokenId is missing or too long.");
   if (!isIsoDate(input.observedAt)) return reject("invalid_observed_at", "observedAt must be a UTC ISO timestamp.");
@@ -105,6 +106,7 @@ export function validateLaunchpadDataEnvelope(input, options = {}) {
     accepted: true,
     adapterVersion: LAUNCHPAD_ADAPTER_VERSION,
     tokenId: input.tokenId,
+    networkId: input.networkId,
     observedAt: input.observedAt,
     sources: Object.freeze(normalizedSources),
     evidence: Object.freeze(normalizedEvidence),

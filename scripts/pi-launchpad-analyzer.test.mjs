@@ -13,7 +13,7 @@ import "./pi-launchpad-connector-policy.test.mjs";
 import "./pi-launchpad-snapshot-monitor.test.mjs";
 
 test("reports versioned insufficient-data result without inventing a score", () => {
-  const result = analyzeLaunchpadOpportunity({ tokenId: "pi-token-1", symbol: "PIT" });
+  const result = analyzeLaunchpadOpportunity({ networkId: "pi-mainnet", networkId: "pi-mainnet", tokenId: "pi-token-1", symbol: "PIT" });
   assert.equal(result.analyzerVersion, LAUNCHPAD_ANALYZER_VERSION);
   assert.equal(result.score, null);
   assert.equal(result.classification, "insufficient_data");

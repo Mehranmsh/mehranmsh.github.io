@@ -6,7 +6,7 @@ import { validateLaunchpadDataEnvelope } from "./pi-launchpad-data-adapter.mjs";
 import { verifyPiLaunchpadAttestation } from "./pi-launchpad-attestation-verifier.mjs";
 import { buildPiLaunchpadTrustStore } from "./pi-launchpad-trust-store.mjs";
 
-export const PI_LAUNCHPAD_METRICS_GATEWAY_VERSION = "0.1.0";
+export const PI_LAUNCHPAD_METRICS_GATEWAY_VERSION = "0.2.0";
 const FIELDS = Object.freeze({
   "liquidity.tvlPi": { path: ["liquidity", "tvlPi"], min: 0 },
   "liquidity.volume24hPi": { path: ["liquidity", "volume24hPi"], min: 0 },
@@ -59,7 +59,7 @@ export function buildPiLaunchpadVerifiedMetrics({ envelope, attestations, trustR
       continue;
     }
     const item = matches[0], source = sources.get(item.sourceId), rule = FIELDS[verified.field];
-    if (verified.tokenId !== validation.tokenId || verified.field !== item.field ||
+    if (verified.networkId !== validation.networkId || verified.tokenId !== validation.tokenId || verified.field !== item.field ||
         verified.sourceUrl !== source.url || verified.observedAt !== item.observedAt ||
         !Object.is(verified.value, item.value)) {
       rejectedRecords.push(reject(verified.evidenceId, "attestation_evidence_mismatch")); continue;
@@ -91,6 +91,7 @@ export function buildPiLaunchpadVerifiedMetrics({ envelope, attestations, trustR
   return Object.freeze({
     gatewayVersion: PI_LAUNCHPAD_METRICS_GATEWAY_VERSION,
     tokenId: validation.tokenId,
+    networkId: validation.networkId,
     verifiedMetrics: deepFreeze(verifiedMetrics),
     acceptedRecords: Object.freeze(acceptedRecords),
     rejectedRecords: Object.freeze(rejectedRecords),
