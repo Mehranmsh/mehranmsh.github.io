@@ -6,7 +6,14 @@
  */
 const HEX_ID = /^plev_[a-f0-9]{32}$/;
 const NETWORKS = new Set(["pi-mainnet", "pi-testnet"]);
-const SOURCE_KIND_BY_TYPE = Object.freeze({\n  official_project_claim: "official_project",\n  chain_indexer_observation: "chain_indexer",\n  dex_indexer_observation: "dex_indexer",\n  security_audit_claim: "security_auditor",\n  community_claim: "community"\n});\nconst TYPES = new Set([
+const SOURCE_KIND_BY_TYPE = Object.freeze({
+  official_project_claim: "official_project",
+  chain_indexer_observation: "chain_indexer",
+  dex_indexer_observation: "dex_indexer",
+  security_audit_claim: "security_auditor",
+  community_claim: "community"
+});
+const TYPES = new Set([
   "official_project_claim",
   "chain_indexer_observation",
   "dex_indexer_observation",
@@ -75,6 +82,8 @@ export function buildPiLaunchpadEvidenceD1InsertPlan({ record, createdAt } = {})
       typeof record.evidenceId !== "string" ||
       record.evidenceId.length < 1 || record.evidenceId.length > 160 ||
       !TYPES.has(record.evidenceType) ||
+      record.source?.kind !== SOURCE_KIND_BY_TYPE[record.evidenceType] ||
+      typeof record.source?.claimedTrustLevel !== "string" ||
       typeof record.field !== "string" || record.field.length < 1 || record.field.length > 64 ||
       !isPlainRecord(record.source) ||
       typeof record.source.sourceId !== "string" || record.source.sourceId.length < 1 ||
