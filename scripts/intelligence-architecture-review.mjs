@@ -46,14 +46,14 @@ export function buildIntelligenceArchitectureReview(input) {
   });
   if (REVIEW_PATHS.some(path => !seen.has(path))) fail("The architecture-review source set is incomplete.");
   const layers = [
-    section("api_scheduler", "API, authentication, and scheduler", files, [/agent\\/v1/, /async function ingestPrivateIntelligenceInbox/, /scheduler/i, /Authorization/], "Maps authenticated Worker boundaries, private inbox ingestion, and scheduled execution entry points."),
+    section("api_scheduler", "API, authentication, and scheduler", files, [/agent/, /async function ingestPrivateIntelligenceInbox/, /scheduler/i, /Authorization/], "Maps authenticated Worker boundaries, private inbox ingestion, and scheduled execution entry points."),
     section("orchestration", "Mission and task orchestration", files, [/createIntelligenceWorkPackage/, /intelligence_work_packages/, /intelligence_tasks/, /dependsOn|dependencies/], "Maps work-package creation, task state, dependency ordering, and report finalization."),
     section("capabilities", "Capability and permission model", files, [/INTELLIGENCE_CAPABILITIES/, /PREAPPROVED_INTELLIGENCE_ACTION_TYPES/, /permissionTier/, /validateIntelligenceCapabilityRequest/], "Maps the explicit capability registry, permission tiers, input schemas, and action validation."),
     section("memory", "Memory and context layer", files, [/selectMemoryContext/, /intelligence_memory/i, /memory_context/i, /persistIntelligence.*Memory/i], "Detects memory selection and persistence primitives; source evidence does not prove production data quality or retention behavior."),
     section("ai_quota", "AI provider routing and quota governance", files, [/runIntelligenceAI/, /reserveSocialWorkersAIBudget/, /WORKERS_AI_INTELLIGENCE_DAILY_RESERVATION_CREDITS/, /daily_quota_circuit_open/], "Maps provider routing, reservation guards, product-level budgets, and fail-closed quota behavior."),
     section("execution", "Execution adapters and isolated testing", files, [/runFixedRepositoryTests/, /architecture_review/, /source_security_audit/, /docker.*network.*none/i], "Maps bounded runner actions, deterministic review execution, and isolated test execution."),
     section("security", "Security and governance controls", files, [/validatePrivateIntelligenceMission/, /INTELLIGENCE_INSPECT_ALLOWED_PATHS/, /MAX_BODY_BYTES/, /requiresApproval/, /secret_access|arbitrary_shell/], "Maps source allowlists, approval boundaries, bounded inputs, and forbidden-action policy."),
-    section("evaluation", "Evaluation, quality, and observability", files, [/verifyIntelligenceReport/, /repository_quality_check/, /test\\(/, /workflowRunId/, /outputSha256/], "Maps regression checks, report verification, execution provenance, and test evidence.")
+    section("evaluation", "Evaluation, quality, and observability", files, [/verifyIntelligenceReport/, /repository_quality_check/, /test/, /workflowRunId/, /outputSha256/], "Maps regression checks, report verification, execution provenance, and test evidence.")
   ];
   const worker = files.find(file => file.path === "worker.js").content;
   const gaps = [];
