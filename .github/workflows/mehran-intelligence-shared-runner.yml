@@ -9,7 +9,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: mehran-intelligence-shared-runner-${{ github.run_id }}
+  group: mehran-intelligence-shared-runner
   cancel-in-progress: false
 
 jobs:
