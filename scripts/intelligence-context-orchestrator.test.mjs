@@ -212,9 +212,9 @@ test("bounds every auxiliary input collection before subsystem processing", () =
   const decisionCriteria = Array.from({length: 31}, (_, index) => ({
     key: "criterion_" + index, weight: 1, direction: "higher"
   }));
-  const decisionOptions = Array.from({length: 55}, (_, index) => ({
-    id: "option_" + index, scores: Object.fromEntries(decisionCriteria.map(item => [item.key, 3]))
-  }));
+  const decisionOptions = Array.from({length: 55}, (_, index) => index === 0 ? ({
+    id: "option_0", scores: Object.fromEntries(decisionCriteria.map(item => [item.key, 3]))
+  }) : null);
   const result = buildIntelligenceContextSnapshot([base("safe")], {
     ownerUid: "owner-a",
     actorUid: "owner-a",
