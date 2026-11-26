@@ -11,6 +11,7 @@ const OFFICIAL_DOC_HOSTS = new Set(["minepi.com", "developers.minepi.com"]);
 const REQUIRED_RESOURCES = Object.freeze(["ledger", "assets", "pools", "trades"]);
 const HEX_256 = /^[a-f0-9]{64}$/;
 const SAFE_ID = /^[a-zA-Z0-9._:-]{1,120}$/;
+const READ_ONLY_METHOD = /^(get|read|query)[A-Z0-9][a-zA-Z0-9]*$/;
 
 const isRecord = (value) => value !== null && typeof value === "object" &&
   !Array.isArray(value) &&
@@ -85,7 +86,8 @@ export function assessPiMainnetConnectorReadiness(input) {
   }
   if (!Array.isArray(input.readOnlyMethods) || input.readOnlyMethods.length < 1 ||
       input.readOnlyMethods.length > 30 ||
-      input.readOnlyMethods.some((method) => !SAFE_ID.test(method))) {
+      input.readOnlyMethods.some((method) => !SAFE_ID.test(method) || !READ_ONLY_METHOD.test(method)) ||
+      new Set(input.readOnlyMethods).size !== input.readOnlyMethods.length) {
     blockers.push("An explicit bounded list of documented read-only methods is required.");
   }
   if (input.writeMethodsExcluded !== true) {
