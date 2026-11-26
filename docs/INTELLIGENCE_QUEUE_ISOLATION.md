@@ -52,3 +52,10 @@ A fail-closed policy primitive now exists in `scripts/intelligence-queue-policy.
 - Legacy or malformed rows resolve to `quarantine`.
 
 This is a policy primitive, not yet connected to D1 migrations, Scheduler selection, agent claims, checkpoint/result acknowledgements, or separate worker capacity. It must not be described as live queue isolation. The current single agent endpoint also has one runner authorization boundary; a separate shared-worker authorization boundary must be designed without reading or exposing credentials.
+
+
+## D1 schema groundwork
+
+The task table now has nullable `owner_uid` and `queue_lane TEXT NOT NULL DEFAULT 'quarantine'`, plus a lane/status/priority/created-at index. The migration is additive and idempotent for duplicate-column initialization. Existing records are intentionally not backfilled: neither `assigned_to` nor `created_by` is accepted as proof of owner identity.
+
+This schema change is not yet enforcing lane-specific claims. The existing scheduler and agent endpoints still use their legacy shared selection predicates until authenticated owner identity is wired end-to-end. Do not enable lane filtering or claim the queues are isolated until task creation, claim, checkpoint, result, and stale-claim recovery all enforce the same lane and owner binding.
