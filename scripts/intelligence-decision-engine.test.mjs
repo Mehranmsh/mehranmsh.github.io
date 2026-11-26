@@ -57,3 +57,18 @@ test("bounds per-option constraint evaluation and reports omitted constraints", 
  assert.equal(result.rankedOptions[0].approval_required,true);
  assert.equal(constraints.length,1000);
 });
+
+
+test("requires review when an uninspected constraint could change the decision", () => {
+ const constraints=Array.from({length:100},(_,index)=>({
+  key:"confirmed-"+index,confirmed:true,confirmed_by:"owner",passed:true
+ }));
+ constraints.push({key:"late-failure",confirmed:true,confirmed_by:"owner",passed:false});
+ const result=evaluateIntelligenceOptions([
+  {id:"needs-review",scores:{quality:5,cost:5},constraints}
+ ],criteria,{ownerUid:"owner"});
+ assert.equal(result.excludedOptions.length,0);
+ assert.equal(result.rankedOptions[0].review_required,true);
+ assert.equal(result.rankedOptions[0].approval_required,true);
+ assert.ok(result.rankedOptions[0].unknown_constraints.includes("additional_constraints_omitted"));
+});
