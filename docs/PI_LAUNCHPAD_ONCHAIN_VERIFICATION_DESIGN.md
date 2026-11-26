@@ -179,3 +179,14 @@ Two pure helpers now define a safer application-side key lifecycle boundary:
 - Rotation returns a new envelope in memory only. It does not overwrite or persist the old envelope, perform atomic replacement, revoke old keys, schedule rotation, or create backups. A separately reviewed persistence adapter must manage safe replacement and retention.
 - Test fixtures are not production keys. No D1, KMS, secret manager, filesystem, network, Workers AI, wallet, signing, or Launchpad scoring integration is introduced.
 - All observations remain Testnet-only and explicitly ineligible for Mainnet scoring.
+
+
+## Compare-and-swap archive replacement intent (2026-11-26)
+
+A pure replacement-intent helper now defines the preconditions for safely installing a rotated archive envelope:
+- Verifies both source and replacement envelopes by decrypting them with explicitly resolved, non-revoked keys and checking the complete archive integrity.
+- Requires the same archive identity and scope, a different key ID, and an exact expected SHA-256 digest of the currently stored source envelope serialization.
+- Emits a bounded compare-and-swap intent containing the expected current digest and the verified replacement envelope digest. A stale expected digest fails closed.
+- Performs no storage read, write, transaction, or persistence. It does not make replacement atomic by itself.
+- A future storage adapter must atomically compare the stored digest and replace the envelope in one transaction, leaving the original unchanged on conflict or failure. It must re-verify the replacement after reading it back.
+- No D1, filesystem, KMS, secret manager, network, Workers AI, wallet, signing, or scoring integration is introduced. Testnet observations remain ineligible for Mainnet scoring.
