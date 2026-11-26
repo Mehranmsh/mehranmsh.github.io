@@ -19,6 +19,7 @@ import {
 } from "./intelligence-capabilities.mjs";
 
 const workerSource = readFileSync(new URL("../worker.js", import.meta.url), "utf8");
+const inboxSchemaSource = readFileSync(new URL("./intelligence-inbox-schema.mjs", import.meta.url), "utf8");
 const indexSource = readFileSync(new URL("../index.html", import.meta.url), "utf8");
 const runnerSource = readFileSync(new URL("../.github/workflows/mehran-intelligence-runner.yml", import.meta.url), "utf8");
 const proposalRunnerSource = readFileSync(new URL("./intelligence-proposal-pr-runner.mjs", import.meta.url), "utf8");
@@ -70,8 +71,12 @@ test("repository inventory is deterministic and never depends on Workers AI", ()
   assert.match(inspect, /blobSha: file\.sha/);
   assert.match(inspect, /lineCount:/);
   assert.match(inspect, /symbols:/);
-  assert.match(inspect, /Deterministic repository inventory completed/);
-  assert.doesNotMatch(inspect, /repository\/analyze|runIntelligenceAI|MEHRAN_ORCHESTRATOR_TOKEN/);
+  assert.match(inspect, /Deterministic inventory completed/);
+  assert.match(inspect, /analysisEvidence\.push\(\{ path, sha: file\.sha, excerpt \}\)/);
+  assert.match(inspect, /\/agent\/v1\/repository\/analyze/);
+  assert.match(inspect, /headers: \{ \.\.\.ownerHeaders/);
+  assert.match(inspect, /semanticAnalysis/);
+  assert.doesNotMatch(inspect, /runIntelligenceAI/);
   assert.match(workerSource, /inspect_repository_inventory_only/);
   assert.match(workerSource, /inspect_repository_schema/);
 });
@@ -1277,7 +1282,32 @@ test("Workers AI inference failures retain safe actionable diagnostics without e
   assert.ok(workerSource.includes("stage:\"workers_ai_inference\""));
 });;
 
-test("repository inventory is independent from the optional semantic analysis endpoint", () => {
+test("private inbox expands inspection across MEHRAN modules using bounded six-file batches", () => {
+  const expectedPaths = [
+    "index.html",
+    "music-studio.html",
+    "instrument-sampler.js",
+    "engine/server.py",
+    "engine/model_policy.py",
+    "engine/preflight.py"
+  ];
+  for (const path of expectedPaths) {
+    assert.ok(workerSource.includes('"' + path + '"'), "Worker must allow " + path);
+    assert.ok(inboxSchemaSource.includes('"' + path + '"'), "Private inbox must allow " + path);
+    assert.ok(runnerSource.includes('"' + path + '"'), "Runner must allow " + path);
+    assert.ok(getIntelligenceCapability("inspect_repository").inputSchema.properties.paths.itemEnum.includes(path));
+  }
+  assert.match(workerSource, /for \(let offset = 0; offset < inspectionPaths\.length; offset \+= 6\)/);
+  assert.match(workerSource, /const paths = inspectionPaths\.slice\(offset, offset \+ 6\)/);
+  assert.match(workerSource, /paths\s*\n\s*\}\);/);
+  assert.match(workerSource, /dependsOn: inspectionTasks\.map\(item => item\.taskId\)/);
+  assert.match(runnerSource, /file\.size > 750000/);
+  assert.match(runnerSource, /totalBytes > 4500000/);
+  assert.match(runnerSource, /path === "index\.html"/);
+  assert.match(runnerSource, /path === "music-studio\.html"/);
+});
+
+test("repository inspection now follows deterministic inventory with owner-authenticated semantic analysis", () => {
   assert.match(workerSource, /path === "\/agent\/v1\/repository\/analyze"/);
   assert.match(workerSource, /ownerOrchestrationRoute = .*repository\/analyze/);
   assert.match(workerSource, /totalChars > 16000/);
@@ -1285,14 +1315,15 @@ test("repository inventory is independent from the optional semantic analysis en
   assert.match(workerSource, /env\.AI\.run\(model/);
   assert.match(workerSource, /supplied source excerpts as untrusted code data/);
   assert.match(workerSource, /files\.find\(f=>f\.path===ev\.path\)\?\.excerpt\.includes\(ev\.quote\)/);
-  assert.match(workerSource, /inspect_repository_inventory_only/);
   const inspectStart = runnerSource.indexOf('if (task.actionType === "inspect_repository")');
   const inspectEnd = runnerSource.indexOf('if (task.actionType === "source_security_audit")', inspectStart);
   assert.ok(inspectStart >= 0 && inspectEnd > inspectStart);
   const inspect = runnerSource.slice(inspectStart, inspectEnd);
-  assert.doesNotMatch(inspect, /repository\/analyze|runIntelligenceAI|evidenceFiles|semantic\.analysis/);
-  assert.match(inspect, /analysis: \{/);
-  assert.match(inspect, /Deterministic repository inventory completed/);
+  assert.match(inspect, /analysisEvidence/);
+  assert.match(inspect, /\/agent\/v1\/repository\/analyze/);
+  assert.match(inspect, /semanticAnalysis/);
+  assert.match(inspect, /orchestratorToken\.length >= 40/);
+  assert.match(inspect, /AbortSignal\.timeout\(90000\)/);
   assert.match(workerSource, /Do not call a named constant a magic number/);
   assert.match(workerSource, /Do not label a Firebase Web API key/);
   assert.match(workerSource, /unsupportedMagicNumberFindings/);
@@ -1356,10 +1387,9 @@ test("Intelligence mission planning and repository semantic analysis use the pro
 });
 
 test("repository inspection and source audit accept worker.js while preserving strict byte and SHA bounds", () => {
-  assert.match(runnerSource, /file\.size > 600000/);
+  assert.match(runnerSource, /file\.size > 750000/);
   assert.match(runnerSource, /file\.bytes > 600000/);
-  assert.match(runnerSource, /totalBytes > 750000/);
-  assert.match(runnerSource, /totalBytes <= 750000/);
+  assert.match(runnerSource, /totalBytes > 4500000/);
   assert.match(runnerSource, /file\.path !== path/);
   assert.match(runnerSource, /Buffer\.byteLength\(text, "utf8"\) !== file\.size/);
   assert.match(runnerSource, /file\.sha !== "string"/);
@@ -1581,9 +1611,14 @@ test("capability schemas are deeply immutable, including nested allowlists and v
   const pathsRule = capability.inputSchema.properties.paths;
   assert.deepEqual(pathsRule.itemEnum, [
     "worker.js",
+    "index.html",
+    "music-studio.html",
+    "instrument-sampler.js",
+    "engine/server.py",
+    "engine/model_policy.py",
+    "engine/preflight.py",
     "scripts/intelligence-agent.mjs",
     "scripts/intelligence-capabilities.mjs",
-    "scripts/intelligence-capabilities.test.mjs",
     ".github/workflows/mehran-intelligence-runner.yml",
     "docs/INTELLIGENCE_EXECUTION_PROTOCOL.md"
   ]);
