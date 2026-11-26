@@ -82,6 +82,8 @@ test("requires a bounded explicit read-only method list and write exclusion", ()
   for (const patch of [
     { readOnlyMethods: [] },
     { readOnlyMethods: ["getHealth", "bad method"] },
+    { readOnlyMethods: ["getHealth", "sendTransaction"] },
+    { readOnlyMethods: ["getHealth", "getHealth"] },
     { readOnlyMethods: Array(31).fill("getHealth") },
     { writeMethodsExcluded: false }
   ]) {
