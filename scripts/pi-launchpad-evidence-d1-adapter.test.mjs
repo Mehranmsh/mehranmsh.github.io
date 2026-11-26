@@ -16,8 +16,8 @@ const record = (overrides={}) => ({
 test("builds bounded parameterized insert and readback plans",()=>{
  const p=buildPiLaunchpadEvidenceD1WritePlan([record()]);
  assert.equal(p.accepted,true); assert.equal(p.insertBatch.length,1); assert.equal(p.readback.length,1);
- assert.equal((p.insertBatch[0].sql.match(/\\?/g)||[]).length,p.insertBatch[0].params.length);
- assert.match(p.insertBatch[0].sql,/ON CONFLICT\\(record_id\\) DO NOTHING/);
+ assert.equal((p.insertBatch[0].sql.match(/\?/g)||[]).length,p.insertBatch[0].params.length);
+ assert.match(p.insertBatch[0].sql,/ON CONFLICT\(record_id\) DO NOTHING/);
  assert.match(p.readback[0].sql,/SELECT record_id/);
  assert.equal(p.expectedRows[0][9],"not_verified");
  assert.equal(p.expectedRows[0][10],"blocked_pending_independent_chain_verification");
