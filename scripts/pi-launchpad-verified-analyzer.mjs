@@ -4,9 +4,10 @@
  */
 import { analyzeLaunchpadOpportunity } from "./pi-launchpad-analyzer.mjs";
 import { buildPiLaunchpadVerifiedScoringEvidence } from "./pi-launchpad-evidence-gateway.mjs";
+import { buildPiLaunchpadVerifiedMetrics } from "./pi-launchpad-metrics-gateway.mjs";
 
 export function analyzeVerifiedLaunchpadOpportunity({
-  snapshot, envelope, attestations, trustRecords, now
+  snapshot, envelope, attestations, metricAttestations = [], trustRecords, now
 } = {}) {
   if (!snapshot || typeof snapshot !== "object" || Array.isArray(snapshot)) {
     throw new TypeError("A token snapshot object is required.");
@@ -17,7 +18,10 @@ export function analyzeVerifiedLaunchpadOpportunity({
   const verified = buildPiLaunchpadVerifiedScoringEvidence({
     envelope, attestations, trustRecords, now
   });
-  if (verified.tokenId !== snapshot.tokenId) {
+  const verifiedMetrics = buildPiLaunchpadVerifiedMetrics({
+    envelope, attestations: metricAttestations, trustRecords, now
+  });
+  if (verified.tokenId !== snapshot.tokenId || verifiedMetrics.tokenId !== snapshot.tokenId) {
     throw new TypeError("Snapshot tokenId does not match the validated evidence envelope.");
   }
 
@@ -26,7 +30,8 @@ export function analyzeVerifiedLaunchpadOpportunity({
   const analysis = analyzeLaunchpadOpportunity({
     tokenId: snapshot.tokenId,
     symbol: typeof snapshot.symbol === "string" ? snapshot.symbol : undefined,
-    evidence: verified.scoringEvidence
+    evidence: verified.scoringEvidence,
+    ...verifiedMetrics.verifiedMetrics
   });
   return Object.freeze({
     ...analysis,
@@ -39,9 +44,18 @@ export function analyzeVerifiedLaunchpadOpportunity({
       trustStoreAcceptedKeyCount: verified.trustStoreAcceptedKeyCount,
       notice: verified.notice
     }),
+    verifiedMetrics: Object.freeze({
+      gatewayVersion: verifiedMetrics.gatewayVersion,
+      acceptedCount: verifiedMetrics.acceptedCount,
+      rejectedCount: verifiedMetrics.rejectedCount,
+      acceptedRecords: verifiedMetrics.acceptedRecords,
+      rejectedRecords: verifiedMetrics.rejectedRecords,
+      trustStoreAcceptedKeyCount: verifiedMetrics.trustStoreAcceptedKeyCount,
+      notice: verifiedMetrics.notice
+    }),
     limitations: Object.freeze([
       ...analysis.limitations,
-      "Only attested component scores are included. Liquidity, holder distribution, contract flags, and source verification remain unknown until separately verified."
+      "Only independently attested component scores and allowlisted Pi market metrics are included. Contract flags and source verification remain unknown until separate verification paths exist."
     ])
   });
 }
