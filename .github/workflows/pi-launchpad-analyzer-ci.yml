@@ -1,0 +1,31 @@
+name: Pi Launchpad Analyzer isolated tests
+
+on:
+  push:
+    branches:
+      - intelligence/pi-launchpad-analyzer-mvp
+    paths:
+      - "scripts/pi-launchpad-analyzer.mjs"
+      - "scripts/pi-launchpad-analyzer.test.mjs"
+      - ".github/workflows/pi-launchpad-analyzer-ci.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pi-launchpad-analyzer-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout isolated feature branch
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - name: Verify analyzer syntax
+        run: node --check scripts/pi-launchpad-analyzer.mjs
+      - name: Run analyzer tests
+        run: node --test --test-reporter=tap scripts/pi-launchpad-analyzer.test.mjs
