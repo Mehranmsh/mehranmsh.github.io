@@ -100,6 +100,10 @@ test("enforces the serialized output budget even for dense owner records", () =>
   });
   assert.ok(JSON.stringify(result).length <= 512);
   assert.equal(result.diagnostics.outputTrimmed, true);
+  assert.ok(Object.hasOwn(result, "planHistory"));
+  assert.ok(Object.hasOwn(result, "planLearning"));
+  assert.equal(typeof result.planHistory, "object");
+  assert.equal(typeof result.planLearning, "object");
 });
 
 test("clamps tiny requested output budgets to a safe metadata floor", () => {
