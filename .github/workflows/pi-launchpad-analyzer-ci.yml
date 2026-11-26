@@ -8,7 +8,11 @@ on:
       - "scripts/pi-launchpad-analyzer.mjs"
       - "scripts/pi-launchpad-analyzer.test.mjs"
       - "scripts/pi-launchpad-data-adapter.mjs"
-      - "scripts/pi-launchpad-data-adapter.test.mjs"\n      - "scripts/pi-launchpad-source-registry.mjs"\n      - "scripts/pi-launchpad-source-registry.test.mjs"
+      - "scripts/pi-launchpad-data-adapter.test.mjs"
+      - "scripts/pi-launchpad-source-registry.mjs"
+      - "scripts/pi-launchpad-source-registry.test.mjs"
+      - "scripts/pi-launchpad-connector-policy.mjs"
+      - "scripts/pi-launchpad-connector-policy.test.mjs"
       - ".github/workflows/pi-launchpad-analyzer-ci.yml"
 
 permissions:
