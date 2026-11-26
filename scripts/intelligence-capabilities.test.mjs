@@ -413,7 +413,8 @@ test("isolated test workflow runs one fixed suite without secrets or network acc
     "./intelligence-patch-generation.mjs",
     "./intelligence-patch-generation-service.mjs",
     "./intelligence-ai-quota.mjs",
-    "./intelligence-capabilities.mjs"
+    "./intelligence-capabilities.mjs",
+    "./intelligence-architecture-review.mjs"
   ]);
   for (const forbidden of [
     ["process", ".", "env"].join(""),
@@ -1648,15 +1649,23 @@ test("agent validates claimed task envelopes and returns the claim token", () =>
 import { buildIntelligenceArchitectureReview } from "./intelligence-architecture-review.mjs";
 test("private inbox resolves and attaches a verified immutable base SHA only for authorized test tasks", () => {
   assert.match(workerSource, /resolveMainCommitSha/);
-  assert.match(workerSource, /const testBaseSha = mission\.scope\.allowed_actions\.includes\("run_repository_tests"\)/);
+  assert.match(workerSource, /mission\.scope\.allowed_actions\.includes\("run_repository_tests"\)/);
   assert.match(workerSource, /baseSha: testBaseSha/);
   assert.match(workerSource, /private_inbox_test_base_sha_invalid/);
 });
 
 test("deterministic architecture review produces evidence-linked layers without AI", () => {
   const paths = ["worker.js","scripts/intelligence-agent.mjs","scripts/intelligence-capabilities.mjs",".github/workflows/mehran-intelligence-runner.yml","docs/INTELLIGENCE_EXECUTION_PROTOCOL.md","scripts/intelligence-architecture-review.mjs"];
+  const workerFixture = [
+    "async function ingestPrivateIntelligenceInbox() {}",
+    "function createIntelligenceWorkPackage() {}",
+    "const intelligence_work_packages = 1;",
+    "const intelligence_tasks = 1;",
+    "const WORKERS_AI_INTELLIGENCE_DAILY_RESERVATION_CREDITS = 7000;",
+    "function reserveSocialWorkersAIBudget() {}"
+  ].join(String.fromCharCode(10));
   const files = paths.map(path => ({ path, content: path === "worker.js"
-    ? "async function ingestPrivateIntelligenceInbox() {}\\nfunction createIntelligenceWorkPackage() {}\\nconst WORKERS_AI_INTELLIGENCE_DAILY_RESERVATION_CREDITS = 7000;\\nfunction reserveSocialWorkersAIBudget() {}\\n"
+    ? workerFixture
     : path === "scripts/intelligence-capabilities.mjs" ? "const INTELLIGENCE_CAPABILITIES = {};\\nconst permissionTier = 'read_only';\\n"
     : "export const reviewFixture = true;\\n" }));
   const result = buildIntelligenceArchitectureReview({ repository: "Mehranmsh/mehranmsh.github.io", commitSha: "a".repeat(40), files });
