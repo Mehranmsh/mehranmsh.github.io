@@ -26,6 +26,8 @@ on:
       - "scripts/pi-testnet-observation-storage-policy.test.mjs"
       - "scripts/pi-testnet-observation-memory-repository.mjs"
       - "scripts/pi-testnet-observation-memory-repository.test.mjs"
+      - "scripts/pi-testnet-observation-encryption.mjs"
+      - "scripts/pi-testnet-observation-encryption.test.mjs"
       - "scripts/pi-launchpad-trust-store.mjs"
       - "scripts/pi-launchpad-trust-store.test.mjs"
       - "scripts/pi-launchpad-source-registry.mjs"
@@ -66,5 +68,6 @@ jobs:
           node --check scripts/pi-testnet-observation-archive.mjs
           node --check scripts/pi-testnet-observation-storage-policy.mjs
           node --check scripts/pi-testnet-observation-memory-repository.mjs
+          node --check scripts/pi-testnet-observation-encryption.mjs
       - name: Run analyzer tests
         run: node --test --test-reporter=tap scripts/pi-launchpad-*.test.mjs scripts/pi-testnet-*.test.mjs
