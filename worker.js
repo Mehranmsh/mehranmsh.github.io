@@ -5625,6 +5625,15 @@ async function ensureIntelligenceTaskTable(env) {
   try { await env.DB.prepare("ALTER TABLE intelligence_tasks ADD COLUMN next_attempt_at TEXT").run(); } catch {}
   try { await env.DB.prepare("ALTER TABLE intelligence_tasks ADD COLUMN checkpoint_json TEXT NOT NULL DEFAULT '{}'").run(); } catch {}
   try { await env.DB.prepare("ALTER TABLE intelligence_tasks ADD COLUMN last_error_code TEXT NOT NULL DEFAULT ''").run(); } catch {}
+  // Queue ownership is explicit and fail-closed. Existing rows remain quarantined;
+  // never infer owner identity from assigned_to or created_by.
+  try { await env.DB.prepare("ALTER TABLE intelligence_tasks ADD COLUMN owner_uid TEXT").run(); } catch (migrationError) {
+    if (!/duplicate column name/i.test(String(migrationError?.message || migrationError))) throw migrationError;
+  }
+  try { await env.DB.prepare("ALTER TABLE intelligence_tasks ADD COLUMN queue_lane TEXT NOT NULL DEFAULT 'quarantine'").run(); } catch (migrationError) {
+    if (!/duplicate column name/i.test(String(migrationError?.message || migrationError))) throw migrationError;
+  }
+  await env.DB.prepare("CREATE INDEX IF NOT EXISTS idx_intelligence_tasks_lane_queue ON intelligence_tasks(queue_lane,status,priority,created_at)").run();
   await env.DB.prepare("CREATE INDEX IF NOT EXISTS idx_intelligence_tasks_queue ON intelligence_tasks(status,assigned_to,created_at)").run();
   await env.DB.prepare("CREATE INDEX IF NOT EXISTS idx_intelligence_tasks_package ON intelligence_tasks(work_package_id,status)").run();
 }
