@@ -404,9 +404,14 @@ jobs:
               const repository = "Mehranmsh/mehranmsh.github.io";
               const allowedPaths = new Set([
                 "worker.js",
+                "index.html",
+                "music-studio.html",
+                "instrument-sampler.js",
+                "engine/server.py",
+                "engine/model_policy.py",
+                "engine/preflight.py",
                 "scripts/intelligence-agent.mjs",
                 "scripts/intelligence-capabilities.mjs",
-                "scripts/intelligence-capabilities.test.mjs",
                 ".github/workflows/mehran-intelligence-runner.yml",
                 "docs/INTELLIGENCE_EXECUTION_PROTOCOL.md"
               ]);
@@ -474,9 +479,17 @@ jobs:
                 // A separate, owner-authenticated analysis call receives bounded excerpts only.
                 const anchors = path === "worker.js"
                   ? ["async function ingestPrivateIntelligenceInbox", 'if (path === "/agent/v1/repository/analyze"', 'if (path === "/agent/v1/tasks/next"']
-                  : path === ".github/workflows/mehran-intelligence-runner.yml"
-                    ? ["async function execute(task)", 'if (task.actionType === "inspect_repository")', 'if (task.actionType === "propose_code_patch")']
-                    : [];
+                  : path === "index.html"
+                    ? ['data-page="social"', 'id="page-social"', 'id="page-nexus"', 'id="page-ai"']
+                    : path === "music-studio.html"
+                      ? ['data-view="lyrics"', 'data-view="compose"', 'data-view="vocals"', 'data-view="mix"']
+                      : path === "engine/server.py"
+                        ? ["def database(", "class Handler", "def send_json(", "def do_POST("]
+                        : path === "instrument-sampler.js"
+                          ? ["function matchesNote(", "function matchesVelocity(", "function loadSample("]
+                          : path === ".github/workflows/mehran-intelligence-runner.yml"
+                            ? ["async function execute(task)", 'if (task.actionType === "inspect_repository")', 'if (task.actionType === "propose_code_patch")']
+                            : [];
                 const excerpts = anchors.map(anchor => {
                   const index = source.indexOf(anchor);
                   return index < 0 ? "" : source.slice(Math.max(0, index - 160), index + 760);
