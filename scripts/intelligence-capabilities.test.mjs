@@ -1624,7 +1624,6 @@ test("Worker responses are streamed through a strict byte limit", async () => {
 });
 
 test("bounded response reader rejects invalid limits and missing streams", async () => {
-  const { readBoundedResponse } = await import("./intelligence-bounded-response.mjs");
   await assert.rejects(readBoundedResponse(new Response("ok"), 0), /positive safe integer/);
   await assert.rejects(readBoundedResponse({}, 32), /body stream is unavailable/);
 });
