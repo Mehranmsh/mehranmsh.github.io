@@ -2,6 +2,7 @@ import { buildDeterministicRoutinePlan } from "./scripts/intelligence-routine-pl
 import { INTELLIGENCE_ACTION_TYPES, PREAPPROVED_INTELLIGENCE_ACTION_TYPES } from "./scripts/intelligence-capabilities.mjs";
 import { storePrivatePatchArtifact, verifyPrivatePatchArtifactAtPath, getPrivatePatchArtifactPath, getVerifiedPrivatePatchArtifactAtPath } from "./scripts/intelligence-private-patch-store.mjs";
 import { extractPatchModelText, generatePatchArtifact } from "./scripts/intelligence-patch-generation-service.mjs";
+import { isAllowedIntelligencePatchTarget } from "./scripts/intelligence-patch-targets.mjs";
 import { validatePrivateIntelligenceMission, resolvePrivateIntelligenceInspectionPaths } from "./scripts/intelligence-inbox-schema.mjs";
 import { selectMemoryContext } from "./scripts/intelligence-memory-ranking.mjs";
 // Shared owner-scoped feedback analysis; Worker persists proposals but never applies them.
@@ -6734,7 +6735,7 @@ export function verifyIntelligenceReport(actionType, report) {
         !proposalPathMatchesId || typeof report.artifactSha256 !== "string" || !/^[a-f0-9]{64}$/.test(report.artifactSha256) ||
         typeof report.diffSha256 !== "string" || !/^[a-f0-9]{64}$/.test(report.diffSha256) ||
         typeof report.baseSha !== "string" || !/^[a-f0-9]{40}$/.test(report.baseSha) ||
-        report.targetPath !== "scripts/intelligence-capabilities.test.mjs" ||
+        !isAllowedIntelligencePatchTarget(report.targetPath) ||
         report.validationMode !== "append_only_validate_only" || report.status !== "stored" ||
         typeof report.summary !== "string" || report.summary.trim().length < 12 || report.summary.length > 500 ||
         !isoDate(report.generatedAt)) {
@@ -7818,16 +7819,19 @@ export default {
         }
         if (path === "/agent/v1/patch-proposals/generate" && method === "POST") {
           const body = await readBody(request);
-          if (!body || Object.keys(body).sort().join(",") !== "baseSha,objective,requestId" ||
+          if (!body || Object.keys(body).some(key => !["baseSha","objective","requestId","targetPath"].includes(key)) ||
+              !["baseSha","objective","requestId"].every(key => Object.hasOwn(body,key)) ||
               typeof body.baseSha !== "string" || !/^[a-f0-9]{40}$/.test(body.baseSha) ||
               typeof body.objective !== "string" || body.objective.trim().length < 12 ||
               body.objective.length > 800 || typeof body.requestId !== "string" ||
+              (body.targetPath !== undefined && !isAllowedIntelligencePatchTarget(body.targetPath)) ||
               !/^[A-Za-z0-9._:-]{8,160}$/.test(body.requestId)) {
             return error("A current base SHA, bounded objective, and stable request ID are required.",400);
           }
           await ensureIntelligencePatchProposalTable(env);
           await ensureIntelligencePatchGenerationRequestsTable(env);
-          const requestHash = await sha256(body.baseSha + "\n" + body.objective.trim());
+          const targetPath = body.targetPath || "scripts/intelligence-capabilities.test.mjs";
+          const requestHash = await sha256(body.baseSha + "\n" + body.objective.trim() + "\n" + targetPath);
           const readRequest = () => env.DB.prepare(
             "SELECT request_id,request_hash,base_sha,status,proposal_id,target_path,summary,artifact_path,artifact_sha256,diff_sha256,validation_mode,failure_code,created_at,updated_at FROM intelligence_patch_generation_requests WHERE request_id=?"
           ).bind(body.requestId).first();
@@ -7839,7 +7843,7 @@ export default {
           },row.status === "stored" ? 200 : 202);
           const existing = await readRequest();
           if (existing) {
-            if (existing.request_hash !== requestHash || existing.base_sha !== body.baseSha) {
+            if (existing.request_hash !== requestHash || existing.base_sha !== body.baseSha || existing.target_path !== targetPath) {
               return error("Request ID was already used with a different generation payload.",409);
             }
             if (existing.status === "stored") return responseFor(existing);
@@ -7890,6 +7894,7 @@ export default {
             env,
             baseSha:body.baseSha,
             objective:body.objective.trim(),
+            targetPath,
             // Retain the reservation hook for deterministic Worker test hooks and legacy callers.
             // Production inference uses runIntelligenceAI, which owns its own reservation lifecycle.
             reserveBudget:credits => reserveSocialWorkersAIBudget(env,credits,"intelligence"),
@@ -8097,7 +8102,7 @@ export default {
               stored.summary !== artifact.summary) {
             return error("Private artifact does not match the durable proposal record.",409);
           }
-          if (artifact.targetPath !== "scripts/intelligence-capabilities.test.mjs" ||
+          if (!isAllowedIntelligencePatchTarget(artifact.targetPath) ||
               typeof artifact.diff !== "string" || artifact.diff.length > 8192) {
             return error("Verified proposal exceeds the active patch policy.",409);
           }
@@ -8556,10 +8561,11 @@ export default {
                 expectedPayload = JSON.parse(before.action_payload || "{}");
                 checkpoint = JSON.parse(before.checkpoint_json || "{}");
               } catch { return error("Stored patch-task payload or checkpoint is invalid.",422); }
-              const expectedHash = await sha256(parsedReport.baseSha + "\n" + String(expectedPayload.objective || "").trim());
+              const expectedHash = await sha256(parsedReport.baseSha + "\n" + String(expectedPayload.objective || "").trim() + "\n" + String(expectedPayload.targetPath || "scripts/intelligence-capabilities.test.mjs"));
               if (!expectedPayload || typeof expectedPayload.objective !== "string" ||
                   parsedReport.requestId !== id || checkpoint.baseSha !== parsedReport.baseSha ||
-                  parsedReport.requestHash !== expectedHash) {
+                  parsedReport.requestHash !== expectedHash ||
+                  parsedReport.targetPath !== (expectedPayload.targetPath || "scripts/intelligence-capabilities.test.mjs")) {
                 return error("Patch proposal report does not match the immutable task objective, ID, and base commit.",422);
               }
             }
