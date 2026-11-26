@@ -39,7 +39,6 @@ export function preparePiLaunchpadCandidateIntake(input, options = {}) {
     if (!tokenId) return reject("missing_or_invalid_token_id");
     if (!name) return reject("missing_or_invalid_name");
     if (seen.has(tokenId)) return reject("duplicate_token_id");
-    seen.add(tokenId);
 
     const symbol = record.symbol === undefined || record.symbol === null
       ? null : text(record.symbol, 24);
@@ -56,6 +55,9 @@ export function preparePiLaunchpadCandidateIntake(input, options = {}) {
     const claimedNetworkId = record.claimedNetworkId === undefined ? "pi-mainnet" : record.claimedNetworkId;
     if (claimedNetworkId !== "pi-mainnet") return reject("unsupported_network_claim");
 
+    // Reserve the identity only after the entire record passes validation.
+    // An invalid earlier row must not block a later valid row with the same ID.
+    seen.add(tokenId);
     candidates.push(Object.freeze({
       tokenId, name, symbol, claimedNetworkId,
       networkVerification: "unverified",
