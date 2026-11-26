@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - intelligence/pi-launchpad-analyzer-mvp
+      - feat/launchpad-mainnet-readiness-gate
     paths:
       - "scripts/pi-launchpad-analyzer.mjs"
       - "scripts/pi-launchpad-analyzer.test.mjs"
@@ -50,6 +51,8 @@ on:
       - "scripts/pi-launchpad-source-registry.test.mjs"
       - "scripts/pi-launchpad-connector-policy.mjs"
       - "scripts/pi-launchpad-connector-policy.test.mjs"
+      - "scripts/pi-launchpad-mainnet-readiness.mjs"
+      - "scripts/pi-launchpad-mainnet-readiness.test.mjs"
       - "scripts/pi-launchpad-snapshot-monitor.mjs"
       - "scripts/pi-launchpad-snapshot-monitor.test.mjs"
       - "scripts/pi-launchpad-portfolio-ranker.mjs"
