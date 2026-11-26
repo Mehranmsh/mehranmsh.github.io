@@ -93,6 +93,21 @@ input[type=checkbox]{accent-color:#e6b86b}
    <button class="btn" id="startCustomStudioPath" type="button" style="width:100%;margin-top:12px">ساخت مسیر کاری من</button>
    <p style="color:var(--muted);font-size:11px;margin-top:8px">انتخاب‌ها قابل ترکیب‌اند؛ حالت حرفه‌ای و کنترل دستی هم همچنان در دسترس می‌ماند.</p>
   </div>
+  <section class="panel" id="studioWideIntelligence" style="margin-top:18px">
+   <div class="section-head"><div><h2>🧠 MEHRAN INTELLIGENCE · کل استودیو</h2><p>یک هماهنگ‌کننده برای تمام مراحل تولید؛ نه یک ابزار محدود به وکال.</p></div><span class="tag">STUDIO-WIDE FOUNDATION</span></div>
+   <div class="notice">در هر مرحله، Intelligence باید هدف را بفهمد، ورودی‌های همان مرحله را بررسی کند، پیشنهاد قابل توضیح بدهد، نتیجه را با مرحله‌های دیگر هماهنگ کند و پیش از عبور از کنترل کیفیت، مشکل‌های مهم را نشان دهد. AUTO و PRO از یک زنجیرهٔ مشترک استفاده می‌کنند.</div>
+   <div class="grid" style="margin-top:12px">
+    <article class="tile"><b>۱ · ایده و هویت آهنگ</b><p>داستان، سبک، حس، مخاطب، محدودهٔ صوتی و هدف تولید.</p><button class="btn secondary" type="button" data-view="create">برنامه‌ریزی پروژه</button></article>
+    <article class="tile"><b>۲ · شعر و ترانه</b><p>معنا، روایت، قافیه، هجا، روانی و قابلیت خواندن.</p><button class="btn secondary" type="button" data-view="lyrics">Lyrics Lab</button></article>
+    <article class="tile"><b>۳ · آهنگسازی</b><p>ملودی، گام، آکورد، تمپو، ساختار و تناسب با خواننده.</p><button class="btn secondary" type="button" data-view="compose">Composition</button></article>
+    <article class="tile"><b>۴ · تنظیم و سازبندی</b><p>نقش سازها، ریتم، ورود و خروج، فضا و پویایی.</p><button class="btn secondary" type="button" data-view="arrangement">Arrangement</button></article>
+    <article class="tile"><b>۵ · ضبط و اجرا</b><p>آماده‌سازی ضبط، برداشت‌ها، راهنمای اجرا و بررسی کیفیت.</p><button class="btn secondary" type="button" data-view="vocals">Recording & Vocal</button></article>
+    <article class="tile"><b>۶ · ویرایش و پردازش</b><p>پاک‌سازی، اصلاح، تراز سازها و پردازش غیرمخرب.</p><button class="btn secondary" type="button" data-view="vocals">Vocal Lab</button></article>
+    <article class="tile"><b>۷ · میکس</b><p>تعادل، فرکانس، داینامیک، استریو و مقایسهٔ A/B.</p><button class="btn secondary" type="button" data-view="mix">Mixing</button></article>
+    <article class="tile"><b>۸ · مسترینگ و تحویل</b><p>بلندی، پیک، فرمت، سازگاری و کنترل نهایی خروجی.</p><button class="btn secondary" type="button" data-view="mix">Mastering & Export</button></article>
+   </div>
+   <p style="color:var(--muted);font-size:11px;margin:12px 0 0">این پنل نقشهٔ یکپارچهٔ استودیو و مسیرهای ورود است؛ به‌معنای فعال‌بودن همهٔ موتورهای تحلیل یا پردازش نیست. هر قابلیت تا زمان پیاده‌سازی و آزمون، با وضعیت واقعی خودش معرفی می‌شود.</p>
+  </section>
   <div class="section-head"><div><h2>Choose how to create</h2><p>ابزارهای تخصصی برای کسانی که می‌خواهند کنترل مستقیم داشته باشند.</p></div></div>
   <div class="grid" id="productionModes">
    <article class="tile"><div class="ico">🤖</div><h3>AI Singer · آواز هوش مصنوعی</h3><p>ساخت آهنگ با خوانندهٔ مصنوعی، متن فارسی و اجرای ملودیک. اتصال موتور آواز هنوز در حال توسعه است؛ هیچ سرویس پولی خودکار فراخوانی نمی‌شود.</p><span class="tag">ENGINE INTEGRATION PENDING</span><button class="btn" type="button" data-production-mode="ai-vocal" style="margin-top:12px;width:100%">شروع پروژه با خوانندهٔ AI</button></article>
@@ -196,6 +211,7 @@ input[type=checkbox]{accent-color:#e6b86b}
 
   <div class="panel" style="margin-top:16px" id="vocalPerformanceGuide">
    <div class="section-head"><div><h3>Vocal Performance Guide</h3><p>Turn a lyric line into a practical singing rehearsal: syllables, timing, pitch cues and breathing.</p></div><span class="tag">LOCAL PRACTICE TOOL</span></div>
+   <div class="notice" id="performanceCoachPanel" style="margin:12px 0"><b>MEHRAN PERFORMANCE COACH · راهنمای اجرای جمله</b><p id="performanceCoachAdvice" style="margin:6px 0 0">یک سطر شعر انتخاب کن تا راهنمای تمرین اولیه ساخته شود.</p><small style="display:block;margin-top:8px;color:var(--muted)">این نسخه راهنمای محلی و متنی بر اساس شعر و حس انتخابی است؛ تا وقتی ملودی و صدای اجرا تحلیل نشده‌اند، نت دقیق یا تشخیص قطعی ارائه نمی‌کند.</small></div>
    <div class="two">
     <div class="field"><label for="vocalGuideLine">LYRIC LINE</label><select id="vocalGuideLine"><option value="">Write or load lyrics first</option></select></div>
     <div class="field"><label for="vocalGuideTempo">TEMPO · BPM</label><input id="vocalGuideTempo" type="number" min="40" max="220" step="1" value="90"></div>
@@ -264,6 +280,17 @@ input[type=checkbox]{accent-color:#e6b86b}
   <div class="experience-mode" data-experience-stage="vocals"><span>روش کار این بخش</span><div><button type="button" data-experience-choice="smart" aria-pressed="true">هوشمند و ساده</button><button type="button" data-experience-choice="pro" aria-pressed="false">حرفه‌ای و دستی</button></div></div>
   <div class="section-head"><div><h2>Vocal Lab</h2><p>Build a cast of singers and plan each vocal part inside a project.</p></div></div>
   <div class="notice" style="margin-top:14px">تمرین آواز و کنترل ملودی</div>
+  <div class="panel" id="studioIntelligenceVocalCheck" style="margin-top:16px">
+   <div class="section-head"><div><h3>🧠 Studio Intelligence · Vocal Check</h3><p>تحلیل اولیهٔ فایل ضبط‌شده روی همین دستگاه، بدون آپلود صدا و بدون مصرف سهمیهٔ AI.</p></div><span class="tag">LOCAL ANALYSIS</span></div>
+   <div class="two">
+    <label class="field">PROJECT · پروژه<select id="studioIntelProject"><option value="">انتخاب پروژه…</option></select></label>
+    <label class="field">RECORDING · فایل ضبط‌شده<select id="studioIntelTrack" disabled><option value="">ابتدا پروژه را انتخاب کن…</option></select></label>
+   </div>
+   <div class="notice">این بررسی فنی اولیه است، نه قضاوت هنری یا مسترینگ. فایل اصلی دست‌نخورده می‌ماند. برای محافظت از حافظهٔ گوشی، فایل‌های بزرگ‌تر از ۲۵ مگابایت یا طولانی‌تر از ۱۲۰ ثانیه بررسی نمی‌شوند.</div>
+   <button class="btn" id="runStudioIntelVocalCheck" type="button" disabled>تحلیل ضبط با Intelligence</button>
+   <p id="studioIntelVocalStatus" role="status" aria-live="polite" style="color:var(--muted);font-size:12px;margin-top:10px">یک پروژه و فایل صوتی متصل به ترک را انتخاب کن.</p>
+   <div id="studioIntelVocalReport" aria-live="polite" style="margin-top:12px"></div>
+  </div>
   <div class="panel" id="vocalRangeSetup" style="margin-top:16px">
    <div class="section-head"><div><h3>🎙 Vocal Range Check · سنجش محدودهٔ صدای خواننده</h3><p>اول محدودهٔ راحت صدایت را مشخص کن تا آهنگ برای صدای خودت ساخته شود.</p></div><span class="tag">VOICE FIT</span></div>
    <div class="notice">لازم نیست نت یا محدودهٔ صدایت را بدانی. یک تکه از آهنگ یا ملودی را همان‌طور که طبیعی و راحت می‌خوانی ضبط و وارد پروژه کن. در Pitch Analysis فایل صدایت را انتخاب کن و «Analyze vocal pitch» را بزن؛ استودیو نت‌های واقعی اجرای تو را بررسی می‌کند و هنگام ساخت ملودی، گام آهنگ را برای نزدیک‌شدن به محدودهٔ صدایت تنظیم می‌کند. نه صدایت را مجبور به بالا یا پایین‌خواندن کن و نه برای رسیدن به نت خاصی فشار بیاور.</div>
@@ -1865,8 +1892,24 @@ async function generatePatternTrack(){const allowedMode=["drums","chords"].inclu
  function lyricGuideLines(){const p=vocalGuideProject();const source=p&&typeof p.lyrics==="string"?p.lyrics:$("lyricsEditor").value;return source.split(/\r?\n/).map(x=>x.trim()).filter(x=>x&&!/^\[[^\]]+\]$/.test(x));}
  function refreshVocalGuideLines(selected){const select=$("vocalGuideLine"),lines=lyricGuideLines(),keep=selected||select.value;select.innerHTML=lines.length?lines.map((line,i)=>'<option value="'+i+'">'+esc(line.slice(0,100))+'</option>').join(""):'<option value="">Write a lyric line first</option>';if(lines.some((_,i)=>String(i)===String(keep)))select.value=String(keep);loadVocalGuide();}
  function currentVocalGuideLine(){const lines=lyricGuideLines();return lines[Number($("vocalGuideLine").value)]||"";}
+ function renderPerformanceCoach(){
+  const root=$("performanceCoachAdvice");if(!root)return;
+  const line=currentVocalGuideLine(),feel=$("vocalGuideFeel")?.value||"emotional";
+  if(!line){root.textContent="یک سطر شعر انتخاب کن تا راهنمای تمرین اولیه ساخته شود.";return;}
+  const delivery={gentle:"آرام و نزدیک بخوان؛ فشار صدا را پایین نگه دار و پایان جمله را نرم رها کن.",emotional:"از بیان طبیعی شروع کن و شدت را فقط روی واژهٔ محوری کمی افزایش بده؛ احساس را با فریاد جایگزین نکن.",powerful:"تنفس را پیش از جمله آماده کن و قدرت را تدریجی بالا ببر؛ گلو را منقبض نکن.",whisper:"اجرای سبک و هوادار را امتحان کن، اما نجوا را با فشار و حبس نفس همراه نکن.",spoken:"ابتدا جمله را با ریتم صحبت کن؛ وضوح کلمات و ضرب را بر کشش نت مقدم بدان."};
+  const punctuation=/[؟?!،؛,.…]$/.test(line.trim());
+  const words=line.trim().split(/\\s+/).filter(Boolean),last=words[words.length-1]||"";
+  const cues=[delivery[feel]||delivery.emotional];
+  if(/[،؛,]/.test(line))cues.push("روی نشانهٔ مکث میانی، جمله را کوتاه رها کن و فقط اگر نفس کم می‌آوری نفس بگیر.");
+  if(/[؟?]$/.test(line))cues.push("پایان پرسشی را با تغییر ظریف لحن امتحان کن؛ آن را بیش از حد نمایشی نکن.");
+  else if(/[.!؟…]$/.test(line))cues.push("پایان جمله را کنترل‌شده تمام کن؛ کشش واژهٔ آخر را فقط در صورت هماهنگی با ملودی انجام بده.");
+  else cues.push("واژهٔ مهم را خودت مشخص کن؛ آن را کمی روشن‌تر ادا کن و بقیهٔ کلمات را سبک‌تر نگه دار.");
+  const steps=$("vocalGuideSyllables")?.value.split("/").map(x=>x.trim()).filter(Boolean)||[];
+  if(steps.length>1)cues.push("تمرین پیشنهادی: یک‌بار هر بخش را جدا و شمرده بخوان، بار دوم همه را با اتصال طبیعی اجرا کن.");
+  root.innerHTML=cues.map((cue,i)=>'<div style="margin-top:'+(i?6:0)+'px">'+(i+1)+". "+esc(cue)+'</div>').join("")+'<div style="margin-top:8px;color:var(--muted);font-size:11px">پایان سطر: «'+esc(last)+'» · '+(punctuation?"نشانهٔ مکث/پایان دارد":"بدون نشانهٔ پایانی")+'</div>';
+ }
  function renderVocalGuideSteps(active=-1){const root=$("vocalGuideSteps"),parts=$("vocalGuideSyllables").value.split("/").map(x=>x.trim()).filter(Boolean),notes=$("vocalGuideNotes").value.split(/[ ,\s]+/).filter(Boolean),tempo=Math.max(40,Math.min(220,Number($("vocalGuideTempo").value)||90)),seconds=60/tempo*Number($("vocalGuideSubdivision").value||1);if(!parts.length){root.innerHTML='<div class="empty">Add syllables or words separated by / to see the rehearsal steps.</div>';return;}root.innerHTML=parts.map((part,i)=>{const note=notes[i];return '<div class="project" data-guide-step="'+i+'" style="'+(i===active?'border-color:var(--accent);background:var(--surface2)':'')+'"><div class="project-icon">'+(i+1)+'</div><div class="project-copy"><b>'+esc(part)+'</b><small>Step '+(i+1)+' of '+parts.length+' · '+(note?'Sing '+esc(note):'Follow the rhythm')+' · '+seconds.toFixed(2)+' sec</small></div><span class="tag">'+(i===active?'SING NOW':'READY')+'</span></div>';}).join("")+($("vocalGuideBreath").checked?'<small style="color:var(--muted)">↗ Breath after final step</small>':'');}
- function loadVocalGuide(){const p=vocalGuideProject(),line=currentVocalGuideLine(),saved=p&&p.lyricGuides&&p.lyricGuides[line];if(saved){$("vocalGuideSyllables").value=Array.isArray(saved.steps)?saved.steps.join(" / "):line.split(/\s+/).join(" / ");$("vocalGuideNotes").value=Array.isArray(saved.notes)?saved.notes.join(", "):"";$("vocalGuideTempo").value=saved.tempo||p.tempo||90;$("vocalGuideFeel").value=saved.feel||"emotional";$("vocalGuideSubdivision").value=String(saved.subdivision||1);$("vocalGuideBreath").checked=saved.breath!==false;$("vocalGuideBacking").checked=saved.backing!==false;$("vocalGuideArticulation").value=saved.articulation||"";$("vocalGuideConsonantLead").value=String(saved.consonantLeadMs??35);$("vocalGuideConsonantStrength").value=String(saved.consonantStrength??100);$("vocalGuideConsonantDuration").value=String(saved.consonantDurationScale? saved.consonantDurationScale*100:100);$("vocalGuideConsonantStrengthSequence").value=saved.consonantStrengthSequence||"";$("vocalGuideConsonantLeadSequence").value=saved.consonantLeadSequence||"";$("vocalGuideConsonantDurationSequence").value=saved.consonantDurationSequence||"";}else{$("vocalGuideSyllables").value=line?line.split(/\s+/).join(" / "):"";$("vocalGuideNotes").value="";$("vocalGuideTempo").value=p&&p.tempo||90;$("vocalGuideFeel").value="emotional";$("vocalGuideSubdivision").value="1";$("vocalGuideBreath").checked=true;$("vocalGuideBacking").checked=true;$("vocalGuideArticulation").value="";$("vocalGuideConsonantLead").value="35";$("vocalGuideConsonantStrength").value="100";$("vocalGuideConsonantDuration").value="100";$("vocalGuideConsonantStrengthSequence").value="";$("vocalGuideConsonantLeadSequence").value="";$("vocalGuideConsonantDurationSequence").value="";}renderVocalGuideSteps();}
+ function loadVocalGuide(){const p=vocalGuideProject(),line=currentVocalGuideLine(),saved=p&&p.lyricGuides&&p.lyricGuides[line];if(saved){$("vocalGuideSyllables").value=Array.isArray(saved.steps)?saved.steps.join(" / "):line.split(/\s+/).join(" / ");$("vocalGuideNotes").value=Array.isArray(saved.notes)?saved.notes.join(", "):"";$("vocalGuideTempo").value=saved.tempo||p.tempo||90;$("vocalGuideFeel").value=saved.feel||"emotional";$("vocalGuideSubdivision").value=String(saved.subdivision||1);$("vocalGuideBreath").checked=saved.breath!==false;$("vocalGuideBacking").checked=saved.backing!==false;$("vocalGuideArticulation").value=saved.articulation||"";$("vocalGuideConsonantLead").value=String(saved.consonantLeadMs??35);$("vocalGuideConsonantStrength").value=String(saved.consonantStrength??100);$("vocalGuideConsonantDuration").value=String(saved.consonantDurationScale? saved.consonantDurationScale*100:100);$("vocalGuideConsonantStrengthSequence").value=saved.consonantStrengthSequence||"";$("vocalGuideConsonantLeadSequence").value=saved.consonantLeadSequence||"";$("vocalGuideConsonantDurationSequence").value=saved.consonantDurationSequence||"";}else{$("vocalGuideSyllables").value=line?line.split(/\s+/).join(" / "):"";$("vocalGuideNotes").value="";$("vocalGuideTempo").value=p&&p.tempo||90;$("vocalGuideFeel").value="emotional";$("vocalGuideSubdivision").value="1";$("vocalGuideBreath").checked=true;$("vocalGuideBacking").checked=true;$("vocalGuideArticulation").value="";$("vocalGuideConsonantLead").value="35";$("vocalGuideConsonantStrength").value="100";$("vocalGuideConsonantDuration").value="100";$("vocalGuideConsonantStrengthSequence").value="";$("vocalGuideConsonantLeadSequence").value="";$("vocalGuideConsonantDurationSequence").value="";}renderVocalGuideSteps();renderPerformanceCoach();}
  function parseGuideNote(note){const m=String(note||"").trim().match(/^([A-Ga-g])([#b]?)(-?\d)$/);if(!m)return null;const base={C:0,D:2,E:4,F:5,G:7,A:9,B:11}[m[1].toUpperCase()],acc=m[2]==="#"?1:m[2]==="b"?-1:0,midi=(Number(m[3])+1)*12+base+acc;return 440*Math.pow(2,(midi-69)/12);}
  function stopVocalGuide(){vocalGuideRun++;vocalGuideTimers.forEach(id=>clearTimeout(id));vocalGuideTimers=[];if(vocalGuideContext){try{vocalGuideContext.close();}catch{}vocalGuideContext=null;}renderVocalGuideSteps();$("vocalGuideStatus").textContent="Rehearsal stopped.";}
  async function playVocalGuide(){stopVocalGuide();const run=vocalGuideRun,steps=$("vocalGuideSyllables").value.split("/").map(x=>x.trim()).filter(Boolean),tempo=Number($("vocalGuideTempo").value),notes=$("vocalGuideNotes").value.split(/[ ,\\s]+/).filter(Boolean),sub=Number($("vocalGuideSubdivision").value);if(!steps.length){$("vocalGuideStatus").textContent="Add at least one syllable or word step.";return;}if(!Number.isFinite(tempo)||tempo<40||tempo>220){$("vocalGuideStatus").textContent="Tempo must be between 40 and 220 BPM.";return;}if(notes.length&&notes.length!==steps.length){$("vocalGuideStatus").textContent="Enter exactly one note per step, or clear the note guide.";return;}const frequencies=notes.map(parseGuideNote);if(frequencies.some(x=>!x)){$("vocalGuideStatus").textContent="Use note names such as C4, F#3 or Bb4.";return;}const AudioCtor=window.AudioContext||window.webkitAudioContext;if(!AudioCtor){$("vocalGuideStatus").textContent="Audio playback is not supported in this browser.";return;}vocalGuideContext=new AudioCtor();await vocalGuideContext.resume();const ctx=vocalGuideContext,interval=60000/tempo*sub,start=ctx.currentTime+.12,backingProject=vocalGuideProject(),backing=backingProject?.patternStudio?.chords,backingEnabled=$("vocalGuideBacking").checked&&Array.isArray(backing)&&backing.length>0,backingNotes=backingEnabled?backing.flatMap(symbol=>(patternChordNotes(symbol)||[]).map(hz=>Math.round(69+12*Math.log2(hz/440)))):[],midiNotes=frequencies.map(hz=>Math.round(69+12*Math.log2(hz/440))),allNotes=[...new Set([...midiNotes,...backingNotes])];let piano=null;if(allNotes.length){try{const engine=await window.MEHRAN_SAMPLE_ENGINE.create();piano=await engine.instrument(ctx,"acoustic_grand_piano",{destination:ctx.destination,gain:.9,noteEvents:allNotes.map(note=>({note,velocity:88}))});}catch(error){$("vocalGuideStatus").textContent="Recorded piano samples unavailable. Synthetic guide tones are disabled.";if(vocalGuideContext){const failed= vocalGuideContext;vocalGuideContext=null;failed.close().catch(()=>{});}return;}}const barSeconds=240/tempo,barCount=backingEnabled?Math.ceil(steps.length*interval/1000/barSeconds):0;if(backingEnabled&&piano){for(let bar=0;bar<barCount;bar++){const chord=patternChordNotes(backing[bar%backing.length])||[];chord.forEach((hz,index)=>piano.play(Math.round(69+12*Math.log2(hz/440)),start+bar*barSeconds,barSeconds*.9,{gain:index===0?.22:.14,velocity:62}));}}$("vocalGuideStatus").textContent="Rehearsing with recorded acoustic piano · "+tempo+" BPM · "+$("vocalGuideFeel").selectedOptions[0].textContent;steps.forEach((step,i)=>{const at=start+i*interval/1000;if(piano&&midiNotes.length)piano.play(midiNotes[i],at,Math.min(.28,interval/1000*.82),{gain:.66,velocity:88});const timer=setTimeout(()=>{if(run===vocalGuideRun)renderVocalGuideSteps(i);},Math.max(0,(at-ctx.currentTime)*1000));vocalGuideTimers.push(timer);});const finish=setTimeout(()=>{if(run!==vocalGuideRun)return;renderVocalGuideSteps();$("vocalGuideStatus").textContent=$("vocalGuideBreath").checked?"Phrase complete · breathe, then repeat when ready.":"Phrase complete.";if(vocalGuideContext){const done=vocalGuideContext;vocalGuideContext=null;done.close().catch(()=>{});}vocalGuideTimers=[];},Math.max(0,(start-ctx.currentTime)*1000+steps.length*interval+150));vocalGuideTimers.push(finish);}
@@ -2417,6 +2460,8 @@ async function generatePatternTrack(){const allowedMode=["drums","chords"].inclu
  $("lyricsProject").addEventListener("change",()=>refreshVocalGuideLines());
  $("lyricsEditor").addEventListener("input",()=>refreshVocalGuideLines($("vocalGuideLine").value));
  $("vocalGuideLine").addEventListener("change",loadVocalGuide);
+ $("vocalGuideFeel").addEventListener("change",renderPerformanceCoach);
+ $("vocalGuideSyllables").addEventListener("input",()=>renderPerformanceCoach());
  $("vocalGuideSyllables").addEventListener("input",()=>renderVocalGuideSteps());
  $("vocalGuideBreath").addEventListener("change",()=>renderVocalGuideSteps());
 
@@ -2470,6 +2515,95 @@ async function generatePatternTrack(){const allowedMode=["drums","chords"].inclu
   applyExperienceMode(stage,experienceModes[stage]||"smart");
   toolbar.addEventListener("click",event=>{const button=event.target.closest("[data-experience-choice]");if(button)applyExperienceMode(stage,button.dataset.experienceChoice);});
  });
+
+ // First Studio Intelligence slice: bounded, on-device vocal diagnostics only.
+ const intelProjectSelect=$("studioIntelProject"),intelTrackSelect=$("studioIntelTrack"),intelRunButton=$("runStudioIntelVocalCheck"),intelStatus=$("studioIntelVocalStatus"),intelReport=$("studioIntelVocalReport");
+ function refreshStudioIntelProjects(keepProject=""){
+  if(!intelProjectSelect)return;
+  const previous=keepProject||intelProjectSelect.value;
+  intelProjectSelect.innerHTML='<option value="">انتخاب پروژه…</option>'+projects.slice().sort((a,b)=>(b.updated||0)-(a.updated||0)).map(p=>'<option value="'+esc(p.id)+'">'+esc(p.name)+'</option>').join("");
+  intelProjectSelect.value=projects.some(p=>p.id===previous)?previous:"";
+  refreshStudioIntelTracks();
+ }
+ function refreshStudioIntelTracks(){
+  if(!intelTrackSelect)return;
+  const project=projects.find(p=>p.id===intelProjectSelect.value);
+  const tracks=(project?.tracks||[]).filter(t=>t&&t.audioName);
+  intelTrackSelect.innerHTML='<option value="">انتخاب فایل ضبط‌شده…</option>'+tracks.map(t=>'<option value="'+esc(t.id)+'">'+esc(t.name||"Vocal track")+' · '+esc(t.audioName)+'</option>').join("");
+  intelTrackSelect.disabled=!tracks.length;
+  intelRunButton.disabled=true;
+  if(!tracks.length)intelTrackSelect.innerHTML='<option value="">این پروژه هنوز فایل صوتی متصل ندارد</option>';
+  intelReport.innerHTML="";
+  intelStatus.textContent=tracks.length?"یک فایل ضبط‌شده را انتخاب کن تا دکمهٔ تحلیل فعال شود.":"برای این پروژه هنوز فایل صوتی به هیچ ترکی متصل نشده است.";
+ }
+ function analyzeStudioIntelSamples(channelData,sampleRate){
+  if(!Array.isArray(channelData)||!channelData.length||!Number.isFinite(sampleRate)||sampleRate<=0)throw new Error("Invalid audio sample input.");
+  const lengths=channelData.map(channel=>channel?.length??0);
+  if(lengths.some(length=>!length)||lengths.some(length=>length!==lengths[0]))throw new Error("Audio channels must be non-empty and have equal lengths.");
+  const channelCount=channelData.length,total=lengths[0]*channelCount;
+  let peak=0,sumSquares=0,clipped=0,dcSum=0;
+  const blockSize=Math.max(1,Math.floor(sampleRate*0.25)),windowRms=[];
+  for(const data of channelData){
+   for(let start=0;start<data.length;start+=blockSize){
+    const stop=Math.min(data.length,start+blockSize);let blockSquares=0;
+    for(let i=start;i<stop;i++){
+     const value=data[i];
+     if(!Number.isFinite(value))throw new Error("Audio samples must be finite numbers.");
+     const absolute=Math.abs(value);
+     if(absolute>peak)peak=absolute;
+     if(absolute>=0.999)clipped++;
+     sumSquares+=value*value;dcSum+=value;blockSquares+=value*value;
+    }
+    windowRms.push(Math.sqrt(blockSquares/Math.max(1,stop-start)));
+   }
+  }
+  const rms=Math.sqrt(sumSquares/total),dc=dcSum/total,clipRatio=clipped/total;
+  const sorted=windowRms.slice().sort((a,b)=>a-b);
+  const percentile=(fraction)=>sorted.length?sorted[Math.min(sorted.length-1,Math.floor((sorted.length-1)*fraction))]:0;
+  const quiet=percentile(0.1),medianBlockRms=percentile(0.5),loudBlockRms=percentile(0.9);
+  const lowLevelBlockRatio=windowRms.length?windowRms.filter(value=>value<0.01).length/windowRms.length:0;
+  return {channelCount,total,peak,rms,dc,clipRatio,quiet,medianBlockRms,loudBlockRms,lowLevelBlockRatio,blockCount:windowRms.length,blockSize};
+ }
+ function intelDb(value,digits=2){return Number.isFinite(value)?(value<=0?"−∞":(20*Math.log10(value)).toFixed(digits))+" dBFS":"نامشخص";}
+ function intelPct(value){return (100*value).toFixed(3)+"%";}
+ async function runStudioIntelVocalCheck(){
+  const project=projects.find(p=>p.id===intelProjectSelect.value),track=project?.tracks?.find(t=>t.id===intelTrackSelect.value);
+  if(!project||!track?.audioName){intelStatus.textContent="پروژه و فایل صوتی معتبر انتخاب نشده‌اند.";intelRunButton.disabled=true;return;}
+  intelRunButton.disabled=true;intelStatus.textContent="در حال خواندن فایل از حافظهٔ همین دستگاه…";intelReport.innerHTML="";
+  let context=null;
+  try{
+   const record=await readTrackAudio(audioKey(project.id,track.id));
+   if(!record?.blob||!(record.blob instanceof Blob))throw new Error("فایل اصلی در حافظهٔ محلی پیدا نشد.");
+   if(record.blob.size>25*1024*1024)throw new Error("این فایل برای تحلیل امن روی گوشی بزرگ است. نسخه‌ای کوتاه‌تر از ۲۵ مگابایت وارد کن.");
+   const AudioContextClass=window.AudioContext||window.webkitAudioContext;
+   if(!AudioContextClass)throw new Error("مرورگر این دستگاه از Web Audio پشتیبانی نمی‌کند.");
+   context=new AudioContextClass();
+   const decoded=await context.decodeAudioData(await record.blob.arrayBuffer());
+   if(decoded.duration>120)throw new Error("مدت فایل بیشتر از ۱۲۰ ثانیه است. یک بخش کوتاه‌تر انتخاب کن.");
+   const channelCount=decoded.numberOfChannels,sampleRate=decoded.sampleRate;
+   const measured=analyzeStudioIntelSamples(Array.from({length:channelCount},(_,index)=>decoded.getChannelData(index)),sampleRate);
+   const {peak,rms,dc,clipRatio,quiet}=measured;
+   const findings=[];
+   if(clipRatio>0.0001)findings.push({level:"warning",title:"احتمال کلیپینگ",detail:"بخشی از نمونه‌ها نزدیک سقف دیجیتال‌اند. اگر اعوجاج شنیده می‌شود، ضبط مجدد با فاصلهٔ بیشتر از میکروفون بهتر از ترمیم شدید است."});
+   else if(peak>0.98)findings.push({level:"caution",title:"قلهٔ صدا نزدیک سقف است",detail:"برای ضبط بعدی کمی هد‌روم بیشتر نگه دار؛ قلهٔ نزدیک صفر به‌تنهایی نشانهٔ کیفیت بهتر نیست."});
+   else findings.push({level:"good",title:"قلهٔ دیجیتال امن به نظر می‌رسد",detail:"در این بررسی نمونهٔ قابل‌توجهی از کلیپینگ دیجیتال دیده نشد."});
+   if(rms<0.025)findings.push({level:"caution",title:"میانگین سطح صدا پایین است",detail:"قبل از بالا بردن گین در میکس، فاصله از میکروفون و سطح ورودی ضبط را بررسی کن."});
+   if(measured.lowLevelBlockRatio>0.5)findings.push({level:"info",title:"بخش قابل‌توجهی از بلوک‌ها کم‌سطح‌اند",detail:"این فقط سهم بلوک‌های زیر ‎−40 dBFS را نشان می‌دهد و ممکن است ناشی از مکث‌های خواننده باشد؛ به‌تنهایی معیار نویز زمینه نیست."});
+   if(Math.abs(dc)>0.02)findings.push({level:"warning",title:"احتمال DC offset",detail:"میانگین سیگنال از صفر فاصله دارد؛ قبل از پردازش نهایی، فایل و مسیر ضبط بررسی شود."});
+   if(!findings.length)findings.push({level:"good",title:"بررسی پایه کامل شد",detail:"برای ارزیابی نویز، اکو، سیبیلانس و کوک باید تحلیل‌های تخصصی‌تر و شنیدن A/B اضافه شوند."});
+   const rows=[["مدت",decoded.duration.toFixed(2)+" ثانیه"],["نمونه‌برداری",sampleRate.toLocaleString()+" Hz"],["کانال",channelCount===1?"Mono":channelCount+" کانال"],["Peak",intelDb(peak)],["RMS",intelDb(rms)],["نمونه‌های نزدیک کلیپینگ",intelPct(clipRatio)],["میانگین DC",dc.toFixed(5)],["RMS بلوک آرام P10",intelDb(quiet)],["RMS بلوک میانی P50",intelDb(measured.medianBlockRms)],["RMS بلوک بلند P90",intelDb(measured.loudBlockRms)],["بلوک‌های زیر −40 dBFS",intelPct(measured.lowLevelBlockRatio)]];
+   const analysisResult={schema:"mehran.music-studio.audio-analysis",schemaVersion:1,analysisId:(window.crypto?.randomUUID?window.crypto.randomUUID():"local-"+Date.now()+"-"+Math.random().toString(36).slice(2,10)),createdAt:new Date().toISOString(),project:{id:String(project.id),name:String(project.name||"")},asset:{trackId:String(track.id),trackName:String(track.name||"Vocal"),fileName:String(record.name||track.audioName),sizeBytes:record.blob.size},stage:"vocal.recording-diagnostics",mode:"local-analysis-only",provenance:{engine:"Web Audio API",uploaded:false,aiQuotaUsed:false,sourceModified:false,projectModified:false},metrics:{durationSeconds:decoded.duration,sampleRateHz:sampleRate,channels:channelCount,peakLinear:peak,rmsLinear:rms,nearFullScaleRatio:clipRatio,dcOffset:dc,quietWindowRmsP10:quiet,blockRmsP50:measured.medianBlockRms,blockRmsP90:measured.loudBlockRms,lowLevelBlockRatio:measured.lowLevelBlockRatio,analysisBlockCount:measured.blockCount},findings:findings.map(item=>({level:item.level,title:item.title,detail:item.detail})),limitations:["Screening metrics only; not a noise, reverb, pitch, or artistic-quality classifier.","No audio upload, DSP processing, or mastering was performed."]};
+   intelReport.innerHTML='<div class="panel" style="padding:14px"><h4>گزارش فنی ضبط · '+esc(project.name)+' / '+esc(track.name||"Vocal")+'</h4><div class="two">'+rows.map(row=>'<div style="padding:8px;border:1px solid var(--line);border-radius:9px"><small style="color:var(--muted)">'+row[0]+'</small><b style="display:block;margin-top:4px">'+row[1]+'</b></div>').join("")+'</div><h4 style="margin-top:14px">یافته‌ها و پیشنهادها</h4>'+findings.map(item=>'<div class="notice" style="margin-top:8px"><b>'+item.title+'</b><p style="margin:4px 0 0">'+item.detail+'</p></div>').join("")+'<small style="display:block;color:var(--muted);margin-top:10px">شناسهٔ تحلیل: '+esc(analysisResult.analysisId)+' · قالب نتیجه v1</small><small style="display:block;color:var(--muted);margin-top:6px">تحلیل روی دستگاه انجام شد. فایل صوتی آپلود نشد و هیچ تنظیم یا فایل اصلی تغییر نکرد.</small></div>';
+   intelStatus.textContent="تحلیل محلی کامل شد. نتیجه با قرارداد ساختاریافتهٔ v1 آماده است؛ هنوز به سرویس مرکزی Intelligence ارسال نمی‌شود.";
+  }catch(error){intelStatus.textContent="تحلیل انجام نشد: "+String(error?.message||error).slice(0,220);}
+  finally{if(context)await context.close().catch(()=>{});intelRunButton.disabled=false;}
+ }
+ if(intelProjectSelect){
+  refreshStudioIntelProjects();
+  intelProjectSelect.addEventListener("change",refreshStudioIntelTracks);
+  intelTrackSelect.addEventListener("change",()=>{intelRunButton.disabled=!intelTrackSelect.value;intelReport.innerHTML="";intelStatus.textContent=intelTrackSelect.value?"فایل انتخاب شد. آمادهٔ تحلیل محلی است.":"یک فایل ضبط‌شده را انتخاب کن.";});
+  intelRunButton.addEventListener("click",()=>{void runStudioIntelVocalCheck();});
+ }
  syncVocalTools();
  render();
 })();
