@@ -39,3 +39,5 @@ export function applyValidatedPatchInMemory(input = {}) {
     mode: "in_memory_only"
   };
 }
+
+export { readBoundedResponse } from "./intelligence-bounded-response.mjs";
