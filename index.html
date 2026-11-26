@@ -1472,7 +1472,7 @@ body:has(#page-nexus.active) .main{padding-top:17px!important;padding-bottom:0!i
  <div class="social-feed-main">
   <section class="social-stories-section" aria-label="Stories"><div class="story-row" id="storiesRow" aria-label="Stories"></div></section>
   <div class="social-compose-prompt" role="button" tabindex="0" onclick="openCreate()" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openCreate()}"><div class="social-compose-avatar">M</div><div class="social-compose-copy"><strong>Share a moment</strong><span>What's happening?</span></div><button type="button" onclick="event.stopPropagation();openCreate()" aria-label="Create a post">＋</button></div>
-  <div class="social-feed-heading social-feed-list-heading"><div><h2>For you</h2></div><span class="social-feed-count" id="feedCount">0 posts</span></div>
+  <div class="social-feed-heading social-feed-list-heading"><div><h2 id="socialFeedTitle">For you</h2><div class="social-feed-mode" role="group" aria-label="Feed order"><button type="button" class="post-action social-feed-mode-btn" id="feedModeHybrid" aria-pressed="true" onclick="setSocialFeedMode('hybrid')">✦ For you</button><button type="button" class="post-action social-feed-mode-btn" id="feedModeLatest" aria-pressed="false" onclick="setSocialFeedMode('latest')">Latest</button></div></div><span class="social-feed-count" id="feedCount">0 posts</span></div>
   <div id="feedList"></div>
  </div>
 </main>
@@ -2769,11 +2769,46 @@ renderFeed();renderExplore();renderReels();
 }
 function getPostMedia(post){if(Array.isArray(post.media)&&post.media.length)return post.media;if(post.image)return[{type:"image",data:post.image}];return[]}
 function mediaMarkup(item){if(item.type==="video")return '<video src="'+item.data+'" controls playsinline preload="metadata"></video>';return '<img src="'+item.data+'" alt="Post media">'}
+const SOCIAL_FEED_MODE_KEY="msh_social_feed_mode_v1",SOCIAL_FEED_SIGNALS_KEY="msh_social_feed_signals_v1";
+let socialFeedMode=localStorage.getItem(SOCIAL_FEED_MODE_KEY)==="latest"?"latest":"hybrid";
+let socialFeedSignals=readJSON(SOCIAL_FEED_SIGNALS_KEY,{});
+function socialFeedDate(post){const raw=post.createdAt||post.date;const value=raw?new Date(raw).getTime():0;return Number.isFinite(value)?value:0}
+function socialFeedAuthor(post){return String(post.author||post.username||"unknown").toLowerCase()}
+function socialFeedEngagement(post){return Math.log1p(Math.max(0,Number(post.likesCount||0)))*5+Math.log1p(Math.max(0,Number(post.commentsCount||0)))*4}
+function socialFeedScore(post,now,authorAffinity){
+const ageHours=Math.max(0,(now-socialFeedDate(post))/3600000);
+const freshness=24*Math.exp(-ageHours/(24*4));
+const affinity=Math.min(18,(authorAffinity[socialFeedAuthor(post)]||0)*6);
+const engagement=Math.min(18,socialFeedEngagement(post));
+const media=getPostMedia(post).length?4:0;
+const feedback=Number(socialFeedSignals[String(post.id)]?.less||0)*-28;
+const ownPost=socialUser&&socialFeedAuthor(post)===String(currentUsername()||"").toLowerCase()?2:0;
+return freshness+affinity+engagement+media+feedback+ownPost;
+}
+function getRankedSocialFeedPosts(){
+const source=Array.isArray(posts)?posts.slice():[];
+if(socialFeedMode==="latest")return source.sort((a,b)=>socialFeedDate(b)-socialFeedDate(a));
+const now=Date.now(),affinity={};
+source.forEach(post=>{if(post.liked){const key=socialFeedAuthor(post);affinity[key]=(affinity[key]||0)+1;}});
+const ranked=source.map((post,index)=>({post,index,score:socialFeedScore(post,now,affinity)})).sort((a,b)=>b.score-a.score||socialFeedDate(b.post)-socialFeedDate(a.post));
+const result=[],deferred=[],authorCounts={};
+ranked.forEach(item=>{const author=socialFeedAuthor(item.post);if((authorCounts[author]||0)<2){result.push(item);authorCounts[author]=(authorCounts[author]||0)+1;}else deferred.push(item);});
+return result.concat(deferred).map(item=>item.post);
+}
+function updateSocialFeedModeUI(){
+const hybrid=$("feedModeHybrid"),latest=$("feedModeLatest"),title=$("socialFeedTitle");
+if(hybrid)hybrid.setAttribute("aria-pressed",String(socialFeedMode==="hybrid"));
+if(latest)latest.setAttribute("aria-pressed",String(socialFeedMode==="latest"));
+if(title)title.textContent=socialFeedMode==="hybrid"?"For you":"Latest";
+}
+window.setSocialFeedMode=function(mode){socialFeedMode=mode==="latest"?"latest":"hybrid";localStorage.setItem(SOCIAL_FEED_MODE_KEY,socialFeedMode);updateSocialFeedModeUI();renderFeed();};
+window.socialFeedShowLess=function(id){const key=String(id);socialFeedSignals[key]={...(socialFeedSignals[key]||{}),less:Math.min(3,Number(socialFeedSignals[key]?.less||0)+1)};saveJSON(SOCIAL_FEED_SIGNALS_KEY,socialFeedSignals);renderFeed();toast("We'll show fewer posts like this.");};
 function renderFeed(){
 const list=$("feedList");if(!list)return;
+updateSocialFeedModeUI();
 $("feedCount").textContent=posts.length+" posts";
 if(!posts.length){list.innerHTML='<div class="empty">Your feed is ready.<br>There are no posts stored on this device yet.<br><button class="btn" style="margin-top:12px" onclick="openCreate()">Create the first post</button></div>';return}
-list.innerHTML=posts.map(post=>{
+list.innerHTML=getRankedSocialFeedPosts().map(post=>{
 const liked=!!post.liked||(post.likes||[]).includes(currentUsername());
 const identityLabel=socialAccountTypeLabel(post.accountType);const comments=(post.comments||[]).map(c=>'<div class="comment"><strong>'+escapeHTML(typeof c.author==="string"?c.author:(c.author?.displayName||c.author?.username||"Member"))+'</strong>'+(socialAccountTypeLabel(c.accountType||c.author?.accountType)?'<small style="color:#78dfff;font-weight:700;margin-left:6px">'+socialAccountTypeLabel(c.accountType||c.author?.accountType)+'</small>':'')+': '+socialRenderCustomEmoji(c.text||c.content||"")+'</div>').join("");
 const media=getPostMedia(post),first=media[0];let mediaHTML="";
