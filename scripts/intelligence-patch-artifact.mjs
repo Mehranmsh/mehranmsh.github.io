@@ -66,6 +66,7 @@ export async function verifyPatchArtifactRecord(record, expectedArtifactSha256) 
     diff: record.diff
   });
   if (!validated.ok) return validated;
+  if (typeof record.createdAt !== "string") return { ok: false, code: "invalid_artifact_metadata" };
   const date = new Date(record.createdAt);
   if (!Number.isFinite(date.getTime()) || date.toISOString() !== record.createdAt ||
       typeof record.proposalId !== "string" || !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(record.proposalId)) {
