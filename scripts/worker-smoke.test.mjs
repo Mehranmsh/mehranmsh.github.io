@@ -108,7 +108,32 @@ export async function generatePatchArtifact(args) {
   return hook(args);
 }
 `);
-const workerRest = workerSource.replace(capabilityImport, "")
+const contextOrchestratorImport = 'import { buildIntelligenceContextSnapshot } from "./scripts/intelligence-context-orchestrator.mjs";';
+const workerRest = workerSource.replace(contextOrchestratorImport, `
+function buildIntelligenceContextSnapshot(records, options = {}) {
+  return {
+    memories: [],
+    graph: { nodes: [], edges: [] },
+    projectDiagnostics: {},
+    executionPlan: {},
+    preferenceProfile: {},
+    decisionEvaluation: {},
+    goalLifecycle: {},
+    planHistory: {},
+    planLearning: {},
+    diagnostics: {
+      ownerScoped: true,
+      ownerUid: String(options.ownerUid || ""),
+      actorUid: String(options.actorUid || ""),
+      advisoryOnly: true,
+      memoryChanged: false,
+      preferencesChanged: false,
+      decisionMade: false,
+      executionPerformed: false
+    }
+  };
+}
+`).replace(capabilityImport, "")
   .replace(patchStoreImport, "")
   .replace(patchGenerationImport, "")
   .replace(inboxSchemaImport, "")
