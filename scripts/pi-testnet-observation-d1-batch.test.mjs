@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { createPiTestnetArchiveReplacementJournalRecord } from "./pi-testnet-observation-replacement-journal.mjs";
-import { buildPiTestnetArchiveD1ReplacementPlan } from "./pi-testnet-observation-d1-batch.mjs";
+import { buildPiTestnetArchiveD1ReplacementPlan, buildPiTestnetArchiveD1RecoveryReadbackPlan } from "./pi-testnet-observation-d1-batch.mjs";
 
 const archiveScope = "pi-testnet-observations";
 const archiveId = "a".repeat(64);
@@ -144,4 +144,49 @@ test("every D1 statement has an exact placeholder-to-binding count", () => {
       );
     }
   }
+});
+
+
+test("builds read-only recovery queries for archive, exact operation, and journal state", () => {
+  const result = buildPiTestnetArchiveD1RecoveryReadbackPlan(input);
+  assert.equal(result.accepted, true);
+  assert.equal(result.adapter, "cloudflare-d1-read-only-recovery");
+  assert.equal(result.statements.length, 3);
+  assert.match(result.statements[0].sql, /FROM pi_testnet_archives/);
+  assert.match(result.statements[1].sql, /FROM pi_testnet_archive_replacement_ops/);
+  assert.match(result.statements[1].sql, /replacement_sha256 = \?/);
+  assert.match(result.statements[2].sql, /sequence IN \(1, 2\)/);
+  assert.match(result.statements[2].sql, /ORDER BY sequence ASC/);
+  assert.deepEqual(result.expected, {
+    operationId: input.operationId,
+    archiveScope: input.archiveScope,
+    archiveId: input.archiveId,
+    sourceEnvelopeSha256: input.sourceEnvelopeSha256,
+    replacementEnvelopeSha256: input.replacementEnvelopeSha256
+  });
+  assert.ok(result.decisionRules.some(rule => rule.includes("matches neither source nor replacement")));
+});
+
+test("recovery readback plan rejects invalid or ambiguous operation identity", () => {
+  assert.equal(buildPiTestnetArchiveD1RecoveryReadbackPlan({
+    ...input, operationId: "bad operation id"
+  }).accepted, false);
+  assert.equal(buildPiTestnetArchiveD1RecoveryReadbackPlan({
+    ...input, sourceEnvelopeSha256: input.replacementEnvelopeSha256
+  }).accepted, false);
+  assert.equal(buildPiTestnetArchiveD1RecoveryReadbackPlan({
+    ...input, archiveId: "not-a-digest"
+  }).accepted, false);
+});
+
+test("recovery readback statements bind every value and perform no writes", () => {
+  const result = buildPiTestnetArchiveD1RecoveryReadbackPlan(input);
+  assert.equal(result.accepted, true);
+  for (const item of result.statements) {
+    assert.match(item.sql.trimStart(), /^SELECT /);
+    assert.equal((item.sql.match(/\?/g) || []).length, item.params.length);
+    assert.equal(item.sql.includes(input.archiveScope), false);
+    assert.equal(item.sql.includes(input.operationId), false);
+  }
+  assert.ok(result.limitation.includes("does not execute D1 reads"));
 });
