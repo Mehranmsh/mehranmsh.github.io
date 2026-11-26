@@ -245,12 +245,33 @@ test("pull request creation is active only through the dedicated verified propos
   assert.equal(validateIntelligenceCapabilityRequest("create_pull_request", {}).code, "missing_required_field");
 });
 
-test("merge, deployment, secrets, wallet and arbitrary shell capabilities remain blocked", () => {
-  for (const id of ["merge_pull_request", "deploy", "read_secrets", "wallet_operations", "arbitrary_shell"]) {
+test("secret, private-user, wallet-data and arbitrary-shell access are permanently blocked", () => {
+  for (const id of ["read_secrets", "private_data_access", "wallet_operations", "arbitrary_shell"]) {
     assert.equal(getIntelligenceCapability(id).status, "blocked");
+    assert.equal(getIntelligenceCapability(id).permissionTier, "forbidden");
     assert.deepEqual(getIntelligenceCapability(id).executors, []);
     assert.equal(validateIntelligenceCapabilityRequest(id, {}).ok, false);
     assert.equal(validateIntelligenceCapabilityRequest(id, {}).code, "capability_blocked");
+  }
+});
+
+test("only financial transactions require explicit owner approval", () => {
+  const transaction = getIntelligenceCapability("financial_transaction");
+  assert.equal(transaction.status, "planned");
+  assert.equal(transaction.permissionTier, "owner_approval");
+  assert.equal(transaction.requiresApproval, true);
+  assert.deepEqual(transaction.executors, []);
+  assert.equal(validateIntelligenceCapabilityRequest("financial_transaction", {}).code, "capability_not_implemented");
+});
+
+test("merge and deployment are planned autonomous capabilities, not owner-approval gates", () => {
+  for (const id of ["merge_pull_request", "deploy"]) {
+    const capability = getIntelligenceCapability(id);
+    assert.equal(capability.status, "planned");
+    assert.equal(capability.permissionTier, "autonomous_when_implemented");
+    assert.equal(capability.requiresApproval, false);
+    assert.deepEqual(capability.executors, []);
+    assert.equal(validateIntelligenceCapabilityRequest(id, {}).code, "capability_not_implemented");
   }
 });
 
