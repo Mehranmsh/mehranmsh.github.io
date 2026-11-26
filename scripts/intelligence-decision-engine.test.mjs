@@ -45,3 +45,15 @@ test("decision engine consumes approved preference profile only after explicit o
  assert.equal(opted.rankedOptions[0].evidence.find(x=>x.criterion==="quality").weight,55);
  assert.deepEqual(criteria,[{key:"quality",weight:50,direction:"higher"},{key:"cost",weight:50,direction:"higher"}]);
 });
+
+
+test("bounds per-option constraint evaluation and reports omitted constraints", () => {
+ const constraints=Array.from({length:1000},(_,index)=>({key:"constraint-"+index}));
+ const result=evaluateIntelligenceOptions([
+  {id:"bounded",scores:{quality:4,cost:4},constraints}
+ ],criteria,{ownerUid:"owner"});
+ assert.equal(result.rankedOptions[0].unknown_constraints.length,100);
+ assert.equal(result.diagnostics.omittedConstraints,900);
+ assert.equal(result.rankedOptions[0].approval_required,true);
+ assert.equal(constraints.length,1000);
+});
