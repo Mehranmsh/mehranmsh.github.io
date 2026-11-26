@@ -1,7 +1,7 @@
 import test from "node:test";
 import "./intelligence-mission-generator-policy.test.mjs";
 import "./intelligence-mission-generator-d1.test.mjs";
-import { applyValidatedPatchInMemory } from "./intelligence-patch-apply.mjs";
+import { applyValidatedPatchInMemory, readBoundedResponse } from "./intelligence-patch-apply.mjs";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { validatePatchProposal, PATCH_PROPOSAL_POLICY } from "./intelligence-patch-policy.mjs";
@@ -1616,7 +1616,6 @@ test("capability lookup rejects inherited JavaScript object properties", () => {
 
 
 test("Worker responses are streamed through a strict byte limit", async () => {
-  const { readBoundedResponse } = await import("./intelligence-bounded-response.mjs");
   const valid = new Response(JSON.stringify({ status: "online" }));
   assert.deepEqual(JSON.parse(await readBoundedResponse(valid, 64)), { status: "online" });
 
