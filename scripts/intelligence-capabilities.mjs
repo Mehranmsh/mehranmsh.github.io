@@ -151,20 +151,20 @@ export const INTELLIGENCE_CAPABILITIES = Object.freeze({
   }),
   merge_pull_request: freezeCapability({
     id: "merge_pull_request",
-    status: "blocked",
-    permissionTier: "human_approval",
+    status: "planned",
+    permissionTier: "autonomous_when_implemented",
     executors: [],
-    requiresApproval: true,
-    description: "Merge is never performed autonomously.",
+    requiresApproval: false,
+    description: "Planned autonomous merge capability; unavailable until a verified executor, branch protections, rollback, and tests are implemented.",
     inputSchema: {}
   }),
   deploy: freezeCapability({
     id: "deploy",
-    status: "blocked",
-    permissionTier: "human_approval",
+    status: "planned",
+    permissionTier: "autonomous_when_implemented",
     executors: [],
-    requiresApproval: true,
-    description: "Production deployment requires explicit owner approval.",
+    requiresApproval: false,
+    description: "Planned autonomous deployment capability; unavailable until a verified executor, health gates, rollback, and tests are implemented.",
     inputSchema: {}
   }),
   read_secrets: freezeCapability({
@@ -172,8 +172,17 @@ export const INTELLIGENCE_CAPABILITIES = Object.freeze({
     status: "blocked",
     permissionTier: "forbidden",
     executors: [],
-    requiresApproval: true,
-    description: "Secrets are never exposed to the agent.",
+    requiresApproval: false,
+    description: "Credential and secret values from GitHub, Cloudflare, or any provider are never readable by INTELLIGENCE.",
+    inputSchema: {}
+  }),
+  private_data_access: freezeCapability({
+    id: "private_data_access",
+    status: "blocked",
+    permissionTier: "forbidden",
+    executors: [],
+    requiresApproval: false,
+    description: "Private individual user records and wallet contents, balances, keys, and recovery data are never readable by INTELLIGENCE.",
     inputSchema: {}
   }),
   wallet_operations: freezeCapability({
@@ -181,8 +190,17 @@ export const INTELLIGENCE_CAPABILITIES = Object.freeze({
     status: "blocked",
     permissionTier: "forbidden",
     executors: [],
+    requiresApproval: false,
+    description: "Legacy deny-all wallet access capability. Financial transactions are handled only by the separate owner-approved transaction capability.",
+    inputSchema: {}
+  }),
+  financial_transaction: freezeCapability({
+    id: "financial_transaction",
+    status: "planned",
+    permissionTier: "owner_approval",
+    executors: [],
     requiresApproval: true,
-    description: "The agent cannot access wallets, keys, or move assets.",
+    description: "A financial transaction may execute only after explicit owner approval bound to the exact asset, amount, destination, network, and transaction payload. No wallet contents or keys are exposed to INTELLIGENCE.",
     inputSchema: {}
   }),
   arbitrary_shell: freezeCapability({
@@ -190,7 +208,7 @@ export const INTELLIGENCE_CAPABILITIES = Object.freeze({
     status: "blocked",
     permissionTier: "forbidden",
     executors: [],
-    requiresApproval: true,
+    requiresApproval: false,
     description: "Arbitrary shell or command execution is forbidden.",
     inputSchema: {}
   })
