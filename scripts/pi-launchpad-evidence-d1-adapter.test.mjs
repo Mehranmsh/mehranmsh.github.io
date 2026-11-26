@@ -55,7 +55,13 @@ test("executes only parameterized batch and verifies exact readback",async()=>{
   registry_version:expected[11],created_at:expected[12]
  };
  const db={
-  prepare(sql){return {bind(...params){return {sql,params,async first(){firstCalls++;return row;}}};}},
+  prepare(sql) {
+    return {
+      bind(...params) {
+        return { sql, params, first: async () => { firstCalls++; return row; } };
+      }
+    };
+  },
   async batch(items){batchCalls++;assert.equal(items.length,1);return [];}
  };
  const result=await persistPiLaunchpadEvidenceD1Plan(db,p);
@@ -65,9 +71,9 @@ test("executes only parameterized batch and verifies exact readback",async()=>{
 
 test("fails closed on readback mismatch and database errors",async()=>{
  const p=buildPiLaunchpadEvidenceD1WritePlan([record()]);
- const mismatchDb={prepare(sql){return {bind(){return {async first(){return {record_id:"different"};}}};}},async batch(){return [];}};
+ const mismatchDb = { prepare() { return { bind() { return { first: async () => ({record_id:"different"}) }; } }; }, async batch() { return []; } };
  assert.equal((await persistPiLaunchpadEvidenceD1Plan(mismatchDb,p)).code,"d1_readback_conflict");
- const failedDb={prepare(){throw new Error("secret db detail");},async batch(){throw new Error("failure");}};
+ const failedDb = { prepare() { throw new Error("secret db detail"); }, async batch() { throw new Error("failure"); } };
  assert.equal((await persistPiLaunchpadEvidenceD1Plan(failedDb,p)).code,"d1_persistence_failed");
 });
 
