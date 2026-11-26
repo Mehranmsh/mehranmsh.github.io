@@ -77,8 +77,8 @@ export function buildIntelligenceContextSnapshot(records, options = {}) {
   const preferenceLedger = Array.isArray(options.preferenceLedger) ? options.preferenceLedger.slice(-limits.maxPreferenceLedger) : [];
   const decisionOptions = Array.isArray(options.decisionOptions) ? options.decisionOptions.slice(0, limits.maxDecisionOptions) : [];
   const decisionCriteria = Array.isArray(options.decisionCriteria) ? options.decisionCriteria.slice(0, limits.maxDecisionCriteria) : [];
-  const goalTaskProposals = Array.isArray(options.goalTaskProposals) ? options.goalTaskProposals.slice(0, limits.maxGoalTaskProposals) : [];
-  const progressEvents = Array.isArray(options.progressEvents) ? options.progressEvents.slice(0, limits.maxProgressEvents) : [];
+  const goalTaskProposals = Array.isArray(options.goalTaskProposals) ? options.goalTaskProposals.slice(0, Math.min(limits.maxGoalTaskProposals, limits.maxTasks)) : [];
+  const progressEvents = Array.isArray(options.progressEvents) ? options.progressEvents.slice(0, Math.min(limits.maxProgressEvents, limits.maxTasks)) : [];
   const planRevisions = Array.isArray(options.planRevisions) ? options.planRevisions.slice(-limits.maxPlanRevisions) : [];
   const planProgressEvents = Array.isArray(options.planProgressEvents) ? options.planProgressEvents.slice(-limits.maxPlanProgressEvents) : [];
 
