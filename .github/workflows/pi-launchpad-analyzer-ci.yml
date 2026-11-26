@@ -11,6 +11,8 @@ on:
       - "scripts/pi-launchpad-data-adapter.test.mjs"
       - "scripts/pi-launchpad-attestation-verifier.mjs"
       - "scripts/pi-launchpad-attestation-verifier.test.mjs"
+      - "scripts/pi-launchpad-evidence-gateway.mjs"
+      - "scripts/pi-launchpad-evidence-gateway.test.mjs"
       - "scripts/pi-launchpad-trust-store.mjs"
       - "scripts/pi-launchpad-trust-store.test.mjs"
       - "scripts/pi-launchpad-source-registry.mjs"
@@ -42,6 +44,8 @@ jobs:
         with:
           persist-credentials: false
       - name: Verify analyzer syntax
-        run: node --check scripts/pi-launchpad-analyzer.mjs
+        run: |
+          node --check scripts/pi-launchpad-analyzer.mjs
+          node --check scripts/pi-launchpad-evidence-gateway.mjs
       - name: Run analyzer tests
         run: node --test --test-reporter=tap scripts/pi-launchpad-analyzer.test.mjs
