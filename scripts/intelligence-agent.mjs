@@ -1,5 +1,6 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
+import { readBoundedResponse } from "./intelligence-bounded-response.mjs";
 
 const run = promisify(execFile);
 const WORKER = "https://mehran-msh-auth.mehran79mehran.workers.dev";
@@ -20,7 +21,7 @@ async function request(path, options = {}) {
       ...options.headers
     }
   });
-  const text = await response.text();
+  const text = await readBoundedResponse(response, 65536);
   let data;
   try { data = text ? JSON.parse(text) : {}; }
   catch { throw new Error(`Worker returned non-JSON response (${response.status}).`); }
@@ -50,7 +51,8 @@ async function runQualityChecks() {
 
 async function runServiceHealth() {
   const response = await fetch(new URL("/health", WORKER), { signal: AbortSignal.timeout(15000) });
-  const health = await response.json();
+  const healthText = await readBoundedResponse(response, 8192);
+  const health = JSON.parse(healthText);
   const pageResponse = await fetch(APP, { signal: AbortSignal.timeout(15000), redirect: "follow" });
   const details = [
     `Worker HTTP: ${response.status}`,
