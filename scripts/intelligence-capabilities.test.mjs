@@ -85,7 +85,7 @@ test("runner resumes a durable completed result checkpoint without repeating exe
   assert.ok(runnerSource.includes('phase: "result_ready"'));
   assert.ok(runnerSource.includes('resultSha256: createHash("sha256").update(result).digest("hex")'));
   assert.ok(runnerSource.includes('saved.checkpointSaved !== true'));
-  assert.ok(workerSource.includes('checkpointJson.length > 4000'));
+  assert.ok(workerSource.includes('checkpointBytes > 4096'));
 });
 
 test("all eight active capabilities are registered with their permission tiers", () => {
