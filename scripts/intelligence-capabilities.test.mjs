@@ -22,6 +22,7 @@ const workerSource = readFileSync(new URL("../worker.js", import.meta.url), "utf
 const indexSource = readFileSync(new URL("../index.html", import.meta.url), "utf8");
 const runnerSource = readFileSync(new URL("../.github/workflows/mehran-intelligence-runner.yml", import.meta.url), "utf8");
 const proposalRunnerSource = readFileSync(new URL("./intelligence-proposal-pr-runner.mjs", import.meta.url), "utf8");
+const agentSource = readFileSync(new URL("./intelligence-agent.mjs", import.meta.url), "utf8");
 const proposalWorkflowSource = readFileSync(new URL("../.github/workflows/intelligence-proposal-pr-runner.yml", import.meta.url), "utf8");
 const routinePlannerSource = readFileSync(new URL("./intelligence-routine-planner.mjs", import.meta.url), "utf8");
 const scheduledStart = workerSource.indexOf("async scheduled(controller, env, ctx)");
@@ -1626,4 +1627,17 @@ test("Worker responses are streamed through a strict byte limit", async () => {
 test("bounded response reader rejects invalid limits and missing streams", async () => {
   await assert.rejects(readBoundedResponse(new Response("ok"), 0), /positive safe integer/);
   await assert.rejects(readBoundedResponse({}, 32), /body stream is unavailable/);
+});
+
+
+test("agent validates claimed task envelopes and returns the claim token", () => {
+  assert.match(agentSource, /const taskId = typeof task\.id === "string" \? task\.id : ""/);
+  assert.match(agentSource, /\^\[A-Za-z0-9\._:-\]\{1,160\}\$/);
+  assert.match(agentSource, /\^\[A-Za-z0-9_-\]\{43\}\$/);
+  assert.match(agentSource, /const allowedActions = new Set\(\[/);
+  assert.match(agentSource, /allowedActions\.has\(task\.actionType\)/);
+  assert.match(agentSource, /Claimed task envelope is invalid/);
+  assert.match(agentSource, /JSON\.stringify\(\{ claimToken, status: outcome\.status, result: bounded\(outcome\.result, 2900\) \}\)/);
+  assert.match(agentSource, /encodeURIComponent\(taskId\)/);
+  assert.doesNotMatch(agentSource, /encodeURIComponent\(task\.id\)/);
 });
