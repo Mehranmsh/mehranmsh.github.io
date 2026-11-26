@@ -169,3 +169,23 @@ Every request should carry: request ID, actor ID, feature/source, target resourc
 ## Immediate implementation rule
 
 Do not rewrite the existing SOCIAL interface or replace its current authentication/data flows as a first step. First map the current code and server contracts, then integrate behind a small, testable gateway in incremental changes. This blueprint is the target architecture, not a claim that these capabilities are already implemented.
+
+
+## Initial codebase audit (2026-11-27)
+
+Observed in the current `index.html`:
+- SOCIAL is already a substantial frontend surface with feed/posts, profile, stories, messaging, private attachments, groups, channels, presence, calls, and notifications.
+- SOCIAL requests are routed through `SOCIAL_API = AUTH_WORKER + "/social"` and the authenticated `socialRequest()` helper.
+- The existing MEHRAN INTELLIGENCE dashboard uses the separate `api()` helper and admin-session handling for `/intelligence/*` routes.
+- The frontend currently contains a large single-file application; avoid broad rewrites and avoid adding provider calls directly to individual SOCIAL components.
+- The repository contains the static app and the Intelligence reports repository. The deployed Cloudflare Worker source is not present in the two repositories visible in this GitHub connection, so server-side gateway work requires locating/accessing the Worker source before claiming backend integration.
+
+### First integration seams
+
+1. **Backend first:** add a SOCIAL-scoped Intelligence Gateway behind the existing authenticated Worker. Do not send SOCIAL user tokens to admin-only Intelligence endpoints and do not make ordinary SOCIAL users administrators.
+2. **Shared frontend client:** add one small `socialIntelligenceRequest(capability, resource, input)` wrapper that calls the scoped gateway, sends the existing SOCIAL session, and handles pending/failed/quota-limited states consistently.
+3. **Feature adapters:** attach capability calls at feed/composer, profile, search/discovery, message thread, group/channel admin, and safety-report surfaces. Keep them feature-specific and opt-in where private content is involved.
+4. **No side effects from model output:** UI actions must render as suggestions/drafts; sending, publishing, deleting, blocking, changing roles, or changing privacy requires a separate explicit user action and server-side authorization.
+5. **Tests before rollout:** verify identity isolation, private-resource authorization, prompt-injection resistance, owner quota isolation, public quota exhaustion, and graceful operation with the gateway unavailable.
+
+Audit note: no production SOCIAL-to-INTELLIGENCE integration is asserted by this document. The next implementation step is to inspect the deployed Worker routes and D1 schema, then add the gateway in a backward-compatible way.
