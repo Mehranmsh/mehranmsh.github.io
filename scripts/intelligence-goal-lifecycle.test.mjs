@@ -131,3 +131,22 @@ test("fails closed without owner scope or required input arrays", () => {
   assert.equal(result.acceptedTaskProposals.length, 0);
   assert.equal(result.diagnostics.tasksExecuted, false);
 });
+
+
+test("caps nested task dependencies before mapping and deduplication", () => {
+  const dependencies = Array.from({ length: 10000 }, (_, index) => "dep-" + index);
+  const result = buildIntelligenceGoalLifecycle(
+    [goal()],
+    [task("build", {
+      depends_on_task_ids: dependencies,
+      dependencies_confirmed: true,
+      dependencies_confirmed_by: "owner-a"
+    })],
+    [],
+    { ownerUid: "owner-a", actorUid: "owner-a" }
+  );
+  assert.equal(result.acceptedTaskProposals.length, 1);
+  assert.equal(result.acceptedTaskProposals[0].depends_on_task_ids.length, 50);
+  assert.equal(result.acceptedTaskProposals[0].depends_on_task_ids[0], "dep-0");
+  assert.equal(result.acceptedTaskProposals[0].depends_on_task_ids.at(-1), "dep-49");
+});
