@@ -150,3 +150,14 @@ test("caps nested task dependencies before mapping and deduplication", () => {
   assert.equal(result.acceptedTaskProposals[0].depends_on_task_ids[0], "dep-0");
   assert.equal(result.acceptedTaskProposals[0].depends_on_task_ids.at(-1), "dep-9");
 });
+
+
+test("bounds raw goal records before owner filtering", () => {
+  const records = Array.from({ length: 10000 }, (_, index) => goal("goal-" + index));
+  const result = buildIntelligenceGoalLifecycle(records, [], [], {
+    ownerUid: "owner-a", actorUid: "owner-a", maxItems: 120
+  });
+  assert.equal(result.goals.length, 120);
+  assert.equal(result.diagnostics.rawRecordsInspected, 120);
+  assert.equal(result.diagnostics.rawRecordsOmitted, 9880);
+});
