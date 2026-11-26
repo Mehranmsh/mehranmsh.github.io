@@ -59,6 +59,8 @@ on:
       - "scripts/pi-launchpad-portfolio-ranker.test.mjs"
       - "scripts/pi-launchpad-batch-screen.mjs"
       - "scripts/pi-launchpad-batch-screen.test.mjs"
+      - "scripts/pi-launchpad-candidate-intake.mjs"
+      - "scripts/pi-launchpad-candidate-intake.test.mjs"
       - ".github/workflows/pi-launchpad-analyzer-ci.yml"
 
 permissions:
@@ -83,6 +85,7 @@ jobs:
           node --check scripts/pi-launchpad-evidence-gateway.mjs
           node --check scripts/pi-launchpad-metrics-gateway.mjs
           node --check scripts/pi-launchpad-verified-analyzer.mjs
+          node --check scripts/pi-launchpad-candidate-intake.mjs
           node --check scripts/pi-testnet-rpc-policy.mjs
           node --check scripts/pi-testnet-observation-archive.mjs
           node --check scripts/pi-testnet-observation-storage-policy.mjs
