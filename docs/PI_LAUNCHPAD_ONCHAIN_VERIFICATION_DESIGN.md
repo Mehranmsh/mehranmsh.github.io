@@ -125,3 +125,18 @@ A pure archive-manifest helper now supports deterministic packaging and retrieva
 - The helper is in-memory and pure: no filesystem/database persistence, network requests, RPC calls, AI quota, wallet access, signing, or scoring integration.
 
 The archive does not recompute `serializedResponseSha256` from the stored result. That original digest covers the full normalized JSON-RPC response serialization, while the observation stores only its opaque result and metadata. The archive's own canonical record digest protects the stored observation after packaging, without overstating what can be independently reconstructed.
+
+
+## Storage authorization boundary (2026-11-26)
+
+A storage-policy prototype now prepares a future server-side persistence adapter without performing storage I/O:
+- Requires an explicit policy with a named archive scope, retention period (1-3650 days), and maximum archive size (up to 5 MiB).
+- Separates `archive_writer`, `archive_reader`, and `archive_admin` permissions. Only append, read, list, and verify intents are recognized; delete and overwrite actions are denied.
+- Append intent requires a complete archive to pass its manifest and record integrity checks before a bounded canonical payload is produced.
+- Read intent is scope-bound and does not return archive data; the eventual adapter must enforce scope again and re-verify integrity after retrieval.
+- The retention value is policy metadata only. No expiry, purge, or deletion scheduler exists, and no data is actually stored.
+- The principal must be resolved from a trusted server-side authenticated session. Client-supplied role claims are not an authentication source.
+- No database, Cloudflare D1, filesystem, object store, encryption key, or secret is configured or accessed. Encryption-at-rest and actual access enforcement remain requirements for a future independently reviewed adapter.
+- This module does not feed Launchpad scoring or change Mainnet evidence eligibility.
+
+The implementation emits immutable write/read intents only. It is not a persistent storage implementation and must not be described as one.
