@@ -7412,6 +7412,7 @@ async function ingestPrivateIntelligenceInbox(env) {
         title: cleanText(mission.title, 150) || "Private Intelligence diagnostic",
         objective,
         priority: "high",
+        ownerUid: "mehran_owner_orchestrator",
         scope: {
           mode: "read_only",
           source: "private_owner_inbox",
@@ -8250,7 +8251,7 @@ export default {
           const planned = await planIntelligenceMission(env, {
             mission,
             idempotencyKey,
-            ownerUid: "mehran_intelligence",
+            ownerUid: "mehran_owner_orchestrator",
             allowDeterministicFallback: false,
             generatorReservation: { cycleKey, packageId }
           });
@@ -8261,7 +8262,7 @@ export default {
           const body = await readBody(request);
           if (!body) return error("A valid mission request body is required.", 400);
           const traceId = cleanText(request.headers.get("X-Intelligence-Trace-Id"),100).replace(/[^A-Za-z0-9._:-]/g,"").slice(0,100) || crypto.randomUUID();
-          const planned = await planIntelligenceMission(env, {...body,traceId});
+          const planned = await planIntelligenceMission(env, {...body,traceId,ownerUid:"mehran_owner_orchestrator"});
           if (!planned.success) return json({success:false,error:planned.error || "Mission planning failed.",...(planned.diagnostic ? {diagnostic:planned.diagnostic} : {})}, planned.code === -32003 ? 503 : planned.code === -32005 ? 429 : 400);
           return json(planned, planned.duplicate ? 200 : 202);
         }
@@ -9500,7 +9501,7 @@ export default {
           const replyData = data => rpcReply({content:[{type:"text",text:JSON.stringify(data)}],structuredContent:data,isError:false});
           if (name === "create_intelligence_work_package") {
             if (!packageIntakeEnabled) return rpcError(-32003,"Owner-enabled private work-package intake is not configured.");
-            const result = await createIntelligenceWorkPackage(env, args);
+            const result = await createIntelligenceWorkPackage(env, {...args,ownerUid:"mehran_owner_orchestrator"});
             if (!result.success) return rpcError(result.code || -32602, result.error || "Work package was rejected.");
             return replyData(result);
           }
