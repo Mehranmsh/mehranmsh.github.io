@@ -10,7 +10,7 @@ const fingerprintSha256 = createHash("sha256").update(publicKey.export({ type: "
 const fields = ["liquidity.tvlPi", "liquidity.volume24hPi", "liquidity.lockedPercent", "market.fdvPi", "holders.top10Percent"];
 const trustRecords = [{
   keyId: "indexer-a", publicKeyPem: pem, fingerprintSha256, issuer: "independent-indexer",
-  allowedSourceOrigins: ["https://indexer.example"], allowedFields: fields,
+  allowedSourceOrigins: ["https://indexer.example"], allowedFields: [...fields, "utility", "liquidity.pricePi"],
   notBefore: "2026-11-01T00:00:00.000Z", notAfter: "2027-01-01T00:00:00.000Z", revoked: false
 }];
 const specs = [
