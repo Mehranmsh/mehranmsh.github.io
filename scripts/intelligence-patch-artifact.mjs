@@ -28,7 +28,7 @@ export async function createPatchArtifactRecord(input) {
   }
   const validated = validatePatchProposal(input);
   if (!validated.ok) return validated;
-  if (typeof input.proposalId !== "string" || !/^[a-f0-9-]{36}$/.test(input.proposalId)) {
+  if (typeof input.proposalId !== "string" || !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(input.proposalId)) {
     return { ok: false, code: "invalid_proposal_id" };
   }
   const createdAt = typeof input.createdAt === "string" ? input.createdAt : "";
@@ -68,7 +68,7 @@ export async function verifyPatchArtifactRecord(record, expectedArtifactSha256) 
   if (!validated.ok) return validated;
   const date = new Date(record.createdAt);
   if (!Number.isFinite(date.getTime()) || date.toISOString() !== record.createdAt ||
-      typeof record.proposalId !== "string" || !/^[a-f0-9-]{36}$/.test(record.proposalId)) {
+      typeof record.proposalId !== "string" || !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(record.proposalId)) {
     return { ok: false, code: "invalid_artifact_metadata" };
   }
   if (await digestText(record.diff) !== record.diffSha256) {
