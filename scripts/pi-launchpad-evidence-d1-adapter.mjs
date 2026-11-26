@@ -7,7 +7,7 @@ const TYPES = new Set(["official_project_claim", "chain_indexer_observation", "d
 const VERIFY = new Set(["unverified", "signature_verified", "attestation_rejected"]);
 const CHAIN = "not_verified";
 const SCORE = "blocked_pending_independent_chain_verification";
-const ISO = /^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,3})?Z$/;
+const ISO = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?Z$/;
 const ID = /^plev_[a-f0-9]{32}$/;
 const isObject = v => !!v && typeof v === "object" && !Array.isArray(v) &&
   (Object.getPrototypeOf(v) === Object.prototype || Object.getPrototypeOf(v) === null);
