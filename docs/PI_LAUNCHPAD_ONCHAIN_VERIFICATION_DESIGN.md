@@ -66,6 +66,18 @@ Do not infer an endpoint from Stellar documentation, a community indexer, a proj
 5. Independent review of derivation rules and trust model.
 6. Only then consider a read-only, allowlisted live connector with strict limits and explicit operator enablement.
 
+## Testnet RPC policy prototype (2026-11-26)
+
+A pure policy module now defines a narrow Testnet-only request boundary:
+- Exact documented endpoint: `https://rpc.testnet.minepi.com`.
+- Only `getHealth` is permitted; no ledger, account, pool, transaction, or submission methods.
+- Network must be explicitly `testnet`; Mainnet and endpoint substitution are rejected.
+- JSON-RPC response validation checks envelope version, request ID correlation, RPC errors, and presence of a result. It does not interpret the health payload as ledger proof.
+- The module does not perform HTTP requests. Transport limits are declared as policy metadata only and are not yet enforced by a network client.
+- Testnet results are explicitly labeled and must never enter Mainnet scoring.
+
+The new policy and tests are included in the isolated Launchpad CI workflow. This is a guardrail prototype, not a live RPC integration.
+
 ## Explicit exclusions
 
 This design does not authorize live ingestion or scraping; guessed Horizon/RPC endpoints; wallet access, key handling, signing, or transactions; automatic buy/sell recommendations; claims that a signed statement proves on-chain truth; or enabling paid AI services or Cloudflare Workers AI.
