@@ -231,6 +231,8 @@ export function buildIntelligenceContextSnapshot(records, options = {}) {
     compact.memories = [];
   }
   if (JSON.stringify(compact).length > limits.maxOutputChars) {
+    // Keep the public snapshot shape stable even when the requested budget is
+    // too small for useful details. Consumers can safely read every subsystem.
     return {
       memories: [],
       graph: { nodes: [], edges: [] },
@@ -239,6 +241,8 @@ export function buildIntelligenceContextSnapshot(records, options = {}) {
       preferenceProfile: {},
       decisionEvaluation: {},
       goalLifecycle: {},
+      planHistory: {},
+      planLearning: {},
       diagnostics: { ownerScoped: true, advisoryOnly: true, outputTrimmed: true }
     };
   }
