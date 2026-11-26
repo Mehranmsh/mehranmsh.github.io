@@ -1,0 +1,30 @@
+name: MEHRAN INTELLIGENCE shared queue runner
+
+on:
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mehran-intelligence-shared-runner
+  cancel-in-progress: false
+
+jobs:
+  execute-shared-safe-reports:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Check out the immutable main revision
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: main
+          fetch-depth: 1
+          persist-credentials: false
+      - name: Process one bounded shared-lane task
+        env:
+          MEHRAN_AGENT_TOKEN: ${{ secrets.MEHRAN_AGENT_TOKEN }}
+        run: node scripts/intelligence-agent.mjs

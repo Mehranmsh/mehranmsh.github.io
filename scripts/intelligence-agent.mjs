@@ -38,7 +38,16 @@ async function runQualityChecks() {
   const output = [];
   for (const [label, executable, args] of steps) {
     try {
-      const result = await run(executable, args, { timeout: 120000, maxBuffer: 1024 * 1024 });
+      // Child test processes receive only a minimal environment, never the agent bearer token.
+      const childEnv = {
+        PATH: process.env.PATH || "",
+        HOME: process.env.HOME || "",
+        TMPDIR: process.env.TMPDIR || "/tmp",
+        LANG: process.env.LANG || "C.UTF-8",
+        LC_ALL: process.env.LC_ALL || "C.UTF-8",
+        CI: "true"
+      };
+      const result = await run(executable, args, { timeout: 120000, maxBuffer: 1024 * 1024, env: childEnv });
       output.push(`PASS: ${label}\n${bounded(result.stdout, 450)}`);
       if (result.stderr) output.push(bounded(result.stderr, 250));
     } catch (error) {
@@ -75,11 +84,9 @@ async function main() {
 
   const taskId = typeof task.id === "string" ? task.id : "";
   const claimToken = typeof task.claimToken === "string" ? task.claimToken : "";
-  const allowedActions = new Set([
-    "repository_quality_check", "service_health_report", "source_security_audit",
-    "inspect_repository", "run_repository_tests", "propose_code_patch"
-  ]);
-  if (!/^[A-Za-z0-9._:-]{1,160}$/.test(taskId) || !/^[A-Za-z0-9_-]{43}$/.test(claimToken) ||
+  const allowedActions = new Set(["repository_quality_check", "service_health_report"]);
+  if (task.assignedTo !== "shared" || task.queueLane !== "shared" ||
+      !/^[A-Za-z0-9._:-]{1,160}$/.test(taskId) || !/^[A-Za-z0-9_-]{43}$/.test(claimToken) ||
       typeof task.actionType !== "string" || !allowedActions.has(task.actionType)) {
     throw new Error("Claimed task envelope is invalid; no task action was executed.");
   }

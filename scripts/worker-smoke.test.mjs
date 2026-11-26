@@ -623,13 +623,13 @@ test("Agent patch proposal runner checkpoints an immutable base and submits a st
 });
 
 test("Agent API stale-claim recovery includes package-bound allowlisted tasks", () => {
-  const start = workerSource.indexOf('if (path === "/agent/v1/tasks/next" && method === "GET")');
+  const start = workerSource.indexOf('if ((path === "/agent/v1/tasks/next" || path === "/agent/v1/owner/tasks/next") && method === "GET")');
   const end = workerSource.indexOf("const checkpointMatch", start);
   assert.ok(start >= 0 && end > start, "Agent task-claim route must exist");
   const route = workerSource.slice(start, end);
   assert.equal((route.match(/UPDATE intelligence_tasks SET status='blocked'/g) || []).length, 1);
   assert.equal((route.match(/UPDATE intelligence_tasks SET status='accepted'/g) || []).length, 1);
-  assert.match(route, /datetime\(agent_claimed_at\) < datetime\('now','-15 minutes'\)/);
+  assert.match(route, /datetime\(agent_claimed_at\)<datetime\('now','-15 minutes'\)/);
   assert.match(route, /action_type IN \('repository_quality_check','service_health_report','source_security_audit','inspect_repository','run_repository_tests','propose_code_patch'\)/);
   assert.match(route, /work_package_id IS NULL OR EXISTS \(SELECT 1 FROM intelligence_work_packages wp, json_each\(CASE WHEN json_valid\(wp\.scope_json\) THEN wp\.scope_json ELSE '\{\}' END, '\$\.allowedActions'\) scoped WHERE wp\.id=t\.work_package_id AND scoped\.value=t\.action_type\)/,
     "claim selection must revalidate each package task against its persisted allowedActions");
@@ -1422,19 +1422,19 @@ test("MEHRAN Intelligence Agent API is enabled only behind its dedicated bearer 
   assert.match(route, /Agent authentication required/);
   assert.match(route, /Agent service identity is not configured/);
   assert.match(route, /requires_approval=0/);
-  assert.match(route, /assigned_to IN \('mehran_intelligence','shared'\)/);
+  assert.match(route, /queue_lane='owner' AND owner_uid='mehran_owner_orchestrator'/);
   assert.match(route, /action_type IN \('repository_quality_check','service_health_report','source_security_audit','inspect_repository','run_repository_tests','propose_code_patch'\)/);
   assert.ok(route.includes("status IN ('queued','accepted','retry_wait')"), "agent claims must include retry_wait tasks");
   assert.ok(route.includes("ORDER BY CASE t.priority") && route.includes("prior.work_package_id=t.work_package_id") && route.includes("prior.status='completed'"),
     "after honoring priority, continue packages that have already completed a task before starting another package");
   assert.match(route, /status='awaiting_approval' AND requires_approval=0/);
   assert.match(route, /agent_claimed_at=CURRENT_TIMESTAMP/);
-  assert.ok(route.includes("WHERE id=? AND status IN ('queued','accepted','retry_wait') AND requires_approval=0 AND assigned_to IN ('mehran_intelligence','shared') AND action_type IN ('repository_quality_check','service_health_report','source_security_audit','inspect_repository','run_repository_tests','propose_code_patch')"));
-  assert.match(route, /agent_claimed_at IS NOT NULL AND datetime\(agent_claimed_at\) < datetime\('now','-15 minutes'\)/);
+  assert.match(route, /WHERE id=\? AND status IN \('queued','accepted','retry_wait'\).*\$\{lanePredicate\}/s);
+  assert.match(route, /agent_claimed_at IS NOT NULL AND datetime\(agent_claimed_at\)<datetime\('now','-15 minutes'\)/);
   assert.match(route, /agent_claimed_at IS NOT NULL AND datetime\(agent_claimed_at\)>=datetime\('now','-15 minutes'\)/);
   assert.doesNotMatch(route, /work_package_id IS NULL AND agent_claimed_at IS NOT NULL/,
     "agent API recovery must also release expired claims from durable work packages");
-  assert.match(route, /datetime\(agent_claimed_at\)>=datetime\('now','-15 minutes'\) AND requires_approval=0 AND assigned_to IN \('mehran_intelligence','shared'\) AND action_type IN \('repository_quality_check','service_health_report','source_security_audit','inspect_repository','run_repository_tests','propose_code_patch'\)/);
+  assert.match(route, /datetime\(agent_claimed_at\)>=datetime\('now','-15 minutes'\) AND requires_approval=0 AND \$\{taskLanePredicate\} AND action_type IN/);
   assert.match(route, /agent_claimed_at=NULL/);
   assert.match(route, /\["completed","blocked"\]/);
 });
@@ -1492,7 +1492,7 @@ test("scheduled Intelligence runner is single-flight, secret-backed and restrict
     "each scheduled tick must bound both task count and execution time");
   assert.match(runner, /remaining eligible tasks stay queued for the next scheduled tick/,
     "unclaimed work must remain queued when the execution budget is reached");
-  assert.match(workerSource, /datetime\(agent_claimed_at\) < datetime\('now','-15 minutes'\)/,
+  assert.match(workerSource, /datetime\(agent_claimed_at\)<datetime\('now','-15 minutes'\)/,
     "claim recovery must use the documented 15-minute ownership window");
   assert.match(runner, /if: github\.ref == 'refs\/heads\/main'/);
   assert.match(runner, /permissions:\s*contents:\s*read/,
@@ -1539,7 +1539,7 @@ test("Intelligence source audit cross-checks capability allowlists and owner saf
     "planner_validator_agent_mcp_and_runner_allowlists_aligned",
     "custom_owner_missions_remain_admin_gated_with_bounded_fallback",
     "mcp_package_intake_keeps_separate_bridge_and_owner_identities",
-    "executor_rechecks_assignment_status_and_approval",
+    "executor_rechecks_owner_lane_status_and_approval",
     "runner_has_no_deploy_or_repository_write_commands",
     "execution_protocol_still_marks_end_to_end_acceptance_as_required"
   ]) {
@@ -1581,7 +1581,11 @@ test("Workers AI has separate Music, SOCIAL and MEHRAN INTELLIGENCE budgets unde
   assert.match(workerSource, /reserveSocialWorkersAIBudget\(env, structure === "short" \? 250 : 500, "music"\)/);
   assert.match(workerSource, /reserveSocialWorkersAIBudget\(env, 500, "social"\)/);
   assert.match(workerSource, /reserveSocialWorkersAIBudget\(env, Number\(options\.cloudflareReservation \|\| 500\), "intelligence"\)/);
-  assert.match(workerSource, /WORKERS_AI_GLOBAL_DAILY_RESERVATION_CREDITS,selected\.cap/);
+  assert.match(workerSource, /WORKERS_AI_CUSTOMER_DAILY_RESERVATION_CREDITS = 2000/);
+  assert.match(workerSource, /const totalReservationCondition = productKey === "intelligence"/);
+  assert.match(workerSource, /workers_ai_daily_budget\.total_reserved\+excluded\.total_reserved<=\?/);
+  assert.match(workerSource, /workers_ai_daily_budget\.music_reserved\+workers_ai_daily_budget\.social_reserved\+excluded\.total_reserved/);
+  assert.match(workerSource, /totalReservationCap,selected\.cap/);
   assert.doesNotMatch(workerSource, /intelligence_ai_daily_budget/);
 });
 
@@ -2687,7 +2691,7 @@ test("Production Intelligence scheduler runs only approved read-only reports and
   assert.match(retryPolicySource, /rate limit|429/);
   assert.ok(scheduledBody.includes("action_type IN ('project_status_report','social_metrics_report')"), "scheduler claim must use the same action allowlist as candidate selection");
   assert.ok(scheduledBody.includes("status='awaiting_approval' AND requires_approval=0"));
-  const agentClaimStart = workerSource.indexOf('if (path === "/agent/v1/tasks/next" && method === "GET")');
+  const agentClaimStart = workerSource.indexOf('if ((path === "/agent/v1/tasks/next" || path === "/agent/v1/owner/tasks/next") && method === "GET")');
   const agentClaimEnd = workerSource.indexOf("const checkpointMatch", agentClaimStart);
   const agentClaimRoute = workerSource.slice(agentClaimStart, agentClaimEnd);
   assert.match(agentClaimRoute, /action_type IN \('repository_quality_check','service_health_report','source_security_audit','inspect_repository','run_repository_tests','propose_code_patch'\)/);
@@ -2749,7 +2753,7 @@ test("Task Hub can create and label only owner-approved allowlisted actions", ()
   }
   assert.match(worker, /const autoApproved=preapprovedActions\.includes\(actionType\)&&\["mehran_intelligence","shared"\]\.includes\(assignedTo\)&&body\.requiresApproval!==true/);
   assert.match(worker, /const requiresApproval=Boolean\(body\.requiresApproval\|\|\s*\(actionType&&!autoApproved\)\)/);
-  assert.match(worker, /action_type,action_payload\) VALUES\(\?,\?,\?,\?,\?,\?,\?,\?,\?,\?\)/);
+  assert.match(worker, /action_type,action_payload,owner_uid,queue_lane\) VALUES\(\?,\?,\?,\?,\?,\?,\?,\?,\?,\?,\?,\?\)/);
   assert.match(html, /actionTypes\[task\.actionType\]/);
 });
 
@@ -3382,7 +3386,7 @@ test("private report persistence is a no-op until its dedicated Worker secret is
 test("Agent task claim tokens fence checkpoint and result commits to the current runner", () => {
   assert.match(workerSource, /agent_claim_token_hash TEXT NOT NULL DEFAULT ''/);
   assert.ok(workerSource.includes('const claimTokenHash = claimToken ? await sha256(claimToken) : "";'));
-  const claimStart = workerSource.indexOf('if (path === "/agent/v1/tasks/next" && method === "GET")');
+  const claimStart = workerSource.indexOf('if ((path === "/agent/v1/tasks/next" || path === "/agent/v1/owner/tasks/next") && method === "GET")');
   const checkpointStart = workerSource.indexOf('const checkpointMatch', claimStart);
   const claimRoute = workerSource.slice(claimStart, checkpointStart);
   assert.match(claimRoute, /UPDATE intelligence_tasks SET status='in_progress'.*agent_claim_token_hash=\?/s);
@@ -3405,7 +3409,7 @@ test("Agent task claim tokens fence checkpoint and result commits to the current
   const schedulerRecoveryEnd = workerSource.indexOf('// Repair only stale approval labels', schedulerRecoveryStart);
   const schedulerRecovery = workerSource.slice(schedulerRecoveryStart, schedulerRecoveryEnd);
   assert.match(schedulerRecovery, /SET status=\?,agent_claimed_at=NULL,agent_claim_token_hash=''/);
-  assert.match(schedulerRecovery, /WHERE id=\? AND status='in_progress' AND agent_claimed_at IS NOT NULL AND datetime\(agent_claimed_at\)<datetime\('now','-15 minutes'\)/,
+  assert.match(schedulerRecovery, /WHERE id=\? AND status='in_progress'.*agent_claimed_at IS NOT NULL AND datetime\(agent_claimed_at\)<datetime\('now','-15 minutes'\)/s,
     "scheduler recovery must re-check stale ownership atomically before revoking a claim");
   assert.ok(schedulerRecovery.includes("json_each(CASE WHEN json_valid(wp.scope_json) THEN wp.scope_json ELSE '{}' END, '$.allowedActions')"),
     "scheduled recovery must exclude package tasks without explicit action authorization");
@@ -3441,7 +3445,9 @@ function makeClaimLifecycleDb({ synchronizeCandidateReads = false, expireDuringC
     row: {
       id: "claim-lifecycle-task",
       status: "queued",
-      assigned_to: "mehran_intelligence",
+      assigned_to: "shared",
+      owner_uid: null,
+      queue_lane: "shared",
       action_type: "repository_quality_check",
       action_payload: "{}",
       checkpoint_json: "{}",

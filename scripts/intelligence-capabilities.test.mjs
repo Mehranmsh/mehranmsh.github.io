@@ -357,7 +357,7 @@ test("private runner processes queued work without automatically seeding baselin
   assert.doesNotMatch(runnerSource, /mehran-intelligence-repo-inspection-v2-/);
   assert.doesNotMatch(runnerSource, /mehran-intelligence-self-improvement-v3-/);
   assert.doesNotMatch(runnerSource, /mehran-intelligence-fixed-tests-v2-/);
-  assert.match(runnerSource, /request\("\/agent\/v1\/tasks\/next"\)/);
+  assert.match(runnerSource, /request\("\/agent\/v1\/owner\/tasks\/next", \{\}, ownerHeaders\)/);
   assert.match(runnerSource, /Automatic baseline, AI self-improvement, and fixed-test package seeding is intentionally disabled/);
   assert.ok(runnerSource.includes('cron: "*/15 * * * *"'));
   assert.doesNotMatch(runnerSource, /create-review-pr-from-verified-patch/);
@@ -933,17 +933,23 @@ test("Workers AI patch generation fails closed on budget denial and unsafe model
 });
 
 
-test("Intelligence mission planning uses a bounded, more efficient daily reservation", () => {
+test("Intelligence owner AI reservation is isolated from combined customer usage", () => {
   assert.match(workerSource, /WORKERS_AI_INTELLIGENCE_DAILY_RESERVATION_CREDITS = 7000/);
-  assert.match(workerSource, /intelligence: \{ column: "intelligence_reserved", cap: WORKERS_AI_INTELLIGENCE_DAILY_RESERVATION_CREDITS \}/);
+  assert.match(workerSource, /WORKERS_AI_CUSTOMER_DAILY_RESERVATION_CREDITS = 2000/);
   assert.match(workerSource, /WORKERS_AI_GLOBAL_DAILY_RESERVATION_CREDITS = 9000/);
+  assert.match(workerSource, /totalReservationCondition = productKey === "intelligence"/);
+  assert.match(workerSource, /music_reserved\+workers_ai_daily_budget\.social_reserved\+excluded\.total_reserved/);
+  assert.match(workerSource, /intelligence: \{ column: "intelligence_reserved", cap: WORKERS_AI_INTELLIGENCE_DAILY_RESERVATION_CREDITS \}/);
   assert.match(workerSource, /cloudflareReservation: 25/);
   assert.match(workerSource, /maxTokens: 1000/);
 });
 
 test("scheduled Intelligence runner serializes ticks and bounds per-tick task execution", () => {
-  assert.ok(runnerSource.includes("group: mehran-intelligence-private-runner-${{ github.run_id }}"));
+  assert.ok(runnerSource.includes("group: mehran-intelligence-owner-runner"));
   assert.ok(runnerSource.includes("cancel-in-progress: false"));
+  const sharedRunnerSource = readFileSync(new URL("../.github/workflows/mehran-intelligence-shared-runner.yml", import.meta.url), "utf8");
+  assert.ok(sharedRunnerSource.includes("group: mehran-intelligence-shared-runner"));
+  assert.ok(sharedRunnerSource.includes("cancel-in-progress: false"));
   assert.match(runnerSource, /for \(let count = 0; count < 5 && Date\.now\(\) < taskExecutionDeadline; count\+\+\)/);
   assert.match(runnerSource, /const taskExecutionDeadline = tickStartedAt \+ 7 \* 60 \* 1000/);
 });
@@ -987,11 +993,15 @@ test("Patch generation timeout and model failures remain terminal instead of tri
 });
 
 test("Intelligence task recovery is claim-token scoped, bounded, and attempt limited", () => {
-  const start = workerSource.indexOf('if (path === "/agent/v1/tasks/next" && method === "GET")');
-  const end = workerSource.indexOf('const checkpointMatch = path.match', start);
+  const start = workerSource.indexOf('if ((path === "/agent/v1/tasks/next" || path === "/agent/v1/owner/tasks/next") && method === "GET")');
+  const end = workerSource.indexOf('const taskRouteLane =', start);
   assert.ok(start >= 0 && end > start);
   const claimRoute = workerSource.slice(start, end);
-  assert.match(claimRoute, /datetime\(agent_claimed_at\) < datetime\('now','-15 minutes'\)/);
+  assert.match(claimRoute, /datetime\(agent_claimed_at\)<datetime\('now','-15 minutes'\)/);
+  assert.match(claimRoute, /queue_lane='owner'/);
+  assert.match(claimRoute, /queue_lane='shared'/);
+  assert.match(claimRoute, /owner_uid='mehran_owner_orchestrator'/);
+  assert.match(claimRoute, /owner_uid IS NULL/);
   assert.match(claimRoute, /COALESCE\(attempts,0\)>=COALESCE\(max_attempts,3\)/);
   assert.match(claimRoute, /COALESCE\(attempts,0\)<COALESCE\(max_attempts,3\)/);
   assert.match(claimRoute, /attempts=COALESCE\(attempts,0\)\+1/);
