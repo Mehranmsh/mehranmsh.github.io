@@ -8450,7 +8450,7 @@ export default {
           const id = decodeURIComponent(checkpointMatch[1]);
           if (!id || id.length > 160) return error("Invalid task ID.");
           const body = await readBody(request);
-          if (!body || !body.checkpoint || typeof body.checkpoint !== "object" || Array.isArray(body.checkpoint)) return error("A checkpoint object is required.");
+          if (!body || Object.keys(body).some(key => !["claimToken","checkpoint"].includes(key)) || Object.keys(body).length !== 2 || !body.checkpoint || typeof body.checkpoint !== "object" || Array.isArray(body.checkpoint)) return error("A checkpoint object and claim token are required.");
           let checkpointJson;
           try { checkpointJson = JSON.stringify(body.checkpoint); } catch { return error("Checkpoint must be valid JSON."); }
           const checkpointBytes = checkpointJson ? new TextEncoder().encode(checkpointJson).byteLength : 0;
@@ -8471,7 +8471,7 @@ export default {
           const id = decodeURIComponent(agentResultMatch[1]);
           if (!id || id.length > 160) return error("Invalid task ID.");
           const body = await readBody(request);
-          if (!body || typeof body.result !== "string" || body.result.length > 3000 || new TextEncoder().encode(body.result).byteLength > 12 * 1024 || !["completed","blocked"].includes(body.status || "completed")) {
+          if (!body || Object.keys(body).some(key => !["claimToken","result","status","retryable"].includes(key)) || !["claimToken","result"].every(key => Object.prototype.hasOwnProperty.call(body,key)) || (body.retryable !== undefined && typeof body.retryable !== "boolean") || typeof body.result !== "string" || body.result.length > 3000 || new TextEncoder().encode(body.result).byteLength > 12 * 1024 || !["completed","blocked"].includes(body.status || "completed")) {
             return error("A bounded result and valid terminal status are required.");
           }
           const resultText = cleanText(body.result,3000);
