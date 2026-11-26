@@ -3445,7 +3445,9 @@ function makeClaimLifecycleDb({ synchronizeCandidateReads = false, expireDuringC
     row: {
       id: "claim-lifecycle-task",
       status: "queued",
-      assigned_to: "mehran_intelligence",
+      assigned_to: "shared",
+      owner_uid: null,
+      queue_lane: "shared",
       action_type: "repository_quality_check",
       action_payload: "{}",
       checkpoint_json: "{}",
