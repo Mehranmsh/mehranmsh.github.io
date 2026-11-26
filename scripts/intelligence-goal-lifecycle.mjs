@@ -69,7 +69,7 @@ export function buildIntelligenceGoalLifecycle(records, proposedTasks, progressE
       estimate_minutes: Number.isFinite(raw.estimate_minutes) && raw.estimate_minutes >= 0
         ? Math.min(Math.floor(raw.estimate_minutes), 100000) : null,
       depends_on_task_ids: Array.isArray(raw.depends_on_task_ids)
-        ? [...new Set(raw.depends_on_task_ids.map(id => clean(id, 120)).filter(Boolean))].slice(0, 50).sort() : [],
+        ? [...new Set(raw.depends_on_task_ids.slice(0, 50).map(id => clean(id, 120)).filter(Boolean))].sort() : [],
       dependencies_confirmed: raw.dependencies_confirmed === true && raw.dependencies_confirmed_by === ownerUid,
       dependencies_confirmed_by: raw.dependencies_confirmed === true && raw.dependencies_confirmed_by === ownerUid ? ownerUid : null,
       proposal_only: true
