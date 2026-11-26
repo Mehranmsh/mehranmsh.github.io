@@ -114,3 +114,21 @@ Quality metrics support review; they do not replace listening tests or artistic 
 - No model is downloaded or installed.
 - No live Worker, D1 database, or deployed Studio is changed.
 - No pull request is merged automatically.
+
+
+## Additional verified Studio UI inventory
+
+The current `music-studio.html` already provides useful building blocks:
+- Existing sections for Overview, New Project, My Projects, Lyrics Lab, Composition, Arrangement, Vocal Lab, and Mixing & Mastering.
+- Smart/Pro controls already exist in several stages; the integration should unify and extend them rather than introduce a competing mode system.
+- Phone microphone capture uses `getUserMedia` and `MediaRecorder`.
+- Track audio is stored in browser IndexedDB; project metadata and settings are currently stored in localStorage.
+- Browser Web Audio already supports track gain/pan, EQ-like filters, compression, reverb, delay, chorus, waveform previews, noise-profile learning, and a basic phone-vocal preset.
+- A text-only AI Songwriter is already present with a reserved daily allowance. It is not an audio generation or full-workflow orchestration engine.
+- A Music Studio backup transfer endpoint exists on the MEHRAN Worker; this is a backup/restore path, not yet an Intelligence task bridge.
+
+### Consequence for the first code slice
+
+Do not rebuild recording, audio storage, or existing mixer controls. First add a versioned project/stage analysis contract and an Intelligence advisory panel that can read only the active project's explicitly selected metadata. Start in analysis-only mode. The panel must not upload raw recordings by default, modify project data, invoke paid AI, or claim that a mix was mastered. Audio analysis should run locally where feasible and return bounded metrics; any remote Intelligence request should receive only the minimum approved text/metadata and an opaque project/task reference.
+
+The current browser storage model also needs a deliberate migration plan before any server-backed project sync is enabled. Preserve existing local projects and audio blobs; never silently replace localStorage/IndexedDB data with server responses.
