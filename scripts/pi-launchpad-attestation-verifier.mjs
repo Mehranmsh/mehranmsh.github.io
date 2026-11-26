@@ -50,7 +50,7 @@ function reject(code) {
 
 /**
  * Attestation shape:
- * { keyId, algorithm:"Ed25519", payload:{tokenId,evidenceId,field,sourceUrl,
+ * { keyId, algorithm:"Ed25519", payload:{issuer,tokenId,evidenceId,field,sourceUrl,
  *   observedAt,expiresAt,value}, signature:base64 }
  * trustedKeys is an operator-provisioned map: keyId -> { publicKeyPem, revoked? }.
  */
@@ -67,12 +67,18 @@ export function verifyPiLaunchpadAttestation(attestation, trustedKeys, options =
   if (!Object.hasOwn(trustedKeys, attestation.keyId)) return reject("untrusted_signer");
   const trustRecord = trustedKeys[attestation.keyId];
   if (!isObject(trustRecord) || trustRecord.revoked === true ||
-      typeof trustRecord.publicKeyPem !== "string" || trustRecord.publicKeyPem.length > 4096 ||\n      typeof trustRecord.issuer !== "string" || !trustRecord.issuer.trim() || trustRecord.issuer.length > 120 ||\n      !Array.isArray(trustRecord.allowedSourceOrigins) || trustRecord.allowedSourceOrigins.length < 1 ||\n      trustRecord.allowedSourceOrigins.length > 20 ||\n      !Array.isArray(trustRecord.allowedFields) || trustRecord.allowedFields.length < 1 ||\n      trustRecord.allowedFields.length > 50) {
+      typeof trustRecord.publicKeyPem !== "string" || trustRecord.publicKeyPem.length > 4096 ||
+      typeof trustRecord.issuer !== "string" || !trustRecord.issuer.trim() || trustRecord.issuer.length > 120 ||
+      !Array.isArray(trustRecord.allowedSourceOrigins) || trustRecord.allowedSourceOrigins.length < 1 ||
+      trustRecord.allowedSourceOrigins.length > 20 ||
+      !Array.isArray(trustRecord.allowedFields) || trustRecord.allowedFields.length < 1 ||
+      trustRecord.allowedFields.length > 50) {
     return reject("unavailable_or_revoked_key");
   }
 
   const p = attestation.payload;
-  if (typeof p.issuer !== "string" || p.issuer !== trustRecord.issuer ||\n      typeof p.tokenId !== "string" || !p.tokenId.trim() || p.tokenId.length > 120 ||
+  if (typeof p.issuer !== "string" || p.issuer !== trustRecord.issuer ||
+      typeof p.tokenId !== "string" || !p.tokenId.trim() || p.tokenId.length > 120 ||
       typeof p.evidenceId !== "string" || !p.evidenceId.trim() || p.evidenceId.length > 160 ||
       typeof p.field !== "string" || !/^[a-zA-Z][a-zA-Z0-9_.-]{0,63}$/.test(p.field) ||
       !validSourceUrl(p.sourceUrl) || !isIsoUtc(p.observedAt) || !isIsoUtc(p.expiresAt) ||
@@ -81,7 +87,12 @@ export function verifyPiLaunchpadAttestation(attestation, trustedKeys, options =
       (typeof p.value === "number" && !Number.isFinite(p.value))) {
     return reject("invalid_payload");
   }
-  let sourceOrigin;\n  try { sourceOrigin = new URL(p.sourceUrl).origin; } catch { return reject("invalid_payload"); }\n  if (!trustRecord.allowedSourceOrigins.includes(sourceOrigin)) return reject("source_out_of_scope");\n  if (!trustRecord.allowedFields.includes(p.field)) return reject("field_out_of_scope");\n\n  const observedAt = Date.parse(p.observedAt);
+  let sourceOrigin;
+  try { sourceOrigin = new URL(p.sourceUrl).origin; } catch { return reject("invalid_payload"); }
+  if (!trustRecord.allowedSourceOrigins.includes(sourceOrigin)) return reject("source_out_of_scope");
+  if (!trustRecord.allowedFields.includes(p.field)) return reject("field_out_of_scope");
+
+  const observedAt = Date.parse(p.observedAt);
   const expiresAt = Date.parse(p.expiresAt);
   const maxAgeMs = Number.isFinite(options.maxAgeMs) && options.maxAgeMs >= 0
     ? Math.min(options.maxAgeMs, 7 * 24 * 60 * 60 * 1000) : 24 * 60 * 60 * 1000;
@@ -119,6 +130,7 @@ export function verifyPiLaunchpadAttestation(attestation, trustedKeys, options =
     verified: true,
     verifierVersion: PI_LAUNCHPAD_ATTESTATION_VERSION,
     keyId: attestation.keyId,
+    issuer: p.issuer,
     tokenId: p.tokenId,
     evidenceId: p.evidenceId,
     field: p.field,
