@@ -231,3 +231,25 @@ The orchestration module accepts only an injected provider that declares atomic-
 **Important boundary:** a capability flag is not proof that an adapter is truly atomic. The concrete adapter must be independently tested against its database's transaction semantics, including concurrent writers, process termination, commit failures, and rollback behavior. If the storage backend cannot guarantee all-or-nothing execution across the envelope and journal writes, it must not be used for this protocol.
 
 This increment adds no Cloudflare D1 binding, database credentials, persistence, KMS integration, network access, Workers AI usage, wallet access, signing, or Mainnet scoring. The included tests use an in-memory transaction-provider simulation to verify orchestration order and rollback expectations; they do not establish production durability. Testnet archives remain ineligible for Mainnet scoring.
+
+
+## Cloudflare D1 replacement protocol (2026-11-26)
+
+Official Cloudflare D1 Worker API documentation states that `D1Database.batch()` executes prepared statements sequentially and non-concurrently as a SQL transaction; if a statement fails, the batch aborts or rolls back as a whole. A D1 Session provides sequential consistency, not a multi-step transaction spanning arbitrary Worker reads and writes. D1 does not expose an application-controlled interactive transaction callback in this API.
+
+Accordingly, the generic injected `withTransaction(callback)` orchestration is **not a D1 adapter** and must not be wired directly to D1. The D1-specific design is deliberately staged:
+
+- **Phase 1 batch:** conditionally insert an immutable operation intent from the expected source digest, compare-and-swap the archive envelope, and append the `prepared` journal record in one `DB.batch()` call.
+- **Read-back gate:** outside that batch, read the archive and prepared journal and verify their exact digests. If the source remains, leave the prepared operation for recovery. If a third digest appears, stop for manual reconciliation.
+- **Phase 2 batch:** only after successful replacement read-back, atomically mark the operation committed and append its linked terminal journal record in a second `DB.batch()` call.
+- **Final read-back:** verify the committed record and complete operation chain.
+
+This means the archive replacement and prepared record are atomic together, and the terminal commit is atomic within phase 2. The whole staged workflow is not one transaction. A crash between phases leaves a durable prepared record and must enter the existing recovery gate. Do not report the operation committed until phase 2 and final read-back both succeed.
+
+The D1 SQL schema proposal uses immutable operation IDs so multiple replacement operations can exist for one archive. Each operation has its own two-record journal. SQL parameters must always be bound, never interpolated. D1 `batch()` results and concurrent-CAS behavior still require integration tests against a disposable D1 database before production use.
+
+The D1 batch-plan module validates the replacement envelope's exact serialized digest and verifies the prepared/committed hash-linked journal records before producing parameterized statement plans. It does not execute SQL or hold a D1 binding.
+
+This increment adds no D1 binding, migration, live write, key custody, or deployment.
+
+Official reference: https://developers.cloudflare.com/d1/worker-api/d1-database/ (D1 Database, `batch()` and `withSession()`, last updated 2026-06-22).
