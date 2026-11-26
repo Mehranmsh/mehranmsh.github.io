@@ -48,3 +48,15 @@ The pure helper in `scripts/pi-launchpad-evidence-registry.mjs` projects validat
 - a separate `chainVerificationStatus: not_verified` and blocked scoring state.
 
 This is an in-memory projection, not persistent storage or a live feed. A valid Ed25519 attestation upgrades only signer/payload verification. It never upgrades chain verification or factual truth, and this registry does not authorize scoring. Mainnet and Testnet labels remain separate. No network requests, wallet actions, transactions, or billing are involved.
+
+
+## Proposed D1 evidence persistence schema
+
+A separate review-only SQL proposal is provided at `scripts/sql/pi-launchpad-evidence-registry-d1-schema.sql`. It defines an append-only evidence-record table with:
+- deterministic record IDs and explicit Pi Mainnet/Testnet partition labels;
+- bounded evidence classes and JSON-validated provenance metadata;
+- signer/payload verification states kept separate from chain verification;
+- database constraints that force `chain_verification_status = not_verified` and keep scoring blocked;
+- database triggers that reject updates and deletes, preserving the original evidence projection.
+
+SQLite compatibility tests exercise these constraints locally. This is a schema proposal only: it has not been applied to Cloudflare D1, no persistence adapter or credentials are configured, and no live data is written. A future verification result must be represented as a separate append-only event or record after independent design/review, never by mutating this original evidence row.

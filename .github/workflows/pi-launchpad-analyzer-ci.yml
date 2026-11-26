@@ -10,6 +10,7 @@ on:
       - feat/launchpad-mainnet-readiness-gate
       - feat/pi-launchpad-candidate-intake
       - fix/pi-launchpad-candidate-intake-dedupe
+      - feat/pi-launchpad-evidence-d1-schema
     paths:
       - "scripts/pi-launchpad-analyzer.mjs"
       - "scripts/pi-launchpad-analyzer.test.mjs"
@@ -50,6 +51,8 @@ on:
       - "scripts/pi-testnet-observation-d1-batch.test.mjs"
       - "scripts/sql/pi-testnet-observation-d1-schema.sql"
       - "scripts/sql/test_pi_testnet_observation_d1_schema.py"
+      - "scripts/sql/pi-launchpad-evidence-registry-d1-schema.sql"
+      - "scripts/sql/test_pi_launchpad_evidence_registry_d1_schema.py"
       - "scripts/pi-launchpad-trust-store.mjs"
       - "scripts/pi-launchpad-trust-store.test.mjs"
       - "scripts/pi-launchpad-source-registry.mjs"
@@ -106,4 +109,6 @@ jobs:
       - name: Run analyzer tests
         run: node --test --test-reporter=tap scripts/pi-launchpad-*.test.mjs scripts/pi-testnet-*.test.mjs
       - name: Run D1 schema SQLite compatibility tests
-        run: python3 -m unittest scripts/sql/test_pi_testnet_observation_d1_schema.py
+        run: |
+          python3 -m unittest scripts/sql/test_pi_testnet_observation_d1_schema.py
+          python3 -m unittest scripts/sql/test_pi_launchpad_evidence_registry_d1_schema.py
