@@ -6680,7 +6680,7 @@ export function verifyIntelligenceReport(actionType, report) {
     const validFiles = files.length >= 1 && files.length <= 6 && files.every(file => {
       if (!file || typeof file.path !== "string" || !INTELLIGENCE_INSPECT_ALLOWED_PATHS.includes(file.path) || seen.has(file.path) ||
           typeof file.blobSha !== "string" || !/^[a-f0-9]{40}$/i.test(file.blobSha) ||
-          !integer(file.bytes) || file.bytes > 600000 || !integer(file.lineCount) || file.lineCount > 20000 ||
+          !integer(file.bytes) || file.bytes > 620000 || !integer(file.lineCount) || file.lineCount > 20000 ||
           !Array.isArray(file.symbols) || file.symbols.length > 2 || file.symbols.some(symbol => typeof symbol !== "string" || symbol.length > 60)) return false;
       seen.add(file.path);
       totalBytes += file.bytes;
