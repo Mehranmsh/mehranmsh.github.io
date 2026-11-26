@@ -38,6 +38,8 @@ on:
       - "scripts/pi-testnet-observation-replacement-journal.test.mjs"
       - "scripts/pi-testnet-observation-recovery-gate.mjs"
       - "scripts/pi-testnet-observation-recovery-gate.test.mjs"
+      - "scripts/pi-testnet-observation-transaction.mjs"
+      - "scripts/pi-testnet-observation-transaction.test.mjs"
       - "scripts/pi-launchpad-trust-store.mjs"
       - "scripts/pi-launchpad-trust-store.test.mjs"
       - "scripts/pi-launchpad-source-registry.mjs"
@@ -84,5 +86,6 @@ jobs:
           node --check scripts/pi-testnet-observation-replacement-intent.mjs
           node --check scripts/pi-testnet-observation-replacement-journal.mjs
           node --check scripts/pi-testnet-observation-recovery-gate.mjs
+          node --check scripts/pi-testnet-observation-transaction.mjs
       - name: Run analyzer tests
         run: node --test --test-reporter=tap scripts/pi-launchpad-*.test.mjs scripts/pi-testnet-*.test.mjs
