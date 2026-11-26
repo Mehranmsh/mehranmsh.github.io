@@ -238,7 +238,7 @@ test("bounds every auxiliary input collection before subsystem processing", () =
   });
   assert.equal(result.decisionEvaluation.diagnostics.inspectedOptions, 50);
   assert.equal(result.decisionEvaluation.diagnostics.criteriaUsed, 30);
-  assert.equal(result.planHistory.diagnostics.revisionsInspected, 50);
+  assert.equal(result.planHistory.diagnostics.revisionsInspected, 20);
   assert.equal(result.planLearning.diagnostics.revisionsInspected, 50);
   assert.equal(result.planLearning.diagnostics.eventsInspected, 500);
 });
