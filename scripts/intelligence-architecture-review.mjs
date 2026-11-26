@@ -68,7 +68,7 @@ export function buildIntelligenceArchitectureReview(input) {
     { phase: 4, name: "Evaluation and resource isolation", actions: ["Add task-level quality gates and evidence-based completion criteria.", "Keep owner-reserved inference capacity isolated from customer budgets and queues.", "Expose quota, cost, latency, and failure telemetry without leaking prompts or secrets."] }
   ];
   return {
-    type: "intelligence_architecture_review",
+    type: "architecture_review",
     generatedAt: new Date().toISOString(),
     mode: "deterministic_static_evidence_no_ai_inference",
     repository: typeof input.repository === "string" ? input.repository.slice(0, 120) : "unknown",
@@ -85,7 +85,7 @@ export function buildIntelligenceArchitectureReview(input) {
 
 
 export function compactIntelligenceArchitectureReview(report, maxChars = 2900) {
-  if (!report || report.type !== "intelligence_architecture_review" ||
+  if (!report || report.type !== "architecture_review" ||
       !Number.isInteger(maxChars) || maxChars < 512) {
     throw new Error("A valid architecture review and bounded output size are required.");
   }
