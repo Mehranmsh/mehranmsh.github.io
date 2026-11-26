@@ -62,3 +62,14 @@ test("rejects unsafe URLs, invalid payloads, and non-object inputs", () => {
   assert.equal(verifyPiLaunchpadAttestation(null, trustedKeys, { now }).code, "invalid_attestation");
   assert.throws(() => verifyPiLaunchpadAttestation(signed(), trustedKeys), TypeError);
 });
+
+test("rejects inherited-property records at the trust boundary", () => {
+  const inheritedPayload = Object.assign(Object.create({ tokenId: "spoofed" }), {
+    evidenceId: "evidence-1", field: "liquidity.tvlPi",
+    sourceUrl: "https://auditor.example/report/1",
+    observedAt: payload.observedAt, expiresAt: payload.expiresAt, value: 1
+  });
+  const forged = signed();
+  forged.payload = inheritedPayload;
+  assert.equal(verifyPiLaunchpadAttestation(forged, trustedKeys, { now }).code, "invalid_attestation");
+});
