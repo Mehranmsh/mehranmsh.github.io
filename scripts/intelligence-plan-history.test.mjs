@@ -83,3 +83,19 @@ test("rejects duplicate task identifiers within a revision", () => {
   assert.equal(result.revisions.length, 0);
   assert.equal(result.diagnostics.rejectedRevisions[0].reason, "invalid_or_duplicate_task");
 });
+
+
+test("caps nested dependency and source-event arrays before mapping", () => {
+  const dependencies = Array.from({ length: 10000 }, (_, index) => "dep-" + index);
+  const sourceIds = Array.from({ length: 10000 }, (_, index) => "event-" + index);
+  const result = compareIntelligencePlanVersions([
+    revision(1, [task("a", { depends_on_task_ids: dependencies })]),
+    revision(2, [task("a", { depends_on_task_ids: dependencies })], { source_event_ids: sourceIds })
+  ], [], options);
+  assert.equal(result.revisions.length, 2);
+  assert.equal(result.revisions[0].tasks[0].depends_on_task_ids.length, 50);
+  assert.equal(result.revisions[1].tasks[0].depends_on_task_ids.length, 50);
+  assert.equal(result.revisions[1].source_event_ids.length, 500);
+  assert.deepEqual(result.revisions[0].tasks[0].depends_on_task_ids[0], "dep-0");
+  assert.deepEqual(result.revisions[1].source_event_ids[0], "event-0");
+});
