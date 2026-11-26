@@ -25,7 +25,7 @@ Status: deterministic local screening engine with separate signed-evidence gatew
 - Batch screening for up to 500 supplied analyses, duplicate handling, coverage summaries, and exclusions.
 - Deterministic portfolio prioritization and snapshot-diff monitoring. Neither fetches data nor makes trading decisions.
 
-## Important limitations
+- Bounded manual candidate intake for up to 500 operator-supplied Pi Mainnet candidate claims, with identity validation, safe HTTPS reference checks, deduplication, and explicit unverified/evidence-pending states. It does not crawl, fetch, trust, or score candidates.\n\n## Important limitations
 - No live Pi Launchpad/DEX discovery or API ingestion.
 - No on-chain reads, raw-data hash verification, independent source ownership checks, or proof that signed claims are factually accurate.
 - Ed25519 proves signer identity relative to an operator trust anchor and payload integrity only. It does not prove on-chain truth.
