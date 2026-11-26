@@ -1,7 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createHash, generateKeyPairSync, sign } from "node:crypto";
-import { validateLaunchpadDataEnvelope } from "./pi-launchpad-data-adapter.mjs";
 import { buildPiLaunchpadVerifiedScoringEvidence } from "./pi-launchpad-evidence-gateway.mjs";
 
 const NOW = Date.parse("2026-11-26T12:00:00.000Z");
@@ -45,15 +44,10 @@ const attestation = (overrides = {}) => {
   return { keyId: "auditor-a", algorithm: "Ed25519", payload,
     signature: sign(null, Buffer.from(canonical(payload)), privateKey).toString("base64") };
 };
-const validated = () => {
-  const result = validateLaunchpadDataEnvelope(envelope(), { now: NOW });
-  assert.equal(result.accepted, true);
-  return result;
-};
 
 test("only exact-match, signed, in-scope evidence becomes a component score", () => {
   const result = buildPiLaunchpadVerifiedScoringEvidence({
-    validation: validated(), attestations: [attestation()], trustRecords, now: NOW
+    envelope: envelope(), attestations: [attestation()], trustRecords, now: NOW
   });
   assert.deepEqual({ ...result.scoringEvidence }, { teamTransparency: 88 });
   assert.equal(result.acceptedCount, 1);
@@ -108,7 +102,7 @@ test("fails closed when trust anchors are absent or validation is forged structu
     validation: validated(), attestations: [attestation()], trustRecords: [], now: NOW
   }), TypeError);
   assert.throws(() => buildPiLaunchpadVerifiedScoringEvidence({
-    validation: { accepted: true, tokenId: "x", sources: [], evidence: [] },
+    envelope: { accepted: true, tokenId: "x", sources: [], evidence: [] },
     attestations: [], trustRecords, now: NOW
   }), TypeError);
 });
