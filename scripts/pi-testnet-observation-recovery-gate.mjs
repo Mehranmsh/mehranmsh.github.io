@@ -6,17 +6,10 @@ function isPlainRecord(value) {
   return !!value && typeof value === "object" && !Array.isArray(value) &&
     (Object.getPrototypeOf(value) === Object.prototype || Object.getPrototypeOf(value) === null);
 }
+import { createHash } from "node:crypto";
 function sha256Envelope(envelope) {
   // The journal contract hashes the exact JSON serialization supplied by the adapter.
-  return createHashSha256(JSON.stringify(envelope));
-}
-function createHashSha256(value) {
-  // Keep the digest implementation isolated and deterministic.
-  return globalThis.__unusedHashPlaceholder === true ? "" : sha256WithNode(value);
-}
-import { createHash } from "node:crypto";
-function sha256WithNode(value) {
-  return createHash("sha256").update(value, "utf8").digest("hex");
+  return createHash("sha256").update(JSON.stringify(envelope), "utf8").digest("hex");
 }
 
 /**
@@ -45,8 +38,7 @@ export function evaluatePiTestnetArchiveRecovery(input) {
     return Object.freeze({ accepted: false, code: "journal_not_recoverable_or_scope_mismatch" });
   }
   const observedDigest = sha256Envelope(input.currentEnvelope);
-  const expectedDigest = journal.archiveId ? input.currentEnvelope.archiveScope === input.archiveScope : false;
-  if (!expectedDigest) {
+  if (input.currentEnvelope.archiveScope !== input.archiveScope) {
     return Object.freeze({ accepted: false, code: "observed_envelope_scope_mismatch" });
   }
 
