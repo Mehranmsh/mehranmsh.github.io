@@ -44,6 +44,10 @@ The current client-side prototype combines:
 
 The values are initial engineering heuristics, not trained model weights. They must be tuned only after representative testing and member feedback. Client-side V1 is not a claim that MEHRAN INTELLIGENCE or the Worker is already ranking feed responses.
 
+## Explore discovery V1
+
+Explore uses the same local Hybrid ranking as the main feed so recommendations do not diverge into a second opaque scoring system. Members can narrow the candidate set by content type or account type, search the loaded posts, and open the source post. Empty results are shown clearly rather than silently substituting unrelated content.
+
 ## Required server-side phase
 
 The current SOCIAL API worker source was not present in the accessible repository during the implementation audit. Before server-side ranking can be shipped:
@@ -73,4 +77,6 @@ The current SOCIAL API worker source was not present in the accessible repositor
 - Ranking only reorders the candidate posts already loaded by the current feed endpoint; it does not expand discovery.
 - Personalization strength and Show less feedback are local to the browser/device and based on a narrow set of signals. The slider does not disable every non-personalized ranking component.
 - No server-side model, embeddings, trend engine, creator-growth model, or cross-device preference sync is active.
-- Existing Explore and Reels views are not yet powered by this ranking service.
+- Explore now reuses the client-side Hybrid-ranked candidate list and adds local filters for all posts, media, videos, business accounts, and AI accounts. Search matches post text, username, and display name. Selecting a tile opens the matching post in the feed.
+- Explore remains limited to the posts already loaded by the existing feed endpoint. It does not yet discover people without posts, fetch trending topics, or query a server-side recommendation service.
+- Reels is not yet powered by this ranking service.
