@@ -44,7 +44,7 @@ jobs:
         run: |
           node --input-type=module <<'NODE'
           import { spawnSync } from "node:child_process";
-          import { mkdtempSync, rmSync } from "node:fs";
+          import { mkdtempSync, readFileSync, rmSync } from "node:fs";
           import { tmpdir } from "node:os";
           import { join } from "node:path";
           import { createHash } from "node:crypto";
@@ -295,6 +295,12 @@ jobs:
             }
             if (task.actionType === "run_repository_tests") {
               return runFixedRepositoryTests(task);
+            }
+            if (task.actionType === "architecture_review") {
+              const { buildIntelligenceArchitectureReview } = await import("./scripts/intelligence-architecture-review.mjs");
+              const reviewPaths = ["worker.js","scripts/intelligence-agent.mjs","scripts/intelligence-capabilities.mjs",".github/workflows/mehran-intelligence-runner.yml","docs/INTELLIGENCE_EXECUTION_PROTOCOL.md","scripts/intelligence-architecture-review.mjs"];
+              const commitSha = runHost("git", ["rev-parse", "HEAD"]);
+              return buildIntelligenceArchitectureReview({ repository: "Mehranmsh/mehranmsh.github.io", commitSha, files: reviewPaths.map(path => ({ path, content: readFileSync(path, "utf8") })) });
             }
             if (task.actionType === "propose_code_patch") {
               let payload = {};
