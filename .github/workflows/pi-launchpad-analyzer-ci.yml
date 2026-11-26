@@ -43,6 +43,7 @@ on:
       - "scripts/pi-testnet-observation-d1-batch.mjs"
       - "scripts/pi-testnet-observation-d1-batch.test.mjs"
       - "scripts/sql/pi-testnet-observation-d1-schema.sql"
+      - "scripts/sql/test_pi_testnet_observation_d1_schema.py"
       - "scripts/pi-launchpad-trust-store.mjs"
       - "scripts/pi-launchpad-trust-store.test.mjs"
       - "scripts/pi-launchpad-source-registry.mjs"
@@ -93,3 +94,5 @@ jobs:
           node --check scripts/pi-testnet-observation-d1-batch.mjs
       - name: Run analyzer tests
         run: node --test --test-reporter=tap scripts/pi-launchpad-*.test.mjs scripts/pi-testnet-*.test.mjs
+      - name: Run D1 schema SQLite compatibility tests
+        run: python3 -m unittest scripts/sql/test_pi_testnet_observation_d1_schema.py
