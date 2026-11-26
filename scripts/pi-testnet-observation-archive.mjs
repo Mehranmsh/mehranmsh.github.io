@@ -29,6 +29,9 @@ function canonicalJson(value, seen = new Set()) {
   seen.add(value);
   let output;
   if (Array.isArray(value)) {
+    for (let index = 0; index < value.length; index++) {
+      if (!Object.hasOwn(value, index)) throw new TypeError("sparse_array");
+    }
     output = "[" + value.map(item => canonicalJson(item, seen)).join(",") + "]";
   } else {
     if (!isPlainRecord(value)) throw new TypeError("non_plain_record");
@@ -72,6 +75,7 @@ function validateObservation(observation) {
   if (!Object.hasOwn(observation, "result")) return "missing_result";
   try {
     const serialized = canonicalJson(observation);
+    JSON.parse(serialized);
     if (new TextEncoder().encode(serialized).byteLength > MAX_RECORD_BYTES) return "record_too_large";
   } catch {
     return "invalid_json_record";
@@ -112,7 +116,7 @@ export function createPiTestnetObservationArchive(observations, options = {}) {
   if (observations.length > maxRecords) return Object.freeze({ accepted: false, code: "record_limit_exceeded" });
 
   const records = [];
-  const seen = new Set();
+  const seen = new Map();
   let duplicateCount = 0;
   let totalBytes = 0;
   for (const observation of observations) {
@@ -120,10 +124,13 @@ export function createPiTestnetObservationArchive(observations, options = {}) {
     if (invalid) return Object.freeze({ accepted: false, code: invalid });
     const record = makeArchiveRecord(observation);
     if (seen.has(record.observationId)) {
+      if (seen.get(record.observationId) !== canonicalJson(record.observation)) {
+        return Object.freeze({ accepted: false, code: "conflicting_duplicate_identity" });
+      }
       duplicateCount++;
       continue;
     }
-    seen.add(record.observationId);
+    seen.set(record.observationId, canonicalJson(record.observation));
     const bytes = new TextEncoder().encode(canonicalJson(record)).byteLength;
     totalBytes += bytes;
     if (totalBytes > MAX_ARCHIVE_BYTES) return Object.freeze({ accepted: false, code: "archive_too_large" });
