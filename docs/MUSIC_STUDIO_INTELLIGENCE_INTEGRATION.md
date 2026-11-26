@@ -132,3 +132,21 @@ The current `music-studio.html` already provides useful building blocks:
 Do not rebuild recording, audio storage, or existing mixer controls. First add a versioned project/stage analysis contract and an Intelligence advisory panel that can read only the active project's explicitly selected metadata. Start in analysis-only mode. The panel must not upload raw recordings by default, modify project data, invoke paid AI, or claim that a mix was mastered. Audio analysis should run locally where feasible and return bounded metrics; any remote Intelligence request should receive only the minimum approved text/metadata and an opaque project/task reference.
 
 The current browser storage model also needs a deliberate migration plan before any server-backed project sync is enabled. Preserve existing local projects and audio blobs; never silently replace localStorage/IndexedDB data with server responses.
+
+
+## Implemented first code slice (feature branch only)
+
+- Added a **Studio Intelligence · Vocal Check** panel to Vocal Lab.
+- The owner selects a local project and a track with an attached recording.
+- The analyzer reads the recording from the existing IndexedDB store and performs bounded Web Audio decoding locally.
+- It reports duration, sample rate, channel count, peak, RMS, near-full-scale sample ratio, and DC offset, then provides conservative recording recommendations.
+- It rejects files above 25 MB or 120 seconds to reduce mobile memory risk.
+- It does not upload audio, call Cloudflare AI, consume an AI allowance, modify the original recording, alter project metadata, or apply effects.
+- The updated inline JavaScript passed a V8 syntax compilation check after the change.
+
+### Known limitations and next work
+
+- This is a deterministic local diagnostics slice, not yet a remote MEHRAN INTELLIGENCE orchestration connection.
+- Peak/RMS/DC and low-percentile window energy are screening metrics, not reliable standalone noise, reverb, pitch, or artistic-quality classifiers.
+- Next: add a versioned analysis result contract and local tests using synthetic WAV fixtures (silence, clean sine, clipping, DC offset, and added noise); then implement conservative, reversible DSP stages with loudness-matched A/B preview.
+- Do not label the result as studio-quality mastering or claim AI analysis until the full Intelligence task bridge and verified audio processing are integrated.
