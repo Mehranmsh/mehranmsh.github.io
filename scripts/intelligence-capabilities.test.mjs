@@ -329,8 +329,16 @@ test("bounded patch proposals and verified draft PR creation are pre-authorized 
     title: "[INTELLIGENCE] Add bounded regression test",
     headSha: "a".repeat(40)
   }).ok, true);
-  for (const id of ["merge_pull_request", "deploy", "read_secrets", "wallet_operations", "arbitrary_shell"]) {
-    assert.equal(getIntelligenceCapability(id).requiresApproval, true, id);
+  for (const id of ["merge_pull_request", "deploy"]) {
+    assert.equal(getIntelligenceCapability(id).requiresApproval, false, id);
+    assert.equal(getIntelligenceCapability(id).permissionTier, "autonomous_when_implemented", id);
+    assert.equal(getIntelligenceCapability(id).status, "planned", id);
+    assert.equal(getIntelligenceCapability(id).autonomous, undefined, id);
+  }
+  for (const id of ["read_secrets", "private_data_access", "wallet_operations", "arbitrary_shell"]) {
+    assert.equal(getIntelligenceCapability(id).requiresApproval, false, id);
+    assert.equal(getIntelligenceCapability(id).permissionTier, "forbidden", id);
+    assert.equal(getIntelligenceCapability(id).status, "blocked", id);
     assert.equal(getIntelligenceCapability(id).autonomous, undefined, id);
   }
 });
