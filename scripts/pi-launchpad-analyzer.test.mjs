@@ -1,6 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { analyzeLaunchpadOpportunity, LAUNCHPAD_ANALYZER_VERSION } from "./pi-launchpad-analyzer.mjs";
+import "./pi-launchpad-data-adapter.test.mjs";
+import "./pi-launchpad-source-registry.test.mjs";
 
 test("reports versioned insufficient-data result without inventing a score", () => {
   const result = analyzeLaunchpadOpportunity({ tokenId: "pi-token-1", symbol: "PIT" });
