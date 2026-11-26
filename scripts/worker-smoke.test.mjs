@@ -1460,8 +1460,14 @@ test("scheduled Intelligence runner is single-flight, secret-backed and restrict
     "scheduled runner must import the shared bounded response reader");
   assert.match(runner, /readBoundedResponse\(response, 65536\)/,
     "scheduled runner must cap Agent API responses at 64 KiB");
-  assert.doesNotMatch(runner, /response\.text\(\)|response\.json\(\)/,
+  assert.doesNotMatch(runner, /\b[A-Za-z_$][\w$]*Response\.(?:text|json)\(\)/,
     "scheduled runner must not read unbounded API response bodies");
+  assert.match(runner, /readJsonResponse\(repoResponse, 65536\)/,
+    "scheduled runner must cap GitHub repository metadata responses");
+  assert.match(runner, /readJsonResponse\(commitResponse, 256 \* 1024\)/,
+    "scheduled runner must cap GitHub commit-list responses");
+  assert.match(runner, /readJsonResponse\(commitResponse, 65536\)/,
+    "scheduled runner must cap individual GitHub commit responses");
   const proposalRunnerSource = await readFile(new URL("./intelligence-proposal-pr-runner.mjs", import.meta.url), "utf8");
   assert.match(proposalRunnerSource, /readJsonResponse\(response, 65536\)/,
     "proposal runner must bound Worker API responses");
