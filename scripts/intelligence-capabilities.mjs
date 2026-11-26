@@ -208,7 +208,7 @@ export const INTELLIGENCE_CAPABILITIES = Object.freeze({
     status: "blocked",
     permissionTier: "forbidden",
     executors: [],
-    requiresApproval: true,
+    requiresApproval: false,
     description: "Arbitrary shell or command execution is forbidden.",
     inputSchema: {}
   })
