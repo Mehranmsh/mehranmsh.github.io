@@ -58,12 +58,12 @@ The policy primitive is now connected to the D1 schema, owner/shared claim endpo
 
 The task table now has nullable `owner_uid` and `queue_lane TEXT NOT NULL DEFAULT 'quarantine'`, plus a lane/status/priority/created-at index. The migration is additive and idempotent for duplicate-column initialization. Existing records are intentionally not backfilled: neither `assigned_to` nor `created_by` is accepted as proof of owner identity.
 
-The schema now enforces lane-specific claims. Owner tasks require `queue_lane='owner'`, a nonempty owner principal, and matching package ownership where applicable. Shared tasks require `queue_lane='shared'` and a null owner. Legacy records default to quarantine and are not automatically backfilled.
+The schema now enforces lane-specific claims. Owner tasks require `queue_lane='owner'`, the exact `mehran_owner_orchestrator` principal, and matching package ownership where applicable. Shared tasks require `queue_lane='shared'` and a null owner. Legacy records default to quarantine and are not automatically backfilled.
 
 
 ## Authenticated task creation binding
 
-New owner-created task-hub and chat tasks persist the authenticated `admin.uid` and enter the owner lane. Shared assignments have no owner UID and enter the shared lane. The owner work-package API is authenticated by the dedicated orchestration bearer and stores the explicit service principal `mehran_owner_orchestrator` on both package and tasks. This is a service identity, not a guessed personal account UID.
+New owner-created task-hub and chat tasks retain the authenticated admin as the creator/audit actor, while their queue ownership is bound to the dedicated service principal `mehran_owner_orchestrator`. The owner work-package API is authenticated by the dedicated orchestration bearer and stores that same explicit principal on both package and tasks. Shared assignments have no owner UID and enter the shared lane. This is a service identity, not a guessed personal account UID.
 
 `GET /agent/v1/owner/tasks/next` plus owner checkpoint/result routes require `MEHRAN_ORCHESTRATOR_TOKEN`. The legacy `/agent/v1/tasks/next` plus checkpoint/result routes require `MEHRAN_AGENT_TOKEN` and can only claim shared-lane rows. Both claim recovery and acknowledgements enforce the same lane. The GitHub Actions private runner now claims and reports owner-lane work only, using the orchestration identity. The scheduled Worker scheduler also selects owner-lane tasks only.
 
