@@ -4,6 +4,26 @@ const REQUIRED_ACTIONS = Object.freeze([
   "repository_quality_check"
 ]);
 
+export const PRIVATE_INTELLIGENCE_INSPECTION_PATHS = Object.freeze([
+  "worker.js",
+  "scripts/intelligence-agent.mjs",
+  "scripts/intelligence-capabilities.mjs",
+  "scripts/intelligence-capabilities.test.mjs",
+  ".github/workflows/mehran-intelligence-runner.yml",
+  "docs/INTELLIGENCE_EXECUTION_PROTOCOL.md"
+]);
+
+const DEFAULT_INSPECTION_PATHS = Object.freeze([
+  "scripts/intelligence-agent.mjs",
+  "scripts/intelligence-capabilities.mjs",
+  "docs/INTELLIGENCE_EXECUTION_PROTOCOL.md"
+]);
+
+export function resolvePrivateIntelligenceInspectionPaths(mission) {
+  const paths = mission?.scope?.inspect_paths;
+  return Array.isArray(paths) ? [...paths] : [...DEFAULT_INSPECTION_PATHS];
+}
+
 const REQUIRED_FORBIDDEN = Object.freeze([
   "source_changes",
   "patch_application",
@@ -42,6 +62,14 @@ export function validatePrivateIntelligenceMission(mission) {
   if (!Array.isArray(mission.scope?.allowed_actions) ||
       !REQUIRED_ACTIONS.every(action => mission.scope.allowed_actions.includes(action))) {
     reasons.push("allowed_actions_incomplete");
+  }
+  if (mission.scope?.inspect_paths !== undefined) {
+    const paths = mission.scope.inspect_paths;
+    if (!Array.isArray(paths) || paths.length < 1 || paths.length > PRIVATE_INTELLIGENCE_INSPECTION_PATHS.length ||
+        new Set(paths).size !== paths.length ||
+        paths.some(path => typeof path !== "string" || !PRIVATE_INTELLIGENCE_INSPECTION_PATHS.includes(path))) {
+      reasons.push("inspection_paths_invalid");
+    }
   }
   if (!Array.isArray(mission.scope?.forbidden) ||
       !REQUIRED_FORBIDDEN.every(action => mission.scope.forbidden.includes(action))) {
