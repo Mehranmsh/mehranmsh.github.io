@@ -44,6 +44,8 @@ test("verifier rejects malformed identifiers and non-canonical timestamps", asyn
   assert.equal((await verifyPatchArtifactRecord(malformedId, created.artifactSha256)).code, "invalid_artifact_metadata");
   const malformedDate = { ...created.artifact, createdAt: "2026-11-26" };
   assert.equal((await verifyPatchArtifactRecord(malformedDate, created.artifactSha256)).code, "invalid_artifact_metadata");
+  const nonStringDate = { ...created.artifact, createdAt: { toString: () => "2026-11-26T00:00:00.000Z" } };
+  assert.equal((await verifyPatchArtifactRecord(nonStringDate, created.artifactSha256)).code, "invalid_artifact_metadata");
 });
 
 test("verifier rejects unexpected artifact fields and tampered digests", async () => {
