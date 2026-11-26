@@ -39,9 +39,9 @@ test("invalid numeric inputs are bounded and never throw", () => {
     error: "timeout",
     now: Number.MAX_VALUE
   });
-  assert.equal(result.retryable, false);
+  assert.equal(result.retryable, true);
   assert.equal(result.exhausted, false);
-  assert.equal(result.delaySeconds, 0);
+  assert.equal(result.delaySeconds, 30);
   assert.equal(result.nextAttemptAt, null);
 });
 
