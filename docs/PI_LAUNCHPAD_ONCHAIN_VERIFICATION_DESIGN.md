@@ -71,3 +71,20 @@ Do not infer an endpoint from Stellar documentation, a community indexer, a proj
 This design does not authorize live ingestion or scraping; guessed Horizon/RPC endpoints; wallet access, key handling, signing, or transactions; automatic buy/sell recommendations; claims that a signed statement proves on-chain truth; or enabling paid AI services or Cloudflare Workers AI.
 
 The analyzer must continue to display missing on-chain evidence as unknown until the complete verification path above is implemented and independently reviewed.
+
+## Official Pi documentation status (reviewed 2026-11-26)
+
+- Pi Network's April 8, 2026 RPC announcement explicitly describes the released RPC server as Testnet-only and gives `https://rpc.testnet.minepi.com` as its Testnet example endpoint. It says Mainnet RPC would follow based on Testnet performance and reliability. This document therefore does not authorize treating that endpoint as Mainnet or deriving a Mainnet URL by changing the hostname.
+- Pi's official developer documentation currently documents the Pi SDK and Platform API for app authentication, payments, ads, and app-related resources. These APIs are not a substitute for a public Mainnet ledger/AMM data API.
+- Pi's Ecosystem Summit announcement states that Launchpad, DEX, and AMM capabilities are planned for Mainnet in Q1 2027. This is a roadmap statement, not evidence that a public Mainnet RPC or AMM data endpoint is already available.
+- Until Pi publishes and documents the Mainnet data interface and its network identity/finality semantics, Mainnet-derived TVL, trade volume, pool composition, lock status, FDV, and holder concentration must remain unknown unless independently supported by another explicitly labeled evidence source.
+
+### Current implementation decision
+
+No live RPC adapter is being added in this increment. The documented Testnet RPC may be evaluated later in an isolated Testnet-only experiment, clearly labeled as Testnet and never allowed to feed Mainnet candidate scores. Mainnet ingestion remains blocked pending official Pi documentation and independent review.
+
+Official references reviewed:
+- Pi Network, Pi Testnet RPC Server Released (April 8, 2026): https://minepi.com/blog/rpc-server/
+- Pi Developer Documentation: https://developers.minepi.com/docs/docs/build-first-app/GettingStarted
+- Pi Network, Ecosystem Summit Begins (November 2026): https://minepi.com/blog/ecosystem-summit-begins/
+- Pi Network, New Pi Developer Capabilities & Documentation (September 4, 2026): https://minepi.com/blog/dev-capabilities-documentation/
