@@ -111,3 +111,17 @@ The Testnet policy module can now wrap a validated `getHealth` JSON-RPC response
 - The observation and nested result are deeply frozen and explicitly marked `eligibleForMainnetScoring: false`.
 - The digest detects later changes relative to the same serialization procedure. It does not prove who supplied the response, that the response is truthful, or that it represents canonical Pi state.
 - This remains a pure helper. It does not fetch RPC data, persist observations, or modify Launchpad scoring.
+
+
+## Bounded Testnet observation archive (2026-11-26)
+
+A pure archive-manifest helper now supports deterministic packaging and retrieval of already-created Testnet observations:
+- Accepts only schema-v1 observations for the exact Testnet `getHealth` endpoint/method and requires `eligibleForMainnetScoring: false`.
+- Enforces a maximum of 500 input records, 1 MiB per record, and 5 MiB total archive payload. These are prototype safety bounds, not retention policy.
+- Computes a deterministic observation identity from network, endpoint, method, request ID, retrieval timestamp, and the existing serialized-response digest. Repeated identities are counted and omitted.
+- Computes a canonical-JSON SHA-256 digest per archived record and a separate manifest digest. Verification recomputes both before retrieval.
+- Canonical JSON sorts object keys, making archive digests independent of property insertion order. These hashes detect local record changes; they do not authenticate the RPC source or prove the original response was truthful.
+- Retrieval is permitted only after the entire manifest passes validation and integrity checks.
+- The helper is in-memory and pure: no filesystem/database persistence, network requests, RPC calls, AI quota, wallet access, signing, or scoring integration.
+
+The archive does not recompute `serializedResponseSha256` from the stored result. That original digest covers the full normalized JSON-RPC response serialization, while the observation stores only its opaque result and metadata. The archive's own canonical record digest protects the stored observation after packaging, without overstating what can be independently reconstructed.
