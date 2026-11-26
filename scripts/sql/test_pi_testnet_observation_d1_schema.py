@@ -87,6 +87,133 @@ class D1SchemaCompatibilityTests(unittest.TestCase):
             )
         self.db.commit()
 
+    def _run_phase1(self, db, operation_id, replacement_hash, replacement_json,
+                    prepared_json, prepared_hash):
+        db.execute(
+            """INSERT INTO pi_testnet_archive_replacement_ops
+               (operation_id, archive_scope, archive_id, source_sha256,
+                replacement_sha256, replacement_envelope_json,
+                prepared_record_json, prepared_record_sha256, state)
+               SELECT ?, ?, ?, ?, ?, ?, ?, ?, 'prepared'
+               WHERE EXISTS (
+                 SELECT 1 FROM pi_testnet_archives
+                 WHERE archive_scope=? AND archive_id=? AND envelope_sha256=?
+               )
+               ON CONFLICT(operation_id) DO NOTHING""",
+            (operation_id, self.scope, self.archive_id, self.source_hash,
+             replacement_hash, replacement_json, prepared_json, prepared_hash,
+             self.scope, self.archive_id, self.source_hash),
+        )
+        changed = db.execute(
+            """UPDATE pi_testnet_archives
+               SET envelope_json=?, envelope_sha256=?
+               WHERE archive_scope=? AND archive_id=? AND envelope_sha256=?
+                 AND EXISTS (
+                   SELECT 1 FROM pi_testnet_archive_replacement_ops
+                   WHERE operation_id=? AND state='prepared'
+                     AND archive_scope=? AND archive_id=?
+                     AND source_sha256=? AND replacement_sha256=?
+                     AND replacement_envelope_json=?
+                     AND prepared_record_json=? AND prepared_record_sha256=?
+                 )
+                 AND NOT EXISTS (
+                   SELECT 1 FROM pi_testnet_archive_replacement_journal
+                   WHERE operation_id=? AND sequence=1
+                     AND (state<>'prepared' OR record_json<>? OR record_sha256<>?)
+                 )""",
+            (replacement_json, replacement_hash, self.scope, self.archive_id,
+             self.source_hash, operation_id, self.scope, self.archive_id,
+             self.source_hash, replacement_hash, replacement_json,
+             prepared_json, prepared_hash, operation_id, prepared_json, prepared_hash),
+        ).rowcount
+        db.execute(
+            """INSERT INTO pi_testnet_archive_replacement_journal
+               (operation_id, sequence, state, record_json, record_sha256)
+               SELECT operation_id, 1, 'prepared', prepared_record_json, prepared_record_sha256
+               FROM pi_testnet_archive_replacement_ops
+               WHERE operation_id=? AND state='prepared'
+               ON CONFLICT(operation_id, sequence) DO NOTHING""",
+            (operation_id,),
+        )
+        return changed
+
+    def test_two_competing_operations_only_one_can_replace_the_same_source(self):
+        replacement_a = dict(self.envelope, ciphertext="replacement-A")
+        replacement_b = dict(self.envelope, ciphertext="replacement-B")
+        json_a = json.dumps(replacement_a, separators=(",", ":"))
+        json_b = json.dumps(replacement_b, separators=(",", ":"))
+        hash_a, hash_b = "c" * 64, "d" * 64
+        prepared_a, prepared_b = '{"op":"A"}', '{"op":"B"}'
+        prepared_hash_a, prepared_hash_b = "e" * 64, "f" * 64
+
+        # Two independent connections model separately scheduled D1 batches.
+        other = sqlite3.connect(":memory:")
+        other.execute("PRAGMA foreign_keys = ON")
+        other.executescript(SCHEMA.read_text(encoding="utf-8"))
+        other.execute(
+            """INSERT INTO pi_testnet_archives
+               (archive_scope, archive_id, envelope_json, envelope_sha256, updated_at)
+               VALUES (?, ?, ?, ?, ?)""",
+            (self.scope, self.archive_id, self.envelope_json,
+             self.source_hash, "2026-11-26T00:00:00Z"),
+        )
+        other.commit()
+        try:
+            self.db.execute("BEGIN IMMEDIATE")
+            changed_a = self._run_phase1(
+                self.db, "op-A", hash_a, json_a, prepared_a, prepared_hash_a
+            )
+            self.db.commit()
+
+            other.execute("BEGIN IMMEDIATE")
+            changed_b = self._run_phase1(
+                other, "op-B", hash_b, json_b, prepared_b, prepared_hash_b
+            )
+            other.commit()
+
+            self.assertEqual(changed_a, 1)
+            self.assertEqual(changed_b, 0)
+            winner = other.execute(
+                "SELECT envelope_sha256 FROM pi_testnet_archives WHERE archive_scope=? AND archive_id=?",
+                (self.scope, self.archive_id),
+            ).fetchone()[0]
+            self.assertEqual(winner, hash_a)
+            operations = other.execute(
+                "SELECT operation_id FROM pi_testnet_archive_replacement_ops ORDER BY operation_id"
+            ).fetchall()
+            self.assertEqual(operations, [("op-A",)])
+            journal = other.execute(
+                "SELECT operation_id, sequence FROM pi_testnet_archive_replacement_journal"
+            ).fetchall()
+            self.assertEqual(journal, [("op-A", 1)])
+        finally:
+            other.close()
+
+    def test_reused_operation_id_with_different_payload_cannot_replace_archive(self):
+        replacement_a = dict(self.envelope, ciphertext="original-operation")
+        replacement_b = dict(self.envelope, ciphertext="substituted-operation")
+        json_a = json.dumps(replacement_a, separators=(",", ":"))
+        json_b = json.dumps(replacement_b, separators=(",", ":"))
+        self.db.execute("BEGIN IMMEDIATE")
+        self._run_phase1(self.db, "same-op", "c" * 64, json_a, '{"op":"same"}', "e" * 64)
+        self.db.commit()
+
+        self.db.execute("BEGIN IMMEDIATE")
+        changed = self._run_phase1(
+            self.db, "same-op", "d" * 64, json_b, '{"op":"changed"}', "f" * 64
+        )
+        self.db.commit()
+        self.assertEqual(changed, 0)
+        row = self.db.execute(
+            "SELECT envelope_sha256, envelope_json FROM pi_testnet_archives"
+        ).fetchone()
+        self.assertEqual(row, ("c" * 64, json_a))
+        operation = self.db.execute(
+            "SELECT replacement_sha256, replacement_envelope_json, prepared_record_json "
+            "FROM pi_testnet_archive_replacement_ops WHERE operation_id='same-op'"
+        ).fetchone()
+        self.assertEqual(operation, ("c" * 64, json_a, '{"op":"same"}'))
+
     def test_journal_is_append_only(self):
         self.db.execute(
             """INSERT INTO pi_testnet_archive_replacement_ops
