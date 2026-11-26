@@ -80,3 +80,47 @@ test("fails closed on readback mismatch and database errors",async()=>{
 test("does not persist without an explicit D1 binding and valid plan",async()=>{
  assert.equal((await persistPiLaunchpadEvidenceD1Plan(null,{})).accepted,false);
 });
+
+
+test("rejects caller-crafted plans before executing database statements",async()=>{
+ const p=buildPiLaunchpadEvidenceD1WritePlan([record()]);
+ const forged={...p,insertBatch:[{sql:"DROP TABLE pi_launchpad_evidence_records",params:[]} ]};
+ let batchCalls=0;
+ const db={async batch(){batchCalls++;},prepare(){throw new Error("must not prepare");}};
+ assert.equal((await persistPiLaunchpadEvidenceD1Plan(db,forged)).code,"invalid_d1_binding_or_plan");
+ assert.equal(batchCalls,0);
+});
+
+test("concurrent identical retries are idempotent and conflicting IDs fail closed",async()=>{
+ const p=buildPiLaunchpadEvidenceD1WritePlan([record()]);
+ const rows=new Map();
+ let batchCalls=0;
+ const db={
+  async batch(statements){
+   batchCalls++;
+   for(const item of statements){
+    const v=item.params;
+    if(!rows.has(v[0])) rows.set(v[0],{
+     record_id:v[0],network_id:v[1],asset_identifier:v[2],evidence_id:v[3],
+     evidence_type:v[4],field_name:v[5],value_json:v[6],provenance_json:v[7],
+     verification_status:v[8],chain_verification_status:v[9],scoring_status:v[10],
+     registry_version:v[11],created_at:v[12]
+    });
+   }
+  },
+  prepare(sql){
+   return {bind(...params){return {first:async()=>rows.get(params[0])??null};}};
+  }
+ };
+ const [a,b]=await Promise.all([
+  persistPiLaunchpadEvidenceD1Plan(db,p),
+  persistPiLaunchpadEvidenceD1Plan(db,p)
+ ]);
+ assert.equal(a.accepted,true);
+ assert.equal(b.accepted,true);
+ assert.equal(batchCalls,2);
+ const conflicting=buildPiLaunchpadEvidenceD1WritePlan([
+  record({assetIdentifier:"asset:issuer:OTHER"})
+ ]);
+ assert.equal((await persistPiLaunchpadEvidenceD1Plan(db,conflicting)).code,"d1_readback_conflict");
+});
