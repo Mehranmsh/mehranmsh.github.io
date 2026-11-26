@@ -8471,7 +8471,7 @@ export default {
           const id = decodeURIComponent(agentResultMatch[1]);
           if (!id || id.length > 160) return error("Invalid task ID.");
           const body = await readBody(request);
-          if (!body || typeof body.result !== "string" || body.result.length > 3000 || !["completed","blocked"].includes(body.status || "completed")) {
+          if (!body || typeof body.result !== "string" || body.result.length > 3000 || new TextEncoder().encode(body.result).byteLength > 12 * 1024 || !["completed","blocked"].includes(body.status || "completed")) {
             return error("A bounded result and valid terminal status are required.");
           }
           const resultText = cleanText(body.result,3000);
