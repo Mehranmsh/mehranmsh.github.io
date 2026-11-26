@@ -1593,6 +1593,19 @@ test("capability schemas are deeply immutable, including nested allowlists and v
 });
 
 
+test("capability pattern validation rejects trailing line terminators", () => {
+  const valid = {
+    branch: "intelligence/proposal-12345678",
+    title: "Bounded regression proposal",
+    headSha: "a".repeat(40)
+  };
+  assert.equal(validateIntelligenceCapabilityRequest("create_pull_request", valid).ok, true);
+  assert.equal(validateIntelligenceCapabilityRequest("create_pull_request", {
+    ...valid,
+    branch: valid.branch + "\\n"
+  }).code, "invalid_input_value");
+});
+
 test("capability lookup rejects inherited JavaScript object properties", () => {
   for (const name of ["constructor", "toString", "valueOf", "__proto__", "hasOwnProperty"]) {
     assert.equal(getIntelligenceCapability(name), null, name);
