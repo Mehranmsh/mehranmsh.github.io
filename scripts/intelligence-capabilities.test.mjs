@@ -168,7 +168,7 @@ test("executor metadata matches the actual Worker and GitHub Actions routing", (
   assert.match(workerSchedulerSource, /action_type IN \('project_status_report','social_metrics_report'\)/);
   assert.match(workerSchedulerSource, /action_type IN \('service_health_report','repository_quality_check'\)/);
   assert.doesNotMatch(workerSchedulerSource, /source_security_audit|inspect_repository|propose_code_patch/);
-  assert.match(workerSource, /action_type IN \('repository_quality_check','service_health_report','source_security_audit','inspect_repository','run_repository_tests','propose_code_patch'\)/);
+  assert.match(workerSource, /action_type IN \('repository_quality_check','service_health_report','source_security_audit','inspect_repository','architecture_review','run_repository_tests','propose_code_patch'\)/);
   assert.match(runnerSource, /if \(task\.actionType === "inspect_repository"\)/);
   assert.match(runnerSource, /if \(task\.actionType === "run_repository_tests"\)/);
   assert.match(runnerSource, /function runFixedRepositoryTests\(task\)/);
@@ -1646,6 +1646,13 @@ test("agent validates claimed task envelopes and returns the claim token", () =>
 });
 
 import { buildIntelligenceArchitectureReview } from "./intelligence-architecture-review.mjs";
+test("private inbox resolves and attaches a verified immutable base SHA only for authorized test tasks", () => {
+  assert.match(workerSource, /resolveMainCommitSha/);
+  assert.match(workerSource, /const testBaseSha = mission\.scope\.allowed_actions\.includes\("run_repository_tests"\)/);
+  assert.match(workerSource, /baseSha: testBaseSha/);
+  assert.match(workerSource, /private_inbox_test_base_sha_invalid/);
+});
+
 test("deterministic architecture review produces evidence-linked layers without AI", () => {
   const paths = ["worker.js","scripts/intelligence-agent.mjs","scripts/intelligence-capabilities.mjs",".github/workflows/mehran-intelligence-runner.yml","docs/INTELLIGENCE_EXECUTION_PROTOCOL.md","scripts/intelligence-architecture-review.mjs"];
   const files = paths.map(path => ({ path, content: path === "worker.js"
