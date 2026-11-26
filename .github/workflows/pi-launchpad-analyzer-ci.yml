@@ -32,6 +32,8 @@ on:
       - "scripts/pi-testnet-observation-keyring.test.mjs"
       - "scripts/pi-testnet-observation-rotation.mjs"
       - "scripts/pi-testnet-observation-rotation.test.mjs"
+      - "scripts/pi-testnet-observation-replacement-intent.mjs"
+      - "scripts/pi-testnet-observation-replacement-intent.test.mjs"
       - "scripts/pi-launchpad-trust-store.mjs"
       - "scripts/pi-launchpad-trust-store.test.mjs"
       - "scripts/pi-launchpad-source-registry.mjs"
@@ -75,5 +77,6 @@ jobs:
           node --check scripts/pi-testnet-observation-encryption.mjs
           node --check scripts/pi-testnet-observation-keyring.mjs
           node --check scripts/pi-testnet-observation-rotation.mjs
+          node --check scripts/pi-testnet-observation-replacement-intent.mjs
       - name: Run analyzer tests
         run: node --test --test-reporter=tap scripts/pi-launchpad-*.test.mjs scripts/pi-testnet-*.test.mjs
