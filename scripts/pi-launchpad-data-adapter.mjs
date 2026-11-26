@@ -82,7 +82,7 @@ export function validateLaunchpadDataEnvelope(input, options = {}) {
       if (evidenceCount > LAUNCHPAD_DATA_POLICY.maxEvidenceItems) return reject("evidence_limit", "Evidence item limit exceeded.");
       if (!isObject(item) || !isText(item.field, 64) || !isIsoDate(item.observedAt) ||
           !LAUNCHPAD_DATA_POLICY.allowedTrustLevels.includes(item.trustLevel) ||
-          !isText(item.reference, 2048) || !boundedNumber(Date.parse(item.observedAt), 0)) {
+          !isText(item.reference, 2048) || !boundedNumber(Date.parse(item.observedAt), 0) || !(item.value === null || ["string", "number", "boolean"].includes(typeof item.value)) || (typeof item.value === "string" && item.value.length > LAUNCHPAD_DATA_POLICY.maxTextLength) || (typeof item.value === "number" && !Number.isFinite(item.value))) {
         return reject("invalid_evidence_item", "An evidence item is missing required provenance.");
       }
       const itemTime = Date.parse(item.observedAt);
@@ -119,9 +119,7 @@ export function buildLaunchpadEvidenceLedger(validation) {
   }
   return Object.freeze(validation.evidence.map((item) => Object.freeze({
     ...item,
-    usableForScoring: item.trustLevel === "independently_verified",
-    scoringNote: item.trustLevel === "independently_verified"
-      ? "Eligible for scoring after field-specific verification."
-      : "Visible for review only; excluded from scoring until independently verified."
+    usableForScoring: false,
+    scoringNote: "Not eligible for scoring yet. Claimed trust labels are metadata only; a separate trusted attestation verifier is required."
   })));
 }
