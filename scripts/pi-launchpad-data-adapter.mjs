@@ -15,7 +15,8 @@ export const LAUNCHPAD_DATA_POLICY = Object.freeze({
   allowedTrustLevels: Object.freeze(["unverified", "publisher_claim", "independently_verified"])
 });
 
-const isObject = (v) => !!v && typeof v === "object" && !Array.isArray(v);
+const isObject = (v) => !!v && typeof v === "object" && !Array.isArray(v) &&
+  (Object.getPrototypeOf(v) === Object.prototype || Object.getPrototypeOf(v) === null);
 const isText = (v, max = LAUNCHPAD_DATA_POLICY.maxTextLength) =>
   typeof v === "string" && v.trim().length > 0 && v.length <= max;
 const isIsoDate = (v) => typeof v === "string" && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,3})?Z$/.test(v) && Number.isFinite(Date.parse(v));
