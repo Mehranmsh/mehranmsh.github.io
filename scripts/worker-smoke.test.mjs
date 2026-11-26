@@ -15,6 +15,7 @@ const musicStudioSource = await readFile(new URL("../music-studio.html", import.
 const capabilityImport = 'import { INTELLIGENCE_ACTION_TYPES, PREAPPROVED_INTELLIGENCE_ACTION_TYPES } from "./scripts/intelligence-capabilities.mjs";';
 const patchStoreImport = 'import { storePrivatePatchArtifact, verifyPrivatePatchArtifactAtPath, getPrivatePatchArtifactPath, getVerifiedPrivatePatchArtifactAtPath } from "./scripts/intelligence-private-patch-store.mjs";';
 const patchGenerationImport = 'import { extractPatchModelText, generatePatchArtifact } from "./scripts/intelligence-patch-generation-service.mjs";';
+const patchTargetsImport = 'import { isAllowedIntelligencePatchTarget } from "./scripts/intelligence-patch-targets.mjs";';
 const inboxSchemaImport = 'import { validatePrivateIntelligenceMission, resolvePrivateIntelligenceInspectionPaths } from "./scripts/intelligence-inbox-schema.mjs";';
 const routinePlannerImport = 'import { buildDeterministicRoutinePlan } from "./scripts/intelligence-routine-planner.mjs";';
 const memoryRankingImport = 'import { selectMemoryContext } from "./scripts/intelligence-memory-ranking.mjs";';
@@ -111,6 +112,7 @@ export async function generatePatchArtifact(args) {
 const workerRest = workerSource.replace(capabilityImport, "")
   .replace(patchStoreImport, "")
   .replace(patchGenerationImport, "")
+  .replace(patchTargetsImport, "")
   .replace(inboxSchemaImport, "")
   .replace(routinePlannerImport, "")
   .replace(memoryRankingImport, "")
@@ -122,6 +124,8 @@ const workerRest = workerSource.replace(capabilityImport, "")
 const workerSourceForTest = knowledgeGraphSource + "\n" + memoryRankingSource + "\n" + feedbackReviewSource + "\n" + planHistorySource + "\n" + planLearningSource + "\n" + routinePlannerSource + "\n" + retryPolicySource + `\nimport { storePrivatePatchArtifact, verifyPrivatePatchArtifactAtPath, getPrivatePatchArtifactPath, getVerifiedPrivatePatchArtifactAtPath } from "${patchStoreTestUrl}";
 import { generatePatchArtifact } from "${patchGenerationTestUrl}";
 import { validatePrivateIntelligenceMission } from "${inboxSchemaUrl}";
+const INTELLIGENCE_PATCH_TARGETS = new Set(["scripts/intelligence-capabilities.test.mjs","scripts/intelligence-inbox-schema.test.mjs"]);
+const isAllowedIntelligencePatchTarget = path => typeof path === "string" && INTELLIGENCE_PATCH_TARGETS.has(path);
 const INTELLIGENCE_ACTION_TYPES = ${JSON.stringify(INTELLIGENCE_ACTION_TYPES)};
 const PREAPPROVED_INTELLIGENCE_ACTION_TYPES = ${JSON.stringify(PREAPPROVED_INTELLIGENCE_ACTION_TYPES)};
 ` + workerRest;
