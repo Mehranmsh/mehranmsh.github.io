@@ -90,6 +90,13 @@ export function buildPiLaunchpadEvidenceD1InsertPlan({ record, createdAt } = {})
     return Object.freeze({ accepted: false, code: "invalid_evidence_d1_record" });
   }
 
+  let sourceUrl;
+  try { sourceUrl = new URL(record.source.url); }
+  catch { return Object.freeze({ accepted: false, code: "invalid_evidence_d1_source_url" }); }
+  if (sourceUrl.protocol !== "https:" || sourceUrl.username || sourceUrl.password || sourceUrl.port || sourceUrl.hash) {
+    return Object.freeze({ accepted: false, code: "invalid_evidence_d1_source_url" });
+  }
+
   let valueJson, provenanceJson;
   try {
     valueJson = canonicalJson(record.value);
