@@ -55,3 +55,25 @@ test("new owner-created tasks persist authenticated owner identity", async () =>
   assert.match(worker, /typeof input\.ownerUid === "string" && input\.ownerUid\.trim\(\) \? input\.ownerUid\.trim\(\) : null/);
   assert.match(worker, /typeof input\.ownerUid === "string" && input\.ownerUid\.trim\(\) \? "owner" : "quarantine"/);
 });
+
+
+test("owner and shared task APIs are authenticated and lane-isolated end to end", async () => {
+  const worker = await readFile(new URL("../worker.js", import.meta.url), "utf8");
+  const runner = await readFile(new URL("../.github/workflows/mehran-intelligence-runner.yml", import.meta.url), "utf8");
+  assert.match(worker, /path === "\/agent\/v1\/owner\/tasks\/next"[\s\S]*?MEHRAN_ORCHESTRATOR_TOKEN/);
+  assert.match(worker, /queue_lane='owner' AND owner_uid IS NOT NULL/);
+  assert.match(worker, /queue_lane='shared' AND owner_uid IS NULL/);
+  assert.match(worker, /const taskRouteLane = path\.startsWith\("\/agent\/v1\/owner\/tasks\/"\) \? "owner" : "shared"/);
+  assert.match(runner, /request\("\/agent\/v1\/owner\/tasks\/next", \{\}, ownerHeaders\)/);
+  assert.match(runner, /\/agent\/v1\/owner\/tasks\/\$\{encodeURIComponent\(task\.id\)\}\/checkpoint/);
+  assert.match(runner, /\/agent\/v1\/owner\/tasks\/\$\{encodeURIComponent\(task\.id\)\}\/result/);
+  assert.match(runner, /task\.queueLane !== "owner"/);
+  assert.doesNotMatch(runner, /request\("\/agent\/v1\/tasks\/next"/);
+});
+
+test("owner work packages use the dedicated orchestration principal", async () => {
+  const worker = await readFile(new URL("../worker.js", import.meta.url), "utf8");
+  assert.match(worker, /const packageOwnerPrincipal = "mehran_owner_orchestrator"/);
+  assert.match(worker, /scope_json,priority,status,created_by,owner_uid\) VALUES/);
+  assert.match(worker, /work_package_id,max_attempts,owner_uid,queue_lane\).*'owner'/);
+});
