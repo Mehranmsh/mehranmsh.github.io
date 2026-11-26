@@ -109,12 +109,18 @@ export function buildPiTestnetArchiveD1ReplacementPlan(input) {
              AND source_sha256 = ? AND replacement_sha256 = ?
              AND replacement_envelope_json = ?
              AND prepared_record_json = ? AND prepared_record_sha256 = ?
+         )
+         AND NOT EXISTS (
+           SELECT 1 FROM pi_testnet_archive_replacement_journal
+           WHERE operation_id = ? AND sequence = 1
+             AND (state <> 'prepared' OR record_json <> ? OR record_sha256 <> ?)
          )`,
       [input.operationId, input.operationId, input.archiveScope,
        input.archiveId, input.sourceEnvelopeSha256, input.operationId,
        input.archiveScope, input.archiveId, input.sourceEnvelopeSha256,
        input.replacementEnvelopeSha256, input.replacementEnvelopeJson,
-       input.preparedRecordJson, input.preparedRecordSha256]
+       input.preparedRecordJson, input.preparedRecordSha256,
+       input.operationId, input.preparedRecordJson, input.preparedRecordSha256]
     ),
     statement(
       `INSERT INTO pi_testnet_archive_replacement_journal
@@ -145,13 +151,19 @@ export function buildPiTestnetArchiveD1ReplacementPlan(input) {
            SELECT 1 FROM pi_testnet_archive_replacement_journal
            WHERE operation_id = ? AND sequence = 1 AND state = 'prepared'
              AND record_json = ? AND record_sha256 = ?
+         )
+         AND NOT EXISTS (
+           SELECT 1 FROM pi_testnet_archive_replacement_journal
+           WHERE operation_id = ? AND sequence = 2
+             AND (state <> 'committed' OR record_json <> ? OR record_sha256 <> ?)
          )`,
       [input.operationId, input.archiveScope, input.archiveId,
        input.sourceEnvelopeSha256, input.replacementEnvelopeSha256,
        input.replacementEnvelopeJson, input.preparedRecordJson,
        input.preparedRecordSha256, input.archiveScope, input.archiveId,
        input.replacementEnvelopeSha256, input.operationId,
-       input.preparedRecordJson, input.preparedRecordSha256]
+       input.preparedRecordJson, input.preparedRecordSha256,
+       input.operationId, input.committedRecordJson, input.committedRecordSha256]
     ),
     statement(
       `INSERT INTO pi_testnet_archive_replacement_journal
