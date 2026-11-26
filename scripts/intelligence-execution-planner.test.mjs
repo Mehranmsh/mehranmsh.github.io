@@ -36,3 +36,27 @@ test("is deterministic, bounded and read-only",()=>{
  assert.deepEqual(a,b); assert.equal(a.diagnostics.omittedTasks,1); assert.deepEqual(input,before); assert.equal(a.diagnostics.advisoryOnly,true);
 });
 test("returns an empty safe plan without owner scope",()=>{const r=buildIntelligenceExecutionPlan([task("a")]);assert.equal(r.orderedTasks.length,0);assert.equal(r.diagnostics.executionPerformed,false);});
+
+
+test("bounds raw task records before owner filtering",()=>{
+ const records=Array.from({length:10000},(_,i)=>task("task-"+String(i).padStart(5,"0")));
+ const r=buildIntelligenceExecutionPlan(records,{ownerUid:"owner-a",maxTasks:120});
+ assert.equal(r.diagnostics.rawRecordsInspected,10000);
+ assert.equal(r.diagnostics.rawRecordsOmitted,0);
+ assert.equal(r.diagnostics.inspectedTasks,120);
+ assert.equal(r.diagnostics.omittedTasks,9880);
+ const oversized=[...records,...Array.from({length:25},(_,i)=>task("extra-"+i))];
+ const capped=buildIntelligenceExecutionPlan(oversized,{ownerUid:"owner-a"});
+ assert.equal(capped.diagnostics.rawRecordsInspected,10000);
+ assert.equal(capped.diagnostics.rawRecordsOmitted,25);
+});
+
+test("caps nested dependency identifiers before normalization",()=>{
+ const dependencies=Array.from({length:10000},(_,i)=>"dep-"+i);
+ const r=buildIntelligenceExecutionPlan([
+  task("build",{depends_on_task_ids:dependencies,dependencies_confirmed:true,dependencies_confirmed_by:"owner-a"})
+ ],{ownerUid:"owner-a"});
+ assert.equal(r.unresolvedTasks.length,0);
+ assert.equal(r.blockedTasks[0].unresolved_dependencies.length,50);
+ assert.equal(r.blockedTasks[0].unresolved_dependencies[0],"dep-0");
+});
