@@ -1456,6 +1456,27 @@ test("owner approval remains the only way to release approval-gated tasks", () =
 
 test("scheduled Intelligence runner is single-flight, secret-backed and restricted to read-only reports", async () => {
   const runner = await readFile(new URL("../.github/workflows/mehran-intelligence-runner.yml", import.meta.url), "utf8");
+  assert.match(runner, /import \{ readBoundedResponse \} from "\.\/scripts\/intelligence-bounded-response\.mjs"/,
+    "scheduled runner must import the shared bounded response reader");
+  assert.match(runner, /readBoundedResponse\(response, 65536\)/,
+    "scheduled runner must cap Agent API responses at 64 KiB");
+  assert.doesNotMatch(runner, /\b[A-Za-z_$][\w$]*Response\.(?:text|json)\(\)/,
+    "scheduled runner must not read unbounded API response bodies");
+  assert.match(runner, /readJsonResponse\(repoResponse, 65536\)/,
+    "scheduled runner must cap GitHub repository metadata responses");
+  assert.match(runner, /readJsonResponse\(commitResponse, 256 \* 1024\)/,
+    "scheduled runner must cap GitHub commit-list responses");
+  assert.match(runner, /if \(!value \|\| typeof value !== "object"\) throw new Error\("invalid JSON value"\)/,
+    "bounded GitHub response parser must accept valid JSON arrays such as commit lists");
+  assert.match(runner, /readJsonResponse\(commitResponse, 65536\)/,
+    "scheduled runner must cap individual GitHub commit responses");
+  const proposalRunnerSource = await readFile(new URL("./intelligence-proposal-pr-runner.mjs", import.meta.url), "utf8");
+  assert.match(proposalRunnerSource, /readJsonResponse\(response, 65536\)/,
+    "proposal runner must bound Worker API responses");
+  assert.match(proposalRunnerSource, /readJsonResponse\(response, 256 \* 1024\)/,
+    "proposal runner must bound GitHub API responses");
+  assert.doesNotMatch(proposalRunnerSource, /response\.text\(\)|response\.json\(\)/,
+    "proposal runner must not read unbounded API response bodies");
   assert.match(runner, /schedule:/);
   assert.match(runner, /cron: "\*\/15 \* \* \* \*"/, "scheduled runner cadence must be limited to every 15 minutes");
   assert.match(runner, /concurrency:/);

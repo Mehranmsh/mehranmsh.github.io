@@ -49,6 +49,7 @@ jobs:
           import { join } from "node:path";
           import { createHash } from "node:crypto";
           import { verifyIntelligenceResultCheckpoint } from "./scripts/intelligence-checkpoint.mjs";
+          import { readBoundedResponse } from "./scripts/intelligence-bounded-response.mjs";
           const base = process.env.MEHRAN_AGENT_URL;
           const agentToken = process.env.MEHRAN_AGENT_TOKEN || "";
           const orchestratorToken = process.env.MEHRAN_ORCHESTRATOR_TOKEN || "";
@@ -91,6 +92,16 @@ jobs:
             if (path === "/health") return "worker_health";
             return "agent_api";
           }
+          async function readJsonResponse(response, maxBytes) {
+            const raw = await readBoundedResponse(response, maxBytes);
+            try {
+              const value = raw ? JSON.parse(raw) : {};
+              if (!value || typeof value !== "object") throw new Error("invalid JSON value");
+              return value;
+            } catch {
+              throw new Error("Remote API returned invalid or oversized JSON.");
+            }
+          }
           async function request(path, options = {}, headers = agentHeaders, timeoutMs = 20000) {
             const requestStartedAt = Date.now();
             const traceId = traceRunId + "-" + (++requestSequence);
@@ -105,7 +116,7 @@ jobs:
                     signal: AbortSignal.timeout(timeoutMs)
                   });
                   responseStatus = response.status;
-                  const raw = await response.text();
+                  const raw = await readBoundedResponse(response, 65536);
                   let payload;
                   try { payload = raw ? JSON.parse(raw) : {}; }
                   catch { throw new Error(`Agent API returned non-JSON HTTP ${response.status}`); }
@@ -309,7 +320,7 @@ jobs:
                   headers, signal: AbortSignal.timeout(15000)
                 });
                 if (!response.ok) throw new Error(`GitHub main commit lookup HTTP ${response.status}`);
-                const commit = await response.json();
+                const commit = await readJsonResponse(response, 65536);
                 baseSha = String(commit?.sha || "").toLowerCase();
                 if (!/^[a-f0-9]{40}$/.test(baseSha)) throw new Error("GitHub returned an invalid main commit SHA.");
                 const saved = await request(`/agent/v1/tasks/${encodeURIComponent(task.id)}/checkpoint`, {
@@ -369,13 +380,13 @@ jobs:
                 headers, signal: AbortSignal.timeout(12000)
               });
               if (!repoResponse.ok) throw new Error(`GitHub repository metadata HTTP ${repoResponse.status}`);
-              const metadata = await repoResponse.json();
+              const metadata = await readJsonResponse(repoResponse, 65536);
               if (metadata.full_name !== "Mehranmsh/mehranmsh.github.io") throw new Error("Unexpected repository identity.");
               const commitResponse = await fetch("https://api.github.com/repos/Mehranmsh/mehranmsh.github.io/commits?per_page=1", {
                 headers, signal: AbortSignal.timeout(12000)
               });
               if (!commitResponse.ok) throw new Error(`GitHub latest commit HTTP ${commitResponse.status}`);
-              const commits = await commitResponse.json();
+              const commits = await readJsonResponse(commitResponse, 256 * 1024);
               const latest = Array.isArray(commits) ? commits[0] : null;
               return {
                 type: task.actionType,
@@ -420,7 +431,7 @@ jobs:
                 headers, signal: AbortSignal.timeout(15000)
               });
               if (!commitResponse.ok) throw new Error(`GitHub main commit lookup HTTP ${commitResponse.status}`);
-              const commit = await commitResponse.json();
+              const commit = await readJsonResponse(commitResponse, 65536);
               if (typeof commit.sha !== "string" || !/^[a-f0-9]{40}$/i.test(commit.sha)) throw new Error("GitHub returned an invalid main commit SHA.");
               const files = [];
               let totalBytes = 0;
@@ -430,7 +441,7 @@ jobs:
                   headers, signal: AbortSignal.timeout(15000)
                 });
                 if (!response.ok) throw new Error(`GitHub source read failed for allowlisted path ${path}: HTTP ${response.status}`);
-                const file = await response.json();
+                const file = await readJsonResponse(response, 1024 * 1024);
                 if (file.type !== "file" || file.path !== path || file.encoding !== "base64" ||
                     typeof file.content !== "string" || typeof file.sha !== "string" || !/^[a-f0-9]{40}$/i.test(file.sha) ||
                     !Number.isInteger(file.size) || file.size < 0 || file.size > 600000) {
@@ -494,7 +505,7 @@ jobs:
                   signal: AbortSignal.timeout(20000)
                 });
                 if (!response.ok) throw new Error(`GitHub source read failed for ${path}: HTTP ${response.status}`);
-                const file = await response.json();
+                const file = await readJsonResponse(response, 1024 * 1024);
                 if (file.type !== "file" || file.path !== path || typeof file.content !== "string" || file.encoding !== "base64" ||
                     typeof file.sha !== "string" || !/^[a-f0-9]{40}$/i.test(file.sha) ||
                     !Number.isInteger(file.size) || file.size < 0 || file.size > 600000) {

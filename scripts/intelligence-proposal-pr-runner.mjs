@@ -3,6 +3,7 @@ import { mkdtempSync, readFileSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { applyValidatedPatchInMemory } from "./intelligence-patch-apply.mjs";
+import { readBoundedResponse } from "./intelligence-bounded-response.mjs";
 
 const baseUrl = process.env.MEHRAN_AGENT_URL;
 const agentToken = process.env.MEHRAN_AGENT_TOKEN || "";
@@ -18,6 +19,16 @@ if (!baseUrl || agentToken.length < 40 || ownerToken.length < 40 || githubToken.
     !/^[0-9]{1,24}$/.test(runId) || !/^[a-f0-9]{40}$/.test(currentMainSha)) {
   throw new Error("Verified proposal runner configuration is incomplete.");
 }
+const readJsonResponse = async (response, maxBytes) => {
+  const raw = await readBoundedResponse(response, maxBytes);
+  if (!raw) return {};
+  try {
+    const value = JSON.parse(raw);
+    return value && typeof value === "object" && !Array.isArray(value) ? value : {};
+  } catch {
+    throw new Error("Remote API returned invalid JSON.");
+  }
+};
 const workerRequest = async (path, token, options = {}) => {
   const response = await fetch(baseUrl + path, {
     ...options,
@@ -25,7 +36,7 @@ const workerRequest = async (path, token, options = {}) => {
       "Content-Type": "application/json", ...(options.headers || {}) },
     signal: AbortSignal.timeout(30000)
   });
-  const payload = await response.json().catch(() => ({}));
+  const payload = await readJsonResponse(response, 65536);
   if (!response.ok) throw new Error("Worker proposal API HTTP " + response.status + ": " + String(payload.error || "request failed").slice(0,160));
   return payload;
 };
@@ -38,7 +49,7 @@ const gh = async (path, method = "GET", body = undefined) => {
     ...(body === undefined ? {} : { body: JSON.stringify(body) }),
     signal: AbortSignal.timeout(30000)
   });
-  const payload = await response.json().catch(() => ({}));
+  const payload = await readJsonResponse(response, 256 * 1024);
   if (!response.ok) throw new Error("GitHub API HTTP " + response.status + " for " + method + " " + path.slice(0,100) + ": " + String(payload.message || "request failed").slice(0,160));
   return payload;
 };
