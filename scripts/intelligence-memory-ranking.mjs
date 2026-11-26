@@ -1,7 +1,7 @@
 import { buildIntelligenceKnowledgeGraph } from "./intelligence-knowledge-graph.mjs";
 
 const MEMORY_TYPES = new Set(["episodic", "semantic", "procedural", "decision", "working", "evaluation"]);
-const BLOCKED_SENSITIVITY = new Set(["secret", "credential", "wallet", "financial", "private_social"]);
+const BLOCKED_SENSITIVITY = new Set(["secret", "credential", "wallet", "financial", "private_social", "health", "identity"]);
 const DEFAULT_LIMITS = Object.freeze({ maxItems: 12, maxChars: 6000, maxItemChars: 1200 });
 
 function normalizeMemoryType(value) {
