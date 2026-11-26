@@ -34,7 +34,7 @@ test("builds parameterized insert and read-back statements without executing the
   const plan = buildPiLaunchpadEvidenceD1InsertPlan({ record: record(), createdAt: CREATED });
   assert.equal(plan.accepted, true);
   assert.equal(plan.statements.length, 2);
-  assert.match(plan.statements[0].sql, /ON CONFLICT\\(record_id\\) DO NOTHING/);
+  assert.ok(plan.statements[0].sql.includes('ON CONFLICT(record_id) DO NOTHING'));
   assert.match(plan.statements[1].sql, /SELECT record_id/);
   assert.equal(plan.statements[0].params[0], record().recordId);
   assert.equal(plan.expectedRow.chain_verification_status, "not_verified");
@@ -78,7 +78,7 @@ test("rejects non-JSON values and sparse arrays", () => {
 test("read-back accepts exact duplicate and rejects conflicting stored content", () => {
   const plan = buildPiLaunchpadEvidenceD1InsertPlan({ record: record(), createdAt: CREATED });
   assert.equal(verifyPiLaunchpadEvidenceD1ReadBack(plan.expectedRow, { ...plan.expectedRow }).accepted, true);
-  const conflict = { ...plan.expectedRow, value_json: "{\"score\":99}" };
+  const conflict = { ...plan.expectedRow, value_json: JSON.stringify({ score: 99 }) };
   assert.deepEqual(verifyPiLaunchpadEvidenceD1ReadBack(plan.expectedRow, conflict), {
     accepted: false, code: "d1_record_conflict"
   });
