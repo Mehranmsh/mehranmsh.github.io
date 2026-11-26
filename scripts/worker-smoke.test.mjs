@@ -1419,6 +1419,8 @@ test("MEHRAN Intelligence Agent API is enabled only behind its dedicated bearer 
   assert.match(route, /finalStatus = retryable \? "retry_wait" : requestedStatus/);
   assert.match(route, /Math\.min\(3600,30 \* \(2 \*\* Math\.max/);
   assert.match(route, /id\.length > 160/);
+  assert.equal((route.match(/try \{ id = decodeURIComponent\(/g) || []).length, 2);
+  assert.equal((route.match(/catch \{ return error\("Invalid task ID\."\); \}/g) || []).length, 2);
   assert.match(route, /Agent authentication required/);
   assert.match(route, /Agent service identity is not configured/);
   assert.match(route, /requires_approval=0/);
