@@ -3990,7 +3990,7 @@ test("Worker JSON body reader validates media type and declared lengths and rele
   assert.ok(start >= 0 && end > start);
   const reader = workerSource.slice(start, end);
   assert.match(reader, /split\(";"\)\[0\]\.trim\(\)\.toLowerCase\(\)/);
-  assert.match(reader, /type !== "application\\/json"/);
+  assert.match(reader, /type !== "application\/json"/);
   assert.match(reader, /lengthHeader === null \? null : Number\(lengthHeader\)/);
   assert.match(reader, /!Number\.isSafeInteger\(length\) \|\| length < 0 \|\| length > maxBytes/);
   assert.match(reader, /reader\.releaseLock\(\)/);
