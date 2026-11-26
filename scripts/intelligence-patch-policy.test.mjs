@@ -32,3 +32,18 @@ test("rejects unsafe or excessive hunk counts", () => {
     assert.equal(validatePatchProposal(input).code, "invalid_hunk_counts");
   }
 });
+
+test("accepts the second exact allowlisted test target and rejects production paths", () => {
+  const targetPath = "scripts/intelligence-inbox-schema.test.mjs";
+  const input = {
+    ...base,
+    targetPaths: [targetPath],
+    diff: `--- a/${targetPath}
++++ b/${targetPath}
+@@ -1,0 +2,1 @@
++test("bounded case", () => {});
+`
+  };
+  assert.equal(validatePatchProposal(input).ok, true);
+  assert.equal(validatePatchProposal({ ...input, targetPaths: ["worker.js"] }).code, "path_not_allowed");
+});
