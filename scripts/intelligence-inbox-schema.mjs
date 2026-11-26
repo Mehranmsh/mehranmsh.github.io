@@ -66,7 +66,7 @@ export function validatePrivateIntelligenceMission(mission) {
   }
   if (mission.scope?.inspect_paths !== undefined) {
     const paths = mission.scope.inspect_paths;
-    if (!Array.isArray(paths) || paths.length < 1 || paths.length > PRIVATE_INTELLIGENCE_INSPECTION_PATHS.length ||
+    if (!Array.isArray(paths) || paths.length < 1 || paths.length > 6 ||
         new Set(paths).size !== paths.length ||
         paths.some(path => typeof path !== "string" || !PRIVATE_INTELLIGENCE_INSPECTION_PATHS.includes(path))) {
       reasons.push("inspection_paths_invalid");
