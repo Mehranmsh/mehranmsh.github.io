@@ -945,8 +945,11 @@ test("Intelligence owner AI reservation is isolated from combined customer usage
 });
 
 test("scheduled Intelligence runner serializes ticks and bounds per-tick task execution", () => {
-  assert.ok(runnerSource.includes("group: mehran-intelligence-private-runner-${{ github.run_id }}"));
+  assert.ok(runnerSource.includes("group: mehran-intelligence-owner-runner"));
   assert.ok(runnerSource.includes("cancel-in-progress: false"));
+  const sharedRunnerSource = readFileSync(new URL("../.github/workflows/mehran-intelligence-shared-runner.yml", import.meta.url), "utf8");
+  assert.ok(sharedRunnerSource.includes("group: mehran-intelligence-shared-runner"));
+  assert.ok(sharedRunnerSource.includes("cancel-in-progress: false"));
   assert.match(runnerSource, /for \(let count = 0; count < 5 && Date\.now\(\) < taskExecutionDeadline; count\+\+\)/);
   assert.match(runnerSource, /const taskExecutionDeadline = tickStartedAt \+ 7 \* 60 \* 1000/);
 });
