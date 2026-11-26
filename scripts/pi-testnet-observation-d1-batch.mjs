@@ -132,13 +132,26 @@ export function buildPiTestnetArchiveD1ReplacementPlan(input) {
       `UPDATE pi_testnet_archive_replacement_ops
        SET state = 'committed'
        WHERE operation_id = ? AND state = 'prepared'
+         AND archive_scope = ? AND archive_id = ?
+         AND source_sha256 = ? AND replacement_sha256 = ?
+         AND replacement_envelope_json = ?
+         AND prepared_record_json = ? AND prepared_record_sha256 = ?
          AND EXISTS (
            SELECT 1 FROM pi_testnet_archives
            WHERE archive_scope = ? AND archive_id = ?
              AND envelope_sha256 = ?
+         )
+         AND EXISTS (
+           SELECT 1 FROM pi_testnet_archive_replacement_journal
+           WHERE operation_id = ? AND sequence = 1 AND state = 'prepared'
+             AND record_json = ? AND record_sha256 = ?
          )`,
       [input.operationId, input.archiveScope, input.archiveId,
-       input.replacementEnvelopeSha256]
+       input.sourceEnvelopeSha256, input.replacementEnvelopeSha256,
+       input.replacementEnvelopeJson, input.preparedRecordJson,
+       input.preparedRecordSha256, input.archiveScope, input.archiveId,
+       input.replacementEnvelopeSha256, input.operationId,
+       input.preparedRecordJson, input.preparedRecordSha256]
     ),
     statement(
       `INSERT INTO pi_testnet_archive_replacement_journal
@@ -147,17 +160,27 @@ export function buildPiTestnetArchiveD1ReplacementPlan(input) {
        FROM pi_testnet_archive_replacement_ops
        WHERE operation_id = ? AND state = 'committed'
          AND archive_scope = ? AND archive_id = ?
-         AND replacement_sha256 = ?
+         AND source_sha256 = ? AND replacement_sha256 = ?
+         AND replacement_envelope_json = ?
+         AND prepared_record_json = ? AND prepared_record_sha256 = ?
          AND EXISTS (
            SELECT 1 FROM pi_testnet_archives
            WHERE archive_scope = ? AND archive_id = ?
              AND envelope_sha256 = ?
          )
+         AND EXISTS (
+           SELECT 1 FROM pi_testnet_archive_replacement_journal
+           WHERE operation_id = ? AND sequence = 1 AND state = 'prepared'
+             AND record_json = ? AND record_sha256 = ?
+         )
        ON CONFLICT(operation_id, sequence) DO NOTHING`,
       [input.committedRecordJson, input.committedRecordSha256,
        input.operationId, input.archiveScope, input.archiveId,
-       input.replacementEnvelopeSha256, input.archiveScope,
-       input.archiveId, input.replacementEnvelopeSha256]
+       input.sourceEnvelopeSha256, input.replacementEnvelopeSha256,
+       input.replacementEnvelopeJson, input.preparedRecordJson,
+       input.preparedRecordSha256, input.archiveScope, input.archiveId,
+       input.replacementEnvelopeSha256, input.operationId,
+       input.preparedRecordJson, input.preparedRecordSha256]
     )
   ]);
 
@@ -182,7 +205,8 @@ export function buildPiTestnetArchiveD1ReplacementPlan(input) {
       "Read back archive and prepared journal after phase1; verify exact digests.",
       "If source digest remains, leave prepared state for recovery; if an unknown digest appears, stop for manual reconciliation.",
       "Execute phase2 in exactly one D1Database.batch call only after replacement read-back verification.",
-      "Read back and verify the committed journal after phase2.",
+      "Before phase2, require exact operation payload and prepared journal JSON/digest matches; otherwise stop.",
+      "After phase2, require exact committed journal JSON and digest read-back; an ignored uniqueness conflict is not success.",
       "Never use individual run calls for the multi-statement phases."
     ]),
     limitation: "D1 batch provides atomicity per batch, not one interactive transaction across phase1, read-back, and phase2. A crash between phases leaves a recoverable prepared operation."
