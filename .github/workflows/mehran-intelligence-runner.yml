@@ -494,7 +494,7 @@ jobs:
                   const index = source.indexOf(anchor);
                   return index < 0 ? "" : source.slice(Math.max(0, index - 160), index + 760);
                 }).filter(Boolean);
-                const excerpt = (excerpts.length ? excerpts.join("\\n...\\n") : source).slice(0, 2500);
+                const excerpt = (excerpts.length ? excerpts.join("\n...\n") : source).slice(0, 2500);
                 analysisEvidence.push({ path, sha: file.sha, excerpt });
               }
 
