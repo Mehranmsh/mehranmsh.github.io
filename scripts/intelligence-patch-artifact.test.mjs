@@ -52,5 +52,5 @@ test("verifier rejects unexpected artifact fields and tampered digests", async (
   const created = await createPatchArtifactRecord(validInput);
   assert.equal(created.ok, true);
   assert.equal((await verifyPatchArtifactRecord({ ...created.artifact, trusted: true }, created.artifactSha256)).code, "artifact_schema_mismatch");
-  assert.equal((await verifyPatchArtifactRecord({ ...created.artifact, diff: created.artifact.diff + "+\n" }, created.artifactSha256)).code, "diff_digest_mismatch");
+  assert.equal((await verifyPatchArtifactRecord({ ...created.artifact, diff: created.artifact.diff.replace("artifact regression", "artifact regression altered") }, created.artifactSha256)).code, "diff_digest_mismatch");
 });
