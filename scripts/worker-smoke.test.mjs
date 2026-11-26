@@ -1455,6 +1455,7 @@ test("owner approval remains the only way to release approval-gated tasks", () =
 });
 
 test("scheduled Intelligence runner is single-flight, secret-backed and restricted to read-only reports", async () => {
+  const runner = await readFile(new URL("../.github/workflows/mehran-intelligence-runner.yml", import.meta.url), "utf8");
   assert.match(runner, /import \{ readBoundedResponse \} from "\.\/scripts\/intelligence-bounded-response\.mjs"/,
     "scheduled runner must import the shared bounded response reader");
   assert.match(runner, /readBoundedResponse\(response, 65536\)/,
@@ -1468,8 +1469,6 @@ test("scheduled Intelligence runner is single-flight, secret-backed and restrict
     "proposal runner must bound GitHub API responses");
   assert.doesNotMatch(proposalRunnerSource, /response\.text\(\)|response\.json\(\)/,
     "proposal runner must not read unbounded API response bodies");
-
-  const runner = await readFile(new URL("../.github/workflows/mehran-intelligence-runner.yml", import.meta.url), "utf8");
   assert.match(runner, /schedule:/);
   assert.match(runner, /cron: "\*\/15 \* \* \* \*"/, "scheduled runner cadence must be limited to every 15 minutes");
   assert.match(runner, /concurrency:/);
