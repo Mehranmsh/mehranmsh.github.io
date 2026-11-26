@@ -20,6 +20,7 @@ export function createPiTestnetArchiveKeyring(configuration) {
     return Object.freeze({ accepted: false, code: "invalid_keyring_configuration" });
   }
 
+  const activeKeyId = configuration.activeKeyId;
   const records = new Map();
   for (const record of configuration.keys) {
     if (!isPlainRecord(record) || Object.keys(record).some(key => !["keyId", "key", "revoked"].includes(key)) ||
@@ -34,19 +35,19 @@ export function createPiTestnetArchiveKeyring(configuration) {
     });
   }
 
-  const active = records.get(configuration.activeKeyId);
+  const active = records.get(activeKeyId);
   if (!active || active.revoked) {
     return Object.freeze({ accepted: false, code: "active_key_unavailable" });
   }
 
   return Object.freeze({
     accepted: true,
-    activeKeyId: configuration.activeKeyId,
+    activeKeyId,
     keyCount: records.size,
     getActiveEncryptionKey() {
-      const record = records.get(configuration.activeKeyId);
+      const record = records.get(activeKeyId);
       if (!record || record.revoked) return null;
-      return Object.freeze({ keyId: configuration.activeKeyId, key: Buffer.from(record.key) });
+      return Object.freeze({ keyId: activeKeyId, key: Buffer.from(record.key) });
     },
     getDecryptionKey(keyId) {
       if (typeof keyId !== "string") return null;
