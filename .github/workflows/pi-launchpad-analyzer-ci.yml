@@ -13,6 +13,8 @@ on:
       - "scripts/pi-launchpad-source-registry.test.mjs"
       - "scripts/pi-launchpad-connector-policy.mjs"
       - "scripts/pi-launchpad-connector-policy.test.mjs"
+      - "scripts/pi-launchpad-snapshot-monitor.mjs"
+      - "scripts/pi-launchpad-snapshot-monitor.test.mjs"
       - ".github/workflows/pi-launchpad-analyzer-ci.yml"
 
 permissions:
