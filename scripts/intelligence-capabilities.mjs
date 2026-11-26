@@ -220,7 +220,7 @@ function validateValue(value, rule) {
     return typeof value === "string"
       && (rule.minLength === undefined || value.length >= rule.minLength)
       && (rule.maxLength === undefined || value.length <= rule.maxLength)
-      && (rule.pattern === undefined || new RegExp(rule.pattern).test(value))
+      && (rule.pattern === undefined || new RegExp(rule.pattern).exec(value)?.[0] === value)
       && (rule.enum === undefined || rule.enum.includes(value));
   }
   if (rule.type === "array") {
