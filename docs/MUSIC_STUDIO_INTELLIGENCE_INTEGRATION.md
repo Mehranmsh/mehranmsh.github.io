@@ -207,3 +207,22 @@ The current browser storage model also needs a deliberate migration plan before 
 - This is a deterministic local coaching aid, not a generative AI call. It consumes no AI quota and uploads no lyric or audio data.
 - It deliberately does not claim exact note, pitch, rhythm, breath-capacity, or emotional-intent detection. Exact melodic guidance requires a validated lyric-to-melody alignment and pitch/onset analysis path.
 - Existing user-selected notes, tempo, syllable segmentation, and saved guide data remain the source of truth; the coach does not overwrite them.
+
+
+## Studio-wide stage graph and owner experience
+
+The Overview now exposes one studio-wide production map rather than presenting the Vocal Coach as the center of the Intelligence integration. It links the user to the existing workspaces for project planning, lyrics, composition, arrangement, recording/vocal, mixing, and mastering/export. The map is a navigation and architecture surface; it does not falsely mark unavailable analysis or DSP engines as implemented.
+
+### Shared orchestration rules across every stage
+
+- Maintain one project-level production brief and a versioned stage graph. Every stage reads the latest approved upstream artifacts and records the exact revision it used.
+- Each stage returns the same result envelope: stage, status, input revisions, findings, recommendations, blockers, quality checks, provenance, and next eligible stages.
+- Separate **creative advice**, **measured analysis**, and **executed processing** in the UI. Never present a suggestion as a measurement or an unexecuted operation as completed work.
+- AUTO and PRO share the same stage graph and quality gates. AUTO can only execute allow-listed, reversible local operations within limits; PRO can adjust parameters and override suggestions. Neither mode may silently overwrite a source or approved decision.
+- Cross-stage feedback is required: lyric syllable density informs melody phrasing; melody and singer range inform key/arrangement; arrangement density informs vocal space and mix; mix headroom informs mastering; export validation closes the project.
+- Stage readiness is based on explicit gates, not on merely visiting a screen. A blocked stage explains what is missing and links back to the responsible upstream stage.
+- Project-wide Intelligence must be resource-aware and truthful about which capabilities are local deterministic tools, tested models, unavailable engines, or future integrations. No paid fallback, automatic model download, or external upload.
+
+### Implementation boundary
+
+The Overview map is navigation only. It does not create a remote task, consume AI quota, modify project data, change the live Worker, or activate generation. The next engineering slice should implement the shared versioned stage graph and read-only project assessment across all stages before adding more isolated feature panels.
