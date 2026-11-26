@@ -1414,6 +1414,7 @@ test("MEHRAN Intelligence Agent API is enabled only behind its dedicated bearer 
   assert.match(route, /env\.MEHRAN_AGENT_TOKEN/);
   assert.match(route, /checkpointMatch/);
   assert.match(route, /checkpointBytes > 4096/);
+  assert.match(route, /new TextEncoder\(\)\.encode\(body\.result\)\.byteLength > 12 \* 1024/);
   assert.match(route, /checkpoint_saved/);
   assert.match(route, /finalStatus = retryable \? "retry_wait" : requestedStatus/);
   assert.match(route, /Math\.min\(3600,30 \* \(2 \*\* Math\.max/);
