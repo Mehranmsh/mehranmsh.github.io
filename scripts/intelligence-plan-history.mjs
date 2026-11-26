@@ -14,7 +14,7 @@ const safeTask = task => ({
   priority: clean(task?.priority, 24),
   due_at: clean(task?.due_at, 40),
   depends_on_task_ids: Array.isArray(task?.depends_on_task_ids)
-    ? [...new Set(task.depends_on_task_ids.map(id => clean(id, 120)).filter(Boolean))].sort().slice(0, 50) : [],
+    ? [...new Set(task.depends_on_task_ids.slice(0, 50).map(id => clean(id, 120)).filter(Boolean))].sort().slice(0, 50) : [],
   task_state: VALID_STATES.has(String(task?.task_state || "").toLowerCase())
     ? String(task.task_state).toLowerCase() : "unspecified"
 });
@@ -69,7 +69,7 @@ export function compareIntelligencePlanVersions(revisions, progressEvents = [], 
       owner_uid: ownerUid, revision_id: revisionId, version,
       created_at: new Date(created).toISOString(), change_reason: reason,
       source_event_ids: Array.isArray(raw.source_event_ids)
-        ? [...new Set(raw.source_event_ids.map(id => clean(id, 120)).filter(Boolean))].slice(0, MAX_EVENTS).sort() : [],
+        ? [...new Set(raw.source_event_ids.slice(0, MAX_EVENTS).map(id => clean(id, 120)).filter(Boolean))].slice(0, MAX_EVENTS).sort() : [],
       tasks
     });
   }
