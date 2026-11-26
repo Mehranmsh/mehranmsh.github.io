@@ -56,3 +56,13 @@ test("rejects malformed operation identifiers and unbounded payloads", () => {
     ...input, replacementEnvelopeJson: "x".repeat(7 * 1024 * 1024 + 1)
   }).accepted, false);
 });
+
+
+test("rejects mismatched envelope digest and unlinked journal records", () => {
+  assert.equal(buildPiTestnetArchiveD1ReplacementPlan({
+    ...input, replacementEnvelopeSha256: "f".repeat(64)
+  }).accepted, false);
+  assert.equal(buildPiTestnetArchiveD1ReplacementPlan({
+    ...input, preparedRecordJson: JSON.stringify({ state: "prepared" })
+  }).accepted, false);
+});
