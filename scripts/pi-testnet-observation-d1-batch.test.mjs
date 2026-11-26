@@ -136,7 +136,7 @@ test("every D1 statement has an exact placeholder-to-binding count", () => {
     ["phase2", result.phase2]
   ]) {
     for (const [index, item] of statements.entries()) {
-      const placeholderCount = (item.sql.match(/\\?/g) || []).length;
+      const placeholderCount = (item.sql.match(/\?/g) || []).length;
       assert.equal(
         placeholderCount,
         item.params.length,
