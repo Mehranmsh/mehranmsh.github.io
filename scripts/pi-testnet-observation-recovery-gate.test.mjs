@@ -74,9 +74,6 @@ test("fails closed for unauthenticated callers, wrong scope, and unknown envelop
 });
 
 test("unknown but validly encrypted envelope requires manual reconciliation", () => {
-  const third = encryptPiTestnetObservationArchive(archive, {
-    key: randomBytes(32), keyId: "key-3", archiveScope: scope
-  }).envelope;
   const extendedKeyring = {
     ...keyring,
     getDecryptionKey(id) {
@@ -93,4 +90,60 @@ test("unknown but validly encrypted envelope requires manual reconciliation", ()
     currentEnvelope: validThird, archiveScope: scope
   });
   assert.equal(result.action, "manual_reconciliation_required");
+});
+
+test("rejects a tampered prepared journal before inspecting storage", () => {
+  const tampered = { ...journal, sourceEnvelopeSha256: "f".repeat(64) };
+  const result = evaluatePiTestnetArchiveRecovery({
+    principal, keyring, journal: [tampered], currentEnvelope: source, archiveScope: scope
+  });
+  assert.deepEqual(result, {
+    accepted: false,
+    code: "journal_not_recoverable_or_scope_mismatch"
+  });
+});
+
+test("fails closed when the envelope decryption key is unavailable", () => {
+  const unavailableKeyring = {
+    accepted: true,
+    getDecryptionKey() { return null; }
+  };
+  const result = evaluatePiTestnetArchiveRecovery({
+    principal, keyring: unavailableKeyring, journal: [journal],
+    currentEnvelope: source, archiveScope: scope
+  });
+  assert.deepEqual(result, { accepted: false, code: "recovery_key_unavailable" });
+});
+
+test("does not reopen a terminal committed journal as a recoverable operation", () => {
+  const committed = createPiTestnetArchiveReplacementJournalRecord({
+    sequence: 2,
+    previousRecordSha256: journal.recordSha256,
+    archiveScope: scope,
+    archiveId: journal.archiveId,
+    sourceEnvelopeSha256: journal.sourceEnvelopeSha256,
+    replacementEnvelopeSha256: journal.replacementEnvelopeSha256,
+    state: "committed",
+    observedEnvelopeSha256: journal.replacementEnvelopeSha256
+  }, journal);
+  assert.equal(committed.accepted, true);
+  const result = evaluatePiTestnetArchiveRecovery({
+    principal, keyring, journal: [journal, committed.record],
+    currentEnvelope: replacement, archiveScope: scope
+  });
+  assert.deepEqual(result, {
+    accepted: false,
+    code: "journal_not_recoverable_or_scope_mismatch"
+  });
+});
+
+test("rejects an authenticated principal without archive-admin role", () => {
+  const result = evaluatePiTestnetArchiveRecovery({
+    principal: { ...principal, role: "archive_reader" },
+    keyring, journal: [journal], currentEnvelope: source, archiveScope: scope
+  });
+  assert.deepEqual(result, {
+    accepted: false,
+    code: "recovery_authorization_or_input_invalid"
+  });
 });
