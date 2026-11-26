@@ -533,7 +533,7 @@ test("work-package action types must stay within the declared per-package scope"
     "proposal-only tasks must be admitted only through the explicit package action scope");
   assert.match(creationRoute, /validPatchObjective/,
     "proposal-only tasks must carry a bounded objective");
-  assert.match(creationRoute, /objective:item\.objective/,
+  assert.match(creationRoute, /targetPath:patchTargetPath/,
     "the bounded objective must survive durable task payload creation");
 });
 
@@ -554,6 +554,8 @@ test("proposal-only work-package tasks require a bounded objective", () => {
   assert.equal(valid.tasks[0].objective, base.tasks[0].objective);
   assert.equal(validateIntelligenceWorkPackage({ ...base, tasks: [{ ...base.tasks[0], objective: "short" }] }).ok, false);
   assert.equal(validateIntelligenceWorkPackage({ ...base, tasks: [{ ...base.tasks[0], objective: undefined }] }).ok, false);
+  assert.equal(validateIntelligenceWorkPackage({ ...base, tasks: [{ ...base.tasks[0], targetPath: "scripts/intelligence-inbox-schema.test.mjs" }] }).ok, true);
+  assert.equal(validateIntelligenceWorkPackage({ ...base, tasks: [{ ...base.tasks[0], targetPath: "worker.js" }] }).ok, false);
   assert.equal(validateIntelligenceWorkPackage({ ...base, tasks: [{ ...base.tasks[0], actionType: "service_health_report" }] }).ok, false);
 });
 
