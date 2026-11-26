@@ -16,7 +16,7 @@ const TYPES = new Set([
 const VERIFICATION = new Set(["unverified", "signature_verified", "attestation_rejected"]);
 const CHAIN_STATUS = "not_verified";
 const SCORING_STATUS = "blocked_pending_independent_chain_verification";
-const VERSION = /^\\d+\\.\\d+\\.\\d+$/;
+const VERSION = /^\d+\.\d+\.\d+$/;
 
 function isPlainRecord(value) {
   return !!value && typeof value === "object" && !Array.isArray(value) &&
@@ -48,7 +48,7 @@ function canonicalJson(value, seen = new Set()) {
 
 function validUtcTimestamp(value) {
   if (typeof value !== "string" ||
-      !/^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$/.test(value)) return false;
+      !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(value)) return false;
   const date = new Date(value);
   return Number.isFinite(date.getTime()) && date.toISOString() === value;
 }
