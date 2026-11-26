@@ -623,7 +623,7 @@ test("Agent patch proposal runner checkpoints an immutable base and submits a st
 });
 
 test("Agent API stale-claim recovery includes package-bound allowlisted tasks", () => {
-  const start = workerSource.indexOf('if (path === "/agent/v1/tasks/next" && method === "GET")');
+  const start = workerSource.indexOf('if ((path === "/agent/v1/tasks/next" || path === "/agent/v1/owner/tasks/next") && method === "GET")');
   const end = workerSource.indexOf("const checkpointMatch", start);
   assert.ok(start >= 0 && end > start, "Agent task-claim route must exist");
   const route = workerSource.slice(start, end);
@@ -1429,7 +1429,7 @@ test("MEHRAN Intelligence Agent API is enabled only behind its dedicated bearer 
     "after honoring priority, continue packages that have already completed a task before starting another package");
   assert.match(route, /status='awaiting_approval' AND requires_approval=0/);
   assert.match(route, /agent_claimed_at=CURRENT_TIMESTAMP/);
-  assert.ok(route.includes("WHERE id=? AND status IN ('queued','accepted','retry_wait') AND requires_approval=0 AND assigned_to IN ('mehran_intelligence','shared') AND action_type IN ('repository_quality_check','service_health_report','source_security_audit','inspect_repository','run_repository_tests','propose_code_patch')"));
+  assert.match(route, /WHERE id=\\? AND status IN \\('queued','accepted','retry_wait'\\).*queue_lane='owner'.*queue_lane='shared'/s);
   assert.match(route, /agent_claimed_at IS NOT NULL AND datetime\(agent_claimed_at\) < datetime\('now','-15 minutes'\)/);
   assert.match(route, /agent_claimed_at IS NOT NULL AND datetime\(agent_claimed_at\)>=datetime\('now','-15 minutes'\)/);
   assert.doesNotMatch(route, /work_package_id IS NULL AND agent_claimed_at IS NOT NULL/,
@@ -2691,7 +2691,7 @@ test("Production Intelligence scheduler runs only approved read-only reports and
   assert.match(retryPolicySource, /rate limit|429/);
   assert.ok(scheduledBody.includes("action_type IN ('project_status_report','social_metrics_report')"), "scheduler claim must use the same action allowlist as candidate selection");
   assert.ok(scheduledBody.includes("status='awaiting_approval' AND requires_approval=0"));
-  const agentClaimStart = workerSource.indexOf('if (path === "/agent/v1/tasks/next" && method === "GET")');
+  const agentClaimStart = workerSource.indexOf('if ((path === "/agent/v1/tasks/next" || path === "/agent/v1/owner/tasks/next") && method === "GET")');
   const agentClaimEnd = workerSource.indexOf("const checkpointMatch", agentClaimStart);
   const agentClaimRoute = workerSource.slice(agentClaimStart, agentClaimEnd);
   assert.match(agentClaimRoute, /action_type IN \('repository_quality_check','service_health_report','source_security_audit','inspect_repository','run_repository_tests','propose_code_patch'\)/);
@@ -3386,7 +3386,7 @@ test("private report persistence is a no-op until its dedicated Worker secret is
 test("Agent task claim tokens fence checkpoint and result commits to the current runner", () => {
   assert.match(workerSource, /agent_claim_token_hash TEXT NOT NULL DEFAULT ''/);
   assert.ok(workerSource.includes('const claimTokenHash = claimToken ? await sha256(claimToken) : "";'));
-  const claimStart = workerSource.indexOf('if (path === "/agent/v1/tasks/next" && method === "GET")');
+  const claimStart = workerSource.indexOf('if ((path === "/agent/v1/tasks/next" || path === "/agent/v1/owner/tasks/next") && method === "GET")');
   const checkpointStart = workerSource.indexOf('const checkpointMatch', claimStart);
   const claimRoute = workerSource.slice(claimStart, checkpointStart);
   assert.match(claimRoute, /UPDATE intelligence_tasks SET status='in_progress'.*agent_claim_token_hash=\?/s);
