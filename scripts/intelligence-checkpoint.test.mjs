@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { verifyIntelligenceResultCheckpoint } from "./intelligence-checkpoint.mjs";
+import { verifyIntelligenceResultCheckpoint, HARD_MAX_RESULT_CHARS } from "./intelligence-checkpoint.mjs";
 
 function checkpoint(result, overrides = {}) {
   return {
@@ -34,4 +34,21 @@ test("rejects missing, malformed, or non-result checkpoints", () => {
 test("rejects empty and oversized result payloads", () => {
   assert.equal(verifyIntelligenceResultCheckpoint(checkpoint("")).reason, "invalid_result_length");
   assert.equal(verifyIntelligenceResultCheckpoint(checkpoint("12345"), {maxResultChars:4}).reason, "invalid_result_length");
+});
+
+test("caller configuration cannot raise the hard result-size ceiling", () => {
+  const oversized = "x".repeat(HARD_MAX_RESULT_CHARS + 1);
+  assert.equal(verifyIntelligenceResultCheckpoint(checkpoint(oversized), {
+    maxResultChars: Number.MAX_SAFE_INTEGER
+  }).reason, "invalid_result_length");
+});
+
+test("unsafe or invalid size settings fall back to the conservative default", () => {
+  const result = "x".repeat(3001);
+  assert.equal(verifyIntelligenceResultCheckpoint(checkpoint(result), {
+    maxResultChars: Number.MAX_VALUE
+  }).reason, "invalid_result_length");
+  assert.equal(verifyIntelligenceResultCheckpoint(checkpoint(result), {
+    maxResultChars: -1
+  }).reason, "invalid_result_length");
 });

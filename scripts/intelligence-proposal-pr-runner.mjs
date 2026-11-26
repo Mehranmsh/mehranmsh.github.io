@@ -12,6 +12,7 @@ const runId = String(process.env.GITHUB_RUN_ID || "");
 const currentMainSha = String(process.env.GITHUB_SHA || "").toLowerCase();
 const repository = "Mehranmsh/mehranmsh.github.io";
 const targetPath = "scripts/intelligence-capabilities.test.mjs";
+const UUID_V4 = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 const apiRoot = "https://api.github.com";
 if (!baseUrl || agentToken.length < 40 || ownerToken.length < 40 || githubToken.length < 40 ||
     !/^[0-9]{1,24}$/.test(runId) || !/^[a-f0-9]{40}$/.test(currentMainSha)) {
@@ -59,7 +60,10 @@ for (const proposal of proposals) {
   const baseSha = String(proposal.baseSha || "").toLowerCase();
   const artifactPath = String(proposal.path || "");
   const artifactSha256 = String(proposal.artifactSha256 || "");
-  if (!/^[a-f0-9-]{36}$/.test(proposalId) || !/^[a-f0-9]{40}$/.test(baseSha) ||
+  const createdAt = typeof proposal.createdAt === "string" ? proposal.createdAt : "";
+  const proposalDate = new Date(createdAt);
+  if (!UUID_V4.test(proposalId) || !/^[a-f0-9]{40}$/.test(baseSha) ||
+      !Number.isFinite(proposalDate.getTime()) || proposalDate.toISOString() !== createdAt ||
       proposal.targetPath !== targetPath ||
       artifactPath !== "patch-proposals/" + String(proposal.createdAt || "").slice(0,4) + "/" + String(proposal.createdAt || "").slice(5,7) + "/" + proposalId + ".json" ||
       !/^[a-f0-9]{64}$/.test(artifactSha256)) {

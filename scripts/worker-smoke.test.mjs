@@ -20,9 +20,12 @@ const routinePlannerImport = 'import { buildDeterministicRoutinePlan } from "./s
 const memoryRankingImport = 'import { selectMemoryContext } from "./scripts/intelligence-memory-ranking.mjs";';
 const answerQualityImport = 'import { normalizeIntelligenceAnswer } from "./scripts/intelligence-answer-quality.mjs";';
 const retryPolicyImport = 'import { planIntelligenceRetry } from "./scripts/intelligence-retry-policy.mjs";';
+const feedbackReviewImport = 'import { buildIntelligenceFeedbackReview } from "./scripts/intelligence-feedback-review.mjs";';
+const planHistoryImport = 'import { compareIntelligencePlanVersions } from "./scripts/intelligence-plan-history.mjs";';
+const planLearningImport = 'import { learnFromIntelligencePlanOutcomes } from "./scripts/intelligence-plan-learning.mjs";';
 if (!workerSource.includes(capabilityImport) || !workerSource.includes(patchStoreImport) ||
     !workerSource.includes(patchGenerationImport) || !workerSource.includes(inboxSchemaImport) ||
-    !workerSource.includes(routinePlannerImport) || !workerSource.includes(memoryRankingImport) || !workerSource.includes(answerQualityImport) || !workerSource.includes(retryPolicyImport)) {
+    !workerSource.includes(routinePlannerImport) || !workerSource.includes(memoryRankingImport) || !workerSource.includes(answerQualityImport) || !workerSource.includes(retryPolicyImport) || !workerSource.includes(feedbackReviewImport) || !workerSource.includes(planHistoryImport) || !workerSource.includes(planLearningImport)) {
   throw new Error("Worker capability, patch storage, or private inbox schema imports were not found");
 }
 const policySource = await readFile(new URL("./intelligence-patch-policy.mjs", import.meta.url), "utf8");
@@ -31,15 +34,36 @@ const patchStoreSource = await readFile(new URL("./intelligence-private-patch-st
 const patchGenerationPromptSource = await readFile(new URL("./intelligence-patch-generation.mjs", import.meta.url), "utf8");
 const patchGenerationServiceSource = await readFile(new URL("./intelligence-patch-generation-service.mjs", import.meta.url), "utf8");
 const inboxSchemaSource = await readFile(new URL("./intelligence-inbox-schema.mjs", import.meta.url), "utf8");
+const knowledgeGraphSource = (await readFile(new URL("./intelligence-knowledge-graph.mjs", import.meta.url), "utf8"))
+  .replace('export function buildIntelligenceKnowledgeGraph', 'function buildIntelligenceKnowledgeGraph');
 const memoryRankingSource = (await readFile(new URL("./intelligence-memory-ranking.mjs", import.meta.url), "utf8"))
-  .replace("export function selectMemoryContext", "function selectMemoryContext");
+  .replace('import { buildIntelligenceKnowledgeGraph } from "./intelligence-knowledge-graph.mjs";', "")
+  .replace("export function analyzeMemoryRelations", "function analyzeMemoryRelations")
+  .replace("export function selectMemoryContext", "function selectMemoryContext")
+  .replace("export function selectMemoryContextWithGraph", "function selectMemoryContextWithGraph");
 const answerQualitySource = (await readFile(new URL("./intelligence-answer-quality.mjs", import.meta.url), "utf8"))
   .replace("export function normalizeIntelligenceAnswer", "function normalizeIntelligenceAnswer");
 const routinePlannerSource = (await readFile(new URL("./intelligence-routine-planner.mjs", import.meta.url), "utf8"))
   .replace("export function buildDeterministicRoutinePlan", "function buildDeterministicRoutinePlan");
 const retryPolicySource = (await readFile(new URL("./intelligence-retry-policy.mjs", import.meta.url), "utf8"))
   .replace("export function planIntelligenceRetry", "function planIntelligenceRetry");
-const moduleUrl = source => "data:text/javascript;base64," + Buffer.from(source).toString("base64");
+const feedbackLearningSource = (await readFile(new URL("./intelligence-feedback-learning.mjs", import.meta.url), "utf8"))
+  .replaceAll("BLOCKED_SENSITIVITY", "FEEDBACK_LEARNING_BLOCKED_SENSITIVITY")
+  .replace("const clean=", "const cleanFeedbackLearning=")
+  .replaceAll("clean(", "cleanFeedbackLearning(");
+const feedbackLearningUrl = moduleUrl(feedbackLearningSource);
+const planHistorySource = (await readFile(new URL("./intelligence-plan-history.mjs", import.meta.url), "utf8"))
+  .replace("export function compareIntelligencePlanVersions", "function compareIntelligencePlanVersions");
+const planLearningSource = (await readFile(new URL("./intelligence-plan-learning.mjs", import.meta.url), "utf8"))
+  .replace("export function learnFromIntelligencePlanOutcomes", "function learnFromIntelligencePlanOutcomes");
+const feedbackReviewSource = (await readFile(new URL("./intelligence-feedback-review.mjs", import.meta.url), "utf8"))
+  .replace('from "./intelligence-feedback-learning.mjs"', 'from "' + feedbackLearningUrl + '"')
+  .replace("export function buildIntelligenceFeedbackReview", "function buildIntelligenceFeedbackReview")
+  .replace("const BLOCKED=", "const FEEDBACK_REVIEW_BLOCKED=")
+  .replaceAll("BLOCKED.has", "FEEDBACK_REVIEW_BLOCKED.has")
+  .replace("const clean=", "const cleanFeedbackReview=")
+  .replaceAll("clean(", "cleanFeedbackReview(");
+function moduleUrl(source) { return "data:text/javascript;base64," + Buffer.from(source).toString("base64"); }
 const inboxSchemaUrl = moduleUrl(inboxSchemaSource);
 const policyUrl = moduleUrl(policySource);
 const artifactUrl = moduleUrl(artifactSource.replace(
@@ -91,8 +115,11 @@ const workerRest = workerSource.replace(capabilityImport, "")
   .replace(routinePlannerImport, "")
   .replace(memoryRankingImport, "")
   .replace(answerQualityImport, "")
-  .replace(retryPolicyImport, "");
-const workerSourceForTest = memoryRankingSource + "\n" + routinePlannerSource + "\n" + retryPolicySource + `\nimport { storePrivatePatchArtifact, verifyPrivatePatchArtifactAtPath, getPrivatePatchArtifactPath, getVerifiedPrivatePatchArtifactAtPath } from "${patchStoreTestUrl}";
+  .replace(retryPolicyImport, "")
+  .replace(feedbackReviewImport, "")
+   .replace(planHistoryImport, "")
+  .replace(planLearningImport, "");
+const workerSourceForTest = knowledgeGraphSource + "\n" + memoryRankingSource + "\n" + feedbackReviewSource + "\n" + planHistorySource + "\n" + planLearningSource + "\n" + routinePlannerSource + "\n" + retryPolicySource + `\nimport { storePrivatePatchArtifact, verifyPrivatePatchArtifactAtPath, getPrivatePatchArtifactPath, getVerifiedPrivatePatchArtifactAtPath } from "${patchStoreTestUrl}";
 import { generatePatchArtifact } from "${patchGenerationTestUrl}";
 import { validatePrivateIntelligenceMission } from "${inboxSchemaUrl}";
 const INTELLIGENCE_ACTION_TYPES = ${JSON.stringify(INTELLIGENCE_ACTION_TYPES)};
@@ -103,7 +130,7 @@ let workerModule;
 try {
   workerModule = await import("data:text/javascript;base64," + Buffer.from(workerSourceForTest).toString("base64"));
 } catch (error) {
-  throw new Error("Worker smoke harness import failed: " + String(error?.name || "Error") + ": " + String(error?.message || error).slice(0,1000));
+  throw new Error("Worker smoke harness import failed: " + String(error?.name || "Error") + ": " + String(error?.message || error).slice(0,1000) + " | " + String(error?.stack || "").slice(0,1800));
 }
 const patchStoreModule = await import(patchStoreUrl);
 const worker = workerModule.default;
@@ -134,6 +161,14 @@ async function request(path, { method = "GET", origin, headers = {}, body } = {}
     body: body === undefined ? undefined : JSON.stringify(body)
   }), env);
 }
+
+test("plan history learning is owner-scoped, advisory, and included in its read API", () => {
+  assert.match(workerSource, /learnFromIntelligencePlanOutcomes\(revisions,progressEvents/);
+  assert.match(workerSource, /return json\(\{success:true,revisions,comparison,learning,/);
+  assert.match(workerSource, /actorUid:admin\.uid/);
+  assert.match(planLearningSource, /preferencesChanged: false/);
+  assert.match(planLearningSource, /causalClaims: false/);
+});
 
 test("Workers AI quota circuit retries after a bounded cooldown", () => {
   const attemptedAt = Date.parse("2026-11-25T00:01:00.000Z");
@@ -294,6 +329,66 @@ test("admin overview rejects requests without a verified admin session", async (
   assert.equal(response.status, 403);
   const payload = await response.json();
   assert.match(payload.error, /Admin authentication required/);
+});
+
+
+test("persistent preference governance routes are owner-authenticated, bounded, and read-only", () => {
+  const start=workerSource.indexOf('if (path === "/intelligence/preferences" && method === "GET")');
+  const proposal=workerSource.indexOf('if (path === "/intelligence/preferences/proposals" && method === "POST")');
+  const decision=workerSource.indexOf('if (path === "/intelligence/preferences/decisions" && method === "POST")');
+  const memory=workerSource.indexOf('if (path === "/intelligence/memory" && method === "GET")');
+  assert.ok(start>=0&&proposal>start&&decision>proposal&&memory>decision);
+  const routes=workerSource.slice(start,memory);
+  assert.equal((routes.match(/verifyAdmin\(request, env\)/g)||[]).length,3);
+  assert.match(routes,/WHERE owner_uid=\? AND status='pending'/);
+  assert.match(routes,/WHERE owner_uid=\? AND memory_key=\? AND category IN \('preference','decision'\)/);
+  assert.match(routes,/body\.explicitConfirmation !== true/);
+  assert.match(routes,/\.bind\(decisionId,admin\.uid,admin\.uid,/);
+  assert.match(routes,/preferencesChanged:false,applied:false/);
+  assert.doesNotMatch(routes,/body\.actorUid|body\.ownerUid/);
+  assert.match(workerSource,/CREATE UNIQUE INDEX IF NOT EXISTS idx_intelligence_preference_one_decision/);
+  assert.match(workerSource,/CREATE TABLE IF NOT EXISTS intelligence_preference_decisions/);
+  assert.match(workerSource,/CREATE TABLE IF NOT EXISTS intelligence_preference_proposals/);
+});
+
+
+test("Intelligence preference governance UI uses explicit owner review actions", () => {
+  assert.match(indexSource,/id="intelPreferenceProposalForm"/);
+  assert.match(indexSource,/id="intelPreferencePendingList"/);
+  assert.match(indexSource,/id="intelPreferenceProfile"/);
+  assert.match(indexSource,/id="intelPreferenceFeedbackForm"/);
+  assert.match(indexSource,/api\("\/intelligence\/preferences\/feedback"/);
+  assert.match(indexSource,/api\("\/intelligence\/preferences\/review-feedback"/);
+  assert.match(indexSource,/api\("\/intelligence\/preferences"/);
+  assert.match(indexSource,/api\("\/intelligence\/preferences\/proposals"/);
+  assert.match(indexSource,/api\("\/intelligence\/preferences\/decisions"/);
+  assert.match(indexSource,/window\.confirm\(/);
+  assert.match(indexSource,/explicitConfirmation:true/);
+  assert.match(indexSource,/No memory was modified/);
+});
+
+test("owner-confirmed feedback is stored and converted into bounded review proposals without auto-application", () => {
+  const feedback=workerSource.indexOf('if (path === "/intelligence/preferences/feedback" && method === "POST")');
+  const review=workerSource.indexOf('if (path === "/intelligence/preferences/review-feedback" && method === "POST")');
+  const planHistory=workerSource.indexOf('if (path === "/intelligence/plan-history" && method === "GET")');
+  assert.ok(feedback>=0&&review>feedback&&planHistory>review);
+  const routes=workerSource.slice(feedback,planHistory);
+  assert.equal((routes.match(/verifyAdmin\(request, env\)/g)||[]).length,2);
+  assert.match(routes,/body\.explicitConfirmation !== true/);
+  assert.match(routes,/feedback_confirmed|explicit_confirmation=1/);
+  assert.match(routes,/buildIntelligenceFeedbackReview\(memoryRecords,feedbackRecords/);
+  assert.match(routes,/minimumObservations:2/);
+  assert.match(routes,/feedback_confirmed:Number\(row\.explicit_confirmation\)===1/);
+  assert.match(routes,/0\.75/);
+  assert.match(routes,/ownerApprovalRequired:true/);
+  assert.match(routes,/processed_at IS NULL/);
+  assert.match(routes,/SET processed_at=\?/);
+  assert.match(routes,/WHERE owner_uid=\? AND feedback_id=\? AND processed_at IS NULL/);
+  assert.match(routes,/for \(const record of feedbackRecords\) if \(record\.target_key===targetKey\) processedFeedbackIds\.add\(record\.feedback_id\)/);
+  assert.match(routes,/preferencesChanged:false,applied:false/);
+  assert.match(workerSource,/CREATE TABLE IF NOT EXISTS intelligence_feedback_records/);
+  assert.match(workerSource,/UNIQUE\(owner_uid,feedback_id\)/);
+  assert.doesNotMatch(routes,/body\.ownerUid|body\.actorUid/);
 });
 
 test("MEHRAN INTELLIGENCE serves exact project and SOCIAL status queries without Workers AI", () => {
@@ -3844,4 +3939,46 @@ test("deterministic routine planner refuses to downgrade change requests into re
   for (const mission of missions) {
     assert.equal(buildDeterministicRoutinePlan(mission), null, `change intent must not be downgraded: ${mission}`);
   }
+});
+
+test("persistent Intelligence plan history is owner-scoped, immutable, and explicitly confirmed", () => {
+  const get=workerSource.indexOf('if (path === "/intelligence/plan-history" && method === "GET")');
+  const save=workerSource.indexOf('if (path === "/intelligence/plan-history" && method === "POST")');
+  const event=workerSource.indexOf('if (path === "/intelligence/plan-history/events" && method === "POST")');
+  const prefs=workerSource.indexOf('if (path === "/intelligence/preferences" && method === "GET")');
+  assert.ok(get>=0&&save>get&&event>save&&prefs>event);
+  const routes=workerSource.slice(get,prefs);
+  assert.equal(routes.split("verifyAdmin(request, env)").length-1,3);
+  assert.ok(routes.includes("WHERE owner_uid=?"));
+  assert.ok(routes.includes("body.explicitConfirmation !== true"));
+  assert.ok(routes.includes("admin.uid,admin.uid"));
+  assert.ok(routes.includes("compareIntelligencePlanVersions"));
+  assert.ok(workerSource.includes("CREATE TABLE IF NOT EXISTS intelligence_plan_revisions"));
+  assert.ok(workerSource.includes("CREATE TABLE IF NOT EXISTS intelligence_plan_progress_events"));
+  assert.ok(workerSource.includes("UNIQUE(owner_uid,version)"));
+  assert.ok(routes.includes("recordsChanged:false"));
+  assert.doesNotMatch(routes,/body\.ownerUid|body\.actorUid/);
+});
+
+test("Intelligence plan history UI requires explicit confirmation and displays revision comparison", () => {
+  assert.ok(indexSource.includes('id="intelPlanSnapshotForm"'));
+  assert.ok(indexSource.includes('id="intelPlanHistoryComparison"'));
+  assert.ok(indexSource.includes('id="intelPlanHistoryList"'));
+  assert.ok(indexSource.includes('id="intelPlanProgressList"'));
+  assert.ok(indexSource.includes('api("/intelligence/plan-history"'));
+  assert.ok(indexSource.includes('api("/intelligence/plan-history/events"'));
+  assert.ok(indexSource.includes("window.confirm("));
+  assert.ok(indexSource.includes("explicitConfirmation:true"));
+});
+
+
+test("Intelligence plan outcome learning is wired to revision-linked owner-confirmed events", () => {
+  const start = workerSource.indexOf('if (path === "/intelligence/plan-history" && method === "GET")');
+  const end = workerSource.indexOf('if (path === "/intelligence/plan-history" && method === "POST")', start);
+  const route = workerSource.slice(start, end);
+  assert.ok(route.includes("revision_id:event.revision_id"));
+  assert.ok(route.includes("learnFromIntelligencePlanOutcomes(revisions,progressEvents"));
+  assert.ok(route.includes("learning,progressEvents"));
+  assert.ok(indexSource.includes('id="intelPlanLearning"'));
+  assert.ok(indexSource.includes('learning.patterns'));
 });

@@ -4,8 +4,12 @@ import { storePrivatePatchArtifact, verifyPrivatePatchArtifactAtPath, getPrivate
 import { extractPatchModelText, generatePatchArtifact } from "./scripts/intelligence-patch-generation-service.mjs";
 import { validatePrivateIntelligenceMission } from "./scripts/intelligence-inbox-schema.mjs";
 import { selectMemoryContext } from "./scripts/intelligence-memory-ranking.mjs";
+// Shared owner-scoped feedback analysis; Worker persists proposals but never applies them.
+import { buildIntelligenceFeedbackReview } from "./scripts/intelligence-feedback-review.mjs";
 import { normalizeIntelligenceAnswer } from "./scripts/intelligence-answer-quality.mjs";
 import { planIntelligenceRetry } from "./scripts/intelligence-retry-policy.mjs";
+import { compareIntelligencePlanVersions } from "./scripts/intelligence-plan-history.mjs";
+import { learnFromIntelligencePlanOutcomes } from "./scripts/intelligence-plan-learning.mjs";
 
 function nextWorkersAIDailyResetAt(attemptedAt) {
   const timestamp = typeof attemptedAt === "number" ? attemptedAt : Date.parse(attemptedAt);
@@ -5480,6 +5484,85 @@ async function ensureIntelligenceMemoryTables(env) {
   await env.DB.prepare("CREATE INDEX IF NOT EXISTS idx_intelligence_chat_history ON intelligence_chat_turns(owner_uid,session_key,created_at)").run();
 }
 
+
+async function ensureIntelligencePreferenceTables(env) {
+  await ensureIntelligenceMemoryTables(env);
+  await env.DB.prepare(`
+    CREATE TABLE IF NOT EXISTS intelligence_preference_proposals(
+      id TEXT PRIMARY KEY,
+      owner_uid TEXT NOT NULL,
+      target_key TEXT NOT NULL,
+      recommendation TEXT NOT NULL CHECK(recommendation IN ('increase_preference','decrease_preference')),
+      proposal_key TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','decided','cancelled')),
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(owner_uid,id)
+    )
+  `).run();
+  await env.DB.prepare("CREATE INDEX IF NOT EXISTS idx_intelligence_preference_pending ON intelligence_preference_proposals(owner_uid,status,created_at)").run();
+  await env.DB.prepare(`
+    CREATE TABLE IF NOT EXISTS intelligence_preference_decisions(
+      decision_id TEXT PRIMARY KEY,
+      owner_uid TEXT NOT NULL,
+      actor_uid TEXT NOT NULL,
+      proposal_id TEXT NOT NULL,
+      proposal_key TEXT NOT NULL,
+      target_key TEXT NOT NULL,
+      recommendation TEXT NOT NULL CHECK(recommendation IN ('increase_preference','decrease_preference')),
+      decision TEXT NOT NULL CHECK(decision IN ('accepted','rejected')),
+      explicit_confirmation INTEGER NOT NULL CHECK(explicit_confirmation=1),
+      decided_at TEXT NOT NULL,
+      FOREIGN KEY(owner_uid,proposal_id) REFERENCES intelligence_preference_proposals(owner_uid,id)
+    )
+  `).run();
+  await env.DB.prepare("CREATE INDEX IF NOT EXISTS idx_intelligence_preference_decisions_owner ON intelligence_preference_decisions(owner_uid,decided_at)").run();
+  await env.DB.prepare("CREATE UNIQUE INDEX IF NOT EXISTS idx_intelligence_preference_one_decision ON intelligence_preference_decisions(owner_uid,proposal_id)").run();
+  await env.DB.prepare(`
+    CREATE TABLE IF NOT EXISTS intelligence_feedback_records(
+      feedback_id TEXT PRIMARY KEY,
+      owner_uid TEXT NOT NULL,
+      target_key TEXT NOT NULL,
+      outcome TEXT NOT NULL CHECK(outcome IN ('accepted','rejected')),
+      explicit_confirmation INTEGER NOT NULL CHECK(explicit_confirmation=1),
+      processed_at TEXT,
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(owner_uid,feedback_id)
+    )
+  `).run();
+  await env.DB.prepare("CREATE INDEX IF NOT EXISTS idx_intelligence_feedback_owner_target ON intelligence_feedback_records(owner_uid,target_key,created_at)").run();
+}
+
+async function ensureIntelligencePlanHistoryTables(env) {
+  await ensureIntelligenceTaskTable(env);
+  await ensureIntelligenceProtocolTables(env);
+  await env.DB.prepare(`
+    CREATE TABLE IF NOT EXISTS intelligence_plan_revisions(
+      revision_id TEXT PRIMARY KEY,
+      owner_uid TEXT NOT NULL,
+      version INTEGER NOT NULL,
+      change_reason TEXT NOT NULL,
+      tasks_json TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      UNIQUE(owner_uid,version)
+    )
+  `).run();
+  await env.DB.prepare("CREATE INDEX IF NOT EXISTS idx_intelligence_plan_revisions_owner ON intelligence_plan_revisions(owner_uid,version DESC)").run();
+  await env.DB.prepare(`
+    CREATE TABLE IF NOT EXISTS intelligence_plan_progress_events(
+      event_id TEXT PRIMARY KEY,
+      owner_uid TEXT NOT NULL,
+      actor_uid TEXT NOT NULL,
+      revision_id TEXT NOT NULL,
+      task_id TEXT NOT NULL,
+      progress_state TEXT NOT NULL CHECK(progress_state IN ('pending','in_progress','completed','blocked','failed')),
+      explicit_confirmation INTEGER NOT NULL CHECK(explicit_confirmation=1),
+      occurred_at TEXT NOT NULL,
+      FOREIGN KEY(revision_id) REFERENCES intelligence_plan_revisions(revision_id)
+    )
+  `).run();
+  await env.DB.prepare("CREATE INDEX IF NOT EXISTS idx_intelligence_plan_events_owner_revision ON intelligence_plan_progress_events(owner_uid,revision_id,occurred_at)").run();
+}
+
 async function appendIntelligenceChatTurn(env, ownerUid, sessionKey, role, content) {
   const safeContent = String(content || "").slice(0,4000);
   if (!safeContent) return;
@@ -9648,6 +9731,331 @@ export default {
         await writeAdminAudit(env,admin,"collaboration_task_updated","intelligence_task",id,JSON.stringify({status:body.status}));
         const row=await env.DB.prepare("SELECT * FROM intelligence_tasks WHERE id=?").bind(id).first();
         return json({success:true,task:formatIntelligenceTask(row)});
+      }
+
+
+      if (path === "/intelligence/preferences/feedback" && method === "POST") {
+        const admin = await verifyAdmin(request, env);
+        if (!admin) return error("Admin authentication required", 403);
+        if (!await checkRateLimit(env, request, "intelligence-preference-feedback", 60, 3600, 900, admin.uid)) {
+          return error("Too many feedback records. Try again later.", 429);
+        }
+        const body = await readBody(request);
+        if (!body) return error("Invalid request body", 400);
+        const targetKey = cleanText(body.targetKey, 80).toLowerCase();
+        if (!/^[a-z0-9][a-z0-9._:-]{1,79}$/.test(targetKey) ||
+            /(secret|credential|wallet|financial|private|health|identity|password|recovery|mnemonic|seed)/i.test(targetKey) ||
+            !["accepted","rejected"].includes(body.outcome) || body.explicitConfirmation !== true) {
+          return error("Explicit owner-confirmed preference feedback is required.", 400);
+        }
+        await ensureIntelligencePreferenceTables(env);
+        const memory = await env.DB.prepare(
+          "SELECT memory_key FROM intelligence_memory_items WHERE owner_uid=? AND memory_key=? AND category IN ('preference','decision') LIMIT 1"
+        ).bind(admin.uid,targetKey).first();
+        if (!memory) return error("An existing owner preference or decision memory is required.", 409);
+        const feedbackId = crypto.randomUUID();
+        await env.DB.prepare(
+          "INSERT INTO intelligence_feedback_records(feedback_id,owner_uid,target_key,outcome,explicit_confirmation) VALUES(?,?,?,?,1)"
+        ).bind(feedbackId,admin.uid,targetKey,body.outcome).run();
+        await writeAdminAudit(env,admin,"intelligence_preference_feedback_recorded","intelligence_preference_feedback",feedbackId,
+          JSON.stringify({targetKey,outcome:body.outcome}));
+        return json({success:true,feedback:{feedbackId,targetKey,outcome:body.outcome},stored:true,preferencesChanged:false,applied:false},201);
+      }
+
+      if (path === "/intelligence/preferences/review-feedback" && method === "POST") {
+        const admin = await verifyAdmin(request, env);
+        if (!admin) return error("Admin authentication required", 403);
+        if (!await checkRateLimit(env, request, "intelligence-preference-feedback-review", 10, 3600, 1800, admin.uid)) {
+          return error("Feedback review is temporarily rate-limited.", 429);
+        }
+        await ensureIntelligencePreferenceTables(env);
+        const [feedbackResult,memoryResult,pendingCount] = await Promise.all([
+          env.DB.prepare("SELECT feedback_id,owner_uid,target_key,outcome,explicit_confirmation FROM intelligence_feedback_records WHERE owner_uid=? AND explicit_confirmation=1 AND processed_at IS NULL ORDER BY created_at ASC,feedback_id ASC LIMIT 500").bind(admin.uid).all(),
+          env.DB.prepare("SELECT owner_uid,memory_key,category FROM intelligence_memory_items WHERE owner_uid=? AND category IN ('preference','decision')").bind(admin.uid).all(),
+          env.DB.prepare("SELECT COUNT(*) AS total FROM intelligence_preference_proposals WHERE owner_uid=? AND status='pending'").bind(admin.uid).first()
+        ]);
+        const feedbackRecords = (feedbackResult.results||[]).map(row=>({
+          feedback_id:row.feedback_id,
+          owner_uid:row.owner_uid,
+          target_key:row.target_key,
+          outcome:row.outcome,
+          feedback_confirmed:Number(row.explicit_confirmation)===1,
+          confirmed_by:row.owner_uid,
+          status:"active"
+        }));
+        const memoryRecords = (memoryResult.results||[]).map(row=>({
+          owner_uid:row.owner_uid,
+          memory_key:row.memory_key,
+          category:row.category,
+          status:"active"
+        }));
+        const review = buildIntelligenceFeedbackReview(memoryRecords,feedbackRecords,{
+          ownerUid:admin.uid,
+          minimumObservations:2,
+          dominanceThreshold:0.75
+        });
+        const existingRows = await env.DB.prepare(
+          "SELECT target_key,recommendation FROM intelligence_preference_proposals WHERE owner_uid=? AND status='pending'"
+        ).bind(admin.uid).all();
+        const existing = new Set((existingRows.results||[]).map(row=>JSON.stringify([row.target_key,row.recommendation])));
+        const inserts = [], proposals = [], processedFeedbackIds = new Set();
+        let omitted = 0;
+        let remaining = Math.max(0,100-Number(pendingCount?.total||0));
+        for (const proposal of review.reviewableProposals) {
+          const targetKey = proposal.target_key;
+          const recommendation = proposal.recommendation;
+          const key = JSON.stringify([targetKey,recommendation]);
+          if (existing.has(key)) { for (const record of feedbackRecords) if (record.target_key===targetKey) processedFeedbackIds.add(record.feedback_id); continue; }
+          if (remaining <= 0) { omitted++; continue; }
+          const id = crypto.randomUUID(), proposalKey = key;
+          inserts.push(env.DB.prepare(
+            "INSERT INTO intelligence_preference_proposals(id,owner_uid,target_key,recommendation,proposal_key) VALUES(?,?,?,?,?)"
+          ).bind(id,admin.uid,targetKey,recommendation,proposalKey));
+          proposals.push({id,target_key:targetKey,recommendation,observations:proposal.observations,
+            confidence:proposal.confidence,status:"pending",approval_required:true,applied:false});
+          existing.add(key); for (const record of feedbackRecords) if (record.target_key===targetKey) processedFeedbackIds.add(record.feedback_id); remaining--;
+        }
+        const processedAt = new Date().toISOString();
+        const processUpdates = [...processedFeedbackIds].map(feedbackId=>env.DB.prepare(
+          "UPDATE intelligence_feedback_records SET processed_at=? WHERE owner_uid=? AND feedback_id=? AND processed_at IS NULL"
+        ).bind(processedAt,admin.uid,feedbackId));
+        if (inserts.length || processUpdates.length) await env.DB.batch([...inserts,...processUpdates]);
+        if (proposals.length) await writeAdminAudit(env,admin,"intelligence_preference_feedback_review_generated","intelligence_preference_proposal",admin.uid,
+          JSON.stringify({created:proposals.length,unmatched:review.unmatchedProposals.length,omitted}));
+        return json({success:true,proposals,created:proposals.length,unmatched:review.unmatchedProposals.length,omitted,
+          diagnostics:{ownerScoped:true,explicitFeedbackOnly:true,minimumObservations:2,dominanceThreshold:0.75,
+            advisoryOnly:true,ownerApprovalRequired:true,memoryChanged:false,preferencesChanged:false,applied:false}});
+      }
+
+      if (path === "/intelligence/plan-history" && method === "GET") {
+        const admin = await verifyAdmin(request, env);
+        if (!admin) return error("Admin authentication required", 403);
+        await ensureIntelligencePlanHistoryTables(env);
+        const [revisionRows,eventRows] = await Promise.all([
+          env.DB.prepare("SELECT revision_id,owner_uid,version,change_reason,tasks_json,created_at FROM intelligence_plan_revisions WHERE owner_uid=? ORDER BY version DESC LIMIT 20").bind(admin.uid).all(),
+          env.DB.prepare("SELECT event_id,owner_uid,actor_uid,revision_id,task_id,progress_state,explicit_confirmation,occurred_at FROM intelligence_plan_progress_events WHERE owner_uid=? ORDER BY occurred_at DESC,event_id DESC LIMIT 500").bind(admin.uid).all()
+        ]);
+        const events = (eventRows.results || []).reverse();
+        const revisions = (revisionRows.results || []).reverse().map(row => {
+          let tasks = [];
+          try { tasks = JSON.parse(row.tasks_json); } catch {}
+          const linked = events.filter(event => event.revision_id === row.revision_id);
+          return {
+            owner_uid:row.owner_uid,revision_id:row.revision_id,version:Number(row.version),
+            change_reason:row.change_reason,created_at:row.created_at,tasks,
+            source_event_ids:linked.map(event => event.event_id)
+          };
+        });
+        const progressEvents = events.map(event => ({
+          event_id:event.event_id,owner_uid:event.owner_uid,actor_uid:event.actor_uid,
+          revision_id:event.revision_id,task_id:event.task_id,progress_state:event.progress_state,
+          explicit_confirmation:Number(event.explicit_confirmation)===1,occurred_at:event.occurred_at
+        }));
+        const comparison = compareIntelligencePlanVersions(revisions,progressEvents,{ownerUid:admin.uid,actorUid:admin.uid});
+        const learning = learnFromIntelligencePlanOutcomes(revisions,progressEvents,{ownerUid:admin.uid,actorUid:admin.uid});
+        return json({success:true,revisions,comparison,learning,progressEvents:progressEvents.slice(-100),
+          diagnostics:{ownerScoped:true,immutableSnapshots:true,historyWritten:false,recordsChanged:false}});
+      }
+
+      if (path === "/intelligence/plan-history" && method === "POST") {
+        const admin = await verifyAdmin(request, env);
+        if (!admin) return error("Admin authentication required", 403);
+        if (!await checkRateLimit(env, request, "intelligence-plan-history-write", 10, 3600, 900, admin.uid)) {
+          return error("Plan history writes are temporarily rate-limited.", 429);
+        }
+        const body = await readBody(request);
+        if (!body || body.explicitConfirmation !== true) return error("Explicit owner confirmation is required to save a plan snapshot.", 400);
+        const reason = cleanText(body.changeReason, 500);
+        if (reason.length < 5) return error("A clear change reason of at least 5 characters is required.", 400);
+        await ensureIntelligencePlanHistoryTables(env);
+        const taskRows = await env.DB.prepare(
+          "SELECT t.id,t.title,t.priority,t.status FROM intelligence_tasks t LEFT JOIN intelligence_work_packages p ON p.id=t.work_package_id WHERE p.owner_uid=? OR (t.work_package_id IS NULL AND t.created_by=?) ORDER BY t.created_at ASC,t.id ASC LIMIT 100"
+        ).bind(admin.uid,admin.uid).all();
+        const rows = taskRows.results || [];
+        const taskIds = rows.map(row => String(row.id));
+        const ownedTaskIds = new Set(taskIds);
+        const dependencyRows = taskIds.length
+          ? await env.DB.prepare("SELECT task_id,depends_on_task_id FROM intelligence_task_dependencies WHERE task_id IN ("+taskIds.map(()=>"?").join(",")+")")
+              .bind(...taskIds).all()
+          : { results: [] };
+        const dependencyMap = new Map();
+        for (const dependency of dependencyRows.results || []) {
+          if (!ownedTaskIds.has(String(dependency.depends_on_task_id))) continue;
+          if (!dependencyMap.has(dependency.task_id)) dependencyMap.set(dependency.task_id, []);
+          dependencyMap.get(dependency.task_id).push(String(dependency.depends_on_task_id));
+        }
+        const tasks = rows.map(row => ({
+          task_id:String(row.id),
+          title:String(row.title || "").slice(0,200),
+          priority:["high","normal","low"].includes(String(row.priority).toLowerCase()) ? String(row.priority).toLowerCase() : "normal",
+          due_at:"",
+          depends_on_task_ids:(dependencyMap.get(String(row.id)) || []).sort().slice(0,50),
+          task_state:({
+            queued:"pending",pending:"pending",accepted:"pending",awaiting_approval:"pending",
+            retry_waiting:"pending",running:"in_progress",in_progress:"in_progress",
+            completed:"completed",blocked:"blocked",failed:"failed"
+          })[String(row.status).toLowerCase()] || "pending"
+        }));
+        if (!tasks.length) return error("There are no owner-scoped Intelligence tasks to snapshot yet.", 409);
+        const revisionId = crypto.randomUUID();
+        const createdAt = new Date().toISOString();
+        try {
+          await env.DB.prepare(
+            "INSERT INTO intelligence_plan_revisions(revision_id,owner_uid,version,change_reason,tasks_json,created_at) SELECT ?,?,COALESCE(MAX(version),0)+1,?,?,? FROM intelligence_plan_revisions WHERE owner_uid=?"
+          ).bind(revisionId,admin.uid,reason,JSON.stringify(tasks),createdAt,admin.uid).run();
+        } catch (writeError) {
+          console.error("INTELLIGENCE_PLAN_REVISION_WRITE_FAILED",String(writeError?.message||"database_error").slice(0,160));
+          return error("Could not safely save this plan revision. Refresh history and try again.",409);
+        }
+        const saved = await env.DB.prepare("SELECT revision_id,version,created_at FROM intelligence_plan_revisions WHERE revision_id=? AND owner_uid=?")
+          .bind(revisionId,admin.uid).first();
+        if (!saved) return error("Plan revision could not be verified after saving.",500);
+        await writeAdminAudit(env,admin,"intelligence_plan_revision_saved","intelligence_plan_revision",revisionId,
+          JSON.stringify({version:Number(saved.version),taskCount:tasks.length,changeReason:reason}));
+        return json({success:true,revision:{revisionId:saved.revision_id,version:Number(saved.version),createdAt:saved.created_at,taskCount:tasks.length},
+          immutable:true,ownerConfirmed:true},201);
+      }
+
+      if (path === "/intelligence/plan-history/events" && method === "POST") {
+        const admin = await verifyAdmin(request, env);
+        if (!admin) return error("Admin authentication required", 403);
+        if (!await checkRateLimit(env, request, "intelligence-plan-history-event", 30, 3600, 900, admin.uid)) {
+          return error("Plan progress recording is temporarily rate-limited.", 429);
+        }
+        const body = await readBody(request);
+        const revisionId = cleanText(body?.revisionId,80);
+        const taskId = cleanText(body?.taskId,120);
+        const state = String(body?.progressState||"").toLowerCase();
+        if (!body || body.explicitConfirmation !== true ||
+            !/^[0-9a-f-]{36}$/i.test(revisionId) || !taskId ||
+            !["pending","in_progress","completed","blocked","failed"].includes(state)) {
+          return error("A valid revision, task, state and explicit owner confirmation are required.",400);
+        }
+        await ensureIntelligencePlanHistoryTables(env);
+        const revision = await env.DB.prepare(
+          "SELECT tasks_json FROM intelligence_plan_revisions WHERE revision_id=? AND owner_uid=?"
+        ).bind(revisionId,admin.uid).first();
+        if (!revision) return error("Owner plan revision not found.",404);
+        let tasks = [];
+        try { tasks = JSON.parse(revision.tasks_json); } catch {}
+        if (!Array.isArray(tasks) || !tasks.some(task => task.task_id === taskId)) {
+          return error("The task does not belong to this immutable plan revision.",409);
+        }
+        const eventId = crypto.randomUUID(), occurredAt = new Date().toISOString();
+        await env.DB.prepare(
+          "INSERT INTO intelligence_plan_progress_events(event_id,owner_uid,actor_uid,revision_id,task_id,progress_state,explicit_confirmation,occurred_at) VALUES(?,?,?,?,?,?,1,?)"
+        ).bind(eventId,admin.uid,admin.uid,revisionId,taskId,state,occurredAt).run();
+        await writeAdminAudit(env,admin,"intelligence_plan_progress_confirmed","intelligence_plan_progress_event",eventId,
+          JSON.stringify({revisionId,taskId,state}));
+        return json({success:true,event:{eventId,revisionId,taskId,state,occurredAt},ownerConfirmed:true,planChanged:false},201);
+      }
+
+      if (path === "/intelligence/preferences" && method === "GET") {
+        const admin = await verifyAdmin(request, env);
+        if (!admin) return error("Admin authentication required", 403);
+        await ensureIntelligencePreferenceTables(env);
+        const [pendingRows, decisionRows] = await Promise.all([
+          env.DB.prepare("SELECT id,target_key,recommendation,proposal_key,created_at FROM intelligence_preference_proposals WHERE owner_uid=? AND status='pending' ORDER BY created_at DESC LIMIT 100").bind(admin.uid).all(),
+          env.DB.prepare("SELECT decision_id,owner_uid,actor_uid,proposal_key,target_key,recommendation,decision,explicit_confirmation,decided_at FROM intelligence_preference_decisions WHERE owner_uid=? ORDER BY decided_at DESC LIMIT 1000").bind(admin.uid).all()
+        ]);
+        const history = (decisionRows.results || []).map(row => ({
+          record_type:"intelligence_preference_decision",decision_id:row.decision_id,owner_uid:row.owner_uid,
+          actor_uid:row.actor_uid,proposal_key:row.proposal_key,target_key:row.target_key,
+          recommendation:row.recommendation,decision:row.decision,explicit_confirmation:row.explicit_confirmation===1,
+          decided_at:row.decided_at
+        }));
+        const latest = new Map();
+        for (const row of history) {
+          const previous = latest.get(row.proposal_key);
+          if (!previous || Date.parse(row.decided_at)>Date.parse(previous.decided_at)) latest.set(row.proposal_key,row);
+        }
+        const latestDecisions = [...latest.values()].sort((a,b)=>a.proposal_key.localeCompare(b.proposal_key));
+        const approvedPreferences = latestDecisions.filter(row=>row.decision==="accepted").map(row=>({
+          target_key:row.target_key,recommendation:row.recommendation,proposal_key:row.proposal_key,
+          approved_by_owner:true,decision_id:row.decision_id,decided_at:row.decided_at,read_only:true
+        }));
+        const rejectedDecisions = latestDecisions.filter(row=>row.decision==="rejected").map(row=>({
+          target_key:row.target_key,recommendation:row.recommendation,decision_id:row.decision_id,decided_at:row.decided_at
+        }));
+        return json({success:true,pending:(pendingRows.results||[]),history:history.slice(0,100),
+          approvedPreferenceProfile:{ownerUid:admin.uid,approvedPreferences,rejectedDecisions,
+            diagnostics:{ownerScoped:true,advisoryOnly:true,preferencesChanged:false,applied:false}}});
+      }
+
+      if (path === "/intelligence/preferences/proposals" && method === "POST") {
+        const admin = await verifyAdmin(request, env);
+        if (!admin) return error("Admin authentication required", 403);
+        if (!await checkRateLimit(env, request, "intelligence-preference-proposal", 30, 3600, 900, admin.uid)) {
+          return error("Too many preference proposals. Try again later.", 429);
+        }
+        const body = await readBody(request);
+        if (!body) return error("Invalid request body", 400);
+        const targetKey = cleanText(body.targetKey, 80).toLowerCase();
+        const recommendation = body.recommendation;
+        if (!/^[a-z0-9][a-z0-9._:-]{1,79}$/.test(targetKey) ||
+            /(secret|credential|wallet|financial|private|health|identity|password|recovery|mnemonic|seed)/i.test(targetKey) ||
+            !["increase_preference","decrease_preference"].includes(recommendation)) {
+          return error("Invalid preference proposal.", 400);
+        }
+        await ensureIntelligencePreferenceTables(env);
+        const memory = await env.DB.prepare(
+          "SELECT memory_key FROM intelligence_memory_items WHERE owner_uid=? AND memory_key=? AND category IN ('preference','decision') LIMIT 1"
+        ).bind(admin.uid,targetKey).first();
+        if (!memory) return error("An active owner preference or decision memory is required.", 409);
+        const existing = await env.DB.prepare(
+          "SELECT id,target_key,recommendation,proposal_key,created_at FROM intelligence_preference_proposals WHERE owner_uid=? AND target_key=? AND recommendation=? AND status='pending' LIMIT 1"
+        ).bind(admin.uid,targetKey,recommendation).first();
+        if (existing) return json({success:true,proposal:existing,duplicate:true});
+        const count = await env.DB.prepare(
+          "SELECT COUNT(*) AS total FROM intelligence_preference_proposals WHERE owner_uid=? AND status='pending'"
+        ).bind(admin.uid).first();
+        if (Number(count?.total||0)>=100) return error("Pending preference review queue is full.", 429);
+        const id = crypto.randomUUID();
+        const proposalKey = JSON.stringify([targetKey,recommendation]);
+        await env.DB.prepare(
+          "INSERT INTO intelligence_preference_proposals(id,owner_uid,target_key,recommendation,proposal_key) VALUES(?,?,?,?,?)"
+        ).bind(id,admin.uid,targetKey,recommendation,proposalKey).run();
+        await writeAdminAudit(env,admin,"intelligence_preference_proposal_created","intelligence_preference_proposal",id,
+          JSON.stringify({targetKey,recommendation}));
+        return json({success:true,proposal:{id,target_key:targetKey,recommendation,proposal_key:proposalKey,status:"pending"},duplicate:false},201);
+      }
+
+      if (path === "/intelligence/preferences/decisions" && method === "POST") {
+        const admin = await verifyAdmin(request, env);
+        if (!admin) return error("Admin authentication required", 403);
+        if (!await checkRateLimit(env, request, "intelligence-preference-decision", 20, 3600, 1800, admin.uid)) {
+          return error("Too many preference decisions. Try again later.", 429);
+        }
+        const body = await readBody(request);
+        if (!body) return error("Invalid request body", 400);
+        const proposalId = cleanText(body.proposalId, 80);
+        const choice = body.decision;
+        if (!/^[0-9a-f-]{36}$/i.test(proposalId) || !["accepted","rejected"].includes(choice) ||
+            body.explicitConfirmation !== true) {
+          return error("Explicit owner confirmation is required.", 400);
+        }
+        await ensureIntelligencePreferenceTables(env);
+        const proposal = await env.DB.prepare(
+          "SELECT id,target_key,recommendation,proposal_key FROM intelligence_preference_proposals WHERE id=? AND owner_uid=? AND status='pending' LIMIT 1"
+        ).bind(proposalId,admin.uid).first();
+        if (!proposal) return error("Pending owner preference proposal was not found.", 404);
+        const decisionId = crypto.randomUUID();
+        const decidedAt = new Date().toISOString();
+        try {
+          await env.DB.batch([
+            env.DB.prepare("INSERT INTO intelligence_preference_decisions(decision_id,owner_uid,actor_uid,proposal_id,proposal_key,target_key,recommendation,decision,explicit_confirmation,decided_at) VALUES(?,?,?,?,?,?,?,?,1,?)")
+              .bind(decisionId,admin.uid,admin.uid,proposal.id,proposal.proposal_key,proposal.target_key,proposal.recommendation,choice,decidedAt),
+            env.DB.prepare("UPDATE intelligence_preference_proposals SET status='decided' WHERE id=? AND owner_uid=? AND status='pending'")
+              .bind(proposal.id,admin.uid)
+          ]);
+        } catch (writeError) {
+          console.error("INTELLIGENCE_PREFERENCE_DECISION_WRITE_FAILED",String(writeError?.message||"database_error").slice(0,160));
+          return error("Could not record the preference decision. No preference was applied.",500);
+        }
+        await writeAdminAudit(env,admin,"intelligence_preference_decision_recorded","intelligence_preference_proposal",proposal.id,
+          JSON.stringify({decisionId,decision:choice,targetKey:proposal.target_key}));
+        return json({success:true,decision:{decisionId,proposalId:proposal.id,decision:choice,decidedAt},
+          preferencesChanged:false,applied:false});
       }
 
       if (path === "/intelligence/memory" && method === "GET") {

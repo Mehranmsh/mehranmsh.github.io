@@ -1613,6 +1613,43 @@ input:focus,textarea:focus,select:focus,button:focus-visible,a:focus-visible{out
 </div>
 <div class="section-title"><h2>Project data</h2><span class="small-text">Read-only technical view</span></div>
 <div id="intelligenceProjectsList" class="small-text">Project data will appear after a successful refresh.</div>
+
+<div class="panel" style="margin-top:18px">
+<div class="section-title"><div><h2>Plan history</h2><div class="small-text">Immutable, owner-confirmed snapshots of the current Intelligence task plan.</div></div><button class="btn secondary small" id="refreshIntelPlanHistoryBtn" type="button">Refresh</button></div>
+<form id="intelPlanSnapshotForm" class="card" autocomplete="off">
+<div class="field"><label for="intelPlanChangeReason">Why is this plan being saved?</label><input id="intelPlanChangeReason" maxlength="500" minlength="5" required placeholder="e.g. Priorities changed after reviewing project progress"></div>
+<button class="btn secondary small" id="intelPlanSnapshotSubmit" type="submit">Save current plan snapshot</button>
+<div id="intelPlanHistoryStatus" class="small-text" role="status" aria-live="polite">A snapshot stores the current owner-created task list. It does not run or change tasks.</div>
+</form>
+<div class="section-title" style="margin-top:16px"><h3>Latest comparison</h3><span class="small-text" id="intelPlanHistoryCount">0 revisions</span></div>
+<div id="intelPlanHistoryComparison" class="card small-text">Plan history will appear after refresh.</div>
+<div class="section-title" style="margin-top:16px"><h3>Outcome learning</h3><span class="small-text">Confirmed observations only</span></div>
+<div id="intelPlanLearning" class="card small-text">Learning summary will appear after refresh.</div>
+<div class="section-title" style="margin-top:16px"><h3>Revision timeline</h3></div>
+<div id="intelPlanHistoryList" class="grid"><div class="empty">No saved plan revisions yet.</div></div>
+<div class="section-title" style="margin-top:16px"><h3>Confirm task outcomes</h3></div>
+<div id="intelPlanProgressList" class="grid"><div class="empty">Save a snapshot to record owner-confirmed progress.</div></div>
+</div>
+<div class="panel" style="margin-top:18px">
+<div class="section-title"><div><h2>Preference governance</h2><div class="small-text">Review proposed changes to existing owner preferences. Nothing is applied automatically.</div></div><button class="btn secondary small" id="refreshIntelPreferencesBtn" type="button">Refresh</button></div>
+<form id="intelPreferenceProposalForm" class="card" autocomplete="off">
+<div class="field"><label for="intelPreferenceTarget">Existing preference memory key</label><input id="intelPreferenceTarget" maxlength="80" required value="owner_work_style" placeholder="e.g. owner_work_style"></div>
+<div class="field"><label for="intelPreferenceRecommendation">Proposed adjustment</label><select id="intelPreferenceRecommendation"><option value="increase_preference">Increase influence</option><option value="decrease_preference">Decrease influence</option></select></div>
+<button class="btn secondary small" id="intelPreferenceProposalSubmit" type="submit">Add to review queue</button>
+<div id="intelPreferenceProposalStatus" class="small-text" role="status" aria-live="polite">Only existing preference or decision memories can be reviewed.</div>
+</form>
+<div class="section-title" style="margin-top:16px"><h3>Pending owner review</h3><span class="small-text" id="intelPreferencePendingCount">0 pending</span></div>
+<form id="intelPreferenceFeedbackForm" class="card" style="margin-top:12px" autocomplete="off">
+<div class="field"><label for="intelPreferenceFeedbackOutcome">Record explicit feedback for the selected memory</label><select id="intelPreferenceFeedbackOutcome"><option value="accepted">This preference is correct</option><option value="rejected">This preference is not correct</option></select></div>
+<button class="btn secondary small" id="intelPreferenceFeedbackSubmit" type="submit">Record confirmed feedback</button>
+<div id="intelPreferenceFeedbackStatus" class="small-text" role="status" aria-live="polite">Uses the existing preference memory key above. No free-text or sensitive details are stored.</div>
+</form>
+<div class="hero-actions" style="margin-top:10px"><button class="btn secondary small" id="reviewIntelFeedbackBtn" type="button">Generate review proposals from feedback</button></div>
+<div id="intelPreferencePendingList" class="grid"><div class="empty">No pending preference proposals.</div></div>
+<div class="section-title" style="margin-top:16px"><h3>Approved profile</h3></div>
+<div id="intelPreferenceProfile" class="small-text">Approved preferences will appear here.</div>
+<div id="intelPreferenceGovernanceStatus" class="notice" aria-live="polite">Preference decisions are stored in the protected MEHRAN MSH database.</div>
+</div>
 </details>
 </section>
 
@@ -2809,6 +2846,8 @@ $("intelActiveUsers").textContent=String(stats.activeUsers??0);
 $("intelOpenReports").textContent=String(stats.openReports??0);
 $("intelligenceProjectsList").innerHTML=list.length?'<div class="grid">'+list.map(p=>'<div class="card"><div class="eyebrow">PROJECT · '+escapeHTML(p.status||"Planned")+'</div><h3>'+escapeHTML(p.name||"Untitled project")+'</h3><p>'+escapeHTML(p.description||"No description provided.")+'</p><div class="small-text" style="margin-top:10px">Updated: '+escapeHTML(p.updatedAt||p.updated_at||"Not available")+'</div></div>').join("")+'</div>':'<div class="empty">No registered projects yet.</div>';
 await loadIntelligenceChatHistory();
+await loadPreferenceGovernance();
+await loadIntelligencePlanHistory();
 message.textContent="Live company data loaded successfully. Updated "+new Date().toLocaleString()+".";
 message.className="notice success";
 }catch(error){
@@ -2818,6 +2857,199 @@ $("intelligenceProjectsList").textContent="Project information is unavailable un
 $("intelProjects").textContent=$("intelUsers").textContent=$("intelActiveUsers").textContent=$("intelOpenReports").textContent="—";
 }finally{$("refreshIntelligenceBtn").disabled=false;loadIntelligenceTasks()}
 }
+
+async function loadIntelligencePlanHistory(){
+const status=$("intelPlanHistoryStatus"),count=$("intelPlanHistoryCount"),comparisonNode=$("intelPlanHistoryComparison"),list=$("intelPlanHistoryList"),progressList=$("intelPlanProgressList");
+if(!comparisonNode||!list||!progressList)return;
+if(status){status.textContent="Loading protected plan history...";status.className="small-text"}
+try{
+const data=await api("/intelligence/plan-history");
+const revisions=Array.isArray(data.revisions)?data.revisions:[];
+const latest=revisions[revisions.length-1]||null;
+const previous=revisions[revisions.length-2]||null;
+const comparison=data.comparison?.comparison||null;
+count.textContent=revisions.length+" revisions";
+comparisonNode.replaceChildren();
+const learningNode=$("intelPlanLearning");
+if(learningNode){
+learningNode.replaceChildren();
+const learning=data.learning||{};
+const learningDiagnostics=learning.diagnostics||{};
+const note=document.createElement("p");note.className="small-text";
+note.textContent=(learningDiagnostics.observationsAccepted||0)+" owner-confirmed observations · "+(learningDiagnostics.minObservations||3)+" minimum per pattern. Associations are not proof of cause.";
+learningNode.appendChild(note);
+const patterns=Array.isArray(learning.patterns)?learning.patterns:[];
+if(!patterns.length){const empty=document.createElement("div");empty.className="empty";empty.textContent="No repeated plan-change patterns can be assessed yet. Record confirmed outcomes across revisions.";learningNode.appendChild(empty)}
+for(const pattern of patterns){
+const item=document.createElement("article");item.className="card";
+const heading=document.createElement("h3");heading.textContent=pattern.signature.replaceAll("_"," ");
+const detail=document.createElement("p");detail.className="small-text";
+detail.textContent=pattern.observations+" observations · "+pattern.outcomes.map(outcome=>outcome.state+": "+outcome.count).join(" · ");
+const statusLine=document.createElement("p");statusLine.className="small-text";statusLine.textContent=pattern.note;
+item.append(heading,detail,statusLine);learningNode.appendChild(item);
+}
+}
+if(comparison){
+const summary=document.createElement("div");
+summary.textContent="Version "+comparison.from_version+" → "+comparison.to_version+" · "+comparison.added.length+" added · "+comparison.removed.length+" removed · "+comparison.changed.length+" changed · order "+(comparison.orderChanged?"changed":"unchanged");
+const reason=document.createElement("p");reason.className="small-text";reason.textContent="Reason: "+comparison.change_reason;
+comparisonNode.append(summary,reason);
+for(const warning of (data.comparison?.diagnostics?.chronologyWarnings||[])){
+const line=document.createElement("p");line.className="small-text";line.textContent="History warning: "+warning.reason+" ("+warning.from_version+" → "+warning.to_version+")";comparisonNode.appendChild(line);
+}
+}else{
+const line=document.createElement("div");line.textContent=revisions.length?"Only one revision exists. Save another snapshot to compare changes.":"No plan snapshots have been saved yet.";comparisonNode.appendChild(line);
+}
+list.replaceChildren();
+if(!revisions.length){const empty=document.createElement("div");empty.className="empty";empty.textContent="No saved plan revisions yet.";list.appendChild(empty)}
+for(const revision of [...revisions].reverse()){
+const card=document.createElement("article");card.className="card";
+const heading=document.createElement("h3");heading.textContent="Version "+revision.version;
+const details=document.createElement("p");details.className="small-text";details.textContent=revision.change_reason+" · "+(revision.tasks?.length||0)+" tasks · "+new Date(revision.created_at).toLocaleString();
+card.append(heading,details);list.appendChild(card);
+}
+progressList.replaceChildren();
+if(!latest||!Array.isArray(latest.tasks)||!latest.tasks.length){
+const empty=document.createElement("div");empty.className="empty";empty.textContent="The latest revision has no tasks to annotate.";progressList.appendChild(empty);
+}else{
+for(const task of latest.tasks){
+const card=document.createElement("article");card.className="card";
+const heading=document.createElement("h3");heading.textContent=task.title||task.task_id;
+const detail=document.createElement("p");detail.className="small-text";detail.textContent=task.task_id+" · Current snapshot state: "+task.task_state;
+const controls=document.createElement("div");controls.className="hero-actions";
+const select=document.createElement("select");select.setAttribute("aria-label","Confirmed state for "+(task.title||task.task_id));
+for(const [value,label] of [["pending","Pending"],["in_progress","In progress"],["completed","Completed"],["blocked","Blocked"],["failed","Failed"]]){
+const option=document.createElement("option");option.value=value;option.textContent=label;option.selected=value===(task.task_state==="unspecified"?"pending":task.task_state);select.appendChild(option);
+}
+const button=document.createElement("button");button.type="button";button.className="btn secondary small";button.textContent="Record confirmed outcome";
+button.addEventListener("click",async()=>{
+if(!window.confirm("Record "+select.value+" as your explicitly confirmed outcome for this task?"))return;
+button.disabled=true;
+try{
+await api("/intelligence/plan-history/events",{method:"POST",body:JSON.stringify({revisionId:latest.revision_id,taskId:task.task_id,progressState:select.value,explicitConfirmation:true})});
+if(status){status.textContent="Owner-confirmed progress event saved. The snapshot itself remains unchanged.";status.className="small-text"}
+await loadIntelligencePlanHistory();
+}catch(error){if(status){status.textContent="Could not record progress: "+error.message;status.className="small-text"}button.disabled=false}
+});
+controls.append(select,button);card.append(heading,detail,controls);progressList.appendChild(card);
+}
+}
+if(status){status.textContent="Plan history loaded. Snapshots are immutable; outcomes require a separate explicit confirmation.";status.className="small-text"}
+}catch(error){
+if(status){status.textContent="Plan history unavailable: "+error.message;status.className="small-text"}
+comparisonNode.textContent="Protected plan history could not be loaded.";
+list.replaceChildren();progressList.replaceChildren();
+}
+}
+$("intelPlanSnapshotForm")?.addEventListener("submit",async event=>{
+event.preventDefault();
+const button=$("intelPlanSnapshotSubmit"),status=$("intelPlanHistoryStatus");
+const changeReason=$("intelPlanChangeReason").value.trim();
+if(changeReason.length<5){status.textContent="Please enter a clear reason for this revision.";return}
+if(!window.confirm("Save an immutable snapshot of the current owner-created Intelligence tasks?"))return;
+button.disabled=true;status.textContent="Saving the owner-confirmed plan snapshot...";
+try{
+const result=await api("/intelligence/plan-history",{method:"POST",body:JSON.stringify({changeReason,explicitConfirmation:true})});
+status.textContent="Saved revision "+result.revision.version+" with "+result.revision.taskCount+" tasks.";
+status.className="small-text";
+$("intelPlanChangeReason").value="";
+await loadIntelligencePlanHistory();
+}catch(error){status.textContent="Snapshot could not be saved: "+error.message;status.className="small-text"}
+finally{button.disabled=false}
+});
+$("refreshIntelPlanHistoryBtn")?.addEventListener("click",loadIntelligencePlanHistory);
+
+async function loadPreferenceGovernance(){
+const pendingList=$("intelPreferencePendingList"),profileNode=$("intelPreferenceProfile"),status=$("intelPreferenceGovernanceStatus");
+if(!pendingList||!profileNode||!status)return;
+status.textContent="Loading owner preference decisions...";
+status.className="notice";
+try{
+const data=await api("/intelligence/preferences");
+const pending=Array.isArray(data.pending)?data.pending:[];
+const profile=data.approvedPreferenceProfile||{};
+const approved=Array.isArray(profile.approvedPreferences)?profile.approvedPreferences:[];
+const rejected=Array.isArray(profile.rejectedDecisions)?profile.rejectedDecisions:[];
+$("intelPreferencePendingCount").textContent=pending.length+" pending";
+pendingList.replaceChildren();
+if(!pending.length){const empty=document.createElement("div");empty.className="empty";empty.textContent="No pending preference proposals.";pendingList.appendChild(empty)}
+for(const item of pending){
+const card=document.createElement("article");card.className="card";
+const heading=document.createElement("h3");heading.textContent=String(item.target_key||"Unknown preference");
+const detail=document.createElement("p");detail.className="small-text";detail.textContent=(item.recommendation==="increase_preference"?"Increase influence":"Decrease influence")+" · Awaiting your decision";
+const actions=document.createElement("div");actions.className="hero-actions";
+for(const choice of ["accepted","rejected"]){
+const button=document.createElement("button");button.type="button";button.className=choice==="accepted"?"btn":"btn secondary";
+button.textContent=choice==="accepted"?"Approve":"Reject";
+button.addEventListener("click",async()=>{
+if(!window.confirm((choice==="accepted"?"Approve":"Reject")+" this preference proposal? This decision will be recorded."))return;
+button.disabled=true;
+try{
+await api("/intelligence/preferences/decisions",{method:"POST",body:JSON.stringify({proposalId:item.id,decision:choice,explicitConfirmation:true})});
+status.textContent="Your "+choice+" decision has been recorded. No memory was modified.";
+status.className="notice success";
+await loadPreferenceGovernance();
+}catch(error){status.textContent="Decision could not be saved: "+error.message;status.className="notice warn";button.disabled=false}
+});
+actions.appendChild(button);
+}
+card.append(heading,detail,actions);pendingList.appendChild(card);
+}
+profileNode.replaceChildren();
+const summary=document.createElement("div");summary.textContent=approved.length+" approved · "+rejected.length+" rejected";profileNode.appendChild(summary);
+for(const item of approved){
+const line=document.createElement("div");line.className="small-text";line.textContent="✓ "+item.target_key+" · "+item.recommendation;profileNode.appendChild(line);
+}
+for(const item of rejected){
+const line=document.createElement("div");line.className="small-text";line.textContent="× "+item.target_key+" · rejected";profileNode.appendChild(line);
+}
+status.textContent="Preference governance loaded. Decisions are owner-scoped and do not directly modify memory.";
+status.className="notice success";
+}catch(error){
+status.textContent="Preference governance unavailable: "+error.message;
+status.className="notice warn";
+pendingList.replaceChildren();
+const empty=document.createElement("div");empty.className="empty";empty.textContent="Protected preference data could not be loaded.";pendingList.appendChild(empty);
+}
+}
+$("intelPreferenceProposalForm")?.addEventListener("submit",async event=>{
+event.preventDefault();
+const button=$("intelPreferenceProposalSubmit"),status=$("intelPreferenceProposalStatus");
+button.disabled=true;status.textContent="Checking the existing owner preference...";
+try{
+const targetKey=$("intelPreferenceTarget").value.trim();
+const recommendation=$("intelPreferenceRecommendation").value;
+const result=await api("/intelligence/preferences/proposals",{method:"POST",body:JSON.stringify({targetKey,recommendation})});
+status.textContent=result.duplicate?"This proposal is already waiting for review.":"Proposal added to the owner review queue.";
+await loadPreferenceGovernance();
+}catch(error){status.textContent="Could not create proposal: "+error.message}
+finally{button.disabled=false}
+});
+$("refreshIntelPreferencesBtn")?.addEventListener("click",loadPreferenceGovernance);
+$("intelPreferenceFeedbackForm")?.addEventListener("submit",async event=>{
+event.preventDefault();
+const button=$("intelPreferenceFeedbackSubmit"),status=$("intelPreferenceFeedbackStatus");
+button.disabled=true;status.textContent="Saving explicitly confirmed feedback...";
+try{
+const targetKey=$("intelPreferenceTarget").value.trim(),outcome=$("intelPreferenceFeedbackOutcome").value;
+await api("/intelligence/preferences/feedback",{method:"POST",body:JSON.stringify({targetKey,outcome,explicitConfirmation:true})});
+status.textContent="Feedback recorded. It will only create a proposal after enough consistent observations.";
+status.className="small-text";
+}catch(error){status.textContent="Feedback could not be saved: "+error.message}
+finally{button.disabled=false}
+});
+$("reviewIntelFeedbackBtn")?.addEventListener("click",async()=>{
+const button=$("reviewIntelFeedbackBtn"),status=$("intelPreferenceGovernanceStatus");
+button.disabled=true;status.textContent="Reviewing explicitly confirmed feedback...";
+try{
+const result=await api("/intelligence/preferences/review-feedback",{method:"POST",body:"{}"});
+status.textContent=result.created+" review proposal(s) created · "+result.unmatched+" unmatched · "+result.omitted+" omitted. Nothing was applied.";
+status.className="notice success";
+await loadPreferenceGovernance();
+}catch(error){status.textContent="Feedback review failed: "+error.message;status.className="notice warn"}
+finally{button.disabled=false}
+});
+
 async function loadIntelligenceChatHistory(){
 const container=$("intelConversation");if(!container)return;
 try{

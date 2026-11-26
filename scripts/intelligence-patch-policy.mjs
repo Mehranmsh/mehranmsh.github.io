@@ -8,7 +8,16 @@ function fail(code) {
 }
 
 function parseCount(value) {
-  return value === undefined ? 1 : Number(value);
+  if (value === undefined) return 1;
+  const parsed = Number(value);
+  return Number.isSafeInteger(parsed) && parsed >= 0 && parsed <= MAX_PATCH_BYTES
+    ? parsed
+    : null;
+}
+
+function validLineNumber(value) {
+  const parsed = Number(value);
+  return Number.isSafeInteger(parsed) && parsed >= 0 && parsed <= 1_000_000;
 }
 
 /**
@@ -42,9 +51,11 @@ export function validatePatchProposal(input) {
     const match = /^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@(?: .*)?$/.exec(header);
     if (!match) return fail("invalid_hunk_header");
     hunkCount++;
+    if (!validLineNumber(match[1]) || !validLineNumber(match[3])) return fail("invalid_hunk_position");
     let oldRemaining = parseCount(match[2]);
     let newRemaining = parseCount(match[4]);
-    if (oldRemaining < 0 || newRemaining < 0 || (oldRemaining === 0 && newRemaining === 0)) return fail("invalid_hunk_counts");
+    if (oldRemaining === null || newRemaining === null ||
+        (oldRemaining === 0 && newRemaining === 0)) return fail("invalid_hunk_counts");
     index++;
     while (oldRemaining > 0 || newRemaining > 0) {
       if (index >= lines.length) return fail("truncated_hunk");

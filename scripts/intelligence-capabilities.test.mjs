@@ -1562,3 +1562,54 @@ test("bounded repository architecture inventory is routed deterministically with
   assert.ok(workerSource.includes("const deterministicPlan = buildDeterministicRoutinePlan(mission)"));
   assert.ok(workerSource.includes("aiInferenceUsed: false"));
 });
+
+
+test("capability schemas are deeply immutable, including nested allowlists and validation rules", () => {
+  function assertDeepFrozen(value, seen = new Set()) {
+    if (!value || typeof value !== "object" || seen.has(value)) return;
+    seen.add(value);
+    assert.equal(Object.isFrozen(value), true, "every nested policy object and array must be frozen");
+    for (const child of Object.values(value)) assertDeepFrozen(child, seen);
+  }
+
+  for (const capability of Object.values(INTELLIGENCE_CAPABILITIES)) {
+    assertDeepFrozen(capability);
+  }
+
+  const capability = getIntelligenceCapability("inspect_repository");
+  const pathsRule = capability.inputSchema.properties.paths;
+  assert.deepEqual(pathsRule.itemEnum, [
+    "worker.js",
+    "scripts/intelligence-agent.mjs",
+    "scripts/intelligence-capabilities.mjs",
+    "scripts/intelligence-capabilities.test.mjs",
+    ".github/workflows/mehran-intelligence-runner.yml",
+    "docs/INTELLIGENCE_EXECUTION_PROTOCOL.md"
+  ]);
+  assert.throws(() => pathsRule.itemEnum.push("secrets.env"), TypeError);
+  assert.throws(() => { pathsRule.maxItems = 1000; }, TypeError);
+  assert.equal(validateIntelligenceCapabilityRequest("inspect_repository", { paths: ["worker.js"] }).ok, true);
+  assert.equal(validateIntelligenceCapabilityRequest("inspect_repository", { paths: ["secrets.env"] }).code, "invalid_input_value");
+});
+
+
+test("capability pattern validation rejects trailing line terminators", () => {
+  const valid = {
+    branch: "intelligence/proposal-12345678",
+    title: "Bounded regression proposal",
+    headSha: "a".repeat(40)
+  };
+  assert.equal(validateIntelligenceCapabilityRequest("create_pull_request", valid).ok, true);
+  assert.equal(validateIntelligenceCapabilityRequest("create_pull_request", {
+    ...valid,
+    branch: valid.branch + String.fromCharCode(10)
+  }).code, "invalid_input_value");
+});
+
+test("capability lookup rejects inherited JavaScript object properties", () => {
+  for (const name of ["constructor", "toString", "valueOf", "__proto__", "hasOwnProperty"]) {
+    assert.equal(getIntelligenceCapability(name), null, name);
+    assert.equal(validateIntelligenceCapabilityRequest(name, {}).code, "unknown_capability", name);
+  }
+  assert.equal(getIntelligenceCapability("project_status_report").id, "project_status_report");
+});

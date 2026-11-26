@@ -92,6 +92,34 @@ jobs:
       - name: Run Intelligence memory relevance tests
         run: node --check scripts/intelligence-memory-ranking.mjs && node --test scripts/intelligence-memory-ranking.test.mjs
 
+      - name: Run unified Intelligence context orchestrator tests
+        run: node --check scripts/intelligence-context-orchestrator.mjs && node --test scripts/intelligence-context-orchestrator.test.mjs
+
+      - name: Run Intelligence knowledge graph tests
+        run: node --check scripts/intelligence-knowledge-graph.mjs && node --test scripts/intelligence-knowledge-graph.test.mjs
+
+      - name: Run Intelligence project diagnostics tests
+        run: node --check scripts/intelligence-project-diagnostics.mjs && node --test scripts/intelligence-project-diagnostics.test.mjs
+
+      - name: Run Intelligence execution planner tests
+        run: node --check scripts/intelligence-execution-planner.mjs && node --test scripts/intelligence-execution-planner.test.mjs
+
+      - name: Run Intelligence goal lifecycle tests
+        run: node --check scripts/intelligence-goal-lifecycle.mjs && node --test scripts/intelligence-goal-lifecycle.test.mjs
+
+      - name: Run Intelligence plan history tests
+        run: node --check scripts/intelligence-plan-history.mjs && node --test scripts/intelligence-plan-history.test.mjs
+      - name: Run Intelligence plan outcome learning tests
+        run: node --check scripts/intelligence-plan-learning.mjs && node --test scripts/intelligence-plan-learning.test.mjs
+
+      - name: Run Intelligence decision engine tests
+        run: node --check scripts/intelligence-decision-engine.mjs && node --test scripts/intelligence-decision-engine.test.mjs
+      - name: Run Intelligence feedback learning tests
+        run: node --check scripts/intelligence-feedback-learning.mjs && node --test scripts/intelligence-feedback-learning.test.mjs
+      - name: Run Intelligence feedback review bridge tests
+        run: node --check scripts/intelligence-feedback-review.mjs && node --test scripts/intelligence-feedback-review.test.mjs
+      - name: Run Intelligence preference governance tests
+        run: node --check scripts/intelligence-preference-governance.mjs && node --test scripts/intelligence-preference-governance.test.mjs
       - name: Run Intelligence report finalization safety tests
         run: node --check scripts/intelligence-report-finalization.mjs && node --test scripts/intelligence-report-finalization.test.mjs
 
