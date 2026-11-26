@@ -1,6 +1,9 @@
 name: Pi Launchpad Analyzer isolated tests
 
 on:
+  pull_request:
+    branches:
+      - intelligence/pi-launchpad-analyzer-mvp
   push:
     branches:
       - intelligence/pi-launchpad-analyzer-mvp
