@@ -1646,7 +1646,7 @@ test("agent validates claimed task envelopes and returns the claim token", () =>
   assert.doesNotMatch(agentSource, /encodeURIComponent\(task\.id\)/);
 });
 
-import { buildIntelligenceArchitectureReview } from "./intelligence-architecture-review.mjs";
+import { buildIntelligenceArchitectureReview, compactIntelligenceArchitectureReview } from "./intelligence-architecture-review.mjs";
 test("private inbox resolves and attaches a verified immutable base SHA only for authorized test tasks", () => {
   assert.match(workerSource, /resolveMainCommitSha/);
   assert.match(workerSource, /mission\.scope\.allowed_actions\.includes\("run_repository_tests"\)/);
@@ -1674,6 +1674,9 @@ test("deterministic architecture review produces evidence-linked layers without 
   assert.ok(result.architecture.some(item => item.id === "orchestration" && item.status === "present"));
   assert.ok(result.architecture.some(item => item.id === "ai_quota" && item.status === "present"));
   assert.ok(result.limitations.some(item => item.includes("not an LLM-generated semantic review")));
+  const compact = compactIntelligenceArchitectureReview(result, 2900);
+  assert.ok(compact.length <= 2900);
+  assert.equal(JSON.parse(compact).architecture.length, 8);
 });
 test("deterministic architecture review rejects unapproved paths, duplicate files, and invalid revisions", () => {
   const paths = ["worker.js","scripts/intelligence-agent.mjs","scripts/intelligence-capabilities.mjs",".github/workflows/mehran-intelligence-runner.yml","docs/INTELLIGENCE_EXECUTION_PROTOCOL.md","scripts/intelligence-architecture-review.mjs"];
