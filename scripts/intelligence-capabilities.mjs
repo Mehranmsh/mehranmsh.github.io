@@ -87,17 +87,22 @@ export const INTELLIGENCE_CAPABILITIES = Object.freeze({
         paths: {
           type: "array",
           minItems: 1,
-          maxItems: 6,
+          maxItems: 11,
           itemType: "string",
           maxItemLength: 240,
           uniqueItems: true,
           itemEnum: [
-            "worker.js",
-            "scripts/intelligence-agent.mjs",
-            "scripts/intelligence-capabilities.mjs",
-            "scripts/intelligence-capabilities.test.mjs",
-            ".github/workflows/mehran-intelligence-runner.yml",
-            "docs/INTELLIGENCE_EXECUTION_PROTOCOL.md"
+  "worker.js",
+  "index.html",
+  "music-studio.html",
+  "instrument-sampler.js",
+  "engine/server.py",
+  "engine/model_policy.py",
+  "engine/preflight.py",
+  "scripts/intelligence-agent.mjs",
+  "scripts/intelligence-capabilities.mjs",
+  ".github/workflows/mehran-intelligence-runner.yml",
+  "docs/INTELLIGENCE_EXECUTION_PROTOCOL.md"
           ]
         }
       }
