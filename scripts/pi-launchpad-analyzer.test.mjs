@@ -4,6 +4,7 @@ import { analyzeLaunchpadOpportunity, LAUNCHPAD_ANALYZER_VERSION } from "./pi-la
 import "./pi-launchpad-data-adapter.test.mjs";
 import "./pi-launchpad-source-registry.test.mjs";
 import "./pi-launchpad-connector-policy.test.mjs";
+import "./pi-launchpad-snapshot-monitor.test.mjs";
 
 test("reports versioned insufficient-data result without inventing a score", () => {
   const result = analyzeLaunchpadOpportunity({ tokenId: "pi-token-1", symbol: "PIT" });
