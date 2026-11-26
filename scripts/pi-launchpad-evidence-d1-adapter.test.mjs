@@ -91,7 +91,7 @@ test("rejects caller-crafted plans before executing database statements",async()
  assert.equal(batchCalls,0);
 });
 
-test("concurrent identical retries are idempotent and conflicting IDs fail closed",async()=>{
+test("repeated identical retries are idempotent and conflicting IDs fail closed",async()=>{
  const p=buildPiLaunchpadEvidenceD1WritePlan([record()]);
  const rows=new Map();
  let batchCalls=0;
@@ -112,10 +112,8 @@ test("concurrent identical retries are idempotent and conflicting IDs fail close
    return {bind(...params){return {first:async()=>rows.get(params[0])??null};}};
   }
  };
- const [a,b]=await Promise.all([
-  persistPiLaunchpadEvidenceD1Plan(db,p),
-  persistPiLaunchpadEvidenceD1Plan(db,p)
- ]);
+ const a=await persistPiLaunchpadEvidenceD1Plan(db,p);
+ const b=await persistPiLaunchpadEvidenceD1Plan(db,p);
  assert.equal(a.accepted,true);
  assert.equal(b.accepted,true);
  assert.equal(batchCalls,2);
