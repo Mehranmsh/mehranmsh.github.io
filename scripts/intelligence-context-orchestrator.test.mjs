@@ -206,3 +206,39 @@ test("caps caller input-scan limits at the hard maximum", () => {
   assert.equal(result.diagnostics.inspectedInputRecords, 1);
   assert.equal(result.diagnostics.omittedInputRecords, 0);
 });
+
+
+test("bounds every auxiliary input collection before subsystem processing", () => {
+  const decisionCriteria = Array.from({length: 31}, (_, index) => ({
+    key: "criterion_" + index, weight: 1, direction: "higher"
+  }));
+  const decisionOptions = Array.from({length: 55}, (_, index) => ({
+    id: "option_" + index, scores: Object.fromEntries(decisionCriteria.map(item => [item.key, 3]))
+  }));
+  const result = buildIntelligenceContextSnapshot([base("safe")], {
+    ownerUid: "owner-a",
+    actorUid: "owner-a",
+    preferenceLedger: Array.from({length: 1002}, (_, index) => ({ decision_id: "invalid-" + index })),
+    decisionOptions,
+    decisionCriteria,
+    goalTaskProposals: Array.from({length: 105}, (_, index) => ({ task_id: "proposal-" + index })),
+    progressEvents: Array.from({length: 501}, (_, index) => ({ event_id: "progress-" + index })),
+    planRevisions: Array.from({length: 52}, (_, index) => ({ revision_id: "revision-" + index })),
+    planProgressEvents: Array.from({length: 505}, (_, index) => ({ event_id: "event-" + index }))
+  });
+
+  assert.deepEqual(result.diagnostics.auxiliaryInputBounds, {
+    preferenceLedgerOmitted: 2,
+    decisionOptionsOmitted: 5,
+    decisionCriteriaOmitted: 1,
+    goalTaskProposalsOmitted: 5,
+    progressEventsOmitted: 1,
+    planRevisionsOmitted: 2,
+    planProgressEventsOmitted: 5
+  });
+  assert.equal(result.decisionEvaluation.diagnostics.inspectedOptions, 50);
+  assert.equal(result.decisionEvaluation.diagnostics.criteriaUsed, 30);
+  assert.equal(result.planHistory.diagnostics.revisionsInspected, 50);
+  assert.equal(result.planLearning.diagnostics.revisionsInspected, 50);
+  assert.equal(result.planLearning.diagnostics.eventsInspected, 500);
+});
