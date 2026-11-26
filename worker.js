@@ -7616,7 +7616,7 @@ export default {
           const delay = Math.min(3600,30 * (2 ** Math.max(0,Number(stale.attempts || 1)-1)));
           const nextAt = exhausted ? null : new Date(Date.now()+delay*1000).toISOString();
           const updated = await env.DB.prepare(
-            "UPDATE intelligence_tasks SET status=?,agent_claimed_at=NULL,agent_claim_token_hash='',next_attempt_at=?,last_error_code=?,result_text=?,updated_at=CURRENT_TIMESTAMP WHERE id=? AND status='in_progress' AND queue_lane='owner' AND owner_uid IS NOT NULL AND assigned_to='mehran_intelligence' AND agent_claimed_at IS NOT NULL AND datetime(agent_claimed_at)<datetime('now','-15 minutes') AND EXISTS (SELECT 1 FROM intelligence_work_packages wp, json_each(CASE WHEN json_valid(wp.scope_json) THEN wp.scope_json ELSE '{}' END, '$.allowedActions') scoped WHERE wp.id=intelligence_tasks.work_package_id AND scoped.value=intelligence_tasks.action_type)"
+            "UPDATE intelligence_tasks SET status=?,agent_claimed_at=NULL,agent_claim_token_hash='',next_attempt_at=?,last_error_code=?,result_text=?,updated_at=CURRENT_TIMESTAMP WHERE id=? AND status='in_progress' AND queue_lane='owner' AND owner_uid IS NOT NULL AND assigned_to='mehran_intelligence' AND EXISTS (SELECT 1 FROM intelligence_work_packages owner_wp WHERE owner_wp.id=intelligence_tasks.work_package_id AND owner_wp.owner_uid=intelligence_tasks.owner_uid) AND agent_claimed_at IS NOT NULL AND datetime(agent_claimed_at)<datetime('now','-15 minutes') AND EXISTS (SELECT 1 FROM intelligence_work_packages wp, json_each(CASE WHEN json_valid(wp.scope_json) THEN wp.scope_json ELSE '{}' END, '$.allowedActions') scoped WHERE wp.id=intelligence_tasks.work_package_id AND scoped.value=intelligence_tasks.action_type)"
           ).bind(nextStatus,nextAt,exhausted?"claim_expired_max_attempts":"claim_expired_retry",exhausted?"Executor claim expired and retry limit was reached.":"Executor claim expired; task scheduled for retry.",stale.id).run();
           if (Number(updated?.meta?.changes || 0)) {
             await env.DB.prepare("INSERT INTO intelligence_task_events(id,work_package_id,task_id,event_type,from_status,to_status,actor,details_json) VALUES(?,?,?,'claim_expired','in_progress',?,?,?)")
@@ -8324,7 +8324,7 @@ export default {
           ];
           for (const item of normalized) {
             statements.push(env.DB.prepare("INSERT INTO intelligence_tasks(id,title,description,assigned_to,priority,status,requires_approval,result_text,created_by,action_type,action_payload,work_package_id,max_attempts,owner_uid,queue_lane) VALUES(?,?,?,'mehran_intelligence',?,'queued',0,'','mehran_intelligence',?,?,?,?,?,'owner')")
-               .bind(packageId + ":" + item.taskId,item.title,item.description,priority,item.actionType,JSON.stringify({sourceTaskId:item.taskId,...(item.paths?{paths:item.paths}:{}),...(item.baseSha?{baseSha:item.baseSha}:{})}),packageId,packageOwnerPrincipal));
+               .bind(packageId + ":" + item.taskId,item.title,item.description,priority,item.actionType,JSON.stringify({sourceTaskId:item.taskId,...(item.paths?{paths:item.paths}:{}),...(item.baseSha?{baseSha:item.baseSha}:{})}),packageId,3,packageOwnerPrincipal));
             for (const dependency of item.dependencies) {
               statements.push(env.DB.prepare("INSERT INTO intelligence_task_dependencies(task_id,depends_on_task_id) VALUES(?,?)").bind(packageId + ":" + item.taskId,packageId + ":" + dependency));
             }
