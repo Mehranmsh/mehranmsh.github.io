@@ -1591,3 +1591,12 @@ test("capability schemas are deeply immutable, including nested allowlists and v
   assert.equal(validateIntelligenceCapabilityRequest("inspect_repository", { paths: ["worker.js"] }).ok, true);
   assert.equal(validateIntelligenceCapabilityRequest("inspect_repository", { paths: ["secrets.env"] }).code, "invalid_input_value");
 });
+
+
+test("capability lookup rejects inherited JavaScript object properties", () => {
+  for (const name of ["constructor", "toString", "valueOf", "__proto__", "hasOwnProperty"]) {
+    assert.equal(getIntelligenceCapability(name), null, name);
+    assert.equal(validateIntelligenceCapabilityRequest(name, {}).code, "unknown_capability", name);
+  }
+  assert.equal(getIntelligenceCapability("project_status_report").id, "project_status_report");
+});
