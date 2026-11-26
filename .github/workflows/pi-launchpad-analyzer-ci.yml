@@ -11,6 +11,7 @@ on:
       - feat/pi-launchpad-candidate-intake
       - fix/pi-launchpad-candidate-intake-dedupe
       - feat/pi-launchpad-evidence-d1-schema
+      - feat/pi-launchpad-evidence-d1-adapter
     paths:
       - "scripts/pi-launchpad-analyzer.mjs"
       - "scripts/pi-launchpad-analyzer.test.mjs"
@@ -19,6 +20,8 @@ on:
       - "scripts/pi-launchpad-attestation-verifier.mjs"
       - "scripts/pi-launchpad-attestation-verifier.test.mjs"
       - "scripts/pi-launchpad-evidence-gateway.mjs"
+      - "scripts/pi-launchpad-evidence-d1-adapter.mjs"
+      - "scripts/pi-launchpad-evidence-d1-adapter.test.mjs"
       - "scripts/pi-launchpad-evidence-gateway.test.mjs"
       - "scripts/pi-launchpad-metrics-gateway.mjs"
       - "scripts/pi-launchpad-metrics-gateway.test.mjs"
@@ -91,6 +94,7 @@ jobs:
         run: |
           node --check scripts/pi-launchpad-analyzer.mjs
           node --check scripts/pi-launchpad-evidence-gateway.mjs
+          node --check scripts/pi-launchpad-evidence-d1-adapter.mjs
           node --check scripts/pi-launchpad-metrics-gateway.mjs
           node --check scripts/pi-launchpad-verified-analyzer.mjs
           node --check scripts/pi-launchpad-candidate-intake.mjs
