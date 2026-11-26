@@ -8447,7 +8447,8 @@ export default {
         }
         const checkpointMatch = path.match(/^\/agent\/v1\/tasks\/([^/]+)\/checkpoint$/);
         if (checkpointMatch && method === "POST") {
-          const id = decodeURIComponent(checkpointMatch[1]);
+          let id;
+          try { id = decodeURIComponent(checkpointMatch[1]); } catch { return error("Invalid task ID."); }
           if (!id || id.length > 160) return error("Invalid task ID.");
           const body = await readBody(request);
           if (!body || !body.checkpoint || typeof body.checkpoint !== "object" || Array.isArray(body.checkpoint)) return error("A checkpoint object is required.");
@@ -8468,7 +8469,8 @@ export default {
         }
         const agentResultMatch = path.match(/^\/agent\/v1\/tasks\/([^/]+)\/result$/);
         if (agentResultMatch && method === "POST") {
-          const id = decodeURIComponent(agentResultMatch[1]);
+          let id;
+          try { id = decodeURIComponent(agentResultMatch[1]); } catch { return error("Invalid task ID."); }
           if (!id || id.length > 160) return error("Invalid task ID.");
           const body = await readBody(request);
           if (!body || typeof body.result !== "string" || body.result.length > 3000 || new TextEncoder().encode(body.result).byteLength > 12 * 1024 || !["completed","blocked"].includes(body.status || "completed")) {
