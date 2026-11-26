@@ -1466,6 +1466,8 @@ test("scheduled Intelligence runner is single-flight, secret-backed and restrict
     "scheduled runner must cap GitHub repository metadata responses");
   assert.match(runner, /readJsonResponse\(commitResponse, 256 \* 1024\)/,
     "scheduled runner must cap GitHub commit-list responses");
+  assert.match(runner, /if \(!value \|\| typeof value !== "object"\) throw new Error\("invalid JSON value"\)/,
+    "bounded GitHub response parser must accept valid JSON arrays such as commit lists");
   assert.match(runner, /readJsonResponse\(commitResponse, 65536\)/,
     "scheduled runner must cap individual GitHub commit responses");
   const proposalRunnerSource = await readFile(new URL("./intelligence-proposal-pr-runner.mjs", import.meta.url), "utf8");
