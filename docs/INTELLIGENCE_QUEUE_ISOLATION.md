@@ -59,3 +59,10 @@ This is a policy primitive, not yet connected to D1 migrations, Scheduler select
 The task table now has nullable `owner_uid` and `queue_lane TEXT NOT NULL DEFAULT 'quarantine'`, plus a lane/status/priority/created-at index. The migration is additive and idempotent for duplicate-column initialization. Existing records are intentionally not backfilled: neither `assigned_to` nor `created_by` is accepted as proof of owner identity.
 
 This schema change is not yet enforcing lane-specific claims. The existing scheduler and agent endpoints still use their legacy shared selection predicates until authenticated owner identity is wired end-to-end. Do not enable lane filtering or claim the queues are isolated until task creation, claim, checkpoint, result, and stale-claim recovery all enforce the same lane and owner binding.
+
+
+## Authenticated task creation binding
+
+New tasks created through the authenticated owner task API now persist `admin.uid` as `owner_uid` when assigned to `mehran_intelligence`, and set `queue_lane='owner'`. Explicitly shared tasks are stored with a null owner and `queue_lane='shared'`; other assignments are quarantined. Owner mission work-package tasks inherit the supplied owner UID only when it is present; otherwise they are quarantined. The chat task proposal path follows the same owner/shared classification.
+
+The existing agent claim endpoint is still a combined legacy endpoint and has not yet been lane-filtered. This is intentional: switching its query before the owner runner has a distinct authenticated route would risk stranding or misrouting work. Next implementation slice must split owner orchestration claims from shared-agent claims, bind checkpoint/result acknowledgements to the same lane, and keep stale-claim recovery lane-specific.
