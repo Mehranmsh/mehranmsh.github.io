@@ -143,6 +143,9 @@ The current browser storage model also needs a deliberate migration plan before 
 - It rejects files above 25 MB or 120 seconds to reduce mobile memory risk.
 - It does not upload audio, call Cloudflare AI, consume an AI allowance, modify the original recording, alter project metadata, or apply effects.
 - The updated inline JavaScript passed a V8 syntax compilation check after the change.
+- The analyzer now emits a versioned, structured result envelope: `mehran.music-studio.audio-analysis` v1, with analysis ID, project/track references, local-only provenance, bounded metrics, findings, and explicit limitations. This is an in-memory result only; it is not persisted or sent to the remote Intelligence service.
+- The Run button now remains disabled until a specific recording is selected, and project/track changes clear stale reports.
+- After these changes, the complete inline Studio script passed a fresh V8 syntax compilation check. This is syntax validation only, not a real-browser audio fixture test.
 
 ### Known limitations and next work
 
