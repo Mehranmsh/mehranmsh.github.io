@@ -7,7 +7,7 @@ import { validateLaunchpadDataEnvelope } from "./pi-launchpad-data-adapter.mjs";
 import { verifyPiLaunchpadAttestation } from "./pi-launchpad-attestation-verifier.mjs";
 import { buildPiLaunchpadTrustStore } from "./pi-launchpad-trust-store.mjs";
 
-export const PI_LAUNCHPAD_EVIDENCE_GATEWAY_VERSION = "0.2.0";
+export const PI_LAUNCHPAD_EVIDENCE_GATEWAY_VERSION = "0.3.0";
 const SCORE_FIELDS = new Set(["utility", "teamTransparency", "tokenomics", "marketActivity", "contractSecurity"]);
 const isRecord = (v) => v !== null && typeof v === "object" && !Array.isArray(v) &&
   (Object.getPrototypeOf(v) === Object.prototype || Object.getPrototypeOf(v) === null);
@@ -62,7 +62,7 @@ export function buildPiLaunchpadVerifiedScoringEvidence({
     }
     const item = matches[0];
     const source = sourceById.get(item.sourceId);
-    if (verified.tokenId !== validation.tokenId || verified.field !== item.field ||
+    if (verified.networkId !== validation.networkId || verified.tokenId !== validation.tokenId || verified.field !== item.field ||
         verified.sourceUrl !== source.url || verified.observedAt !== item.observedAt ||
         !Object.is(verified.value, item.value)) {
       rejectedRecords.push(rejected(identity, "attestation_evidence_mismatch"));
@@ -99,6 +99,7 @@ export function buildPiLaunchpadVerifiedScoringEvidence({
   return Object.freeze({
     gatewayVersion: PI_LAUNCHPAD_EVIDENCE_GATEWAY_VERSION,
     tokenId: validation.tokenId,
+    networkId: validation.networkId,
     scoringEvidence: Object.freeze(scoringEvidence),
     acceptedRecords: Object.freeze(acceptedRecords),
     rejectedRecords: Object.freeze(rejectedRecords),
