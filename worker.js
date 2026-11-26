@@ -7845,7 +7845,7 @@ export default {
           },row.status === "stored" ? 200 : 202);
           const existing = await readRequest();
           if (existing) {
-            if (existing.request_hash !== requestHash || existing.base_sha !== body.baseSha || existing.target_path !== targetPath) {
+            if (existing.request_hash !== requestHash || existing.base_sha !== body.baseSha || (existing.target_path && existing.target_path !== targetPath)) {
               return error("Request ID was already used with a different generation payload.",409);
             }
             if (existing.status === "stored") return responseFor(existing);
