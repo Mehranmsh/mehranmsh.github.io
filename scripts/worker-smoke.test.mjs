@@ -3970,3 +3970,15 @@ test("Intelligence plan history UI requires explicit confirmation and displays r
   assert.ok(indexSource.includes("window.confirm("));
   assert.ok(indexSource.includes("explicitConfirmation:true"));
 });
+
+
+test("Intelligence plan outcome learning is wired to revision-linked owner-confirmed events", () => {
+  const start = workerSource.indexOf('if (path === "/intelligence/plan-history" && method === "GET")');
+  const end = workerSource.indexOf('if (path === "/intelligence/plan-history" && method === "POST")', start);
+  const route = workerSource.slice(start, end);
+  assert.ok(route.includes("revision_id:event.revision_id"));
+  assert.ok(route.includes("learnFromIntelligencePlanOutcomes(revisions,progressEvents"));
+  assert.ok(route.includes("learning,progressEvents"));
+  assert.ok(indexSource.includes('id="intelPlanLearning"'));
+  assert.ok(indexSource.includes('learning.patterns'));
+});
