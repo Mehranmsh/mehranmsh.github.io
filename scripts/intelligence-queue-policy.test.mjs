@@ -61,7 +61,7 @@ test("owner and shared task APIs are authenticated and lane-isolated end to end"
   const worker = await readFile(new URL("../worker.js", import.meta.url), "utf8");
   const runner = await readFile(new URL("../.github/workflows/mehran-intelligence-runner.yml", import.meta.url), "utf8");
   assert.match(worker, /path === "\/agent\/v1\/owner\/tasks\/next"[\s\S]*?MEHRAN_ORCHESTRATOR_TOKEN/);
-  assert.match(worker, /queue_lane='owner' AND owner_uid IS NOT NULL/);
+  assert.match(worker, /queue_lane='owner' AND owner_uid='mehran_owner_orchestrator'/);
   assert.match(worker, /queue_lane='shared' AND owner_uid IS NULL/);
   assert.match(worker, /const taskRouteLane = path\.startsWith\("\/agent\/v1\/owner\/tasks\/"\) \? "owner" : "shared"/);
   assert.match(runner, /request\("\/agent\/v1\/owner\/tasks\/next", \{\}, ownerHeaders\)/);
