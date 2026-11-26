@@ -1,3 +1,6 @@
+
+import { createHash } from "node:crypto";
+
 /**
  * Pi Testnet RPC experiment boundary.
  * Pure policy and JSON-RPC envelope validation only: no network transport,
@@ -100,5 +103,54 @@ export function validatePiTestnetRpcResponse(response, expectedId) {
     result: safeResponse.result,
     responseBytes: new TextEncoder().encode(serialized).byteLength,
     trustNotice: "Opaque Testnet RPC result only. Health semantics are not interpreted. Not Mainnet evidence, not a cryptographic proof, and not eligible for Mainnet scoring."
+  });
+}
+
+
+function isCanonicalUtcTimestamp(value) {
+  if (typeof value !== "string" ||
+      !/^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$/.test(value)) return false;
+  const parsed = new Date(value);
+  return Number.isFinite(parsed.getTime()) && parsed.toISOString() === value;
+}
+
+/**
+ * Creates an immutable audit observation from a validated JSON-RPC response.
+ * The SHA-256 digest covers JSON.stringify(response), not original HTTP wire bytes.
+ * This is a tamper-evident local record, not a Pi signature or proof of truth.
+ */
+export function createPiTestnetObservation(response, expectedId, retrievedAt) {
+  if (!isCanonicalUtcTimestamp(retrievedAt)) {
+    return Object.freeze({ accepted: false, code: "invalid_retrieval_timestamp" });
+  }
+  const checked = validatePiTestnetRpcResponse(response, expectedId);
+  if (!checked.accepted) return checked;
+
+  let serialized;
+  try {
+    serialized = JSON.stringify(response);
+  } catch {
+    return Object.freeze({ accepted: false, code: "unserializable_response" });
+  }
+  if (typeof serialized !== "string") {
+    return Object.freeze({ accepted: false, code: "unserializable_response" });
+  }
+  const responseSha256 = createHash("sha256").update(serialized, "utf8").digest("hex");
+  const observation = {
+    schemaVersion: 1,
+    network: "testnet",
+    endpoint: PI_TESTNET_RPC_ENDPOINT,
+    method: "getHealth",
+    requestId: expectedId,
+    retrievedAt,
+    responseBytes: checked.responseBytes,
+    serializedResponseSha256: responseSha256,
+    result: checked.result,
+    eligibleForMainnetScoring: false,
+    trustNotice: "Testnet observation only. Digest covers normalized JSON serialization, not original wire bytes. No Pi signature, ledger proof, Mainnet evidence, or scoring eligibility is implied."
+  };
+  return Object.freeze({
+    accepted: true,
+    observation: deepFreezeJson(observation)
   });
 }
