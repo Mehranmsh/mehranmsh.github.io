@@ -697,7 +697,8 @@ test("AI patch generation endpoint has a strict bounded request and storage-only
   const end = workerSource.indexOf('if (path === "/agent/v1/patch-proposals" && method === "POST")', start);
   assert.ok(start >= 0 && end > start);
   const route = workerSource.slice(start, end);
-  assert.match(route, /Object\.keys\(body\)\.sort\(\)\.join\(","\) !== "baseSha,objective,requestId"/);
+  assert.match(route, /!["]baseSha["],"objective","requestId"].every\(key => Object.hasOwn\(body,key\)\)/);
+  assert.match(route, /isAllowedIntelligencePatchTarget\(body\.targetPath\)/);
   assert.match(route, /checkRateLimit\(env,request,"intelligence-patch-generation",3,86400,86400\)/);
   assert.match(route, /reserveSocialWorkersAIBudget\(env,credits,"intelligence"\)/);
   assert.match(route, /runIntelligenceAI\(env,\s*\{\s*messages,\s*jsonMode: true,/,
