@@ -1000,7 +1000,7 @@ test("Intelligence task recovery is claim-token scoped, bounded, and attempt lim
   assert.match(claimRoute, /datetime\(agent_claimed_at\)<datetime\('now','-15 minutes'\)/);
   assert.match(claimRoute, /queue_lane='owner'/);
   assert.match(claimRoute, /queue_lane='shared'/);
-  assert.match(claimRoute, /owner_uid IS NOT NULL/);
+  assert.match(claimRoute, /owner_uid='mehran_owner_orchestrator'/);
   assert.match(claimRoute, /owner_uid IS NULL/);
   assert.match(claimRoute, /COALESCE\(attempts,0\)>=COALESCE\(max_attempts,3\)/);
   assert.match(claimRoute, /COALESCE\(attempts,0\)<COALESCE\(max_attempts,3\)/);
