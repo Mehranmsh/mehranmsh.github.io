@@ -1539,7 +1539,7 @@ test("Intelligence source audit cross-checks capability allowlists and owner saf
     "planner_validator_agent_mcp_and_runner_allowlists_aligned",
     "custom_owner_missions_remain_admin_gated_with_bounded_fallback",
     "mcp_package_intake_keeps_separate_bridge_and_owner_identities",
-    "executor_rechecks_assignment_status_and_approval",
+    "executor_rechecks_owner_lane_status_and_approval",
     "runner_has_no_deploy_or_repository_write_commands",
     "execution_protocol_still_marks_end_to_end_acceptance_as_required"
   ]) {
