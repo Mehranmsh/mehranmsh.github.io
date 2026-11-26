@@ -46,6 +46,22 @@ test("builds a two-phase D1 plan with atomic batch boundaries", () => {
   assert.ok(result.limitation.includes("not one interactive transaction"));
 });
 
+test("binds retries to the exact operation payload and exposes full journal readback expectations", () => {
+  const result = buildPiTestnetArchiveD1ReplacementPlan(input);
+  assert.equal(result.accepted, true);
+  const archiveUpdate = result.phase1[1];
+  assert.match(archiveUpdate.sql, /replacement_sha256 = \?/);
+  assert.match(archiveUpdate.sql, /replacement_envelope_json = \?/);
+  assert.match(archiveUpdate.sql, /prepared_record_json = \?/);
+  assert.match(archiveUpdate.sql, /prepared_record_sha256 = \?/);
+  assert.ok(archiveUpdate.params.includes(input.replacementEnvelopeJson));
+  assert.ok(archiveUpdate.params.includes(input.preparedRecordJson));
+  assert.equal(result.requiredReadback.operationId, input.operationId);
+  assert.equal(result.requiredReadback.expectedPreparedRecordJson, input.preparedRecordJson);
+  assert.equal(result.requiredReadback.expectedCommittedRecordJson, input.committedRecordJson);
+  assert.equal(result.requiredReadback.committedRecordSha256, input.committedRecordSha256);
+});
+
 test("all D1 statements use bound values rather than interpolated user data", () => {
   const result = buildPiTestnetArchiveD1ReplacementPlan(input);
   for (const item of [...result.phase1, ...result.phase2]) {
