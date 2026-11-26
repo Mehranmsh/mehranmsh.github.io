@@ -56,6 +56,7 @@ export function buildPiTestnetArchiveD1ReplacementPlan(input) {
   const journalCheck = verifyPiTestnetArchiveReplacementJournal([preparedRecord, committedRecord]);
   if (!isPlainRecord(replacementEnvelope) ||
       replacementEnvelope.archiveScope !== input.archiveScope ||
+      replacementEnvelope.archiveId !== input.archiveId ||
       replacementDigest !== input.replacementEnvelopeSha256 ||
       JSON.stringify(replacementEnvelope) !== input.replacementEnvelopeJson ||
       JSON.stringify(preparedRecord) !== input.preparedRecordJson ||
