@@ -25,7 +25,7 @@ const fields = [
   ["holders.top10Percent", 35, "metric-5"]
 ];
 const envelope = () => ({
-  schemaVersion: 1, tokenId: "pi-token-1", observedAt: "2026-11-26T11:00:00.000Z",
+  schemaVersion: 1, networkId: "pi-mainnet", tokenId: "pi-token-1", observedAt: "2026-11-26T11:00:00.000Z",
   sources: [{
     sourceId: "indexer", kind: "dex_indexer", url: "https://indexer.example/snapshot",
     trustLevel: "publisher_claim", retrievedAt: "2026-11-26T11:01:00.000Z",
@@ -34,7 +34,7 @@ const envelope = () => ({
   }]
 });
 const signed = ([field, value, evidenceId]) => {
-  const payload = { issuer: "trusted-indexer", tokenId: "pi-token-1", evidenceId, field,
+  const payload = { issuer: "trusted-indexer", networkId: "pi-mainnet", tokenId: "pi-token-1", evidenceId, field,
     sourceUrl: "https://indexer.example/snapshot", observedAt: "2026-11-26T11:00:00.000Z",
     expiresAt: "2026-11-27T11:00:00.000Z", value };
   return { keyId: "indexer", algorithm: "Ed25519", payload,
@@ -43,7 +43,7 @@ const signed = ([field, value, evidenceId]) => {
 
 test("verified analyzer uses attested Pi metrics and ignores forged snapshot metric values", () => {
   const result = analyzeVerifiedLaunchpadOpportunity({
-    snapshot: { tokenId: "pi-token-1", symbol: "PIT",
+    snapshot: { networkId: "pi-mainnet", tokenId: "pi-token-1", symbol: "PIT",
       fdvPi: 1, liquidity: { tvlPi: 999999, volume24hPi: 0, lockedPercent: 0 },
       holders: { top10Percent: 99 } },
     envelope: envelope(),
