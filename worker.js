@@ -65,27 +65,31 @@ function error(message, status = 400) {
 
 async function readBody(request) {
   try {
-    const type = request.headers.get("Content-Type") || "";
-    if (!type.toLowerCase().includes("application/json")) return null;
+    const type = (request.headers.get("Content-Type") || "").split(";")[0].trim().toLowerCase();
+    if (type !== "application/json") return null;
 
-    const length = Number(request.headers.get("Content-Length") || 0);
+    const lengthHeader = request.headers.get("Content-Length");
+    const length = lengthHeader === null ? null : Number(lengthHeader);
     const path = new URL(request.url).pathname;
     const maxBytes = path.startsWith("/music/transfer") ? 2 * 1024 * 1024 : MAX_BODY_BYTES;
-    if (!Number.isFinite(length) || length > maxBytes || !request.body) return null;
+    if ((length !== null && (!Number.isSafeInteger(length) || length < 0 || length > maxBytes)) || !request.body) return null;
 
     const reader = request.body.getReader();
     const chunks = [];
     let total = 0;
-
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      total += value.byteLength;
-      if (total > maxBytes) {
-        await reader.cancel();
-        return null;
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        total += value.byteLength;
+        if (total > maxBytes) {
+          try { await reader.cancel(); } catch {}
+          return null;
+        }
+        chunks.push(value);
       }
-      chunks.push(value);
+    } finally {
+      try { reader.releaseLock(); } catch {}
     }
 
     const bytes = new Uint8Array(total);

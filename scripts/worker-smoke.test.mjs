@@ -3982,3 +3982,18 @@ test("Intelligence plan outcome learning is wired to revision-linked owner-confi
   assert.ok(indexSource.includes('id="intelPlanLearning"'));
   assert.ok(indexSource.includes('learning.patterns'));
 });
+
+
+test("Worker JSON body reader validates media type and declared lengths and releases stream locks", () => {
+  const start = workerSource.indexOf("async function readBody(request)");
+  const end = workerSource.indexOf("\nfunction getBearer(request)", start);
+  assert.ok(start >= 0 && end > start);
+  const reader = workerSource.slice(start, end);
+  assert.match(reader, /split\(";"\)\[0\]\.trim\(\)\.toLowerCase\(\)/);
+  assert.match(reader, /type !== "application\/json"/);
+  assert.match(reader, /lengthHeader === null \? null : Number\(lengthHeader\)/);
+  assert.match(reader, /!Number\.isSafeInteger\(length\) \|\| length < 0 \|\| length > maxBytes/);
+  assert.match(reader, /reader\.releaseLock\(\)/);
+  assert.match(reader, /total > maxBytes/);
+  assert.match(reader, /await reader\.cancel\(\)/);
+});
