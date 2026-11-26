@@ -380,13 +380,13 @@ jobs:
                 headers, signal: AbortSignal.timeout(12000)
               });
               if (!repoResponse.ok) throw new Error(`GitHub repository metadata HTTP ${repoResponse.status}`);
-              const metadata = await repoResponse.json();
+              const metadata = await readJsonResponse(repoResponse, 65536);
               if (metadata.full_name !== "Mehranmsh/mehranmsh.github.io") throw new Error("Unexpected repository identity.");
               const commitResponse = await fetch("https://api.github.com/repos/Mehranmsh/mehranmsh.github.io/commits?per_page=1", {
                 headers, signal: AbortSignal.timeout(12000)
               });
               if (!commitResponse.ok) throw new Error(`GitHub latest commit HTTP ${commitResponse.status}`);
-              const commits = await commitResponse.json();
+              const commits = await readJsonResponse(commitResponse, 256 * 1024);
               const latest = Array.isArray(commits) ? commits[0] : null;
               return {
                 type: task.actionType,
@@ -431,7 +431,7 @@ jobs:
                 headers, signal: AbortSignal.timeout(15000)
               });
               if (!commitResponse.ok) throw new Error(`GitHub main commit lookup HTTP ${commitResponse.status}`);
-              const commit = await commitResponse.json();
+              const commit = await readJsonResponse(commitResponse, 65536);
               if (typeof commit.sha !== "string" || !/^[a-f0-9]{40}$/i.test(commit.sha)) throw new Error("GitHub returned an invalid main commit SHA.");
               const files = [];
               let totalBytes = 0;
