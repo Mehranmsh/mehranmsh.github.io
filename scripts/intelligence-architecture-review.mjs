@@ -6,7 +6,7 @@ const REVIEW_PATHS = Object.freeze([
   "docs/INTELLIGENCE_EXECUTION_PROTOCOL.md",
   "scripts/intelligence-architecture-review.mjs"
 ]);
-const MAX_FILE_BYTES = 600000;
+const MAX_FILE_BYTES = 620000;
 const MAX_TOTAL_BYTES = 750000;
 
 function lineEvidence(files, patterns, limit = 5) {
