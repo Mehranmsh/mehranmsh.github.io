@@ -4,7 +4,6 @@ import "./intelligence-mission-generator-d1.test.mjs";
 import { applyValidatedPatchInMemory } from "./intelligence-patch-apply.mjs";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { readBoundedResponse } from "./intelligence-bounded-response.mjs";
 import { validatePatchProposal, PATCH_PROPOSAL_POLICY } from "./intelligence-patch-policy.mjs";
 import { createPatchArtifactRecord, verifyPatchArtifactRecord } from "./intelligence-patch-artifact.mjs";
 import { storePrivatePatchArtifact, verifyPrivatePatchArtifactAtPath, getVerifiedPrivatePatchArtifactAtPath, getPrivatePatchArtifactPath, PRIVATE_PATCH_ARTIFACT_STORE_POLICY } from "./intelligence-private-patch-store.mjs";
@@ -1617,6 +1616,7 @@ test("capability lookup rejects inherited JavaScript object properties", () => {
 
 
 test("Worker responses are streamed through a strict byte limit", async () => {
+  const { readBoundedResponse } = await import("./intelligence-bounded-response.mjs");
   const valid = new Response(JSON.stringify({ status: "online" }));
   assert.deepEqual(JSON.parse(await readBoundedResponse(valid, 64)), { status: "online" });
 
@@ -1625,6 +1625,7 @@ test("Worker responses are streamed through a strict byte limit", async () => {
 });
 
 test("bounded response reader rejects invalid limits and missing streams", async () => {
+  const { readBoundedResponse } = await import("./intelligence-bounded-response.mjs");
   await assert.rejects(readBoundedResponse(new Response("ok"), 0), /positive safe integer/);
   await assert.rejects(readBoundedResponse({}, 32), /body stream is unavailable/);
 });
