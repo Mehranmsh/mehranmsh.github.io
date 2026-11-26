@@ -2673,6 +2673,15 @@ test("generated lyrics return transparent language and section-structure review 
   assert.match(workerSource, /qualityWarnings, provider: "cloudflare"/);
 });
 
+test("architecture review results are verified as bounded deterministic evidence", () => {
+  const start = workerSource.indexOf("function verifyIntelligenceReport");
+  const end = workerSource.indexOf("function formatIntelligenceTask", start);
+  const verifier = workerSource.slice(start, end);
+  assert.match(verifier, /actionType === "architecture_review"/);
+  assert.match(verifier, /deterministic_static_evidence_no_ai_inference/);
+  assert.match(verifier, /architecture_review_schema/);
+});
+
 test("Production Intelligence scheduler runs only approved read-only reports and imports GitHub tasks for owner approval", () => {
   const scheduledStart = workerSource.indexOf("async scheduled(controller, env, ctx)");
   const scheduledBody = workerSource.slice(scheduledStart, scheduledStart + 9000);
