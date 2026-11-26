@@ -1212,7 +1212,7 @@ test("Intelligence retains owner-scoped durable memory and recent conversation c
   assert.ok(chatHandler.includes('if (name === "remember_context")'));
   assert.ok(chatHandler.includes(".bind(crypto.randomUUID(),admin.uid,key,category,content,importance)"));
   assert.ok(workerSource.includes('FROM intelligence_memory_items WHERE owner_uid=? ORDER BY importance DESC,updated_at DESC LIMIT 100").bind(admin.uid).all()'));
-  assert.ok(workerSource.includes("lower(category) NOT IN ('secret','credential','wallet','financial','private_social','health','identity')") && workerSource.includes("ORDER BY importance DESC,updated_at DESC LIMIT 60").bind(admin.uid).all()"));
+  assert.ok(workerSource.includes("lower(category) NOT IN ('secret','credential','wallet','financial','private_social','health','identity')") && workerSource.includes('ORDER BY importance DESC,updated_at DESC LIMIT 60").bind(admin.uid).all()')"));
   assert.ok(workerSource.includes("ACTIVE MISSION STATE (authoritative live task records; resume existing work before proposing duplicates)"));
   assert.ok(workerSource.includes('if (path === "/intelligence/chat/history" && method === "GET")'));
   assert.ok(workerSource.includes('WHERE owner_uid=? AND session_key=? ORDER BY created_at DESC,rowid DESC LIMIT 100'));
