@@ -77,28 +77,18 @@ The registry stores executor identities as an explicit list. The GitHub Runner's
 
 ## Approval boundaries
 
-Run autonomously without per-step owner prompts once the corresponding executor is implemented, tested, and allowlisted:
-- read-only diagnostics, repository inspection, and reports
-- the repository's fixed test and validation workflows in isolated CI
-- bounded code patches on dedicated Intelligence branches
-- opening review-only pull requests from tested Intelligence branches
-- draft generation, dependency scheduling, and bounded retries of idempotent operations
+The owner's standing authorization is that INTELLIGENCE may autonomously plan and execute all implemented, allowlisted MEHRAN MSH work within its defined scope. It must not pause for per-step approval for ordinary engineering, repository operations, merges, deployments, service administration, or other non-financial work once the relevant executor, validation, tests, audit trail, and recovery controls exist.
 
-The owner authorizes the mission scope once. That authorization covers all eligible steps inside the scope; it does not need to be renewed at each task boundary.
+**Financial transactions are the sole operation requiring explicit owner approval.** Approval must be bound to the exact asset, amount, destination, network, fee, and transaction payload. Any change to those fields invalidates the approval. A transaction executor must reject missing, expired, replayed, or mismatched approvals.
 
-Autonomous metadata is not an execution switch: a capability marked `planned` remains unavailable until its executor, validator, result verification, recovery behavior, and regression tests are implemented and allowlisted.
+The following information access is forbidden, not approval-gated:
+- Secret values, credentials, API keys, tokens, and private configuration values held by GitHub, Cloudflare, or other providers.
+- Private individual user records and personal user content.
+- Wallet contents, balances, private keys, seed phrases, recovery phrases, and other wallet data.
 
-Must pause for explicit owner approval:
-- merging any pull request into a protected or default branch
-- production deployments or rollbacks
-- changes to authentication, authorization, secrets, keys, or security policy
-- payments, transfers, purchases, or financial actions
-- deleting or exporting user data
-- changing user permissions or account ownership
-- publishing externally or contacting third parties
-- irreversible schema/data migrations
+These restrictions cannot be overridden by a task description or model-generated plan. INTELLIGENCE may use narrowly scoped service integrations that do not reveal the protected values or private records. Aggregate, non-identifying operational metrics may be used where explicitly allowlisted.
 
-Approval is bound to the exact action, target, diff, and risk summary. Any material change invalidates the prior approval.
+A capability may remain unavailable while its executor is unimplemented. Such a capability must be marked `planned` or `not_implemented`, not described as awaiting owner approval unless it is a financial transaction.
 
 ## Evidence and verification
 
