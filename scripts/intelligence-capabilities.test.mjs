@@ -933,10 +933,13 @@ test("Workers AI patch generation fails closed on budget denial and unsafe model
 });
 
 
-test("Intelligence mission planning uses a bounded, more efficient daily reservation", () => {
+test("Intelligence owner AI reservation is isolated from combined customer usage", () => {
   assert.match(workerSource, /WORKERS_AI_INTELLIGENCE_DAILY_RESERVATION_CREDITS = 7000/);
-  assert.match(workerSource, /intelligence: \{ column: "intelligence_reserved", cap: WORKERS_AI_INTELLIGENCE_DAILY_RESERVATION_CREDITS \}/);
+  assert.match(workerSource, /WORKERS_AI_CUSTOMER_DAILY_RESERVATION_CREDITS = 2000/);
   assert.match(workerSource, /WORKERS_AI_GLOBAL_DAILY_RESERVATION_CREDITS = 9000/);
+  assert.match(workerSource, /totalReservationCondition = productKey === "intelligence"/);
+  assert.match(workerSource, /music_reserved\+workers_ai_daily_budget\.social_reserved\+excluded\.total_reserved/);
+  assert.match(workerSource, /intelligence: \{ column: "intelligence_reserved", cap: WORKERS_AI_INTELLIGENCE_DAILY_RESERVATION_CREDITS \}/);
   assert.match(workerSource, /cloudflareReservation: 25/);
   assert.match(workerSource, /maxTokens: 1000/);
 });
