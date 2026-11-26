@@ -12,6 +12,7 @@ on:
       - fix/pi-launchpad-candidate-intake-dedupe
       - feat/pi-launchpad-evidence-d1-schema
       - feat/pi-launchpad-evidence-d1-adapter
+      - hardening/pi-launchpad-evidence-d1-recovery
     paths:
       - "scripts/pi-launchpad-analyzer.mjs"
       - "scripts/pi-launchpad-analyzer.test.mjs"
