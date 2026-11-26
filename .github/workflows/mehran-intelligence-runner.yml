@@ -836,7 +836,7 @@ jobs:
                 const patchReport = JSON.parse(savedCheckpoint.result || "null");
                 const payload = typeof task.actionPayload === "string" ? JSON.parse(task.actionPayload || "{}") : (task.actionPayload || {});
                 const expectedDigest = createHash("sha256")
-                  .update(String(patchReport?.baseSha || "") + "\n" + String(payload?.objective || "").trim())
+                  .update(String(patchReport?.baseSha || "") + "\n" + String(payload?.objective || "").trim() + "\n" + String(payload?.targetPath || "scripts/intelligence-capabilities.test.mjs"))
                   .digest("base64url");
                 checkpointMatchesCurrentSchema = checkpointMatchesCurrentSchema && patchReport?.type === "propose_code_patch" &&
                   patchReport?.requestId === task.id &&
