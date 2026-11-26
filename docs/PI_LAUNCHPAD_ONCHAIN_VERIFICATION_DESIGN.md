@@ -213,3 +213,21 @@ A read-only recovery gate now sits above the replacement journal:
 - If the replacement digest is present, it emits a recommendation to persist a terminal commit record only after read-back verification.
 - If a different but valid envelope is present, it requires manual reconciliation. Invalid, unauthenticated, wrong-scope, or undecryptable inputs fail closed.
 - This is a pure decision helper, not authentication middleware or a persistence transaction. The production adapter must derive principal and keyring from trusted server-side systems, reauthorize at write time, and atomically persist the journal and compare-and-swap result. No rollback, overwrite, deletion, database access, AI, wallet, or Mainnet scoring is performed.
+
+
+## Injected atomic replacement transaction contract (2026-11-26)
+
+A transaction-orchestration contract now describes the exact sequence a future durable adapter must execute:
+1. Re-authorize the authenticated server-side archive administrator inside the transaction and bind the operation to one archive scope and archive ID.
+2. Read the current envelope and journal within that same transaction; reject missing/wrong-scope envelopes or an existing replacement journal.
+3. Recompute the current envelope serialization digest and require an exact match with the replacement intent's expected source digest.
+4. Append the immutable `prepared` journal record.
+5. Perform compare-and-swap replacement against the exact source digest. A conflict throws and must roll back the prepared record.
+6. Read the replacement back inside the same transaction and verify its exact envelope digest.
+7. Append the linked `committed` journal record and re-read/verify the complete two-record journal before allowing commit.
+
+The orchestration module accepts only an injected provider that declares atomic-transaction support and supplies the required transaction-scoped methods. Any failed authorization, source mismatch, CAS conflict, failed read-back, or invalid final journal throws so the provider must roll back all writes. It does not silently retry, overwrite, roll back manually, or purge the previous envelope.
+
+**Important boundary:** a capability flag is not proof that an adapter is truly atomic. The concrete adapter must be independently tested against its database's transaction semantics, including concurrent writers, process termination, commit failures, and rollback behavior. If the storage backend cannot guarantee all-or-nothing execution across the envelope and journal writes, it must not be used for this protocol.
+
+This increment adds no Cloudflare D1 binding, database credentials, persistence, KMS integration, network access, Workers AI usage, wallet access, signing, or Mainnet scoring. The included tests use an in-memory transaction-provider simulation to verify orchestration order and rollback expectations; they do not establish production durability. Testnet archives remain ineligible for Mainnet scoring.
