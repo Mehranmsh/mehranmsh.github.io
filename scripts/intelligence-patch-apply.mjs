@@ -7,7 +7,8 @@ import { validatePatchProposal } from "./intelligence-patch-policy.mjs";
 export function applyValidatedPatchInMemory({ baseSha, expectedBaseSha, source, targetPath, summary, diff } = {}) {
   if (typeof expectedBaseSha !== "string" || !/^[a-f0-9]{40}$/.test(expectedBaseSha) ||
       baseSha !== expectedBaseSha) return { ok: false, code: "stale_base_sha" };
-  if (typeof source !== "string" || !source.endsWith("\n")) return { ok: false, code: "invalid_source" };
+  if (typeof source !== "string" || !source.endsWith("\n") ||
+      new TextEncoder().encode(source).byteLength > 128 * 1024) return { ok: false, code: "invalid_source" };
   const validated = validatePatchProposal({ baseSha, targetPaths: [targetPath], summary, diff });
   if (!validated.ok) return validated;
   if (validated.deletions !== 0 || validated.hunkCount !== 1) {
@@ -16,6 +17,7 @@ export function applyValidatedPatchInMemory({ baseSha, expectedBaseSha, source, 
 
   const lines = diff.slice(0, -1).split("\n");
   const sourceLines = source.slice(0, -1).split("\n");
+  if (sourceLines.length > 20000) return { ok: false, code: "invalid_source" };
   const header = /^@@ -(\d+),0 \+(\d+),(\d+) @@$/.exec(lines[2] || "");
   if (!header || Number(header[1]) !== sourceLines.length ||
       Number(header[2]) !== sourceLines.length + 1 ||
