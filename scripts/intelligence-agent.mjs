@@ -89,11 +89,11 @@ async function main() {
   let outcome;
   try {
     if (task.actionType === "architecture_review") {
-      const { buildIntelligenceArchitectureReview } = await import("./intelligence-architecture-review.mjs");
+      const { buildIntelligenceArchitectureReview, compactIntelligenceArchitectureReview } = await import("./intelligence-architecture-review.mjs");
       const reviewPaths = ["worker.js","scripts/intelligence-agent.mjs","scripts/intelligence-capabilities.mjs",".github/workflows/mehran-intelligence-runner.yml","docs/INTELLIGENCE_EXECUTION_PROTOCOL.md","scripts/intelligence-architecture-review.mjs"];
       const commit = await run("git", ["rev-parse", "HEAD"], { timeout: 10000, maxBuffer: 4096 });
       const review = buildIntelligenceArchitectureReview({ repository: "Mehranmsh/mehranmsh.github.io", commitSha: String(commit.stdout || "").trim(), files: reviewPaths.map(path => ({ path, content: readFileSync(new URL("../" + path, import.meta.url), "utf8") })) });
-      outcome = { status: "completed", result: JSON.stringify(review) };
+      outcome = { status: "completed", result: compactIntelligenceArchitectureReview(review, 2800) };
     } else if (task.actionType === "repository_quality_check") {
       outcome = await runQualityChecks();
     } else if (task.actionType === "service_health_report") {
