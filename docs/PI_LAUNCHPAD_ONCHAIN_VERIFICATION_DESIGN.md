@@ -201,3 +201,15 @@ A pure, bounded replacement-journal state machine now specifies crash recovery f
 - Recovery classification is conservative: if storage still has the source digest, a compare-and-swap retry may be considered; if it has the replacement digest, the adapter may record completion; any third digest requires manual reconciliation and must not be overwritten automatically.
 - The helper is pure and in-memory. It does not write a journal, make a database transaction, guarantee durability, or provide rollback. A production adapter must atomically persist the prepared record, perform the compare-and-swap, and persist the terminal record with crash-safe transaction semantics.
 - Hash chaining provides local tamper evidence only, not signer authenticity or protection against an attacker who can rewrite the entire journal. Testnet observations remain ineligible for Mainnet scoring.
+
+
+## Server-restart recovery authorization gate (2026-11-26)
+
+A read-only recovery gate now sits above the replacement journal:
+- Requires a server-resolved authenticated principal with the archive_admin role, an accepted server-side keyring, an exact archive scope, the full journal, and the currently observed envelope.
+- Revalidates the journal hash chain and legal prepared state before considering recovery.
+- Decrypts and verifies the observed envelope with the key selected by its key ID, then checks that its archive identity matches the journal.
+- If the source digest is still present, it emits a recommendation to rebuild a fresh compare-and-swap intent after fresh authorization.
+- If the replacement digest is present, it emits a recommendation to persist a terminal commit record only after read-back verification.
+- If a different but valid envelope is present, it requires manual reconciliation. Invalid, unauthenticated, wrong-scope, or undecryptable inputs fail closed.
+- This is a pure decision helper, not authentication middleware or a persistence transaction. The production adapter must derive principal and keyring from trusted server-side systems, reauthorize at write time, and atomically persist the journal and compare-and-swap result. No rollback, overwrite, deletion, database access, AI, wallet, or Mainnet scoring is performed.
