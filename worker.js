@@ -2,7 +2,7 @@ import { buildDeterministicRoutinePlan } from "./scripts/intelligence-routine-pl
 import { INTELLIGENCE_ACTION_TYPES, PREAPPROVED_INTELLIGENCE_ACTION_TYPES } from "./scripts/intelligence-capabilities.mjs";
 import { storePrivatePatchArtifact, verifyPrivatePatchArtifactAtPath, getPrivatePatchArtifactPath, getVerifiedPrivatePatchArtifactAtPath } from "./scripts/intelligence-private-patch-store.mjs";
 import { extractPatchModelText, generatePatchArtifact } from "./scripts/intelligence-patch-generation-service.mjs";
-import { validatePrivateIntelligenceMission } from "./scripts/intelligence-inbox-schema.mjs";
+import { validatePrivateIntelligenceMission, resolvePrivateIntelligenceInspectionPaths } from "./scripts/intelligence-inbox-schema.mjs";
 import { selectMemoryContext } from "./scripts/intelligence-memory-ranking.mjs";
 // Shared owner-scoped feedback analysis; Worker persists proposals but never applies them.
 import { buildIntelligenceFeedbackReview } from "./scripts/intelligence-feedback-review.mjs";
@@ -7351,7 +7351,7 @@ async function ingestPrivateIntelligenceInbox(env) {
           mode: "read_only",
           source: "private_owner_inbox",
           missionId: mission.mission_id,
-          allowedActions: ["inspect_repository","source_security_audit","repository_quality_check"],
+          allowedActions: ["inspect_repository","source_security_audit","repository_quality_check", ...(mission.scope.allowed_actions.includes("run_repository_tests") ? ["run_repository_tests"] : [])],
           forbidden: ["source_changes","patch_application","branch_creation","pull_request_creation","merge","deployment","secret_access","credential_output","wallet_operations","financial_operations","arbitrary_shell","production_state_changes"],
           deliverables: Array.isArray(mission.deliverables) ? mission.deliverables.slice(0, 6).map(item => cleanText(item, 300)) : [],
           evidence
@@ -7363,14 +7363,7 @@ async function ingestPrivateIntelligenceInbox(env) {
             description: "Read the allowlisted source files at the current repository commit. Trace the generated diff validation and private report persistence paths. Do not execute repository content or modify files.",
             actionType: "inspect_repository",
             dependsOn: [],
-            paths: [
-              "worker.js",
-              "scripts/intelligence-agent.mjs",
-              "scripts/intelligence-capabilities.mjs",
-              "scripts/intelligence-capabilities.test.mjs",
-              ".github/workflows/mehran-intelligence-runner.yml",
-              "docs/INTELLIGENCE_EXECUTION_PROTOCOL.md"
-            ]
+            paths: resolvePrivateIntelligenceInspectionPaths(mission)
           },
           {
             taskId: "security-review",
@@ -7385,7 +7378,14 @@ async function ingestPrivateIntelligenceInbox(env) {
             description: "Collect repository metadata and runner configuration needed to anchor the diagnostic findings to the current source revision.",
             actionType: "repository_quality_check",
             dependsOn: ["inspect-source"]
-          }
+          },
+          ...(mission.scope.allowed_actions.includes("run_repository_tests") ? [{
+            taskId: "repository-tests",
+            title: "Run the predefined isolated repository test suite",
+            description: "Execute only the fixed, network-isolated repository test suite supported by the runner. Do not install packages, access external services, or modify source files.",
+            actionType: "run_repository_tests",
+            dependsOn: []
+          }] : [])
         ]
       };
       const created = await createIntelligenceWorkPackage(env, packageInput);

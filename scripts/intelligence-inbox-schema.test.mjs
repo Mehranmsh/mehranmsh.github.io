@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { validatePrivateIntelligenceMission } from "./intelligence-inbox-schema.mjs";
+import { validatePrivateIntelligenceMission, resolvePrivateIntelligenceInspectionPaths } from "./intelligence-inbox-schema.mjs";
 
 function validMission() {
   return {
@@ -58,4 +58,35 @@ test("rejects missing required safety restrictions", () => {
 test("rejects malformed mission documents without throwing", () => {
   assert.deepEqual(validatePrivateIntelligenceMission(null), ["invalid_document"]);
   assert.deepEqual(validatePrivateIntelligenceMission([]), ["invalid_document"]);
+});
+
+test("accepts an exact per-mission inspection path allowlist", () => {
+  const mission = validMission();
+  mission.scope.inspect_paths = [
+    "scripts/intelligence-capabilities.mjs",
+    "scripts/intelligence-agent.mjs",
+    "docs/INTELLIGENCE_EXECUTION_PROTOCOL.md"
+  ];
+  assert.deepEqual(validatePrivateIntelligenceMission(mission), []);
+  assert.deepEqual(resolvePrivateIntelligenceInspectionPaths(mission), mission.scope.inspect_paths);
+});
+
+test("rejects inspection paths outside the runner allowlist, duplicates, and empty lists", () => {
+  for (const inspect_paths of [
+    ["worker.js", "../secrets.txt"],
+    ["worker.js", "worker.js"],
+    []
+  ]) {
+    const mission = validMission();
+    mission.scope.inspect_paths = inspect_paths;
+    assert.deepEqual(validatePrivateIntelligenceMission(mission), ["inspection_paths_invalid"]);
+  }
+});
+
+test("uses a small safe default inspection scope when no paths are supplied", () => {
+  assert.deepEqual(resolvePrivateIntelligenceInspectionPaths(validMission()), [
+    "scripts/intelligence-agent.mjs",
+    "scripts/intelligence-capabilities.mjs",
+    "docs/INTELLIGENCE_EXECUTION_PROTOCOL.md"
+  ]);
 });
