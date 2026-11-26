@@ -65,6 +65,16 @@ test("progress is normalized as episodic memory and context is bounded", () => {
   assert.ok(selected[0].content.length <= 1200);
 });
 
+test("health and identity classified memories are excluded from model context", () => {
+  const memories = [
+    record("health-note", "semantic", "Private health context", { sensitivity: "health" }),
+    record("identity-note", "semantic", "Private identity context", { sensitivity: "identity" }),
+    record("safe-note", "semantic", "A non-sensitive project note")
+  ];
+  const selected = selectMemoryContext(memories, { ownerUid: "owner-1", now });
+  assert.deepEqual(selected.map(item => item.memory_key), ["safe-note"]);
+});
+
 test("personal credentials and financial details never enter model memory context", () => {
   const memories = [
     record("wallet-note", "decision", "My wallet balance is private"),
