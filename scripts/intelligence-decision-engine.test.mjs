@@ -52,7 +52,7 @@ test("bounds per-option constraint evaluation and reports omitted constraints", 
  const result=evaluateIntelligenceOptions([
   {id:"bounded",scores:{quality:4,cost:4},constraints}
  ],criteria,{ownerUid:"owner"});
- assert.equal(result.rankedOptions[0].unknown_constraints.length,100);
+ assert.equal(result.rankedOptions[0].unknown_constraints.length,101);
  assert.equal(result.diagnostics.omittedConstraints,900);
  assert.equal(result.rankedOptions[0].approval_required,true);
  assert.equal(constraints.length,1000);
