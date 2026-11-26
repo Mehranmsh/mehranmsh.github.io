@@ -5,7 +5,7 @@ import { validateLaunchpadDataEnvelope, buildLaunchpadEvidenceLedger } from "./p
 const NOW = Date.parse("2026-11-26T12:00:00Z");
 const validEnvelope = () => ({
   schemaVersion: 1,
-  tokenId: "pi-token-42",
+  networkId: "pi-mainnet", tokenId: "pi-token-42",
   observedAt: "2026-11-26T11:30:00Z",
   sources: [{
     sourceId: "dex-indexer-a",
@@ -79,7 +79,7 @@ test("rejects missing provenance, object-valued evidence, and overlarge batches"
 
 test("rejects inherited-property envelope, source, and evidence records", () => {
   const inheritedEnvelope = Object.assign(Object.create({ schemaVersion: 1 }), {
-    tokenId: "pi-token-42", observedAt: "2026-11-26T11:30:00Z", sources: []
+    networkId: "pi-mainnet", tokenId: "pi-token-42", observedAt: "2026-11-26T11:30:00Z", sources: []
   });
   assert.equal(validateLaunchpadDataEnvelope(inheritedEnvelope, { now: NOW }).code, "invalid_envelope");
   const inheritedSource = Object.assign(Object.create({ sourceId: "spoofed" }), {
