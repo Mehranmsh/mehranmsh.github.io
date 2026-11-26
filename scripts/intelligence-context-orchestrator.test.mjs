@@ -231,8 +231,8 @@ test("bounds every auxiliary input collection before subsystem processing", () =
     preferenceLedgerOmitted: 2,
     decisionOptionsOmitted: 5,
     decisionCriteriaOmitted: 1,
-    goalTaskProposalsOmitted: 5,
-    progressEventsOmitted: 1,
+    goalTaskProposalsOmitted: 55,
+    progressEventsOmitted: 451,
     planRevisionsOmitted: 2,
     planProgressEventsOmitted: 5
   });
