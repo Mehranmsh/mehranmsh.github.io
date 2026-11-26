@@ -88,7 +88,7 @@ test("runner resumes a durable completed result checkpoint without repeating exe
   assert.ok(workerSource.includes('checkpointBytes > 4096'));
 });
 
-test("all eight active capabilities are registered with their permission tiers", () => {
+test("all nine active capabilities are registered with their permission tiers", () => {
   const expected = [
     "project_status_report",
     "social_metrics_report",
@@ -96,6 +96,7 @@ test("all eight active capabilities are registered with their permission tiers",
     "repository_quality_check",
     "source_security_audit",
     "inspect_repository",
+    "architecture_review",
     "run_repository_tests",
     "propose_code_patch"
   ];
@@ -156,6 +157,7 @@ test("executor metadata matches the actual Worker and GitHub Actions routing", (
     repository_quality_check: ["cloudflare_worker_scheduler", "github_actions_runner"],
     source_security_audit: ["github_actions_runner"],
     inspect_repository: ["github_actions_runner"],
+    architecture_review: ["github_actions_runner"],
     run_repository_tests: ["github_actions_runner"],
     propose_code_patch: ["github_actions_runner"]
   };
@@ -175,7 +177,7 @@ test("executor metadata matches the actual Worker and GitHub Actions routing", (
   assert.ok(runnerActions, "GitHub runner must declare its action allowlist");
   assert.deepEqual(
     [...runnerActions[1].matchAll(/"([a-z_]+)"/g)].map(match => match[1]),
-    ["service_health_report", "repository_quality_check", "source_security_audit", "inspect_repository", "propose_code_patch"]
+    ["service_health_report", "repository_quality_check", "source_security_audit", "inspect_repository", "architecture_review", "propose_code_patch"]
   );
 });
 
@@ -1585,7 +1587,8 @@ test("capability schemas are deeply immutable, including nested allowlists and v
     "scripts/intelligence-capabilities.mjs",
     "scripts/intelligence-capabilities.test.mjs",
     ".github/workflows/mehran-intelligence-runner.yml",
-    "docs/INTELLIGENCE_EXECUTION_PROTOCOL.md"
+    "docs/INTELLIGENCE_EXECUTION_PROTOCOL.md",
+    "scripts/intelligence-architecture-review.mjs"
   ]);
   assert.throws(() => pathsRule.itemEnum.push("secrets.env"), TypeError);
   assert.throws(() => { pathsRule.maxItems = 1000; }, TypeError);
