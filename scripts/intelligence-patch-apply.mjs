@@ -4,7 +4,9 @@ import { validatePatchProposal } from "./intelligence-patch-policy.mjs";
  * Apply only the currently approved append-only test patch to an in-memory
  * source string. This helper never reads or writes the filesystem.
  */
-export function applyValidatedPatchInMemory({ baseSha, expectedBaseSha, source, targetPath, summary, diff } = {}) {
+export function applyValidatedPatchInMemory(input = {}) {
+  if (!input || typeof input !== "object" || Array.isArray(input)) return { ok: false, code: "invalid_input" };
+  const { baseSha, expectedBaseSha, source, targetPath, summary, diff } = input;
   if (typeof expectedBaseSha !== "string" || !/^[a-f0-9]{40}$/.test(expectedBaseSha) ||
       baseSha !== expectedBaseSha) return { ok: false, code: "stale_base_sha" };
   if (typeof source !== "string" || !source.endsWith("\n") ||
