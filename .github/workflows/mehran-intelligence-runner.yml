@@ -505,7 +505,7 @@ jobs:
                   signal: AbortSignal.timeout(20000)
                 });
                 if (!response.ok) throw new Error(`GitHub source read failed for ${path}: HTTP ${response.status}`);
-                const file = await response.json();
+                const file = await readJsonResponse(response, 1024 * 1024);
                 if (file.type !== "file" || file.path !== path || typeof file.content !== "string" || file.encoding !== "base64" ||
                     typeof file.sha !== "string" || !/^[a-f0-9]{40}$/i.test(file.sha) ||
                     !Number.isInteger(file.size) || file.size < 0 || file.size > 600000) {
