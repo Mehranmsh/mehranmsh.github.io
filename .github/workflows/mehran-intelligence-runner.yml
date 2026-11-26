@@ -17,7 +17,7 @@ permissions:
 
 concurrency:
   # Isolate each bounded tick so a stale GitHub runner cannot block subsequent ticks.
-  group: mehran-intelligence-private-runner-${{ github.run_id }}
+  group: mehran-intelligence-owner-runner
   cancel-in-progress: false
 
 jobs:
