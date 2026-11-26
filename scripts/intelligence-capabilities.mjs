@@ -3,13 +3,26 @@
  * Executor metadata mirrors the real Worker and GitHub Actions claim paths.
  * Planned entries describe future gates; they do not grant permissions.
  */
+function cloneAndFreezeSchemaValue(value) {
+  if (Array.isArray(value)) {
+    return Object.freeze(value.map(cloneAndFreezeSchemaValue));
+  }
+  if (value && typeof value === "object") {
+    const copy = Object.fromEntries(
+      Object.entries(value).map(([key, entry]) => [key, cloneAndFreezeSchemaValue(entry)])
+    );
+    return Object.freeze(copy);
+  }
+  return value;
+}
+
 const freezeCapability = (capability) => Object.freeze({
   ...capability,
   executors: Object.freeze([...(capability.executors || [])]),
-  inputSchema: Object.freeze({
+  inputSchema: cloneAndFreezeSchemaValue({
     type: "object",
-    required: Object.freeze([...(capability.inputSchema?.required || [])]),
-    properties: Object.freeze({ ...(capability.inputSchema?.properties || {}) }),
+    required: [...(capability.inputSchema?.required || [])],
+    properties: { ...(capability.inputSchema?.properties || {}) },
     additionalProperties: false
   })
 });
