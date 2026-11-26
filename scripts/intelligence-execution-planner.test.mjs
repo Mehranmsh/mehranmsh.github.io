@@ -18,6 +18,14 @@ test("filters foreign, inactive, completed and sensitive records",()=>{
  const r=buildIntelligenceExecutionPlan([task("done",{task_state:"complete"}),task("foreign",{owner_uid:"owner-b"}),task("archived",{status:"archived"}),task("secret",{sensitivity:"credential"}),task("active")],{ownerUid:"owner-a"});
  assert.deepEqual(r.orderedTasks.map(x=>x.task_id),["active"]); assert.equal(r.diagnostics.completedTasksExcluded,1);
 });
+test("excludes health and identity classified tasks",()=>{
+ const r=buildIntelligenceExecutionPlan([
+  task("safe"),
+  task("health",{sensitivity:"health"}),
+  task("identity",{sensitivity:"identity"})
+ ],{ownerUid:"owner-a"});
+ assert.deepEqual(r.orderedTasks.map(x=>x.task_id),["safe"]);
+});
 test("reports missing dependencies and cycles without inventing an order",()=>{
  const r=buildIntelligenceExecutionPlan([task("a",{depends_on_task_ids:["missing"],dependencies_confirmed:true,dependencies_confirmed_by:"owner-a"}),task("b",{depends_on_task_ids:["c"],dependencies_confirmed:true,dependencies_confirmed_by:"owner-a"}),task("c",{depends_on_task_ids:["b"],dependencies_confirmed:true,dependencies_confirmed_by:"owner-a"})],{ownerUid:"owner-a"});
  assert.equal(r.orderedTasks.length,0); assert.equal(r.blockedTasks.find(x=>x.task_id==="a").reason,"dependency_missing_or_out_of_scope"); assert.equal(r.blockedTasks.find(x=>x.task_id==="b").reason,"dependency_not_complete_or_cycle");
