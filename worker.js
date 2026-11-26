@@ -8316,13 +8316,15 @@ export default {
             return json({success:true,duplicate:true,workPackageId:existing.id,status:existing.status},200);
           }
           const packageId = crypto.randomUUID();
+          // The dedicated orchestration bearer is the authenticated principal for this API.
+          const packageOwnerPrincipal = "mehran_owner_orchestrator";
           const statements = [
-            env.DB.prepare("INSERT INTO intelligence_work_packages(id,idempotency_key,request_hash,title,objective,scope_json,priority,status,created_by) VALUES(?,?,?,?,?,?,?,'queued','mehran_intelligence')")
-              .bind(packageId,idempotencyKey,requestHash,title,objective,scopeJson,priority)
+            env.DB.prepare("INSERT INTO intelligence_work_packages(id,idempotency_key,request_hash,title,objective,scope_json,priority,status,created_by,owner_uid) VALUES(?,?,?,?,?,?,?,'queued','mehran_intelligence',?)")
+              .bind(packageId,idempotencyKey,requestHash,title,objective,scopeJson,priority,packageOwnerPrincipal)
           ];
           for (const item of normalized) {
-            statements.push(env.DB.prepare("INSERT INTO intelligence_tasks(id,title,description,assigned_to,priority,status,requires_approval,result_text,created_by,action_type,action_payload,work_package_id,max_attempts) VALUES(?,?,?,'mehran_intelligence',?,'queued',0,'','mehran_intelligence',?,?,?,3)")
-               .bind(packageId + ":" + item.taskId,item.title,item.description,priority,item.actionType,JSON.stringify({sourceTaskId:item.taskId,...(item.paths?{paths:item.paths}:{}),...(item.baseSha?{baseSha:item.baseSha}:{})}),packageId));
+            statements.push(env.DB.prepare("INSERT INTO intelligence_tasks(id,title,description,assigned_to,priority,status,requires_approval,result_text,created_by,action_type,action_payload,work_package_id,max_attempts,owner_uid,queue_lane) VALUES(?,?,?,'mehran_intelligence',?,'queued',0,'','mehran_intelligence',?,?,?,?,?,'owner')")
+               .bind(packageId + ":" + item.taskId,item.title,item.description,priority,item.actionType,JSON.stringify({sourceTaskId:item.taskId,...(item.paths?{paths:item.paths}:{}),...(item.baseSha?{baseSha:item.baseSha}:{})}),packageId,packageOwnerPrincipal));
             for (const dependency of item.dependencies) {
               statements.push(env.DB.prepare("INSERT INTO intelligence_task_dependencies(task_id,depends_on_task_id) VALUES(?,?)").bind(packageId + ":" + item.taskId,packageId + ":" + dependency));
             }
@@ -9622,7 +9624,7 @@ export default {
             if(actionType&&assignedTo==="chatgpt") return rpcError(-32602,"Allowlisted report actions must be assigned to mehran_intelligence or shared so the execution service can claim them.");
             const id=crypto.randomUUID();
             const requiresApproval = bridgeAuthorized ? true : Boolean(args.requiresApproval);
-            await env.DB.prepare("INSERT INTO intelligence_tasks(id,title,description,assigned_to,priority,status,requires_approval,created_by,action_type,action_payload) VALUES(?,?,?,?,?,?,?,?,?,?)").bind(id,title,description,assignedTo,priority,requiresApproval?'awaiting_approval':'queued',requiresApproval?1:0,admin.username,actionType,"{}").run();
+            await env.DB.prepare("INSERT INTO intelligence_tasks(id,title,description,assigned_to,priority,status,requires_approval,created_by,action_type,action_payload,owner_uid,queue_lane) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)").bind(id,title,description,assignedTo,priority,requiresApproval?'awaiting_approval':'queued',requiresApproval?1:0,admin.username,actionType,"{}",assignedTo==="mehran_intelligence"?admin.uid:null,assignedTo==="mehran_intelligence"?"owner":assignedTo==="shared"?"shared":"quarantine").run();
             await writeAdminAudit(env,admin,"collaboration_task_created","intelligence_task",id,JSON.stringify({assignedTo,priority,actionType,requiresApproval}));
             const row=await env.DB.prepare("SELECT * FROM intelligence_tasks WHERE id=?").bind(id).first();
             return replyData({task:formatIntelligenceTask(row),message:requiresApproval?"Task proposal saved and awaiting owner approval. No execution was performed.":"Task saved to the shared queue. No execution was performed."});
