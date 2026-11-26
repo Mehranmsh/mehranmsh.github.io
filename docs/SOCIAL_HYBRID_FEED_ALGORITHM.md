@@ -15,6 +15,9 @@ Hybrid means relevance and discovery are balanced with recency and diversity. It
 - Applies a diversity pass so the first part of the feed does not show more than two posts from one author before other authors get a chance.
 - Adds a per-account "Show less" feedback action. Feedback is stored locally on the device and scoped by SOCIAL username.
 - Provides a "Latest" mode that sorts by post creation time without personalization.
+- Adds a member-controlled personalization strength slider (0-100%). At 0%, author-affinity and aggregate-engagement boosts are disabled; freshness, diversity, media presence, and explicit negative feedback remain active.
+- Adds a per-account local reset action for accumulated "Show less" feedback.
+- Stores personalization strength separately for each SOCIAL username on the current device.
 - Defaults to Hybrid Intelligence for members who have not selected a mode.
 - Does not publish, like, follow, comment, block, or change account settings on a member's behalf.
 
@@ -24,7 +27,7 @@ Hybrid means relevance and discovery are balanced with recency and diversity. It
 2. **Freshness:** newer content should normally receive a boost, without making older high-quality content invisible.
 3. **Diversity:** avoid repetitive authors, topics, and media formats.
 4. **Quality and integrity:** apply moderation and trust signals before recommendation ranking; popularity alone is not proof of quality.
-5. **Member agency:** provide Latest, Show less, and eventually a full personalization pause/reset control.
+5. **Member agency:** provide Latest, adjustable personalization strength, Show less, and a reset for local feedback. A true full pause remains a future server-side control.
 6. **Safety:** do not reward harassment, scams, spam, misinformation, or manipulative engagement patterns.
 7. **Transparency:** clearly distinguish organic recommendations from sponsored content. Sponsored content must be labeled and must not silently buy organic rank.
 8. **Privacy:** do not infer sensitive traits or use private message contents to rank public feed content.
@@ -68,6 +71,6 @@ The current SOCIAL API worker source was not present in the accessible repositor
 ## Known V1 limitations
 
 - Ranking only reorders the candidate posts already loaded by the current feed endpoint; it does not expand discovery.
-- Personalization is local to the browser/device and based on a narrow set of signals.
+- Personalization strength and Show less feedback are local to the browser/device and based on a narrow set of signals. The slider does not disable every non-personalized ranking component.
 - No server-side model, embeddings, trend engine, creator-growth model, or cross-device preference sync is active.
 - Existing Explore and Reels views are not yet powered by this ranking service.
