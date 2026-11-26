@@ -89,5 +89,8 @@ test("shared runner uses only the shared bearer and an isolated execution slot",
   assert.match(runner, /env: childEnv/);
   assert.match(workflow, /MEHRAN_AGENT_TOKEN: \$\{\{ secrets\.MEHRAN_AGENT_TOKEN \}\}/);
   assert.doesNotMatch(workflow, /MEHRAN_ORCHESTRATOR_TOKEN|MEHRAN_REPORTS_GITHUB_TOKEN/);
-  assert.match(workflow, /group: mehran-intelligence-shared-runner-\$\{\{ github\.run_id \}\}/);
+  assert.match(workflow, /group: mehran-intelligence-shared-runner\n/);
+  const ownerWorkflow = await readFile(new URL("../.github/workflows/mehran-intelligence-runner.yml", import.meta.url), "utf8");
+  assert.match(ownerWorkflow, /group: mehran-intelligence-owner-runner\n/);
+  assert.doesNotMatch(ownerWorkflow, /group: mehran-intelligence-shared-runner/);
 });
