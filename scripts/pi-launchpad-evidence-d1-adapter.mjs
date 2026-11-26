@@ -96,8 +96,7 @@ export function buildPiLaunchpadEvidenceD1WritePlan(records) {
             chain_verification_status, scoring_status, registry_version, created_at
      FROM pi_launchpad_evidence_records WHERE record_id = ?`, [row[0]]
   ));
-  return Object.freeze({
-    [PLAN_BRAND]:true,
+  const plan = {
     accepted:true,
     adapter:"cloudflare-d1-plan-only",
     insertBatch:Object.freeze(insertBatch),
@@ -111,7 +110,9 @@ export function buildPiLaunchpadEvidenceD1WritePlan(records) {
       "Do not enable scoring or chain verification from this persistence result."
     ]),
     limitation:"Plan only. No D1 binding, credentials, network access, schema application, or live persistence is included."
-  });
+  };
+  Object.defineProperty(plan, PLAN_BRAND, {value:true});
+  return Object.freeze(plan);
 }
 
 /** Execute only against an explicitly supplied D1 binding; intentionally not wired into any Worker. */
