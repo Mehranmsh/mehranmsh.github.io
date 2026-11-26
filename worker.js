@@ -9848,7 +9848,7 @@ export default {
         });
         const progressEvents = events.map(event => ({
           event_id:event.event_id,owner_uid:event.owner_uid,actor_uid:event.actor_uid,
-          task_id:event.task_id,progress_state:event.progress_state,
+          revision_id:event.revision_id,task_id:event.task_id,progress_state:event.progress_state,
           explicit_confirmation:Number(event.explicit_confirmation)===1,occurred_at:event.occurred_at
         }));
         const comparison = compareIntelligencePlanVersions(revisions,progressEvents,{ownerUid:admin.uid,actorUid:admin.uid});
