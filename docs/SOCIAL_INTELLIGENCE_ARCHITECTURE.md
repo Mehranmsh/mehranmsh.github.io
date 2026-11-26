@@ -189,3 +189,29 @@ Observed in the current `index.html`:
 5. **Tests before rollout:** verify identity isolation, private-resource authorization, prompt-injection resistance, owner quota isolation, public quota exhaustion, and graceful operation with the gateway unavailable.
 
 Audit note: no production SOCIAL-to-INTELLIGENCE integration is asserted by this document. The next implementation step is to inspect the deployed Worker routes and D1 schema, then add the gateway in a backward-compatible way.
+
+
+## Hybrid Intelligence feed ranking (initial frontend implementation, 2026-11-27)
+
+The SOCIAL feed now has a default **Hybrid Intelligence** ranking mode and a user-selectable **Latest** chronological mode.
+
+### Current ranking inputs
+- **Freshness:** smoothly decays with post age.
+- **User affinity:** modest boost for authors whose posts the signed-in user has liked in the currently loaded feed.
+- **Community engagement:** capped, logarithmic signal from likes and comments to reduce runaway popularity bias.
+- **Media presence:** small content-format signal, not a quality verdict.
+- **Creator diversity:** initial pass limits consecutive ranking priority to two posts per author before deferred posts are appended.
+- **User feedback:** a per-post "Show less" action stores a local negative preference and reduces that post's score in subsequent Hybrid renders.
+- **User control:** mode selection is stored locally; Latest sorts by post timestamp.
+
+### Important scope and limitations
+This is a first, client-side ranking baseline over the posts already returned by the existing `/feed?limit=50` endpoint. It does not yet have server-side candidate retrieval, full interaction history, topic embeddings, follow graph, dwell-time signals, cross-device preference sync, or a trained ranking model. The current `liked` affinity signal is only as complete as the loaded feed data. No private messages are read for ranking.
+
+### Next backend milestones
+1. Add an authenticated, SOCIAL-scoped feed-ranking endpoint to the existing Cloudflare Worker after its source is available.
+2. Retrieve a broader authorized candidate set and compute features server-side with pagination and stable ranking.
+3. Store explicit feed feedback/preferences with user-level access controls and deletion/reset controls.
+4. Add topic/creator diversity, language preferences, freshness controls, followed-account weighting, and transparent "Why am I seeing this?" explanations.
+5. Run offline evaluation and staged experiments for relevance, creator reach, diversity, freshness, abuse resistance, and latency before making the ranker authoritative.
+
+Do not use raw dwell time or compulsive engagement as the primary optimization target. Optimize for user-declared relevance, content quality, diversity, safety, and user control.
