@@ -47,10 +47,10 @@ test("D1 task schema adds explicit owner and quarantine-by-default lane", async 
   assert.match(worker, /Existing rows remain quarantined/);
 });
 
-test("new owner-created tasks persist authenticated owner identity", async () => {
+test("new owner-created tasks persist the authenticated orchestration principal", async () => {
   const worker = await readFile(new URL("../worker.js", import.meta.url), "utf8");
   assert.match(worker, /action_payload,owner_uid,queue_lane\) VALUES\(\?,\?,\?,\?,\?,\?,\?,\?,\?,\?,\?,\?\)/);
-  assert.match(worker, /assignedTo==="mehran_intelligence"\?admin\.uid:null/);
+  assert.match(worker, /assignedTo==="mehran_intelligence"\?"mehran_owner_orchestrator":null/);
   assert.match(worker, /assignedTo==="mehran_intelligence"\?"owner":assignedTo==="shared"\?"shared":"quarantine"/);
   assert.match(worker, /typeof input\.ownerUid === "string" && input\.ownerUid\.trim\(\) \? input\.ownerUid\.trim\(\) : null/);
   assert.match(worker, /typeof input\.ownerUid === "string" && input\.ownerUid\.trim\(\) \? "owner" : "quarantine"/);
