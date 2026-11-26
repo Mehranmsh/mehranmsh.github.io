@@ -9,6 +9,7 @@ const CHAIN = "not_verified";
 const SCORE = "blocked_pending_independent_chain_verification";
 const ISO = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?Z$/;
 const ID = /^plev_[a-f0-9]{32}$/;
+const PLAN_BRAND = Symbol("pi-launchpad-evidence-d1-write-plan");
 const isObject = v => !!v && typeof v === "object" && !Array.isArray(v) &&
   (Object.getPrototypeOf(v) === Object.prototype || Object.getPrototypeOf(v) === null);
 const validDate = v => typeof v === "string" && ISO.test(v) && Number.isFinite(Date.parse(v));
@@ -96,6 +97,7 @@ export function buildPiLaunchpadEvidenceD1WritePlan(records) {
      FROM pi_launchpad_evidence_records WHERE record_id = ?`, [row[0]]
   ));
   return Object.freeze({
+    [PLAN_BRAND]:true,
     accepted:true,
     adapter:"cloudflare-d1-plan-only",
     insertBatch:Object.freeze(insertBatch),
@@ -114,8 +116,12 @@ export function buildPiLaunchpadEvidenceD1WritePlan(records) {
 
 /** Execute only against an explicitly supplied D1 binding; intentionally not wired into any Worker. */
 export async function persistPiLaunchpadEvidenceD1Plan(db, plan) {
-  if (!db || typeof db.batch !== "function" || !plan || plan.accepted !== true ||
-      !Array.isArray(plan.insertBatch) || !Array.isArray(plan.readback)) {
+  if (!db || typeof db.batch !== "function" || !isObject(plan) ||
+      plan[PLAN_BRAND] !== true || plan.accepted !== true ||
+      !Array.isArray(plan.insertBatch) || !Array.isArray(plan.readback) ||
+      !Array.isArray(plan.expectedRows) || plan.insertBatch.length < 1 ||
+      plan.insertBatch.length > 80 || plan.readback.length !== plan.insertBatch.length ||
+      plan.expectedRows.length !== plan.insertBatch.length) {
     return Object.freeze({accepted:false, code:"invalid_d1_binding_or_plan"});
   }
   try {
