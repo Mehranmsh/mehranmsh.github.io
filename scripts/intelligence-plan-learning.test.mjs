@@ -81,3 +81,25 @@ test("selects newest bounded history and ignores duplicate event identifiers", (
   assert.equal(result.observations.length,2);
   assert.ok(result.observations.every(item => item.revision_version >= 2));
 });
+
+
+test("caps raw history before filtering and sorting and reports omitted input", () => {
+  const oldRevisions = Array.from({ length: 1000 }, (_, index) => ({
+    ...rev(index + 1, [task("a")]), revision_id: "old-" + index
+  }));
+  const retained = [rev(2001, [task("a")]), rev(2002, [task("a", { priority: "high" })])];
+  const oldEvents = Array.from({ length: 5000 }, (_, index) => ({
+    ...event(2001, "a", "completed"), event_id: "old-event-" + index,
+    occurred_at: "2026-11-20T10:00:00Z"
+  }));
+  const retainedEvents = [event(2002, "a", "failed")];
+  const result = learnFromIntelligencePlanOutcomes(
+    [...oldRevisions, ...retained], [...oldEvents, ...retainedEvents], opts
+  );
+  assert.equal(result.diagnostics.rawRevisionsInspected, 1000);
+  assert.equal(result.diagnostics.rawRevisionsOmitted, 2);
+  assert.equal(result.diagnostics.rawEventsInspected, 5000);
+  assert.equal(result.diagnostics.rawEventsOmitted, 1);
+  assert.equal(result.diagnostics.revisionsAccepted, 50);
+  assert.ok(result.observations.length <= 100);
+});
