@@ -29,3 +29,39 @@ test("backoff is capped at one hour", () => {
   const result = planIntelligenceRetry({ attempts: 11, maxAttempts: 20, error: "network error" });
   assert.equal(result.delaySeconds, 3600);
 });
+
+test("invalid numeric inputs are bounded and never throw", () => {
+  const result = planIntelligenceRetry({
+    attempts: Number.POSITIVE_INFINITY,
+    maxAttempts: Number.NaN,
+    baseDelaySeconds: Number.POSITIVE_INFINITY,
+    maxDelaySeconds: Number.NaN,
+    error: "timeout",
+    now: Number.MAX_VALUE
+  });
+  assert.equal(result.retryable, false);
+  assert.equal(result.exhausted, false);
+  assert.equal(result.delaySeconds, 0);
+  assert.equal(result.nextAttemptAt, null);
+});
+
+test("fractional and negative retry settings are normalized safely", () => {
+  const result = planIntelligenceRetry({
+    attempts: -4.8,
+    maxAttempts: 2.9,
+    baseDelaySeconds: -10,
+    maxDelaySeconds: 0,
+    error: "timeout",
+    now: 0
+  });
+  assert.equal(result.retryable, true);
+  assert.equal(result.delaySeconds, 1);
+  assert.equal(result.nextAttemptAt, new Date(1000).toISOString());
+});
+
+test("unprintable error values do not break retry planning", () => {
+  const hostile = { toString() { throw new Error("conversion failed"); } };
+  const result = planIntelligenceRetry({ error: hostile, attempts: 0 });
+  assert.equal(result.retryable, false);
+  assert.equal(result.errorCode, "execution_blocked");
+});
