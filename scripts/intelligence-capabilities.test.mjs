@@ -1,5 +1,6 @@
 import test from "node:test";
 import "./pi-launchpad-analyzer.test.mjs";
+import "./pi-launchpad-data-adapter.test.mjs";
 import "./intelligence-mission-generator-policy.test.mjs";
 import "./intelligence-mission-generator-d1.test.mjs";
 import { applyValidatedPatchInMemory } from "./intelligence-patch-apply.mjs";
