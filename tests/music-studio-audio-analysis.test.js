@@ -46,6 +46,24 @@ test("stereo channels are weighted by their actual sample count", () => {
   assert.ok(Math.abs(result.rms - Math.sqrt(0.125)) < 1e-6);
 });
 
+test("reports low-level block share without labelling it as noise", () => {
+  const result = analyzeStudioIntelSamples([new Float32Array([0, 0, 0.5, 0.5])], 4);
+  assert.equal(result.blockCount, 4);
+  assert.equal(result.lowLevelBlockRatio, 0.5);
+  assert.equal(result.quiet, 0);
+  assert.equal(result.loudBlockRms, 0.5);
+});
+
+test("reports block RMS percentiles in ascending order", () => {
+  const result = analyzeStudioIntelSamples([new Float32Array([0.1, 0.2, 0.3, 0.4])], 4);
+  assert.ok(result.quiet <= result.medianBlockRms);
+  assert.ok(result.medianBlockRms <= result.loudBlockRms);
+});
+
+test("rejects non-finite samples", () => {
+  assert.throws(() => analyzeStudioIntelSamples([new Float32Array([0, NaN])], 44100), /finite numbers/);
+});
+
 test("rejects malformed channel layouts and invalid sample rates", () => {
   assert.throws(() => analyzeStudioIntelSamples([], 44100), /Invalid audio sample input/);
   assert.throws(() => analyzeStudioIntelSamples([new Float32Array(2), new Float32Array(3)], 44100), /equal lengths/);
