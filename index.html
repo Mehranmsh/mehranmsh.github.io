@@ -1301,6 +1301,15 @@ body:has(#page-nexus.active) .topbar{display:none!important}
 body:has(#page-nexus.active) .main{padding-top:17px!important;padding-bottom:0!important}
 }
 </style>
+<style id="nexus-bottom-nav-v1">
+#page-nexus .nx-bottom-nav{display:none}
+@media(max-width:760px){
+#page-nexus .nx-bottom-nav{position:fixed;z-index:25;bottom:0;left:0;right:0;display:grid;grid-template-columns:repeat(5,1fr);align-items:end;padding:8px 7px calc(8px + env(safe-area-inset-bottom));border-radius:25px 25px 0 0;background:rgba(255,241,226,.97);box-shadow:0 -5px 22px #5c3e281c;backdrop-filter:blur(14px)}
+#page-nexus .nx-bottom-nav button{border:0;background:none;color:#594437;display:flex;flex-direction:column;align-items:center;gap:4px;font-size:10px;padding:4px 0}
+#page-nexus .nx-bottom-nav button span{font-size:21px}
+#page-nexus .nx-bottom-nav .nx-home-nav span{width:60px;height:60px;margin-top:-30px;border:4px solid #f4dfc9;border-radius:50%;display:grid;place-items:center;background:#5b4030;color:white;font-size:30px;box-shadow:0 0 0 3px white}
+}
+</style>
 <section class="page" id="page-nexus">
  <div class="nx-wrap">
   <header class="nx-top">
@@ -1331,6 +1340,13 @@ body:has(#page-nexus.active) .main{padding-top:17px!important;padding-bottom:0!i
   </div>
   <div class="nx-bottom-note"><strong>یک جهان فرصت، در یک نقطه</strong><span>پروفایل کسب‌وکارها · معرفی محصولات و خدمات · ارتباط مستقیم</span></div>
  </div>
+<nav class="nx-bottom-nav" aria-label="NEXUS navigation">
+<button type="button" onclick="showPage('dashboard')"><span>▥</span>پروژه‌ها</button>
+<button type="button" onclick="showPage('services')"><span>▱</span>خدمات</button>
+<button type="button" class="nx-home-nav" onclick="showPage('nexus')"><span>⌂</span>خانه</button>
+<button type="button" onclick="showPage('social')"><span>☏</span>SOCIAL</button>
+<button type="button" onclick="showPage('user')"><span>▦</span>بیشتر</button>
+</nav>
 </section>
 
 <section class="page" id="page-user">
