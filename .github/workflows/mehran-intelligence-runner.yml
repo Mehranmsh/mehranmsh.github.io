@@ -664,7 +664,7 @@ import { compactIntelligenceArchitectureReview } from "./scripts/intelligence-ar
             if (!Number.isInteger(maxChars) || maxChars < 256) {
               throw new Error("Invalid bounded-result character limit.");
             }
-            if (value?.type === "intelligence_architecture_review") {
+            if (value?.type === "architecture_review") {
               return compactIntelligenceArchitectureReview(value, maxChars);
             }
             const full = JSON.stringify(value);
