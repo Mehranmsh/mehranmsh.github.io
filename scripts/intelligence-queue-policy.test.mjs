@@ -53,7 +53,7 @@ test("new owner-created tasks persist the authenticated orchestration principal"
   assert.match(worker, /assignedTo==="mehran_intelligence"\?"mehran_owner_orchestrator":null/);
   assert.match(worker, /assignedTo==="mehran_intelligence"\?"owner":assignedTo==="shared"\?"shared":"quarantine"/);
   assert.match(worker, /typeof input\.ownerUid === "string" && input\.ownerUid\.trim\(\) \? input\.ownerUid\.trim\(\) : null/);
-  assert.match(worker, /typeof input\.ownerUid === "string" && input\.ownerUid\.trim\(\) \? "owner" : "quarantine"/);
+  assert.match(worker, /packageOwnerUid \? "owner" : "quarantine"/);
 });
 
 
