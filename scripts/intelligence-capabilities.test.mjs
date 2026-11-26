@@ -224,7 +224,7 @@ test("AI planner strips schema-optional fields that are invalid for another acti
   assert.match(workerSource, /const normalizedTasks = plan\.tasks\.map\(item =>/);
   assert.match(workerSource, /if \(normalized\.actionType !== "inspect_repository"\) delete normalized\.paths/);
   assert.match(workerSource, /if \(normalized\.actionType !== "run_repository_tests"\) delete normalized\.baseSha/);
-  assert.match(workerSource, /if \(normalized\.actionType !== "propose_code_patch"\) delete normalized\.objective/);
+  assert.match(workerSource, /if \(normalized\.actionType !== "propose_code_patch"\) \{ delete normalized\.objective; delete normalized\.targetPath; \}/);
   assert.match(workerSource, /const acceptedTaskIds = new Set\(\)/);
   assert.match(workerSource, /acceptedTaskIds\.has\(dep\)/);
   assert.match(workerSource, /seenDependencies\.has\(dep\)/);
@@ -328,7 +328,7 @@ test("draft PR automation is isolated, main-only, test-gated, and never merges o
   assert.match(proposalWorkflowSource, /GITHUB_TOKEN:/);
 
   assert.match(proposalRunnerSource, /proposals\.slice\(0,3\)/);
-  assert.match(proposalRunnerSource, /proposal\.targetPath !== targetPath/);
+  assert.match(proposalRunnerSource, /!targetPolicy/);
   assert.match(proposalRunnerSource, /scripts\/intelligence-capabilities\.test\.mjs/);
   assert.match(proposalRunnerSource, /--network", "none"/);
   assert.match(proposalRunnerSource, /draft: true/);
@@ -453,7 +453,7 @@ test("patch proposal validator accepts only a bounded single-file test diff and 
   assert.equal(PATCH_PROPOSAL_POLICY.appliesChanges, false);
   assert.equal(PATCH_PROPOSAL_POLICY.createsBranches, false);
   assert.equal(PATCH_PROPOSAL_POLICY.createsPullRequests, false);
-  assert.deepEqual(PATCH_PROPOSAL_POLICY.allowedPaths, [targetPath]);
+  assert.deepEqual(PATCH_PROPOSAL_POLICY.allowedPaths, [targetPath, "scripts/intelligence-inbox-schema.test.mjs"]);
 });
 
 test("patch proposal validator rejects paths, multi-file input, malformed hunks, and oversized diffs", () => {
