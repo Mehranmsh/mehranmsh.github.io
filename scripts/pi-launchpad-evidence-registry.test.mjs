@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { buildPiLaunchpadEvidenceRegistry } from "./pi-launchpad-evidence-registry.mjs";
-import { generateKeyPairSync, sign } from "node:crypto";
+import { createHash, generateKeyPairSync, sign } from "node:crypto";
 
 const NOW = Date.parse("2026-11-26T18:00:00.000Z");
 const envelope = () => ({
@@ -54,9 +54,12 @@ test("record identifiers are deterministic and change when evidence identity cha
 test("a valid signature changes signer status only, never chain verification or scoring", () => {
   const { publicKey, privateKey } = generateKeyPairSync("ed25519");
   const pem = publicKey.export({ type: "spki", format: "pem" });
+  const fingerprintSha256 = createHash("sha256")
+    .update(publicKey.export({ type: "spki", format: "der" })).digest("hex");
   const trustRecords = [{
     keyId: "auditor-key",
     publicKeyPem: pem,
+    fingerprintSha256,
     issuer: "auditor",
     allowedSourceOrigins: ["https://project.example"],
     allowedFields: ["utility"],
