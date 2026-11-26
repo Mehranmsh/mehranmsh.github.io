@@ -1,4 +1,6 @@
 const MAX_TASKS = 300;
+const MAX_RAW_TASK_RECORDS = 10000;
+const MAX_DEPENDENCIES_PER_TASK = 50;
 const SENSITIVE = new Set(["secret","credential","wallet","financial","private_social","health","identity"]);
 const DONE = new Set(["done","complete","completed"]);
 const INACTIVE = new Set(["deleted","archived","cancelled","canceled"]);
@@ -11,7 +13,8 @@ export function buildIntelligenceExecutionPlan(records, options={}) {
   const owner=clean(options.ownerUid), limit=Number.isInteger(options.maxTasks)&&options.maxTasks>0?Math.min(options.maxTasks,MAX_TASKS):100;
   const empty={orderedTasks:[],blockedTasks:[],unresolvedTasks:[],diagnostics:{inspectedTasks:0,omittedTasks:0,completedTasksExcluded:0,advisoryOnly:true,executionPerformed:false}};
   if(!owner||!Array.isArray(records)) return empty;
-  const eligible=records.filter(r=>r&&typeof r==="object"&&!Array.isArray(r)&&clean(r.owner_uid)===owner&&!r.deleted_at&&(!r.status||!INACTIVE.has(String(r.status).toLowerCase()))&&!SENSITIVE.has(String(r.sensitivity||"").toLowerCase())&&(String(r.memory_type||r.type||"").toLowerCase()==="task"||typeof r.task_id==="string"));
+  const boundedRecords=records.slice(0,MAX_RAW_TASK_RECORDS);
+  const eligible=boundedRecords.filter(r=>r&&typeof r==="object"&&!Array.isArray(r)&&clean(r.owner_uid)===owner&&!r.deleted_at&&(!r.status||!INACTIVE.has(String(r.status).toLowerCase()))&&!SENSITIVE.has(String(r.sensitivity||"").toLowerCase())&&(String(r.memory_type||r.type||"").toLowerCase()==="task"||typeof r.task_id==="string"));
   const all=[...new Map(eligible.map(r=>[clean(r.task_id||r.memory_key),r]).filter(([id])=>id)).entries()].sort(([a],[b])=>a.localeCompare(b));
   const tasks=new Map(all.slice(0,limit));
   const completed=new Set([...tasks].filter(([,r])=>DONE.has(String(r.task_state||r.state||r.status||"").toLowerCase())).map(([id])=>id));
@@ -20,7 +23,7 @@ export function buildIntelligenceExecutionPlan(records, options={}) {
   const pending=new Set([...tasks.keys()].filter(id=>!completed.has(id)&&!active.has(id))), deps=new Map(), unresolved=[];
   for(const [id,r] of tasks) {
     if(!pending.has(id)) continue;
-    const raw=r.depends_on_task_ids, list=[...new Set((Array.isArray(raw)?raw:typeof raw==="string"?[raw]:[]).map(v=>clean(v)).filter(Boolean))].sort();
+    const raw=r.depends_on_task_ids, list=[...new Set((Array.isArray(raw)?raw.slice(0,MAX_DEPENDENCIES_PER_TASK):typeof raw==="string"?[raw]:[]).map(v=>clean(v)).filter(Boolean))].sort();
     const trusted=r.dependencies_confirmed===true&&r.dependencies_confirmed_by===owner;
     deps.set(id,trusted?list:[]);
     if(list.length&&!trusted) unresolved.push({task_id:id,reason:"dependencies_not_owner_confirmed",suggested_dependencies:list,advisory:"confirmation_required"});
@@ -40,5 +43,5 @@ export function buildIntelligenceExecutionPlan(records, options={}) {
     }
   }
   for(const id of [...pending].sort()) {const s=status(id);blockedTasks.push({task_id:id,blocked_by:s.unfinished,unresolved_dependencies:s.missing,reason:s.missing.length?"dependency_missing_or_out_of_scope":"dependency_not_complete_or_cycle",advisory:true});}
-  return {orderedTasks,blockedTasks,unresolvedTasks:unresolved,diagnostics:{inspectedTasks:tasks.size,omittedTasks:Math.max(0,all.length-tasks.size),completedTasksExcluded:completed.size,activeTasksExcluded:active.size,advisoryOnly:true,executionPerformed:false}};
+  return {orderedTasks,blockedTasks,unresolvedTasks:unresolved,diagnostics:{inspectedTasks:tasks.size,omittedTasks:Math.max(0,all.length-tasks.size),rawRecordsInspected:boundedRecords.length,rawRecordsOmitted:Math.max(0,records.length-boundedRecords.length),completedTasksExcluded:completed.size,activeTasksExcluded:active.size,advisoryOnly:true,executionPerformed:false}};
 }
