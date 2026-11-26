@@ -17,9 +17,13 @@ export function evaluateIntelligenceOptions(options, criteria, settings={}) {
  const excludedOptions=[],reviewRequired=[],rankedOptions=[]; let omittedConstraints=0;
  for(const option of options.slice(0,MAX_OPTIONS)) {
   if(!option||typeof option!=="object"||!clean(option.id)) continue;
-  const rawConstraints=Array.isArray(option.constraints)?option.constraints:[];\n  const constraints=rawConstraints.slice(0,MAX_CONSTRAINTS_PER_OPTION);\n  omittedConstraints+=Math.max(0,rawConstraints.length-constraints.length);\n  const failed=constraints.filter(x=>x&&x.confirmed===true&&x.confirmed_by===owner&&x.passed===false).map(x=>clean(x.key));
+  const rawConstraints=Array.isArray(option.constraints)?option.constraints:[];
+  const constraints=rawConstraints.slice(0,MAX_CONSTRAINTS_PER_OPTION);
+  omittedConstraints+=Math.max(0,rawConstraints.length-constraints.length);
+  const failed=constraints.filter(x=>x&&x.confirmed===true&&x.confirmed_by===owner&&x.passed===false).map(x=>clean(x.key));
   if(failed.length){excludedOptions.push({option_id:clean(option.id),failed_constraints:failed,reason:"owner_confirmed_constraint_failure"});continue;}
-  const unknownConstraints=constraints.filter(x=>!x||x.confirmed!==true||x.confirmed_by!==owner||typeof x.passed!=="boolean").map(x=>clean(x&&x.key)||"unspecified");\n  if(rawConstraints.length>constraints.length) unknownConstraints.push("additional_constraints_omitted");
+  const unknownConstraints=constraints.filter(x=>!x||x.confirmed!==true||x.confirmed_by!==owner||typeof x.passed!=="boolean").map(x=>clean(x&&x.key)||"unspecified");
+  if(rawConstraints.length>constraints.length) unknownConstraints.push("additional_constraints_omitted");
   let weighted=0,covered=0; const evidence=[];
   for(const criterion of boundedCriteria) {
    const value=option.scores&&option.scores[criterion.key];
