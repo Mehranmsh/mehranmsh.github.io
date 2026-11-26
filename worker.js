@@ -7226,6 +7226,52 @@ async function ensurePrivateIntelligenceInboxDiagnostics(env) {
   } catch {}
 }
 
+async function resolvePrivateInboxRepositoryBaseSha() {
+  const response = await fetch("https://api.github.com/repos/Mehranmsh/mehranmsh.github.io/commits/main", {
+    headers: { "Accept": "application/vnd.github+json", "User-Agent": "MEHRAN-MSH-Private-Intelligence-Inbox" },
+    signal: AbortSignal.timeout(8000)
+  });
+  if (!response.ok) throw new Error("private_inbox_main_sha_http_" + response.status);
+  const lengthHeader = response.headers.get("Content-Length");
+  const declaredLength = lengthHeader === null ? null : Number(lengthHeader);
+  if (declaredLength !== null && (!Number.isSafeInteger(declaredLength) || declaredLength < 0 || declaredLength > 65536)) {
+    throw new Error("private_inbox_main_sha_response_too_large");
+  }
+  if (!response.body) throw new Error("private_inbox_main_sha_body_missing");
+  const reader = response.body.getReader();
+  const chunks = [];
+  let total = 0;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      total += value.byteLength;
+      if (total > 65536) {
+        try { await reader.cancel(); } catch {}
+        throw new Error("private_inbox_main_sha_response_too_large");
+      }
+      chunks.push(value);
+    }
+  } finally {
+    try { reader.releaseLock(); } catch {}
+  }
+  const bytes = new Uint8Array(total);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  let payload;
+  try {
+    payload = JSON.parse(new TextDecoder().decode(bytes));
+  } catch {
+    throw new Error("private_inbox_main_sha_invalid_json");
+  }
+  const sha = typeof payload?.sha === "string" ? payload.sha.toLowerCase() : "";
+  if (!/^[a-f0-9]{40}$/.test(sha)) throw new Error("private_inbox_main_sha_invalid");
+  return sha;
+}
+
 async function ingestPrivateIntelligenceInbox(env) {
   // Private, owner-controlled mission inbox. The inbox document is data only:
   // task definitions are never accepted from it; a fixed read-only package is built here.
@@ -7342,6 +7388,11 @@ async function ingestPrivateIntelligenceInbox(env) {
       }
       const evidence = Array.isArray(mission.known_evidence) ? mission.known_evidence.slice(0, 4) : [];
       const objective = cleanText(mission.objective, 1800);
+      // The isolated test executor requires one immutable commit. Resolve it
+      // from GitHub's public main-commit endpoint and fail closed on any error.
+      const repositoryBaseSha = mission.scope.allowed_actions.includes("run_repository_tests")
+        ? await resolvePrivateInboxRepositoryBaseSha()
+        : "";
       const packageInput = {
         idempotencyKey: "private-inbox:" + mission.mission_id,
         title: cleanText(mission.title, 150) || "Private Intelligence diagnostic",
@@ -7384,7 +7435,8 @@ async function ingestPrivateIntelligenceInbox(env) {
             title: "Run the predefined isolated repository test suite",
             description: "Execute only the fixed, network-isolated repository test suite supported by the runner. Do not install packages, access external services, or modify source files.",
             actionType: "run_repository_tests",
-            dependsOn: []
+            dependsOn: [],
+            baseSha: repositoryBaseSha
           }] : [])
         ]
       };
