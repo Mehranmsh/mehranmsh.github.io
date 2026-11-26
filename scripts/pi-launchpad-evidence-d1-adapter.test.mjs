@@ -109,7 +109,7 @@ test("repeated identical retries are idempotent and conflicting IDs fail closed"
    }
   },
   prepare(sql){
-   return {bind(...params){return {first:async()=>rows.get(params[0])??null};}};
+   return {bind(...params){return {params,first:async()=>rows.get(params[0])??null};}};
   }
  };
  const a=await persistPiLaunchpadEvidenceD1Plan(db,p);
