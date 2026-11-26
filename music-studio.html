@@ -2502,6 +2502,29 @@ async function generatePatternTrack(){const allowedMode=["drums","chords"].inclu
   intelReport.innerHTML="";
   intelStatus.textContent=tracks.length?"یک فایل ضبط‌شده را انتخاب کن تا دکمهٔ تحلیل فعال شود.":"برای این پروژه هنوز فایل صوتی به هیچ ترکی متصل نشده است.";
  }
+ function analyzeStudioIntelSamples(channelData,sampleRate){
+  if(!Array.isArray(channelData)||!channelData.length||!Number.isFinite(sampleRate)||sampleRate<=0)throw new Error("Invalid audio sample input.");
+  const lengths=channelData.map(channel=>channel?.length??0);
+  if(lengths.some(length=>!length)||lengths.some(length=>length!==lengths[0]))throw new Error("Audio channels must be non-empty and have equal lengths.");
+  const channelCount=channelData.length,total=lengths[0]*channelCount;
+  let peak=0,sumSquares=0,clipped=0,dcSum=0;
+  const blockSize=Math.max(1,Math.floor(sampleRate*0.25)),windowRms=[];
+  for(const data of channelData){
+   for(let start=0;start<data.length;start+=blockSize){
+    const stop=Math.min(data.length,start+blockSize);let blockSquares=0;
+    for(let i=start;i<stop;i++){
+     const value=data[i],absolute=Math.abs(value);
+     if(absolute>peak)peak=absolute;
+     if(absolute>=0.999)clipped++;
+     sumSquares+=value*value;dcSum+=value;blockSquares+=value*value;
+    }
+    windowRms.push(Math.sqrt(blockSquares/Math.max(1,stop-start)));
+   }
+  }
+  const rms=Math.sqrt(sumSquares/total),dc=dcSum/total,clipRatio=clipped/total;
+  const sorted=windowRms.slice().sort((a,b)=>a-b),quiet=sorted.length?sorted[Math.floor((sorted.length-1)*0.1)]:0;
+  return {channelCount,total,peak,rms,dc,clipRatio,quiet,blockSize};
+ }
  function intelDb(value,digits=2){return Number.isFinite(value)?(value<=0?"−∞":(20*Math.log10(value)).toFixed(digits))+" dBFS":"نامشخص";}
  function intelPct(value){return (100*value).toFixed(3)+"%";}
  async function runStudioIntelVocalCheck(){
@@ -2518,22 +2541,9 @@ async function generatePatternTrack(){const allowedMode=["drums","chords"].inclu
    context=new AudioContextClass();
    const decoded=await context.decodeAudioData(await record.blob.arrayBuffer());
    if(decoded.duration>120)throw new Error("مدت فایل بیشتر از ۱۲۰ ثانیه است. یک بخش کوتاه‌تر انتخاب کن.");
-   const channelCount=decoded.numberOfChannels,sampleRate=decoded.sampleRate,total=decoded.length*channelCount;
-   let peak=0,sumSquares=0,clipped=0,dcSum=0;
-   const blockSize=Math.max(1,Math.floor(sampleRate*0.25)),windowRms=[];
-   for(let channel=0;channel<channelCount;channel++){
-    const data=decoded.getChannelData(channel);
-    for(let start=0;start<data.length;start+=blockSize){
-     const stop=Math.min(data.length,start+blockSize);let blockSquares=0;
-     for(let i=start;i<stop;i++){
-      const value=data[i],absolute=Math.abs(value);if(absolute>peak)peak=absolute;
-      if(absolute>=0.999)clipped++;sumSquares+=value*value;dcSum+=value;blockSquares+=value*value;
-     }
-     windowRms.push(Math.sqrt(blockSquares/Math.max(1,stop-start)));
-    }
-   }
-   const rms=Math.sqrt(sumSquares/Math.max(1,total)),dc=dcSum/Math.max(1,total),clipRatio=clipped/Math.max(1,total);
-   const sorted=windowRms.slice().sort((a,b)=>a-b),quiet=sorted.length?sorted[Math.floor((sorted.length-1)*0.1)]:0;
+   const channelCount=decoded.numberOfChannels,sampleRate=decoded.sampleRate;
+   const measured=analyzeStudioIntelSamples(Array.from({length:channelCount},(_,index)=>decoded.getChannelData(index)),sampleRate);
+   const {peak,rms,dc,clipRatio,quiet}=measured;
    const findings=[];
    if(clipRatio>0.0001)findings.push({level:"warning",title:"احتمال کلیپینگ",detail:"بخشی از نمونه‌ها نزدیک سقف دیجیتال‌اند. اگر اعوجاج شنیده می‌شود، ضبط مجدد با فاصلهٔ بیشتر از میکروفون بهتر از ترمیم شدید است."});
    else if(peak>0.98)findings.push({level:"caution",title:"قلهٔ صدا نزدیک سقف است",detail:"برای ضبط بعدی کمی هد‌روم بیشتر نگه دار؛ قلهٔ نزدیک صفر به‌تنهایی نشانهٔ کیفیت بهتر نیست."});
