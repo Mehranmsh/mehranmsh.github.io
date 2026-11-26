@@ -2864,13 +2864,13 @@ if(creatorBox)creatorBox.innerHTML=creatorList.map(c=>{
 const kind=c.accountType==="business"?"Business":c.accountType==="ai"?"AI account":"Member";
 const avatar=c.avatarUrl?'<img src="'+sx(c.avatarUrl)+'" alt="">':escapeHTML(String(c.displayName||c.username).charAt(0).toUpperCase());
 const safeUser=encodeURIComponent(c.username);
-return '<button type="button" class="creator-card" onclick="openExploreCreator(decodeURIComponent(\\''+safeUser+'\\'))"><span class="creator-avatar">'+avatar+'</span><span class="creator-card-copy"><strong>'+escapeHTML(c.displayName)+'</strong><small>'+kind+' · '+c.posts+' posts · '+c.likes+' likes</small></span></button>';
+return '<button type="button" class="creator-card" onclick="openExploreCreator(decodeURIComponent(\''+safeUser+'\'))"><span class="creator-avatar">'+avatar+'</span><span class="creator-card-copy"><strong>'+escapeHTML(c.displayName)+'</strong><small>'+kind+' · '+c.posts+' posts · '+c.likes+' likes</small></span></button>';
 }).join("")||'<div class="empty">Creators will appear here as posts become available.</div>';
 $("exploreEmpty").classList.toggle("hidden",filtered.length>0);
 grid.innerHTML=filtered.map(p=>{
 const m=getPostMedia(p)[0],label=p.accountType==="business"?"Business":p.accountType==="ai"?"AI account":"Community";
 const visual=m?(m.type==="video"?'<video src="'+sx(m.data)+'" muted playsinline preload="metadata"></video>':'<img src="'+sx(m.data)+'" alt="Explore post" loading="lazy">'):'<div class="explore-text-tile"><strong>'+escapeHTML(p.displayName||p.author||"Member")+'</strong><span>'+escapeHTML((p.text||"").slice(0,110))+'</span></div>';
-const safeId=encodeURIComponent(String(p.id));return '<div class="explore-item"><button type="button" onclick="openExplorePost(decodeURIComponent(\\''+safeId+'\\'))" aria-label="Open post by '+escapeHTML(p.displayName||p.author||"member")+'">'+visual+'</button><div class="explore-item-meta"><strong>'+escapeHTML(p.displayName||p.author||"Member")+'</strong><small>'+label+'</small></div></div>';
+const safeId=encodeURIComponent(String(p.id));return '<div class="explore-item"><button type="button" onclick="openExplorePost(decodeURIComponent(\''+safeId+'\'))" aria-label="Open post by '+escapeHTML(p.displayName||p.author||"member")+'">'+visual+'</button><div class="explore-item-meta"><strong>'+escapeHTML(p.displayName||p.author||"Member")+'</strong><small>'+label+'</small></div></div>';
 }).join("");
 }
 window.openExploreCreator=function(username){const field=$("exploreSearch");if(field)field.value=username;exploreFilter="all";document.querySelectorAll("[data-explore-filter]").forEach(button=>button.classList.toggle("active",button.dataset.exploreFilter==="all"));renderExplore();};
