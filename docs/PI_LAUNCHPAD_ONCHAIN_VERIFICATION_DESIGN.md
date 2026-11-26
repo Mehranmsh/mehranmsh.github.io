@@ -100,3 +100,14 @@ Official references reviewed:
 - Pi Developer Documentation: https://developers.minepi.com/docs/docs/build-first-app/GettingStarted
 - Pi Network, Ecosystem Summit Begins (November 2026): https://minepi.com/blog/ecosystem-summit-begins/
 - Pi Network, New Pi Developer Capabilities & Documentation (September 4, 2026): https://minepi.com/blog/dev-capabilities-documentation/
+
+
+## Immutable Testnet observation record (2026-11-26)
+
+The Testnet policy module can now wrap a validated `getHealth` JSON-RPC response in a versioned audit observation:
+- Requires an explicit, canonical UTC retrieval timestamp with millisecond precision.
+- Records the exact allowlisted Testnet endpoint, method, request ID, response size, opaque result, and SHA-256 digest.
+- The digest is over the UTF-8 bytes of `JSON.stringify(response)`; it is **not** a digest of the original HTTP wire bytes.
+- The observation and nested result are deeply frozen and explicitly marked `eligibleForMainnetScoring: false`.
+- The digest detects later changes relative to the same serialization procedure. It does not prove who supplied the response, that the response is truthful, or that it represents canonical Pi state.
+- This remains a pure helper. It does not fetch RPC data, persist observations, or modify Launchpad scoring.
