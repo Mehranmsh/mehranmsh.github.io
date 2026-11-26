@@ -67,10 +67,16 @@ export async function executePiTestnetArchiveReplacementTransaction(input, provi
     );
     if (authorized !== true) throw new Error("archive_admin_authorization_failed");
 
-    const [currentEnvelope, existingJournal] = await Promise.all([
-      transaction.readCurrentEnvelope(input.intent.archiveScope, input.intent.archiveId),
-      transaction.readJournal(input.intent.archiveScope, input.intent.archiveId)
-    ]);
+    // Keep reads sequential: some transactional drivers do not support
+    // concurrent statements on one transaction/session.
+    const currentEnvelope = await transaction.readCurrentEnvelope(
+      input.intent.archiveScope,
+      input.intent.archiveId
+    );
+    const existingJournal = await transaction.readJournal(
+      input.intent.archiveScope,
+      input.intent.archiveId
+    );
 
     if (!isPlainRecord(currentEnvelope) || currentEnvelope.archiveScope !== input.intent.archiveScope) {
       throw new Error("current_envelope_missing_or_wrong_scope");
