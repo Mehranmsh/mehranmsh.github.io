@@ -72,7 +72,10 @@ export function buildPiLaunchpadEvidenceRegistry({
       sourceId: item.sourceId,
       field: item.field,
       reference: item.reference,
-      observedAt: item.observedAt
+      observedAt: item.observedAt,
+      sourceKind: source.kind,
+      sourceUrl: source.url,
+      value: item.value
     };
     const recordId = "plev_" + digest(canonical(identity)).slice(0, 32);
     return freeze({
