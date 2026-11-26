@@ -13,6 +13,8 @@ on:
       - "scripts/pi-launchpad-attestation-verifier.test.mjs"
       - "scripts/pi-launchpad-evidence-gateway.mjs"
       - "scripts/pi-launchpad-evidence-gateway.test.mjs"
+      - "scripts/pi-launchpad-verified-analyzer.mjs"
+      - "scripts/pi-launchpad-verified-analyzer.test.mjs"
       - "scripts/pi-launchpad-trust-store.mjs"
       - "scripts/pi-launchpad-trust-store.test.mjs"
       - "scripts/pi-launchpad-source-registry.mjs"
@@ -47,5 +49,6 @@ jobs:
         run: |
           node --check scripts/pi-launchpad-analyzer.mjs
           node --check scripts/pi-launchpad-evidence-gateway.mjs
+          node --check scripts/pi-launchpad-verified-analyzer.mjs
       - name: Run analyzer tests
         run: node --test --test-reporter=tap scripts/pi-launchpad-analyzer.test.mjs
