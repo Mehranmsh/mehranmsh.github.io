@@ -1082,6 +1082,7 @@ input:focus,textarea:focus,select:focus,button:focus-visible,a:focus-visible{out
 #page-social .social-section-kicker{color:#8faeea;font-size:8px;letter-spacing:2px}
 #page-social .social-feed-heading h2{margin:6px 0 0;color:#eaf0fb;font-size:22px;font-weight:600;letter-spacing:-.7px}
 #page-social .social-feed-count{border:1px solid var(--q-line);border-radius:30px;color:#8da1bd;font-size:9px}
+#page-social .social-feed-personalization{display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin-top:10px;color:#9eb0c8;font-size:10px}#page-social .social-feed-personalization label{display:flex;gap:6px;align-items:center}#page-social .social-feed-personalization input{width:112px;accent-color:#57c9ef}#page-social .social-feed-personalization button{font-size:9px;padding:5px 8px}
 #page-social #feedList{display:grid;gap:17px}
 #page-social #feedList>*{overflow:hidden;border:1px solid var(--q-line);border-radius:17px;background:#101c2e;box-shadow:0 12px 35px rgba(0,0,0,.13)}
 #page-social #social-explore,#page-social #social-reels,#page-social #social-profile,#page-social #social-messages,#page-social #social-settings,#page-social #social-studios{min-height:55vh;border:1px solid var(--q-line);border-radius:20px;background:rgba(15,26,44,.72)}
@@ -1477,7 +1478,7 @@ body:has(#page-nexus.active) .main{padding-top:17px!important;padding-bottom:0!i
  <div class="social-feed-main">
   <section class="social-stories-section" aria-label="Stories"><div class="story-row" id="storiesRow" aria-label="Stories"></div></section>
   <div class="social-compose-prompt" role="button" tabindex="0" onclick="openCreate()" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openCreate()}"><div class="social-compose-avatar">M</div><div class="social-compose-copy"><strong>Share a moment</strong><span>What's happening?</span></div><button type="button" onclick="event.stopPropagation();openCreate()" aria-label="Create a post">＋</button></div>
-  <div class="social-feed-heading social-feed-list-heading"><div><h2 id="socialFeedTitle">For you</h2><div class="social-feed-mode" role="group" aria-label="Feed order"><button type="button" class="post-action social-feed-mode-btn" id="feedModeHybrid" aria-pressed="true" onclick="setSocialFeedMode('hybrid')">✦ For you</button><button type="button" class="post-action social-feed-mode-btn" id="feedModeLatest" aria-pressed="false" onclick="setSocialFeedMode('latest')">Latest</button></div></div><span class="social-feed-count" id="feedCount">0 posts</span></div>
+  <div class="social-feed-heading social-feed-list-heading"><div><h2 id="socialFeedTitle">For you</h2><div class="social-feed-mode" role="group" aria-label="Feed order"><button type="button" class="post-action social-feed-mode-btn" id="feedModeHybrid" aria-pressed="true" onclick="setSocialFeedMode('hybrid')">✦ For you</button><button type="button" class="post-action social-feed-mode-btn" id="feedModeLatest" aria-pressed="false" onclick="setSocialFeedMode('latest')">Latest</button></div><div class="social-feed-personalization"><label for="feedPersonalization">Personalization <strong id="feedPersonalizationValue">65%</strong></label><input id="feedPersonalization" type="range" min="0" max="100" step="5" value="65" oninput="setSocialFeedPersonalization(this.value)"><button type="button" class="post-action" onclick="resetSocialFeedFeedback()">Reset feed feedback</button></div></div><span class="social-feed-count" id="feedCount">0 posts</span></div>
   <div id="feedList"></div>
  </div>
 </main>
@@ -2774,11 +2775,12 @@ renderFeed();renderExplore();renderReels();
 }
 function getPostMedia(post){if(Array.isArray(post.media)&&post.media.length)return post.media;if(post.image)return[{type:"image",data:post.image}];return[]}
 function mediaMarkup(item){if(item.type==="video")return '<video src="'+item.data+'" controls playsinline preload="metadata"></video>';return '<img src="'+item.data+'" alt="Post media">'}
-const SOCIAL_FEED_MODE_KEY="msh_social_feed_mode_v1",SOCIAL_FEED_SIGNALS_KEY="msh_social_feed_signals_v1";
+const SOCIAL_FEED_MODE_KEY="msh_social_feed_mode_v1",SOCIAL_FEED_SIGNALS_KEY="msh_social_feed_signals_v1",SOCIAL_FEED_PERSONALIZATION_KEY="msh_social_feed_personalization_v1";
 let socialFeedMode=localStorage.getItem(SOCIAL_FEED_MODE_KEY)==="latest"?"latest":"hybrid";
 let socialFeedSignals={};
 let socialFeedOwnerKey="";
-function loadSocialFeedSignalsForCurrentUser(){const owner=String(socialUser?.username||"guest").toLowerCase();if(owner===socialFeedOwnerKey)return;socialFeedOwnerKey=owner;socialFeedSignals=readJSON(SOCIAL_FEED_SIGNALS_KEY+":"+encodeURIComponent(owner),{});}
+let socialFeedPersonalization=65;
+function loadSocialFeedSignalsForCurrentUser(){const owner=String(socialUser?.username||"guest").toLowerCase();if(owner===socialFeedOwnerKey)return;socialFeedOwnerKey=owner;socialFeedSignals=readJSON(SOCIAL_FEED_SIGNALS_KEY+":"+encodeURIComponent(owner),{});socialFeedPersonalization=Math.max(0,Math.min(100,Number(localStorage.getItem(SOCIAL_FEED_PERSONALIZATION_KEY+":"+encodeURIComponent(owner))??65)||0));updateSocialFeedPersonalizationUI();}
 
 function socialFeedDate(post){const raw=post.createdAt||post.date;const value=raw?new Date(raw).getTime():0;return Number.isFinite(value)?value:0}
 function socialFeedAuthor(post){return String(post.author||post.username||"unknown").toLowerCase()}
@@ -2786,8 +2788,9 @@ function socialFeedEngagement(post){return Math.log1p(Math.max(0,Number(post.lik
 function socialFeedScore(post,now,authorAffinity){
 const ageHours=Math.max(0,(now-socialFeedDate(post))/3600000);
 const freshness=24*Math.exp(-ageHours/(24*4));
-const affinity=Math.min(18,(authorAffinity[socialFeedAuthor(post)]||0)*6);
-const engagement=Math.min(18,socialFeedEngagement(post));
+const preferenceWeight=socialFeedPersonalization/100;
+const affinity=Math.min(18,(authorAffinity[socialFeedAuthor(post)]||0)*6)*preferenceWeight;
+const engagement=Math.min(18,socialFeedEngagement(post))*preferenceWeight;
 const media=getPostMedia(post).length?4:0;
 const feedback=Number(socialFeedSignals[String(post.id)]?.less||0)*-28;
 const ownPost=socialUser&&socialFeedAuthor(post)===String(currentUsername()||"").toLowerCase()?2:0;
@@ -2810,6 +2813,9 @@ if(latest)latest.setAttribute("aria-pressed",String(socialFeedMode==="latest"));
 if(title)title.textContent=socialFeedMode==="hybrid"?"For you":"Latest";
 }
 window.setSocialFeedMode=function(mode){socialFeedMode=mode==="latest"?"latest":"hybrid";localStorage.setItem(SOCIAL_FEED_MODE_KEY,socialFeedMode);updateSocialFeedModeUI();renderFeed();};
+function updateSocialFeedPersonalizationUI(){const slider=$("feedPersonalization"),label=$("feedPersonalizationValue");if(slider)slider.value=String(socialFeedPersonalization);if(label)label.textContent=socialFeedPersonalization+"%";}
+window.setSocialFeedPersonalization=function(value){loadSocialFeedSignalsForCurrentUser();socialFeedPersonalization=Math.max(0,Math.min(100,Number(value)||0));localStorage.setItem(SOCIAL_FEED_PERSONALIZATION_KEY+":"+encodeURIComponent(socialFeedOwnerKey),String(socialFeedPersonalization));updateSocialFeedPersonalizationUI();renderFeed();};
+window.resetSocialFeedFeedback=function(){loadSocialFeedSignalsForCurrentUser();socialFeedSignals={};saveJSON(SOCIAL_FEED_SIGNALS_KEY+":"+encodeURIComponent(socialFeedOwnerKey),socialFeedSignals);renderFeed();toast("Your feed feedback has been reset.");};
 window.socialFeedShowLess=function(id){loadSocialFeedSignalsForCurrentUser();const key=String(id);socialFeedSignals[key]={...(socialFeedSignals[key]||{}),less:Math.min(3,Number(socialFeedSignals[key]?.less||0)+1)};saveJSON(SOCIAL_FEED_SIGNALS_KEY+":"+encodeURIComponent(socialFeedOwnerKey),socialFeedSignals);renderFeed();toast("Fewer similar posts will appear.");};
 function renderFeed(){
 const list=$("feedList");if(!list)return;
