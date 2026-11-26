@@ -7,7 +7,7 @@ import { createPublicKey, verify as verifySignature } from "node:crypto";
 
 export const PI_LAUNCHPAD_ATTESTATION_VERSION = "0.1.0";
 export const PI_LAUNCHPAD_ATTESTATION_MAX_BYTES = 16384;
-const isObject = (value) => value !== null && typeof value === "object" && !Array.isArray(value);
+const isObject = (value) => value !== null && typeof value === "object" && !Array.isArray(value) &&\n  (Object.getPrototypeOf(value) === Object.prototype || Object.getPrototypeOf(value) === null);
 const isIsoUtc = (value) =>
   typeof value === "string" &&
   /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,3})?Z$/.test(value) &&
