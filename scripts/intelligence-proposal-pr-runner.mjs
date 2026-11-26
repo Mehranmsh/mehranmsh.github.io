@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { applyValidatedPatchInMemory } from "./intelligence-patch-apply.mjs";
 import { readBoundedResponse } from "./intelligence-bounded-response.mjs";
+import { getIntelligencePatchTarget } from "./intelligence-patch-targets.mjs";
 
 const baseUrl = process.env.MEHRAN_AGENT_URL;
 const agentToken = process.env.MEHRAN_AGENT_TOKEN || "";
@@ -12,7 +13,6 @@ const githubToken = process.env.GITHUB_TOKEN || "";
 const runId = String(process.env.GITHUB_RUN_ID || "");
 const currentMainSha = String(process.env.GITHUB_SHA || "").toLowerCase();
 const repository = "Mehranmsh/mehranmsh.github.io";
-const targetPath = "scripts/intelligence-capabilities.test.mjs";
 const UUID_V4 = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 const apiRoot = "https://api.github.com";
 if (!baseUrl || agentToken.length < 40 || ownerToken.length < 40 || githubToken.length < 40 ||
@@ -71,11 +71,13 @@ for (const proposal of proposals) {
   const baseSha = String(proposal.baseSha || "").toLowerCase();
   const artifactPath = String(proposal.path || "");
   const artifactSha256 = String(proposal.artifactSha256 || "");
+  const targetPath = String(proposal.targetPath || "");
+  const targetPolicy = getIntelligencePatchTarget(targetPath);
   const createdAt = typeof proposal.createdAt === "string" ? proposal.createdAt : "";
   const proposalDate = new Date(createdAt);
   if (!UUID_V4.test(proposalId) || !/^[a-f0-9]{40}$/.test(baseSha) ||
       !Number.isFinite(proposalDate.getTime()) || proposalDate.toISOString() !== createdAt ||
-      proposal.targetPath !== targetPath ||
+      !targetPolicy ||
       artifactPath !== "patch-proposals/" + String(proposal.createdAt || "").slice(0,4) + "/" + String(proposal.createdAt || "").slice(5,7) + "/" + proposalId + ".json" ||
       !/^[a-f0-9]{64}$/.test(artifactSha256)) {
     console.log("Skipping malformed proposal metadata.");
@@ -127,7 +129,7 @@ for (const proposal of proposals) {
         summary: String(artifact.summary || ""), diff: artifact.diff
       });
       if (!applied.ok || typeof applied.content !== "string") {
-        throw new Error("Patch application rejected by the fixed append-only policy: " + String(applied.code || "unknown"));
+        throw new Error("Patch application rejected by the explicit append-only test policy: " + String(applied.code || "unknown"));
       }
       writeFileSync(join(workspace, targetPath), applied.content, { encoding: "utf8", flag: "w" });
 
@@ -138,11 +140,11 @@ for (const proposal of proposals) {
         "--cpus", "1", "--tmpfs", "/tmp:rw,noexec,nosuid,nodev,size=64m",
         "--mount", "type=bind,src=" + workspace + ",dst=/workspace,readonly",
         "--workdir", "/workspace", image, "sh", "-c",
-        "node --check worker.js && node --test --test-reporter=tap scripts/intelligence-capabilities.test.mjs"
+        "node --check worker.js && " + targetPolicy.testCommand
       ];
       const test = spawnSync("docker", dockerArgs, { encoding: "utf8", timeout: 180000, maxBuffer: 2 * 1024 * 1024 });
       if (test.error || test.status !== 0) {
-        throw new Error("Isolated fixed test suite rejected the proposal: " +
+        throw new Error("Isolated target test suite rejected the proposal: " +
           String(test.error?.message || test.stderr || test.stdout || "unknown").slice(-700));
       }
       const output = String(test.stdout || "");
@@ -179,7 +181,7 @@ for (const proposal of proposals) {
           "- Source base: `" + baseSha + "`",
           "- Proposal: `" + proposalId + "`",
           "- Changed path: `" + targetPath + "`",
-          "- Patch policy: append-only test additions; no deletions or replacements",
+          "- Patch policy: one allowlisted test file; append-only additions; no deletions or replacements",
           "- Validation: isolated, network-disabled Node test container",
           "- Test result: " + Number(passMatch[1]) + " passed, 0 failed",
           "",
