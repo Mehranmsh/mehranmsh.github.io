@@ -8,7 +8,7 @@ const currentSha = "b".repeat(40);
 const env = { AI: { run: async () => { throw new Error("AI must not run in lookup tests"); } } };
 
 test("Workers AI JSON Mode object responses are normalized into JSON text", () => {
-  const payload = { summary: "Add a regression test", diff: "--- a/file\\n+++ b/file\\n" };
+  const payload = { summary: "Add a regression test", diff: "--- a/file\n+++ b/file\n" };
   assert.equal(extractPatchModelText({ response: payload }), JSON.stringify(payload));
 });
 
@@ -213,7 +213,7 @@ test("diff diagnostics expose only structural metadata and identify unsafe paylo
 
 test("generation prompt, hunk repair, and validator honor the selected allowlisted test path", () => {
   const targetPath = "scripts/intelligence-inbox-schema.test.mjs";
-  const source = "const existing = true;\\n";
+  const source = "const existing = true;\n";
   const prompt = buildPatchGenerationPrompt({
     baseSha, objective: "Add a regression test for inbox schema validation", source, targetPath
   });
@@ -226,10 +226,10 @@ test("generation prompt, hunk repair, and validator honor the selected allowlist
     "@@ malformed",
     '+test("inbox regression", () => {});',
     ""
-  ].join("\\n");
+  ].join("\n");
   const repaired = canonicalizeAppendOnlyHunkHeader(raw, 1, targetPath);
-  assert.equal(repaired.split("\\n")[0], "--- a/" + targetPath);
-  assert.equal(repaired.split("\\n")[2], "@@ -1,0 +2,1 @@");
+  assert.equal(repaired.split("\n")[0], "--- a/" + targetPath);
+  assert.equal(repaired.split("\n")[2], "@@ -1,0 +2,1 @@");
   const checked = validateGeneratedPatch({
     baseSha, sourceLineCount: 1, summary: "Add inbox schema regression coverage",
     diff: repaired, targetPath
