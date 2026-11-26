@@ -5,7 +5,7 @@
  */
 import { createPublicKey, verify as verifySignature } from "node:crypto";
 
-export const PI_LAUNCHPAD_ATTESTATION_VERSION = "0.1.0";
+export const PI_LAUNCHPAD_ATTESTATION_VERSION = "0.2.0";
 export const PI_LAUNCHPAD_ATTESTATION_MAX_BYTES = 16384;
 const isObject = (value) => value !== null && typeof value === "object" && !Array.isArray(value) &&
   (Object.getPrototypeOf(value) === Object.prototype || Object.getPrototypeOf(value) === null);
@@ -50,7 +50,7 @@ function reject(code) {
 
 /**
  * Attestation shape:
- * { keyId, algorithm:"Ed25519", payload:{issuer,tokenId,evidenceId,field,sourceUrl,
+ * { keyId, algorithm:"Ed25519", payload:{issuer,networkId,tokenId,evidenceId,field,sourceUrl,
  *   observedAt,expiresAt,value}, signature:base64 }
  * trustedKeys is an operator-provisioned map: keyId -> { publicKeyPem, revoked? }.
  */
@@ -78,6 +78,7 @@ export function verifyPiLaunchpadAttestation(attestation, trustedKeys, options =
 
   const p = attestation.payload;
   if (typeof p.issuer !== "string" || p.issuer !== trustRecord.issuer ||
+      !["pi-mainnet", "pi-testnet"].includes(p.networkId) ||
       typeof p.tokenId !== "string" || !p.tokenId.trim() || p.tokenId.length > 120 ||
       typeof p.evidenceId !== "string" || !p.evidenceId.trim() || p.evidenceId.length > 160 ||
       typeof p.field !== "string" || !/^[a-zA-Z][a-zA-Z0-9_.-]{0,63}$/.test(p.field) ||
@@ -132,6 +133,7 @@ export function verifyPiLaunchpadAttestation(attestation, trustedKeys, options =
     keyId: attestation.keyId,
     issuer: p.issuer,
     tokenId: p.tokenId,
+    networkId: p.networkId,
     evidenceId: p.evidenceId,
     field: p.field,
     sourceUrl: p.sourceUrl,
