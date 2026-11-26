@@ -21,6 +21,11 @@ test("applies a validated append-only patch in memory", () => {
   assert.equal(result.mode, "in_memory_only");
 });
 
+test("rejects null and array input without throwing", () => {
+  assert.deepEqual(applyValidatedPatchInMemory(null), { ok: false, code: "invalid_input" });
+  assert.deepEqual(applyValidatedPatchInMemory([]), { ok: false, code: "invalid_input" });
+});
+
 test("rejects stale bases and oversized source input", () => {
   assert.equal(applyValidatedPatchInMemory({
     baseSha, expectedBaseSha: "b".repeat(40), source, targetPath,
