@@ -48,6 +48,7 @@ jobs:
           import { tmpdir } from "node:os";
           import { join } from "node:path";
           import { createHash } from "node:crypto";
+import { compactIntelligenceArchitectureReview } from "./scripts/intelligence-architecture-review.mjs";
           import { verifyIntelligenceResultCheckpoint } from "./scripts/intelligence-checkpoint.mjs";
           import { readBoundedResponse } from "./scripts/intelligence-bounded-response.mjs";
           const base = process.env.MEHRAN_AGENT_URL;
@@ -661,6 +662,9 @@ jobs:
           function serializeBoundedResult(value, maxChars = 3000) {
             if (!Number.isInteger(maxChars) || maxChars < 256) {
               throw new Error("Invalid bounded-result character limit.");
+            }
+            if (value?.type === "intelligence_architecture_review") {
+              return compactIntelligenceArchitectureReview(value, maxChars);
             }
             const full = JSON.stringify(value);
             if (typeof full !== "string") throw new Error("Task result is not JSON serializable.");
