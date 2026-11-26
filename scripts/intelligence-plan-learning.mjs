@@ -1,6 +1,8 @@
 const planLearningMAX_REVISIONS = 50;
 const planLearningMAX_EVENTS = 500;
 const planLearningMAX_PATTERNS = 40;
+const planLearningMAX_RAW_REVISIONS = 1000;
+const planLearningMAX_RAW_EVENTS = 5000;
 const planLearningVALID_STATES = new Set(["completed", "failed", "blocked"]);
 const planLearningSENSITIVE = new Set(["secret", "credential", "wallet", "financial", "private_social", "health", "identity"]);
 const planLearningClean = (value, limit = 160) => typeof value === "string" ? value.trim().slice(0, limit) : "";
@@ -43,7 +45,9 @@ export function learnFromIntelligencePlanOutcomes(revisions, progressEvents, opt
     ? Math.min(options.maxRevisions, planLearningMAX_REVISIONS) : 20;
   const maxEvents = Number.isInteger(options.maxEvents) && options.maxEvents > 0
     ? Math.min(options.maxEvents, planLearningMAX_EVENTS) : planLearningMAX_EVENTS;
-  const acceptedRevisions = revisions
+  const boundedRevisionInput = revisions.slice(-planLearningMAX_RAW_REVISIONS);
+  const boundedEventInput = progressEvents.slice(-planLearningMAX_RAW_EVENTS);
+  const acceptedRevisions = boundedRevisionInput
     .filter(item => item && item.owner_uid === ownerUid && Number.isInteger(item.version) &&
       item.version > 0 && planLearningParseTime(item.created_at) !== null && Array.isArray(item.tasks))
     .sort((a, b) => a.version - b.version || planLearningClean(a.revision_id).localeCompare(planLearningClean(b.revision_id)))
@@ -57,7 +61,7 @@ export function learnFromIntelligencePlanOutcomes(revisions, progressEvents, opt
   }
   const latestEvents = new Map();
   const seenEventIds = new Set();
-  const boundedEvents = progressEvents
+  const boundedEvents = boundedEventInput
     .filter(event => event && event.owner_uid === ownerUid && event.actor_uid === ownerUid &&
       event.explicit_confirmation === true && planLearningVALID_STATES.has(String(event.progress_state || "").toLowerCase()) &&
       planLearningParseTime(event.occurred_at) !== null)
@@ -83,7 +87,7 @@ export function learnFromIntelligencePlanOutcomes(revisions, progressEvents, opt
   for (let index = 0; index < uniqueRevisions.length; index++) {
     const revision = uniqueRevisions[index];
     const previous = index ? uniqueRevisions[index - 1] : null;
-    const before = new Map((previous?.tasks || []).filter(task => task && typeof task === "object")
+    const before = new Map((previous?.tasks || []).slice(0, 200).filter(task => task && typeof task === "object")
       .map(task => [planLearningClean(task.task_id, 120), task]));
     for (const task of revision.tasks.slice(0, 200)) {
       if (!task || typeof task !== "object" || planLearningSENSITIVE.has(String(task.sensitivity || "").toLowerCase())) continue;
@@ -126,8 +130,12 @@ export function learnFromIntelligencePlanOutcomes(revisions, progressEvents, opt
   return {
     patterns, observations: observations.slice(-100),
     diagnostics: {
-      ownerScoped: true, revisionsInspected: Math.min(revisions.length, maxRevisions),
-      revisionsAccepted: uniqueRevisions.length, eventsInspected: Math.min(progressEvents.length, maxEvents),
+      ownerScoped: true, revisionsInspected: Math.min(boundedRevisionInput.length, maxRevisions),
+      revisionsAccepted: uniqueRevisions.length, eventsInspected: Math.min(boundedEventInput.length, maxEvents),
+      rawRevisionsInspected: boundedRevisionInput.length,
+      rawRevisionsOmitted: revisions.length - boundedRevisionInput.length,
+      rawEventsInspected: boundedEventInput.length,
+      rawEventsOmitted: progressEvents.length - boundedEventInput.length,
       observationsAccepted: observations.length, minObservations,
       advisoryOnly: true, causalClaims: false, recordsChanged: false,
       preferencesChanged: false, approvalRequired: true
