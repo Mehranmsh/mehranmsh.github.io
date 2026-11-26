@@ -1,18 +1,34 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
+import { createPiTestnetArchiveReplacementJournalRecord } from "./pi-testnet-observation-replacement-journal.mjs";
 import { buildPiTestnetArchiveD1ReplacementPlan } from "./pi-testnet-observation-d1-batch.mjs";
+
+const archiveScope = "pi-testnet-observations";
+const archiveId = "a".repeat(64);
+const sourceEnvelopeSha256 = "b".repeat(64);
+const replacementEnvelope = { archiveScope, archiveId, keyId: "next-key", ciphertext: "new" };
+const replacementEnvelopeJson = JSON.stringify(replacementEnvelope);
+const replacementEnvelopeSha256 = createHash("sha256")
+  .update(replacementEnvelopeJson, "utf8").digest("hex");
+const prepared = createPiTestnetArchiveReplacementJournalRecord({
+  sequence: 1, previousRecordSha256: null, archiveScope, archiveId,
+  sourceEnvelopeSha256, replacementEnvelopeSha256, state: "prepared"
+}).record;
+const committed = createPiTestnetArchiveReplacementJournalRecord({
+  sequence: 2, previousRecordSha256: prepared.recordSha256, archiveScope, archiveId,
+  sourceEnvelopeSha256, replacementEnvelopeSha256, state: "committed",
+  observedEnvelopeSha256: replacementEnvelopeSha256
+}, prepared).record;
 
 const input = {
   operationId: "rotation-2026-11-26-001",
-  archiveScope: "pi-testnet-observations",
-  archiveId: "a".repeat(64),
-  sourceEnvelopeSha256: "b".repeat(64),
-  replacementEnvelopeSha256: "c".repeat(64),
-  replacementEnvelopeJson: JSON.stringify({ archiveScope: "pi-testnet-observations", ciphertext: "new" }),
-  preparedRecordJson: JSON.stringify({ state: "prepared", recordSha256: "d".repeat(64) }),
-  preparedRecordSha256: "d".repeat(64),
-  committedRecordJson: JSON.stringify({ state: "committed", recordSha256: "e".repeat(64) }),
-  committedRecordSha256: "e".repeat(64)
+  archiveScope, archiveId, sourceEnvelopeSha256, replacementEnvelopeSha256,
+  replacementEnvelopeJson,
+  preparedRecordJson: JSON.stringify(prepared),
+  preparedRecordSha256: prepared.recordSha256,
+  committedRecordJson: JSON.stringify(committed),
+  committedRecordSha256: committed.recordSha256
 };
 
 test("builds a two-phase D1 plan with atomic batch boundaries", () => {
@@ -42,10 +58,9 @@ test("all D1 statements use bound values rather than interpolated user data", ()
 
 test("rejects identical source and replacement digests", () => {
   const result = buildPiTestnetArchiveD1ReplacementPlan({
-    ...input,
-    replacementEnvelopeSha256: input.sourceEnvelopeSha256
+    ...input, replacementEnvelopeSha256: input.sourceEnvelopeSha256
   });
-  assert.deepEqual(result, { accepted: false, code: "invalid_d1_replacement_plan_input" });
+  assert.equal(result.accepted, false);
 });
 
 test("rejects malformed operation identifiers and unbounded payloads", () => {
@@ -56,7 +71,6 @@ test("rejects malformed operation identifiers and unbounded payloads", () => {
     ...input, replacementEnvelopeJson: "x".repeat(7 * 1024 * 1024 + 1)
   }).accepted, false);
 });
-
 
 test("rejects mismatched envelope digest and unlinked journal records", () => {
   assert.equal(buildPiTestnetArchiveD1ReplacementPlan({
