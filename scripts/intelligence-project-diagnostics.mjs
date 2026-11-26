@@ -18,7 +18,7 @@ function isDiagnosticSafe(record, ownerUid) {
   return record && typeof record === "object" && !Array.isArray(record) &&
     record.owner_uid === ownerUid && !record.deleted_at &&
     (!record.status || record.status === "active") &&
-    !new Set(["secret", "credential", "wallet", "financial", "private_social"])
+    !new Set(["secret", "credential", "wallet", "financial", "private_social", "health", "identity"])
       .has(String(record.sensitivity || "").toLowerCase());
 }
 
