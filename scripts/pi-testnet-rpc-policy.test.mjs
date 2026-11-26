@@ -50,3 +50,24 @@ test("rejects malformed, mismatched, error, and result-less responses", () => {
   assert.equal(validatePiTestnetRpcResponse({ jsonrpc: "2.0", id: "x", error: { code: -1 } }, "x").code, "rpc_error");
   assert.equal(validatePiTestnetRpcResponse({ jsonrpc: "2.0", id: "x" }, "x").code, "missing_result");
 });
+
+
+test("rejects oversized and non-serializable response payloads", () => {
+  const oversized = { jsonrpc: "2.0", id: "x", result: { data: "a".repeat(PI_TESTNET_RPC_POLICY.maxResponseBytes) } };
+  assert.equal(validatePiTestnetRpcResponse(oversized, "x").code, "response_too_large");
+  const cyclic = { jsonrpc: "2.0", id: "x", result: {} };
+  cyclic.result.self = cyclic.result;
+  assert.equal(validatePiTestnetRpcResponse(cyclic, "x").code, "unserializable_response");
+});
+
+test("returns a detached deeply frozen opaque result", () => {
+  const source = { jsonrpc: "2.0", id: "x", result: { details: { status: "unknown" } } };
+  const checked = validatePiTestnetRpcResponse(source, "x");
+  assert.equal(checked.accepted, true);
+  assert.notEqual(checked.result, source.result);
+  assert.equal(Object.isFrozen(checked.result), true);
+  assert.equal(Object.isFrozen(checked.result.details), true);
+  assert.throws(() => { checked.result.details.status = "healthy"; }, TypeError);
+  assert.match(checked.trustNotice, /Health semantics are not interpreted/);
+  assert.ok(checked.responseBytes > 0 && checked.responseBytes <= PI_TESTNET_RPC_POLICY.maxResponseBytes);
+});
