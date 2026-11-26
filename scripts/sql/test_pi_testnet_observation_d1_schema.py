@@ -6,6 +6,7 @@ for integration tests against a disposable Cloudflare D1 database.
 import json
 import pathlib
 import sqlite3
+import tempfile
 import unittest
 
 
@@ -146,48 +147,55 @@ class D1SchemaCompatibilityTests(unittest.TestCase):
         prepared_a, prepared_b = '{"op":"A"}', '{"op":"B"}'
         prepared_hash_a, prepared_hash_b = "e" * 64, "f" * 64
 
-        # Two independent connections model separately scheduled D1 batches.
-        other = sqlite3.connect(":memory:")
-        other.execute("PRAGMA foreign_keys = ON")
-        other.executescript(SCHEMA.read_text(encoding="utf-8"))
-        other.execute(
-            """INSERT INTO pi_testnet_archives
-               (archive_scope, archive_id, envelope_json, envelope_sha256, updated_at)
-               VALUES (?, ?, ?, ?, ?)""",
-            (self.scope, self.archive_id, self.envelope_json,
-             self.source_hash, "2026-11-26T00:00:00Z"),
-        )
-        other.commit()
-        try:
-            self.db.execute("BEGIN IMMEDIATE")
-            changed_a = self._run_phase1(
-                self.db, "op-A", hash_a, json_a, prepared_a, prepared_hash_a
-            )
-            self.db.commit()
+        # Two connections share one SQLite database, like separate callers
+        # submitting serialized atomic batches to the same D1 database.
+        with tempfile.TemporaryDirectory() as directory:
+            database_path = pathlib.Path(directory) / "race.sqlite"
+            first = sqlite3.connect(database_path, timeout=5)
+            second = sqlite3.connect(database_path, timeout=5)
+            try:
+                for db in (first, second):
+                    db.execute("PRAGMA foreign_keys = ON")
+                first.executescript(SCHEMA.read_text(encoding="utf-8"))
+                first.execute(
+                    """INSERT INTO pi_testnet_archives
+                       (archive_scope, archive_id, envelope_json, envelope_sha256, updated_at)
+                       VALUES (?, ?, ?, ?, ?)""",
+                    (self.scope, self.archive_id, self.envelope_json,
+                     self.source_hash, "2026-11-26T00:00:00Z"),
+                )
+                first.commit()
 
-            other.execute("BEGIN IMMEDIATE")
-            changed_b = self._run_phase1(
-                other, "op-B", hash_b, json_b, prepared_b, prepared_hash_b
-            )
-            other.commit()
+                first.execute("BEGIN IMMEDIATE")
+                changed_a = self._run_phase1(
+                    first, "op-A", hash_a, json_a, prepared_a, prepared_hash_a
+                )
+                first.commit()
 
-            self.assertEqual(changed_a, 1)
-            self.assertEqual(changed_b, 0)
-            winner = other.execute(
-                "SELECT envelope_sha256 FROM pi_testnet_archives WHERE archive_scope=? AND archive_id=?",
-                (self.scope, self.archive_id),
-            ).fetchone()[0]
-            self.assertEqual(winner, hash_a)
-            operations = other.execute(
-                "SELECT operation_id FROM pi_testnet_archive_replacement_ops ORDER BY operation_id"
-            ).fetchall()
-            self.assertEqual(operations, [("op-A",)])
-            journal = other.execute(
-                "SELECT operation_id, sequence FROM pi_testnet_archive_replacement_journal"
-            ).fetchall()
-            self.assertEqual(journal, [("op-A", 1)])
-        finally:
-            other.close()
+                second.execute("BEGIN IMMEDIATE")
+                changed_b = self._run_phase1(
+                    second, "op-B", hash_b, json_b, prepared_b, prepared_hash_b
+                )
+                second.commit()
+
+                self.assertEqual(changed_a, 1)
+                self.assertEqual(changed_b, 0)
+                winner = second.execute(
+                    "SELECT envelope_sha256 FROM pi_testnet_archives WHERE archive_scope=? AND archive_id=?",
+                    (self.scope, self.archive_id),
+                ).fetchone()[0]
+                self.assertEqual(winner, hash_a)
+                operations = second.execute(
+                    "SELECT operation_id FROM pi_testnet_archive_replacement_ops ORDER BY operation_id"
+                ).fetchall()
+                self.assertEqual(operations, [("op-A",)])
+                journal = second.execute(
+                    "SELECT operation_id, sequence FROM pi_testnet_archive_replacement_journal"
+                ).fetchall()
+                self.assertEqual(journal, [("op-A", 1)])
+            finally:
+                first.close()
+                second.close()
 
     def test_reused_operation_id_with_different_payload_cannot_replace_archive(self):
         replacement_a = dict(self.envelope, ciphertext="original-operation")
