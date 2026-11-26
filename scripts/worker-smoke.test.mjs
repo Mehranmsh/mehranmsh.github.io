@@ -1422,19 +1422,19 @@ test("MEHRAN Intelligence Agent API is enabled only behind its dedicated bearer 
   assert.match(route, /Agent authentication required/);
   assert.match(route, /Agent service identity is not configured/);
   assert.match(route, /requires_approval=0/);
-  assert.match(route, /assigned_to IN \('mehran_intelligence','shared'\)/);
+  assert.match(route, /queue_lane='owner' AND owner_uid IS NOT NULL/);
   assert.match(route, /action_type IN \('repository_quality_check','service_health_report','source_security_audit','inspect_repository','run_repository_tests','propose_code_patch'\)/);
   assert.ok(route.includes("status IN ('queued','accepted','retry_wait')"), "agent claims must include retry_wait tasks");
   assert.ok(route.includes("ORDER BY CASE t.priority") && route.includes("prior.work_package_id=t.work_package_id") && route.includes("prior.status='completed'"),
     "after honoring priority, continue packages that have already completed a task before starting another package");
   assert.match(route, /status='awaiting_approval' AND requires_approval=0/);
   assert.match(route, /agent_claimed_at=CURRENT_TIMESTAMP/);
-  assert.match(route, /WHERE id=\\? AND status IN \\('queued','accepted','retry_wait'\\).*queue_lane='owner'.*queue_lane='shared'/s);
+  assert.match(route, /WHERE id=\? AND status IN \('queued','accepted','retry_wait'\).*queue_lane='owner'/s);
   assert.match(route, /agent_claimed_at IS NOT NULL AND datetime\(agent_claimed_at\) < datetime\('now','-15 minutes'\)/);
   assert.match(route, /agent_claimed_at IS NOT NULL AND datetime\(agent_claimed_at\)>=datetime\('now','-15 minutes'\)/);
   assert.doesNotMatch(route, /work_package_id IS NULL AND agent_claimed_at IS NOT NULL/,
     "agent API recovery must also release expired claims from durable work packages");
-  assert.match(route, /datetime\(agent_claimed_at\)>=datetime\('now','-15 minutes'\) AND requires_approval=0 AND assigned_to IN \('mehran_intelligence','shared'\) AND action_type IN \('repository_quality_check','service_health_report','source_security_audit','inspect_repository','run_repository_tests','propose_code_patch'\)/);
+  assert.match(route, /datetime\(agent_claimed_at\)>=datetime\('now','-15 minutes'\) AND requires_approval=0 AND \$\{lanePredicate\} AND \$\{taskActionPredicate\}/);
   assert.match(route, /agent_claimed_at=NULL/);
   assert.match(route, /\["completed","blocked"\]/);
 });
