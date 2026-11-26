@@ -76,3 +76,23 @@ test("rejects missing provenance, object-valued evidence, and overlarge batches"
   }));
   assert.equal(validateLaunchpadDataEnvelope(large, { now: NOW }).code, "evidence_limit");
 });
+
+test("rejects inherited-property envelope, source, and evidence records", () => {
+  const inheritedEnvelope = Object.assign(Object.create({ schemaVersion: 1 }), {
+    tokenId: "pi-token-42", observedAt: "2026-11-26T11:30:00Z", sources: []
+  });
+  assert.equal(validateLaunchpadDataEnvelope(inheritedEnvelope, { now: NOW }).code, "invalid_envelope");
+  const inheritedSource = Object.assign(Object.create({ sourceId: "spoofed" }), {
+    kind: "dex_indexer", url: "https://data.example.org/pool",
+    trustLevel: "publisher_claim", retrievedAt: "2026-11-26T11:31:00Z", evidence: []
+  });
+  const badSource = validEnvelope();
+  badSource.sources = [inheritedSource];
+  assert.equal(validateLaunchpadDataEnvelope(badSource, { now: NOW }).code, "invalid_source_record");
+  const inheritedEvidence = Object.assign(Object.create({ field: "utility" }), {
+    value: 50, trustLevel: "publisher_claim", observedAt: "2026-11-26T11:30:00Z", reference: "ref"
+  });
+  const badEvidence = validEnvelope();
+  badEvidence.sources[0].evidence = [inheritedEvidence];
+  assert.equal(validateLaunchpadDataEnvelope(badEvidence, { now: NOW }).code, "invalid_evidence_item");
+});
