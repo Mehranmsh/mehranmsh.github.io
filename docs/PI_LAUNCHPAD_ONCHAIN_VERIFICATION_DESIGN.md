@@ -152,3 +152,18 @@ A process-local in-memory repository prototype now exercises the future adapter 
 - The module performs no filesystem, database, D1, object-store, network, AI, wallet, signing, or scoring operations. Testnet observations remain ineligible for Mainnet scoring.
 
 This is a contract-test prototype only. It is not production storage and must not be connected to user-facing or live ingestion paths.
+
+## Testnet archive authenticated-encryption boundary (2026-11-26)
+
+A pure AES-256-GCM envelope helper now encrypts and decrypts already-verified Testnet archive manifests:
+- Requires a caller-supplied 32-byte key, a bounded key ID, and an explicit archive scope. The module never generates, stores, logs, or returns key material.
+- Uses a fresh 96-bit random nonce for each encryption and a 128-bit authentication tag. Schema version, algorithm, archive scope, archive digest, and key ID are authenticated as additional authenticated data.
+- Decryption requires an explicitly supplied key and matching key ID; optional caller scope must match. Authentication failure, altered ciphertext/tag/metadata, malformed encoding, or digest mismatch fails closed without returning partial plaintext.
+- Decrypted content must pass the complete Testnet archive verifier and match its canonical serialization and archive digest.
+- The helper performs no filesystem, database, D1, KMS, secret-manager, network, AI, wallet, signing, or scoring operations.
+
+Critical limitations:
+- This is an encryption primitive and envelope contract, not encryption-at-rest integration. No key custody, secure key retrieval, rotation schedule, revocation, backup, access-control enforcement, or audit logging is implemented.
+- A production adapter must obtain keys from a reviewed server-side KMS/secret-management design, enforce key ID to key mapping, isolate scopes/tenants, rotate keys safely, and never accept key bytes from clients.
+- The supplied test keys are fixtures only. Do not reuse them outside tests.
+- Testnet observations remain explicitly ineligible for Mainnet scoring.
