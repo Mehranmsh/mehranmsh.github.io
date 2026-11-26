@@ -5,6 +5,7 @@ on:
     branches:
       - intelligence/pi-launchpad-analyzer-mvp
       - feat/launchpad-mainnet-readiness-gate
+      - feat/pi-launchpad-candidate-intake
     paths:
       - "scripts/pi-launchpad-analyzer.mjs"
       - "scripts/pi-launchpad-analyzer.test.mjs"
