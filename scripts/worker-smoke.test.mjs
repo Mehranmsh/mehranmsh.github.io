@@ -1429,7 +1429,7 @@ test("MEHRAN Intelligence Agent API is enabled only behind its dedicated bearer 
     "after honoring priority, continue packages that have already completed a task before starting another package");
   assert.match(route, /status='awaiting_approval' AND requires_approval=0/);
   assert.match(route, /agent_claimed_at=CURRENT_TIMESTAMP/);
-  assert.match(route, /WHERE id=\? AND status IN \('queued','accepted','retry_wait'\).*queue_lane='owner'/s);
+  assert.match(route, /WHERE id=\? AND status IN \('queued','accepted','retry_wait'\).*\$\{lanePredicate\}/s);
   assert.match(route, /agent_claimed_at IS NOT NULL AND datetime\(agent_claimed_at\) < datetime\('now','-15 minutes'\)/);
   assert.match(route, /agent_claimed_at IS NOT NULL AND datetime\(agent_claimed_at\)>=datetime\('now','-15 minutes'\)/);
   assert.doesNotMatch(route, /work_package_id IS NULL AND agent_claimed_at IS NOT NULL/,
