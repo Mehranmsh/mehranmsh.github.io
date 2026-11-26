@@ -77,3 +77,17 @@ test("owner work packages use the dedicated orchestration principal", async () =
   assert.match(worker, /scope_json,priority,status,created_by,owner_uid\) VALUES/);
   assert.match(worker, /work_package_id,max_attempts,owner_uid,queue_lane\).*'owner'/);
 });
+
+
+test("shared runner uses only the shared bearer and an isolated execution slot", async () => {
+  const worker = await readFile(new URL("../worker.js", import.meta.url), "utf8");
+  const runner = await readFile(new URL("../scripts/intelligence-agent.mjs", import.meta.url), "utf8");
+  const workflow = await readFile(new URL("../.github/workflows/mehran-intelligence-shared-runner.yml", import.meta.url), "utf8");
+  assert.match(worker, /: "action_type IN \('repository_quality_check','service_health_report'\)"/);
+  assert.match(runner, /task\.assignedTo !== "shared" \|\| task\.queueLane !== "shared"/);
+  assert.match(runner, /PATH: process\.env\.PATH/);
+  assert.match(runner, /env: childEnv/);
+  assert.match(workflow, /MEHRAN_AGENT_TOKEN: \$\{\{ secrets\.MEHRAN_AGENT_TOKEN \}\}/);
+  assert.doesNotMatch(workflow, /MEHRAN_ORCHESTRATOR_TOKEN|MEHRAN_REPORTS_GITHUB_TOKEN/);
+  assert.match(workflow, /group: mehran-intelligence-shared-runner-\$\{\{ github\.run_id \}\}/);
+});
