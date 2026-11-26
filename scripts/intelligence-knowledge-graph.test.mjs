@@ -33,6 +33,15 @@ test("never links across owners or accepts unconfirmed model suggestions", () =>
   assert.equal(graph.diagnostics.danglingReferences, 1);
 });
 
+test("excludes health and identity classified records", () => {
+  const graph = buildIntelligenceKnowledgeGraph([
+    record("safe"),
+    record("health-note", { sensitivity: "health" }),
+    record("identity-note", { sensitivity: "identity" })
+  ], { ownerUid: "owner-a" });
+  assert.deepEqual(graph.nodes.map(node => node.id), ["safe"]);
+});
+
 test("excludes deleted, inactive, and sensitive records", () => {
   const graph = buildIntelligenceKnowledgeGraph([
     record("active"),
