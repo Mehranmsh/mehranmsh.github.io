@@ -14,6 +14,13 @@ const DEFAULT_LIMITS = Object.freeze({
   maxGraphEdges: 80,
   maxTasks: 50,
   maxInputRecords: 5000,
+  maxPreferenceLedger: 1000,
+  maxDecisionOptions: 50,
+  maxDecisionCriteria: 30,
+  maxGoalTaskProposals: 100,
+  maxProgressEvents: 200,
+  maxPlanRevisions: 50,
+  maxPlanProgressEvents: 500,
   maxOutputChars: 18000
 });
 const SENSITIVE = new Set(["secret", "credential", "wallet", "financial", "private_social", "health", "identity"]);
@@ -50,6 +57,13 @@ export function buildIntelligenceContextSnapshot(records, options = {}) {
     maxGraphEdges: boundedInteger(options.maxGraphEdges, DEFAULT_LIMITS.maxGraphEdges, 200),
     maxTasks: boundedInteger(options.maxTasks, DEFAULT_LIMITS.maxTasks, 100),
     maxInputRecords: boundedInteger(options.maxInputRecords, DEFAULT_LIMITS.maxInputRecords, 10000),
+    maxPreferenceLedger: boundedInteger(options.maxPreferenceLedger, DEFAULT_LIMITS.maxPreferenceLedger, 1000),
+    maxDecisionOptions: boundedInteger(options.maxDecisionOptions, DEFAULT_LIMITS.maxDecisionOptions, 50),
+    maxDecisionCriteria: boundedInteger(options.maxDecisionCriteria, DEFAULT_LIMITS.maxDecisionCriteria, 30),
+    maxGoalTaskProposals: boundedInteger(options.maxGoalTaskProposals, DEFAULT_LIMITS.maxGoalTaskProposals, 100),
+    maxProgressEvents: boundedInteger(options.maxProgressEvents, DEFAULT_LIMITS.maxProgressEvents, 500),
+    maxPlanRevisions: boundedInteger(options.maxPlanRevisions, DEFAULT_LIMITS.maxPlanRevisions, 50),
+    maxPlanProgressEvents: boundedInteger(options.maxPlanProgressEvents, DEFAULT_LIMITS.maxPlanProgressEvents, 500),
     maxOutputChars: Math.max(512, boundedInteger(options.maxOutputChars, DEFAULT_LIMITS.maxOutputChars, 30000))
   };
   const boundedRecords = records.slice(0, limits.maxInputRecords);
@@ -59,6 +73,14 @@ export function buildIntelligenceContextSnapshot(records, options = {}) {
     (!record.status || record.status === "active") &&
     !SENSITIVE.has(String(record.sensitivity || "").toLowerCase())
   );
+
+  const preferenceLedger = Array.isArray(options.preferenceLedger) ? options.preferenceLedger.slice(-limits.maxPreferenceLedger) : [];
+  const decisionOptions = Array.isArray(options.decisionOptions) ? options.decisionOptions.slice(0, limits.maxDecisionOptions) : [];
+  const decisionCriteria = Array.isArray(options.decisionCriteria) ? options.decisionCriteria.slice(0, limits.maxDecisionCriteria) : [];
+  const goalTaskProposals = Array.isArray(options.goalTaskProposals) ? options.goalTaskProposals.slice(0, limits.maxGoalTaskProposals) : [];
+  const progressEvents = Array.isArray(options.progressEvents) ? options.progressEvents.slice(0, limits.maxProgressEvents) : [];
+  const planRevisions = Array.isArray(options.planRevisions) ? options.planRevisions.slice(-limits.maxPlanRevisions) : [];
+  const planProgressEvents = Array.isArray(options.planProgressEvents) ? options.planProgressEvents.slice(-limits.maxPlanProgressEvents) : [];
 
   const memory = selectMemoryContextWithGraph(ownerRecords, {
     ...options,
@@ -75,12 +97,12 @@ export function buildIntelligenceContextSnapshot(records, options = {}) {
     ownerUid, maxTasks: limits.maxTasks
   });
   const preferenceProfile = buildApprovedPreferenceProfile(
-    Array.isArray(options.preferenceLedger) ? options.preferenceLedger : [],
+    preferenceLedger,
     { ownerUid }
   );
 
-  const decisionEvaluation = Array.isArray(options.decisionOptions) && Array.isArray(options.decisionCriteria)
-    ? evaluateIntelligenceOptions(options.decisionOptions, options.decisionCriteria, {
+  const decisionEvaluation = decisionOptions.length && decisionCriteria.length
+    ? evaluateIntelligenceOptions(decisionOptions, decisionCriteria, {
         ownerUid,
         actorUid: options.actorUid,
         approvedPreferenceProfile: preferenceProfile,
@@ -93,22 +115,22 @@ export function buildIntelligenceContextSnapshot(records, options = {}) {
 
   const goalLifecycle = buildIntelligenceGoalLifecycle(
     ownerRecords,
-    Array.isArray(options.goalTaskProposals) ? options.goalTaskProposals : [],
-    Array.isArray(options.progressEvents) ? options.progressEvents : [],
+    goalTaskProposals,
+    progressEvents,
     { ownerUid, actorUid: options.actorUid, maxItems: limits.maxTasks }
   );
 
   const planHistory = compareIntelligencePlanVersions(
-    Array.isArray(options.planRevisions) ? options.planRevisions : [],
-    Array.isArray(options.planProgressEvents) ? options.planProgressEvents : [],
+    planRevisions,
+    planProgressEvents,
     { ownerUid, actorUid: options.actorUid, maxRevisions: options.maxPlanRevisions, maxTasks: limits.maxTasks }
   );
 
   const planLearning = learnFromIntelligencePlanOutcomes(
-    Array.isArray(options.planRevisions) ? options.planRevisions : [],
-    Array.isArray(options.planProgressEvents) ? options.planProgressEvents : [],
-    { ownerUid, actorUid: options.actorUid, maxRevisions: options.maxPlanRevisions,
-      maxEvents: options.maxPlanEvents, minObservations: options.minPlanLearningObservations }
+    planRevisions,
+    planProgressEvents,
+    { ownerUid, actorUid: options.actorUid, maxRevisions: limits.maxPlanRevisions,
+      maxEvents: limits.maxPlanProgressEvents, minObservations: options.minPlanLearningObservations }
   );
 
   const snapshot = {
@@ -126,6 +148,15 @@ export function buildIntelligenceContextSnapshot(records, options = {}) {
       inputRecords: records.length,
       inspectedInputRecords: boundedRecords.length,
       omittedInputRecords: Math.max(0, records.length - boundedRecords.length),
+      auxiliaryInputBounds: {
+        preferenceLedgerOmitted: Math.max(0, (Array.isArray(options.preferenceLedger) ? options.preferenceLedger.length : 0) - preferenceLedger.length),
+        decisionOptionsOmitted: Math.max(0, (Array.isArray(options.decisionOptions) ? options.decisionOptions.length : 0) - decisionOptions.length),
+        decisionCriteriaOmitted: Math.max(0, (Array.isArray(options.decisionCriteria) ? options.decisionCriteria.length : 0) - decisionCriteria.length),
+        goalTaskProposalsOmitted: Math.max(0, (Array.isArray(options.goalTaskProposals) ? options.goalTaskProposals.length : 0) - goalTaskProposals.length),
+        progressEventsOmitted: Math.max(0, (Array.isArray(options.progressEvents) ? options.progressEvents.length : 0) - progressEvents.length),
+        planRevisionsOmitted: Math.max(0, (Array.isArray(options.planRevisions) ? options.planRevisions.length : 0) - planRevisions.length),
+        planProgressEventsOmitted: Math.max(0, (Array.isArray(options.planProgressEvents) ? options.planProgressEvents.length : 0) - planProgressEvents.length)
+      },
       inspectedOwnerRecords: ownerRecords.length,
       memoryItems: memory.memories.length,
       graphNodes: memory.graph.nodes.length,
