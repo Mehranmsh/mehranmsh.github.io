@@ -56,6 +56,9 @@ test("binds retries to the exact operation payload and exposes full journal read
   assert.match(archiveUpdate.sql, /prepared_record_sha256 = \?/);
   assert.ok(archiveUpdate.params.includes(input.replacementEnvelopeJson));
   assert.ok(archiveUpdate.params.includes(input.preparedRecordJson));
+  assert.ok(archiveUpdate.sql.includes("sequence = 1"));
+  assert.ok(archiveUpdate.sql.includes("record_json <> ?"));
+  assert.ok(archiveUpdate.params.includes(input.operationId));
   assert.equal(result.requiredReadback.operationId, input.operationId);
   assert.equal(result.requiredReadback.expectedPreparedRecordJson, input.preparedRecordJson);
   assert.equal(result.requiredReadback.expectedCommittedRecordJson, input.committedRecordJson);
@@ -75,7 +78,10 @@ test("phase two requires exact prepared operation and journal records before com
     assert.match(sql, /record_json = \?/);
     assert.match(sql, /record_sha256 = \?/);
   }
-  assert.ok(commitOperation.params.includes(input.preparedRecordJson));
+  assert.ok(commitOperation.sql.includes("sequence = 2"));
+  assert.ok(commitOperation.sql.includes("record_json <> ?"));
+  assert.ok(commitOperation.params.includes(input.committedRecordJson));
+  assert.ok(commitOperation.params.includes(input.committedRecordSha256));
   assert.ok(appendCommitted.params.includes(input.preparedRecordJson));
   assert.ok(appendCommitted.params.includes(input.committedRecordJson));
   assert.ok(result.executionRules.some(rule => rule.includes("ignored uniqueness conflict is not success")));
