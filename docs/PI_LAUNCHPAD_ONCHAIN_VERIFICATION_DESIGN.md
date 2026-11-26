@@ -140,3 +140,15 @@ A storage-policy prototype now prepares a future server-side persistence adapter
 - This module does not feed Launchpad scoring or change Mainnet evidence eligibility.
 
 The implementation emits immutable write/read intents only. It is not a persistent storage implementation and must not be described as one.
+
+## Volatile Testnet observation repository contract (2026-11-26)
+
+A process-local in-memory repository prototype now exercises the future adapter contract:
+- Accepts only append/read intent shapes scoped to the configured archive scope, and validates payload size, archive ID digest, and the complete archive manifest before insertion.
+- Append is idempotent for the same archive ID and never overwrites an existing entry. Entry count and aggregate memory use are bounded.
+- Reads re-check the stored payload digest and re-run full archive integrity verification before returning a deeply frozen copy.
+- Wrong-scope intents, wrong operation types, malformed payloads, digest mismatches, and capacity overflow fail closed.
+- The repository is volatile and process-local. It provides no durability, cross-process sharing, authentication, encryption-at-rest, retention enforcement, deletion lifecycle, or audit log. The caller must obtain intents from trusted server-side authorization; this prototype does not authenticate principals itself.
+- The module performs no filesystem, database, D1, object-store, network, AI, wallet, signing, or scoring operations. Testnet observations remain ineligible for Mainnet scoring.
+
+This is a contract-test prototype only. It is not production storage and must not be connected to user-facing or live ingestion paths.
