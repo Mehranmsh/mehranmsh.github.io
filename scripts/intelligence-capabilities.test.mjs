@@ -22,6 +22,7 @@ const workerSource = readFileSync(new URL("../worker.js", import.meta.url), "utf
 const indexSource = readFileSync(new URL("../index.html", import.meta.url), "utf8");
 const runnerSource = readFileSync(new URL("../.github/workflows/mehran-intelligence-runner.yml", import.meta.url), "utf8");
 const proposalRunnerSource = readFileSync(new URL("./intelligence-proposal-pr-runner.mjs", import.meta.url), "utf8");
+const patchTargetsSource = readFileSync(new URL("./intelligence-patch-targets.mjs", import.meta.url), "utf8");
 const agentSource = readFileSync(new URL("./intelligence-agent.mjs", import.meta.url), "utf8");
 const proposalWorkflowSource = readFileSync(new URL("../.github/workflows/intelligence-proposal-pr-runner.yml", import.meta.url), "utf8");
 const routinePlannerSource = readFileSync(new URL("./intelligence-routine-planner.mjs", import.meta.url), "utf8");
@@ -329,7 +330,10 @@ test("draft PR automation is isolated, main-only, test-gated, and never merges o
 
   assert.match(proposalRunnerSource, /proposals\.slice\(0,3\)/);
   assert.match(proposalRunnerSource, /!targetPolicy/);
-  assert.match(proposalRunnerSource, /scripts\/intelligence-capabilities\.test\.mjs/);
+  assert.match(proposalRunnerSource, /getIntelligencePatchTarget\(targetPath\)/);
+  assert.match(proposalRunnerSource, /targetPolicy\.testCommand/);
+  assert.match(patchTargetsSource, /scripts\/intelligence-capabilities\.test\.mjs/);
+  assert.match(patchTargetsSource, /scripts\/intelligence-inbox-schema\.test\.mjs/);
   assert.match(proposalRunnerSource, /--network", "none"/);
   assert.match(proposalRunnerSource, /draft: true/);
   assert.match(proposalRunnerSource, /base: "main"/);
