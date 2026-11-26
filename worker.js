@@ -6226,7 +6226,7 @@ export function validateIntelligenceWorkPackage(input) {
       return fail("Dependencies must be unique and reference earlier tasks in this package; cycles and forward references are rejected.");
     }
     known.add(taskId);
-    normalized.push({ taskId, title: taskTitle, description, actionType, dependencies, ...(paths ? { paths } : {}), ...(baseSha ? { baseSha } : {}), ...(patchObjective ? { objective: patchObjective.trim() } : {}) });
+    normalized.push({ taskId, title: taskTitle, description, actionType, dependencies, ...(paths ? { paths } : {}), ...(baseSha ? { baseSha } : {}), ...(patchObjective ? { objective: patchObjective.trim(), targetPath: patchTargetPath } : {}) });
   }
   return { ok: true, idempotencyKey, title, objective, priority, scope, scopeJson, tasks: normalized };
 }
@@ -8296,7 +8296,9 @@ export default {
             const patchObjective = actionType === "propose_code_patch" ? item?.objective : undefined;
             const validPatchObjective = actionType !== "propose_code_patch" ||
               (typeof patchObjective === "string" && patchObjective.trim().length >= 12 && patchObjective.length <= 800);
-            if (!taskId || !/^[A-Za-z0-9._:-]{1,80}$/.test(taskId) || known.has(taskId) || !taskTitle || !["service_health_report","repository_quality_check","source_security_audit","inspect_repository","run_repository_tests","propose_code_patch"].includes(actionType) || !validDependencies || !validInspectPaths || !validTestBaseSha || !validPatchObjective || (actionType !== "inspect_repository" && Object.hasOwn(item || {}, "paths")) || (actionType !== "run_repository_tests" && Object.hasOwn(item || {}, "baseSha")) || (actionType !== "propose_code_patch" && Object.hasOwn(item || {}, "objective")) || dependencies.length > 10) {
+            const patchTargetPath = actionType === "propose_code_patch" ? (item?.targetPath || "scripts/intelligence-capabilities.test.mjs") : undefined;
+            const validPatchTargetPath = actionType !== "propose_code_patch" || isAllowedIntelligencePatchTarget(patchTargetPath);
+            if (!taskId || !/^[A-Za-z0-9._:-]{1,80}$/.test(taskId) || known.has(taskId) || !taskTitle || !["service_health_report","repository_quality_check","source_security_audit","inspect_repository","run_repository_tests","propose_code_patch"].includes(actionType) || !validDependencies || !validInspectPaths || !validTestBaseSha || !validPatchObjective || !validPatchTargetPath || (actionType !== "inspect_repository" && Object.hasOwn(item || {}, "paths")) || (actionType !== "run_repository_tests" && Object.hasOwn(item || {}, "baseSha")) || (actionType !== "propose_code_patch" && (Object.hasOwn(item || {}, "objective") || Object.hasOwn(item || {}, "targetPath"))) || dependencies.length > 10) {
               return error("Invalid task definition or action outside the bounded capability allowlist.",400);
             }
             if (new Set(dependencies).size !== dependencies.length || dependencies.some(dep => typeof dep !== "string" || !known.has(dep))) {
