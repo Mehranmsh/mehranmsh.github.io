@@ -529,6 +529,12 @@ test("work-package action types must stay within the declared per-package scope"
   const creationRoute = workerSource.slice(routeStart, routeEnd);
   assert.match(creationRoute, /const validDependencies = !Object\.hasOwn\(item \|\| \{\}, "dependsOn"\) \|\| Array\.isArray\(item\.dependsOn\)/);
   assert.match(creationRoute, /!validDependencies/);
+  assert.match(creationRoute, /"run_repository_tests","propose_code_patch"/,
+    "proposal-only tasks must be admitted only through the explicit package action scope");
+  assert.match(creationRoute, /validPatchObjective/,
+    "proposal-only tasks must carry a bounded objective");
+  assert.match(creationRoute, /objective:item\.objective/,
+    "the bounded objective must survive durable task payload creation");
 });
 
 test("proposal-only work-package tasks require a bounded objective", () => {
