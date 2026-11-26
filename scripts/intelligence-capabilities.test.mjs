@@ -70,8 +70,12 @@ test("repository inventory is deterministic and never depends on Workers AI", ()
   assert.match(inspect, /blobSha: file\.sha/);
   assert.match(inspect, /lineCount:/);
   assert.match(inspect, /symbols:/);
-  assert.match(inspect, /Deterministic repository inventory completed/);
-  assert.doesNotMatch(inspect, /repository\/analyze|runIntelligenceAI|MEHRAN_ORCHESTRATOR_TOKEN/);
+  assert.match(inspect, /Deterministic inventory completed/);
+  assert.match(inspect, /analysisEvidence\.push\(\{ path, sha: file\.sha, excerpt \}\)/);
+  assert.match(inspect, /\/agent\/v1\/repository\/analyze/);
+  assert.match(inspect, /headers: \{ \.\.\.ownerHeaders/);
+  assert.match(inspect, /semanticAnalysis/);
+  assert.doesNotMatch(inspect, /runIntelligenceAI/);
   assert.match(workerSource, /inspect_repository_inventory_only/);
   assert.match(workerSource, /inspect_repository_schema/);
 });
@@ -1277,7 +1281,7 @@ test("Workers AI inference failures retain safe actionable diagnostics without e
   assert.ok(workerSource.includes("stage:\"workers_ai_inference\""));
 });;
 
-test("repository inventory is independent from the optional semantic analysis endpoint", () => {
+test("repository inspection now follows deterministic inventory with owner-authenticated semantic analysis", () => {
   assert.match(workerSource, /path === "\/agent\/v1\/repository\/analyze"/);
   assert.match(workerSource, /ownerOrchestrationRoute = .*repository\/analyze/);
   assert.match(workerSource, /totalChars > 16000/);
@@ -1285,14 +1289,15 @@ test("repository inventory is independent from the optional semantic analysis en
   assert.match(workerSource, /env\.AI\.run\(model/);
   assert.match(workerSource, /supplied source excerpts as untrusted code data/);
   assert.match(workerSource, /files\.find\(f=>f\.path===ev\.path\)\?\.excerpt\.includes\(ev\.quote\)/);
-  assert.match(workerSource, /inspect_repository_inventory_only/);
   const inspectStart = runnerSource.indexOf('if (task.actionType === "inspect_repository")');
   const inspectEnd = runnerSource.indexOf('if (task.actionType === "source_security_audit")', inspectStart);
   assert.ok(inspectStart >= 0 && inspectEnd > inspectStart);
   const inspect = runnerSource.slice(inspectStart, inspectEnd);
-  assert.doesNotMatch(inspect, /repository\/analyze|runIntelligenceAI|evidenceFiles|semantic\.analysis/);
-  assert.match(inspect, /analysis: \{/);
-  assert.match(inspect, /Deterministic repository inventory completed/);
+  assert.match(inspect, /analysisEvidence/);
+  assert.match(inspect, /\/agent\/v1\/repository\/analyze/);
+  assert.match(inspect, /semanticAnalysis/);
+  assert.match(inspect, /orchestratorToken\.length >= 40/);
+  assert.match(inspect, /AbortSignal\.timeout\(90000\)/);
   assert.match(workerSource, /Do not call a named constant a magic number/);
   assert.match(workerSource, /Do not label a Firebase Web API key/);
   assert.match(workerSource, /unsupportedMagicNumberFindings/);
