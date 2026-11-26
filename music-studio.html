@@ -264,6 +264,17 @@ input[type=checkbox]{accent-color:#e6b86b}
   <div class="experience-mode" data-experience-stage="vocals"><span>روش کار این بخش</span><div><button type="button" data-experience-choice="smart" aria-pressed="true">هوشمند و ساده</button><button type="button" data-experience-choice="pro" aria-pressed="false">حرفه‌ای و دستی</button></div></div>
   <div class="section-head"><div><h2>Vocal Lab</h2><p>Build a cast of singers and plan each vocal part inside a project.</p></div></div>
   <div class="notice" style="margin-top:14px">تمرین آواز و کنترل ملودی</div>
+  <div class="panel" id="studioIntelligenceVocalCheck" style="margin-top:16px">
+   <div class="section-head"><div><h3>🧠 Studio Intelligence · Vocal Check</h3><p>تحلیل اولیهٔ فایل ضبط‌شده روی همین دستگاه، بدون آپلود صدا و بدون مصرف سهمیهٔ AI.</p></div><span class="tag">LOCAL ANALYSIS</span></div>
+   <div class="two">
+    <label class="field">PROJECT · پروژه<select id="studioIntelProject"><option value="">انتخاب پروژه…</option></select></label>
+    <label class="field">RECORDING · فایل ضبط‌شده<select id="studioIntelTrack" disabled><option value="">ابتدا پروژه را انتخاب کن…</option></select></label>
+   </div>
+   <div class="notice">این بررسی فنی اولیه است، نه قضاوت هنری یا مسترینگ. فایل اصلی دست‌نخورده می‌ماند. برای محافظت از حافظهٔ گوشی، فایل‌های بزرگ‌تر از ۲۵ مگابایت یا طولانی‌تر از ۱۲۰ ثانیه بررسی نمی‌شوند.</div>
+   <button class="btn" id="runStudioIntelVocalCheck" type="button" disabled>تحلیل ضبط با Intelligence</button>
+   <p id="studioIntelVocalStatus" role="status" aria-live="polite" style="color:var(--muted);font-size:12px;margin-top:10px">یک پروژه و فایل صوتی متصل به ترک را انتخاب کن.</p>
+   <div id="studioIntelVocalReport" aria-live="polite" style="margin-top:12px"></div>
+  </div>
   <div class="panel" id="vocalRangeSetup" style="margin-top:16px">
    <div class="section-head"><div><h3>🎙 Vocal Range Check · سنجش محدودهٔ صدای خواننده</h3><p>اول محدودهٔ راحت صدایت را مشخص کن تا آهنگ برای صدای خودت ساخته شود.</p></div><span class="tag">VOICE FIT</span></div>
    <div class="notice">لازم نیست نت یا محدودهٔ صدایت را بدانی. یک تکه از آهنگ یا ملودی را همان‌طور که طبیعی و راحت می‌خوانی ضبط و وارد پروژه کن. در Pitch Analysis فایل صدایت را انتخاب کن و «Analyze vocal pitch» را بزن؛ استودیو نت‌های واقعی اجرای تو را بررسی می‌کند و هنگام ساخت ملودی، گام آهنگ را برای نزدیک‌شدن به محدودهٔ صدایت تنظیم می‌کند. نه صدایت را مجبور به بالا یا پایین‌خواندن کن و نه برای رسیدن به نت خاصی فشار بیاور.</div>
@@ -2470,6 +2481,78 @@ async function generatePatternTrack(){const allowedMode=["drums","chords"].inclu
   applyExperienceMode(stage,experienceModes[stage]||"smart");
   toolbar.addEventListener("click",event=>{const button=event.target.closest("[data-experience-choice]");if(button)applyExperienceMode(stage,button.dataset.experienceChoice);});
  });
+
+ // First Studio Intelligence slice: bounded, on-device vocal diagnostics only.
+ const intelProjectSelect=$("studioIntelProject"),intelTrackSelect=$("studioIntelTrack"),intelRunButton=$("runStudioIntelVocalCheck"),intelStatus=$("studioIntelVocalStatus"),intelReport=$("studioIntelVocalReport");
+ function refreshStudioIntelProjects(keepProject=""){
+  if(!intelProjectSelect)return;
+  const previous=keepProject||intelProjectSelect.value;
+  intelProjectSelect.innerHTML='<option value="">انتخاب پروژه…</option>'+projects.slice().sort((a,b)=>(b.updated||0)-(a.updated||0)).map(p=>'<option value="'+esc(p.id)+'">'+esc(p.name)+'</option>').join("");
+  intelProjectSelect.value=projects.some(p=>p.id===previous)?previous:"";
+  refreshStudioIntelTracks();
+ }
+ function refreshStudioIntelTracks(){
+  if(!intelTrackSelect)return;
+  const project=projects.find(p=>p.id===intelProjectSelect.value);
+  const tracks=(project?.tracks||[]).filter(t=>t&&t.audioName);
+  intelTrackSelect.innerHTML='<option value="">انتخاب فایل ضبط‌شده…</option>'+tracks.map(t=>'<option value="'+esc(t.id)+'">'+esc(t.name||"Vocal track")+' · '+esc(t.audioName)+'</option>').join("");
+  intelTrackSelect.disabled=!tracks.length;
+  intelRunButton.disabled=!tracks.length;
+  if(!tracks.length)intelTrackSelect.innerHTML='<option value="">این پروژه هنوز فایل صوتی متصل ندارد</option>';
+  intelReport.innerHTML="";
+  intelStatus.textContent=tracks.length?"فایل را انتخاب کن و تحلیل محلی را اجرا کن.":"برای این پروژه هنوز فایل صوتی به هیچ ترکی متصل نشده است.";
+ }
+ function intelDb(value,digits=2){return Number.isFinite(value)?(value<=0?"−∞":(20*Math.log10(value)).toFixed(digits))+" dBFS":"نامشخص";}
+ function intelPct(value){return (100*value).toFixed(3)+"%";}
+ async function runStudioIntelVocalCheck(){
+  const project=projects.find(p=>p.id===intelProjectSelect.value),track=project?.tracks?.find(t=>t.id===intelTrackSelect.value);
+  if(!project||!track?.audioName){intelStatus.textContent="پروژه و فایل صوتی معتبر انتخاب نشده‌اند.";return;}
+  intelRunButton.disabled=true;intelStatus.textContent="در حال خواندن فایل از حافظهٔ همین دستگاه…";intelReport.innerHTML="";
+  let context=null;
+  try{
+   const record=await readTrackAudio(audioKey(project.id,track.id));
+   if(!record?.blob||!(record.blob instanceof Blob))throw new Error("فایل اصلی در حافظهٔ محلی پیدا نشد.");
+   if(record.blob.size>25*1024*1024)throw new Error("این فایل برای تحلیل امن روی گوشی بزرگ است. نسخه‌ای کوتاه‌تر از ۲۵ مگابایت وارد کن.");
+   const AudioContextClass=window.AudioContext||window.webkitAudioContext;
+   if(!AudioContextClass)throw new Error("مرورگر این دستگاه از Web Audio پشتیبانی نمی‌کند.");
+   context=new AudioContextClass();
+   const decoded=await context.decodeAudioData(await record.blob.arrayBuffer());
+   if(decoded.duration>120)throw new Error("مدت فایل بیشتر از ۱۲۰ ثانیه است. یک بخش کوتاه‌تر انتخاب کن.");
+   const channelCount=decoded.numberOfChannels,sampleRate=decoded.sampleRate,total=decoded.length*channelCount;
+   let peak=0,sumSquares=0,clipped=0,dcSum=0;
+   const blockSize=Math.max(1,Math.floor(sampleRate*0.25)),windowRms=[];
+   for(let channel=0;channel<channelCount;channel++){
+    const data=decoded.getChannelData(channel);
+    for(let start=0;start<data.length;start+=blockSize){
+     const stop=Math.min(data.length,start+blockSize);let blockSquares=0;
+     for(let i=start;i<stop;i++){
+      const value=data[i],absolute=Math.abs(value);if(absolute>peak)peak=absolute;
+      if(absolute>=0.999)clipped++;sumSquares+=value*value;dcSum+=value;blockSquares+=value*value;
+     }
+     windowRms.push(Math.sqrt(blockSquares/Math.max(1,stop-start)));
+    }
+   }
+   const rms=Math.sqrt(sumSquares/Math.max(1,total)),dc=dcSum/Math.max(1,total),clipRatio=clipped/Math.max(1,total);
+   const sorted=windowRms.slice().sort((a,b)=>a-b),quiet=sorted.length?sorted[Math.floor((sorted.length-1)*0.1)]:0;
+   const findings=[];
+   if(clipRatio>0.0001)findings.push({level:"warning",title:"احتمال کلیپینگ",detail:"بخشی از نمونه‌ها نزدیک سقف دیجیتال‌اند. اگر اعوجاج شنیده می‌شود، ضبط مجدد با فاصلهٔ بیشتر از میکروفون بهتر از ترمیم شدید است."});
+   else if(peak>0.98)findings.push({level:"caution",title:"قلهٔ صدا نزدیک سقف است",detail:"برای ضبط بعدی کمی هد‌روم بیشتر نگه دار؛ قلهٔ نزدیک صفر به‌تنهایی نشانهٔ کیفیت بهتر نیست."});
+   else findings.push({level:"good",title:"قلهٔ دیجیتال امن به نظر می‌رسد",detail:"در این بررسی نمونهٔ قابل‌توجهی از کلیپینگ دیجیتال دیده نشد."});
+   if(rms<0.025)findings.push({level:"caution",title:"میانگین سطح صدا پایین است",detail:"قبل از بالا بردن گین در میکس، فاصله از میکروفون و سطح ورودی ضبط را بررسی کن."});
+   if(quiet>0&&quiet>rms*0.55)findings.push({level:"caution",title:"بخش‌های آرام نسبتاً پرسطح‌اند",detail:"این می‌تواند از صدای اتاق، نویز زمینه یا اجرای پیوسته باشد؛ برای تشخیص نویز واقعی باید یک نمونهٔ سکوت اتاق هم ضبط شود."});
+   if(Math.abs(dc)>0.02)findings.push({level:"warning",title:"احتمال DC offset",detail:"میانگین سیگنال از صفر فاصله دارد؛ قبل از پردازش نهایی، فایل و مسیر ضبط بررسی شود."});
+   if(!findings.length)findings.push({level:"good",title:"بررسی پایه کامل شد",detail:"برای ارزیابی نویز، اکو، سیبیلانس و کوک باید تحلیل‌های تخصصی‌تر و شنیدن A/B اضافه شوند."});
+   const rows=[["مدت",decoded.duration.toFixed(2)+" ثانیه"],["نمونه‌برداری",sampleRate.toLocaleString()+" Hz"],["کانال",channelCount===1?"Mono":channelCount+" کانال"],["Peak",intelDb(peak)],["RMS",intelDb(rms)],["نمونه‌های نزدیک کلیپینگ",intelPct(clipRatio)],["میانگین DC",dc.toFixed(5)]];
+   intelReport.innerHTML='<div class="panel" style="padding:14px"><h4>گزارش فنی ضبط · '+esc(project.name)+' / '+esc(track.name||"Vocal")+'</h4><div class="two">'+rows.map(row=>'<div style="padding:8px;border:1px solid var(--line);border-radius:9px"><small style="color:var(--muted)">'+row[0]+'</small><b style="display:block;margin-top:4px">'+row[1]+'</b></div>').join("")+'</div><h4 style="margin-top:14px">یافته‌ها و پیشنهادها</h4>'+findings.map(item=>'<div class="notice" style="margin-top:8px"><b>'+item.title+'</b><p style="margin:4px 0 0">'+item.detail+'</p></div>').join("")+'<small style="display:block;color:var(--muted);margin-top:10px">تحلیل روی دستگاه انجام شد. فایل صوتی آپلود نشد و هیچ تنظیم یا فایل اصلی تغییر نکرد.</small></div>';
+   intelStatus.textContent="تحلیل محلی کامل شد. این گزارش پایه است و هنوز ارزیابی کامل هوشمند یا مسترینگ محسوب نمی‌شود.";
+  }catch(error){intelStatus.textContent="تحلیل انجام نشد: "+String(error?.message||error).slice(0,220);}
+  finally{if(context)await context.close().catch(()=>{});intelRunButton.disabled=false;}
+ }
+ if(intelProjectSelect){
+  refreshStudioIntelProjects();
+  intelProjectSelect.addEventListener("change",refreshStudioIntelTracks);
+  intelRunButton.addEventListener("click",()=>{void runStudioIntelVocalCheck();});
+ }
  syncVocalTools();
  render();
 })();
