@@ -7355,12 +7355,28 @@ async function ingestPrivateIntelligenceInbox(env) {
       }
       const evidence = Array.isArray(mission.known_evidence) ? mission.known_evidence.slice(0, 4) : [];
       const objective = cleanText(mission.objective, 1800);
-      // Resolve an immutable revision only when this mission explicitly authorizes isolated tests.
-      const testBaseSha = mission.scope.allowed_actions.includes("run_repository_tests")
-        ? await resolveMainCommitSha()
-        : null;
+      const missionIdempotencyKey = "private-inbox:" + mission.mission_id;
+      // Reuse the first immutable test revision when retrying an already-created package.
+      // This preserves idempotency even if main advances before the inbox acknowledgement is retried.
+      let testBaseSha = null;
+      if (mission.scope.allowed_actions.includes("run_repository_tests")) {
+        const existingPackage = await env.DB.prepare(
+          "SELECT id FROM intelligence_work_packages WHERE idempotency_key=?"
+        ).bind(missionIdempotencyKey).first();
+        if (existingPackage?.id) {
+          const existingTest = await env.DB.prepare(
+            "SELECT action_payload FROM intelligence_tasks WHERE work_package_id=? AND action_type='run_repository_tests' LIMIT 1"
+          ).bind(existingPackage.id).first();
+          let existingPayload = {};
+          try { existingPayload = JSON.parse(existingTest?.action_payload || "{}"); } catch {}
+          testBaseSha = typeof existingPayload.baseSha === "string" ? existingPayload.baseSha.toLowerCase() : "";
+          if (!/^[a-f0-9]{40}$/.test(testBaseSha)) throw new Error("private_inbox_existing_test_base_sha_invalid");
+        } else {
+          testBaseSha = await resolveMainCommitSha();
+        }
+      }
       const packageInput = {
-        idempotencyKey: "private-inbox:" + mission.mission_id,
+        idempotencyKey: missionIdempotencyKey,
         title: cleanText(mission.title, 150) || "Private Intelligence diagnostic",
         objective,
         priority: "high",
