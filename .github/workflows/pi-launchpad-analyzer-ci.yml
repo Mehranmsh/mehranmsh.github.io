@@ -7,6 +7,8 @@ on:
     paths:
       - "scripts/pi-launchpad-analyzer.mjs"
       - "scripts/pi-launchpad-analyzer.test.mjs"
+      - "scripts/pi-launchpad-data-adapter.mjs"
+      - "scripts/pi-launchpad-data-adapter.test.mjs"
       - ".github/workflows/pi-launchpad-analyzer-ci.yml"
 
 permissions:
