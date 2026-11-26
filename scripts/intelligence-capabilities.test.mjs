@@ -1641,3 +1641,25 @@ test("agent validates claimed task envelopes and returns the claim token", () =>
   assert.match(agentSource, /encodeURIComponent\(taskId\)/);
   assert.doesNotMatch(agentSource, /encodeURIComponent\(task\.id\)/);
 });
+
+import { buildIntelligenceArchitectureReview } from "./intelligence-architecture-review.mjs";
+test("deterministic architecture review produces evidence-linked layers without AI", () => {
+  const paths = ["worker.js","scripts/intelligence-agent.mjs","scripts/intelligence-capabilities.mjs",".github/workflows/mehran-intelligence-runner.yml","docs/INTELLIGENCE_EXECUTION_PROTOCOL.md","scripts/intelligence-architecture-review.mjs"];
+  const files = paths.map(path => ({ path, content: path === "worker.js"
+    ? "async function ingestPrivateIntelligenceInbox() {}\\nfunction createIntelligenceWorkPackage() {}\\nconst WORKERS_AI_INTELLIGENCE_DAILY_RESERVATION_CREDITS = 7000;\\nfunction reserveSocialWorkersAIBudget() {}\\n"
+    : path === "scripts/intelligence-capabilities.mjs" ? "const INTELLIGENCE_CAPABILITIES = {};\\nconst permissionTier = 'read_only';\\n"
+    : "export const reviewFixture = true;\\n" }));
+  const result = buildIntelligenceArchitectureReview({ repository: "Mehranmsh/mehranmsh.github.io", commitSha: "a".repeat(40), files });
+  assert.equal(result.mode, "deterministic_static_evidence_no_ai_inference");
+  assert.equal(result.source.filesInspected, 6);
+  assert.ok(result.architecture.some(item => item.id === "orchestration" && item.status === "present"));
+  assert.ok(result.architecture.some(item => item.id === "ai_quota" && item.status === "present"));
+  assert.ok(result.limitations.some(item => item.includes("not an LLM-generated semantic review")));
+});
+test("deterministic architecture review rejects unapproved paths, duplicate files, and invalid revisions", () => {
+  const paths = ["worker.js","scripts/intelligence-agent.mjs","scripts/intelligence-capabilities.mjs",".github/workflows/mehran-intelligence-runner.yml","docs/INTELLIGENCE_EXECUTION_PROTOCOL.md","scripts/intelligence-architecture-review.mjs"];
+  const files = paths.map(path => ({ path, content: "export const x = 1;\\n" }));
+  assert.throws(() => buildIntelligenceArchitectureReview({ commitSha: "bad", files }), /commit SHA/);
+  assert.throws(() => buildIntelligenceArchitectureReview({ commitSha: "b".repeat(40), files: [...files.slice(0, 5), { path: "../secrets", content: "x" }] }), /allowlist/);
+  assert.throws(() => buildIntelligenceArchitectureReview({ commitSha: "b".repeat(40), files: [...files, files[0]] }), /six-file/);
+});
