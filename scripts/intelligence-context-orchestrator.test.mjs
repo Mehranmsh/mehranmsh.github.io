@@ -180,3 +180,29 @@ test("coordinates plan outcome learning only from explicitly owner-confirmed obs
   assert.equal(unauthenticated.planLearning.diagnostics.ownerScoped, false);
   assert.equal(unauthenticated.planLearning.observations.length, 0);
 });
+
+
+test("bounds raw context scans before owner filtering and reports omitted input", () => {
+  const records = [
+    base("safe-1"), base("safe-2"), base("safe-3"),
+    base("safe-4"), base("safe-5")
+  ];
+  const before = structuredClone(records);
+  const result = buildIntelligenceContextSnapshot(records, {
+    ownerUid: "owner-a", maxInputRecords: 3
+  });
+  assert.equal(result.diagnostics.inputRecords, 5);
+  assert.equal(result.diagnostics.inspectedInputRecords, 3);
+  assert.equal(result.diagnostics.omittedInputRecords, 2);
+  assert.deepEqual(result.memories.map(item => item.memory_key), ["safe-1", "safe-2", "safe-3"]);
+  assert.deepEqual(records, before);
+});
+
+test("caps caller input-scan limits at the hard maximum", () => {
+  const records = [base("safe")];
+  const result = buildIntelligenceContextSnapshot(records, {
+    ownerUid: "owner-a", maxInputRecords: 1000000
+  });
+  assert.equal(result.diagnostics.inspectedInputRecords, 1);
+  assert.equal(result.diagnostics.omittedInputRecords, 0);
+});
