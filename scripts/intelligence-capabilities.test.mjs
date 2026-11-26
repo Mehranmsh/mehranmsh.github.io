@@ -19,6 +19,7 @@ import {
 } from "./intelligence-capabilities.mjs";
 
 const workerSource = readFileSync(new URL("../worker.js", import.meta.url), "utf8");
+const inboxSchemaSource = readFileSync(new URL("./intelligence-inbox-schema.mjs", import.meta.url), "utf8");
 const indexSource = readFileSync(new URL("../index.html", import.meta.url), "utf8");
 const runnerSource = readFileSync(new URL("../.github/workflows/mehran-intelligence-runner.yml", import.meta.url), "utf8");
 const proposalRunnerSource = readFileSync(new URL("./intelligence-proposal-pr-runner.mjs", import.meta.url), "utf8");
@@ -1280,6 +1281,28 @@ test("Workers AI inference failures retain safe actionable diagnostics without e
   assert.ok(workerSource.includes("JSON.stringify({traceId,elapsedMs,providerAttempts:safeAttempts,...diagnostic})"));
   assert.ok(workerSource.includes("stage:\"workers_ai_inference\""));
 });;
+
+test("private inbox expands inspection across MEHRAN modules using bounded single-file work items", () => {
+  const expectedPaths = [
+    "index.html",
+    "music-studio.html",
+    "instrument-sampler.js",
+    "engine/server.py",
+    "engine/model_policy.py",
+    "engine/preflight.py"
+  ];
+  for (const path of expectedPaths) {
+    assert.ok(workerSource.includes('"' + path + '"'), "Worker must allow " + path);
+    assert.ok(inboxSchemaSource.includes('"' + path + '"'), "Private inbox must allow " + path);
+    assert.ok(runnerSource.includes('"' + path + '"'), "Runner must allow " + path);
+    assert.ok(getIntelligenceCapability("inspect_repository").inputSchema.properties.paths.itemEnum.includes(path));
+  }
+  assert.match(workerSource, /const inspectionTasks = inspectionPaths\.map\(\(path, index\) =>/);
+  assert.match(workerSource, /paths: \[path\]/);
+  assert.match(workerSource, /dependsOn: inspectionTasks\.map\(item => item\.taskId\)/);
+  assert.match(runnerSource, /path === "index\.html"/);
+  assert.match(runnerSource, /path === "music-studio\.html"/);
+});
 
 test("repository inspection now follows deterministic inventory with owner-authenticated semantic analysis", () => {
   assert.match(workerSource, /path === "\/agent\/v1\/repository\/analyze"/);
