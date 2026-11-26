@@ -6313,8 +6313,8 @@ async function createIntelligenceWorkPackage(env, input) {
       .bind(packageId, idempotencyKey, requestHash, title, objective, scopeJson, priority, typeof input.ownerUid === "string" ? input.ownerUid : null)
   ];
   for (const item of tasks) {
-    statements.push(env.DB.prepare("INSERT INTO intelligence_tasks(id,title,description,assigned_to,priority,status,requires_approval,result_text,created_by,action_type,action_payload,work_package_id,max_attempts) VALUES(?,?,?,'mehran_intelligence',?,'queued',0,'','mehran_intelligence',?,?,?,3)")
-      .bind(packageId + ":" + item.taskId, item.title, item.description, priority, item.actionType, JSON.stringify({ sourceTaskId: item.taskId, ...(item.paths ? { paths: item.paths } : {}), ...(item.baseSha ? { baseSha: item.baseSha } : {}), ...(item.objective ? { objective: item.objective } : {}) }), packageId));
+    statements.push(env.DB.prepare("INSERT INTO intelligence_tasks(id,title,description,assigned_to,priority,status,requires_approval,result_text,created_by,action_type,action_payload,work_package_id,max_attempts,owner_uid,queue_lane) VALUES(?,?,?,'mehran_intelligence',?,'queued',0,'','mehran_intelligence',?,?,?,?,?,?)")
+      .bind(packageId + ":" + item.taskId, item.title, item.description, priority, item.actionType, JSON.stringify({ sourceTaskId: item.taskId, ...(item.paths ? { paths: item.paths } : {}), ...(item.baseSha ? { baseSha: item.baseSha } : {}), ...(item.objective ? { objective: item.objective } : {}) }), packageId, typeof input.ownerUid === "string" && input.ownerUid.trim() ? input.ownerUid.trim() : null, typeof input.ownerUid === "string" && input.ownerUid.trim() ? "owner" : "quarantine"));
     for (const dependency of item.dependencies) {
       statements.push(env.DB.prepare("INSERT INTO intelligence_task_dependencies(task_id,depends_on_task_id) VALUES(?,?)")
         .bind(packageId + ":" + item.taskId, packageId + ":" + dependency));
@@ -9764,7 +9764,7 @@ export default {
         const autoApproved=preapprovedActions.includes(actionType)&&["mehran_intelligence","shared"].includes(assignedTo)&&body.requiresApproval!==true;
         const requiresApproval=Boolean(body.requiresApproval|| (actionType&&!autoApproved));
         const id=crypto.randomUUID();
-        await env.DB.prepare("INSERT INTO intelligence_tasks(id,title,description,assigned_to,priority,status,requires_approval,created_by,action_type,action_payload) VALUES(?,?,?,?,?,?,?,?,?,?)").bind(id,title,description,assignedTo,priority,requiresApproval?'awaiting_approval':'queued',requiresApproval?1:0,admin.username,actionType,JSON.stringify(actionPayload)).run();
+        await env.DB.prepare("INSERT INTO intelligence_tasks(id,title,description,assigned_to,priority,status,requires_approval,created_by,action_type,action_payload,owner_uid,queue_lane) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)").bind(id,title,description,assignedTo,priority,requiresApproval?'awaiting_approval':'queued',requiresApproval?1:0,admin.username,actionType,JSON.stringify(actionPayload),assignedTo==="mehran_intelligence"?admin.uid:null,assignedTo==="mehran_intelligence"?"owner":assignedTo==="shared"?"shared":"quarantine").run();
         await writeAdminAudit(env,admin,"collaboration_task_created","intelligence_task",id,JSON.stringify({assignedTo,priority,actionType,requiresApproval}));
         const row=await env.DB.prepare("SELECT * FROM intelligence_tasks WHERE id=?").bind(id).first();
         return json({success:true,task:formatIntelligenceTask(row)},201);
@@ -10318,7 +10318,7 @@ export default {
             if(!title||title.length<4||typeof args.description!=="string"||args.description.length>3000||!description)throw new Error("A valid task title and description are required.");
             if(!["mehran_intelligence","shared"].includes(assignedTo)||!["low","normal","high"].includes(priority)||!["","project_status_report","social_metrics_report","service_health_report","repository_quality_check"].includes(actionType))throw new Error("Invalid task assignment, priority or action type.");
             const id=crypto.randomUUID();
-            await env.DB.prepare("INSERT INTO intelligence_tasks(id,title,description,assigned_to,priority,status,requires_approval,created_by,action_type,action_payload) VALUES(?,?,?,?,?,'awaiting_approval',1,?,?,?)").bind(id,title,description,assignedTo,priority,admin.username,actionType,"{}").run();
+            await env.DB.prepare("INSERT INTO intelligence_tasks(id,title,description,assigned_to,priority,status,requires_approval,created_by,action_type,action_payload,owner_uid,queue_lane) VALUES(?,?,?,?,?,'awaiting_approval',1,?,?,?,?,?)").bind(id,title,description,assignedTo,priority,admin.username,actionType,"{}",assignedTo==="mehran_intelligence"?admin.uid:null,assignedTo==="mehran_intelligence"?"owner":"shared").run();
             await writeAdminAudit(env,admin,"intelligence_task_proposed","intelligence_task",id,JSON.stringify({assignedTo,priority,source:"intelligence_chat"}));
             const row=await env.DB.prepare("SELECT * FROM intelligence_tasks WHERE id=?").bind(id).first();
             return {task:formatIntelligenceTask(row),message:"Task proposal created and is awaiting owner approval. No execution was performed."};
