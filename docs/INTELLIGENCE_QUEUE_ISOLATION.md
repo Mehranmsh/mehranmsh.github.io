@@ -40,3 +40,15 @@ Use SQLite integration tests against the actual schema and SQL, not string-only 
 ## Security and rollout boundaries
 
 This work must not read secrets, credentials, private user data, or wallet data. No financial transaction capability is involved. Do not merge existing PRs or deploy the live Worker as part of this change. The implementation must remain behind tests and review until the owner/shared isolation invariants are demonstrated.
+
+
+## Implementation checkpoint (policy primitive only)
+
+A fail-closed policy primitive now exists in `scripts/intelligence-queue-policy.mjs` with unit tests in `scripts/intelligence-queue-policy.test.mjs`.
+
+- It does not infer ownership from `assigned_to`.
+- Owner tasks require task-level and package-level owner UIDs to match, and the claimant UID must match both.
+- Shared tasks require an explicit shared lane and no owner UID.
+- Legacy or malformed rows resolve to `quarantine`.
+
+This is a policy primitive, not yet connected to D1 migrations, Scheduler selection, agent claims, checkpoint/result acknowledgements, or separate worker capacity. It must not be described as live queue isolation. The current single agent endpoint also has one runner authorization boundary; a separate shared-worker authorization boundary must be designed without reading or exposing credentials.
