@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { canonicalizeAppendOnlyHunkHeader, extractPatchModelText, generatePatchArtifact, inspectGeneratedDiffShape, normalizeGeneratedDiff } from "./intelligence-patch-generation-service.mjs";
-import { buildPatchGenerationPrompt } from "./intelligence-patch-generation.mjs";
+import { buildPatchGenerationPrompt, validateGeneratedPatch } from "./intelligence-patch-generation.mjs";
 
 const baseSha = "a".repeat(40);
 const currentSha = "b".repeat(40);
@@ -209,4 +209,32 @@ test("diff diagnostics expose only structural metadata and identify unsafe paylo
   assert.equal(diagnostic.deletions, 0);
   assert.equal(Object.hasOwn(diagnostic, "raw"), false);
   assert.equal(Object.hasOwn(diagnostic, "diff"), false);
+});
+
+test("generation prompt, hunk repair, and validator honor the selected allowlisted test path", () => {
+  const targetPath = "scripts/intelligence-inbox-schema.test.mjs";
+  const source = "const existing = true;\\n";
+  const prompt = buildPatchGenerationPrompt({
+    baseSha, objective: "Add a regression test for inbox schema validation", source, targetPath
+  });
+  assert.equal(prompt.ok, true);
+  assert.ok(prompt.system.includes("--- a/" + targetPath));
+  assert.ok(prompt.system.includes("+++ b/" + targetPath));
+  const raw = [
+    "--- a/" + targetPath,
+    "+++ b/" + targetPath,
+    "@@ malformed",
+    '+test("inbox regression", () => {});',
+    ""
+  ].join("\\n");
+  const repaired = canonicalizeAppendOnlyHunkHeader(raw, 1, targetPath);
+  assert.equal(repaired.split("\\n")[0], "--- a/" + targetPath);
+  assert.equal(repaired.split("\\n")[2], "@@ -1,0 +2,1 @@");
+  const checked = validateGeneratedPatch({
+    baseSha, sourceLineCount: 1, summary: "Add inbox schema regression coverage",
+    diff: repaired, targetPath
+  });
+  assert.equal(checked.ok, true);
+  assert.equal(checked.targetPath, targetPath);
+  assert.equal(canonicalizeAppendOnlyHunkHeader(raw, 1, "worker.js"), raw);
 });
