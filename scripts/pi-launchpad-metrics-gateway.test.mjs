@@ -90,3 +90,11 @@ test("rejects conflicting attestations for the same metric", () => {
   assert.equal(result.acceptedCount, 0);
   assert.ok(result.rejectedRecords.some(x => x.code === "conflicting_metric_attestations"));
 });
+
+test("deep-freezes nested verified metric objects", () => {
+  const result = buildPiLaunchpadVerifiedMetrics({ envelope: envelope(), attestations: attestations(), trustRecords, now: NOW });
+  assert.equal(Object.isFrozen(result.verifiedMetrics), true);
+  assert.equal(Object.isFrozen(result.verifiedMetrics.liquidity), true);
+  assert.throws(() => { result.verifiedMetrics.liquidity.tvlPi = 1; }, TypeError);
+  assert.equal(result.verifiedMetrics.liquidity.tvlPi, 12000);
+});
