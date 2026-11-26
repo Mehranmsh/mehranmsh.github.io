@@ -97,11 +97,22 @@ export const INTELLIGENCE_CAPABILITIES = Object.freeze({
             "scripts/intelligence-capabilities.mjs",
             "scripts/intelligence-capabilities.test.mjs",
             ".github/workflows/mehran-intelligence-runner.yml",
-            "docs/INTELLIGENCE_EXECUTION_PROTOCOL.md"
+            "docs/INTELLIGENCE_EXECUTION_PROTOCOL.md",
+            "scripts/intelligence-architecture-review.mjs"
           ]
         }
       }
     }
+  }),
+  architecture_review: freezeCapability({
+    id: "architecture_review",
+    status: "active",
+    permissionTier: "read_only",
+    executors: ["github_actions_runner"],
+    requiresApproval: false,
+    autonomous: true,
+    description: "Produce an evidence-linked deterministic architecture map, gap analysis, and phased blueprint without AI inference or repository writes.",
+    inputSchema: {}
   }),
   run_repository_tests: freezeCapability({
     id: "run_repository_tests",

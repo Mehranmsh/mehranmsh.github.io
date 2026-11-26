@@ -88,7 +88,7 @@ test("runner resumes a durable completed result checkpoint without repeating exe
   assert.ok(workerSource.includes('checkpointBytes > 4096'));
 });
 
-test("all eight active capabilities are registered with their permission tiers", () => {
+test("all nine active capabilities are registered with their permission tiers", () => {
   const expected = [
     "project_status_report",
     "social_metrics_report",
@@ -96,6 +96,7 @@ test("all eight active capabilities are registered with their permission tiers",
     "repository_quality_check",
     "source_security_audit",
     "inspect_repository",
+    "architecture_review",
     "run_repository_tests",
     "propose_code_patch"
   ];
@@ -156,6 +157,7 @@ test("executor metadata matches the actual Worker and GitHub Actions routing", (
     repository_quality_check: ["cloudflare_worker_scheduler", "github_actions_runner"],
     source_security_audit: ["github_actions_runner"],
     inspect_repository: ["github_actions_runner"],
+    architecture_review: ["github_actions_runner"],
     run_repository_tests: ["github_actions_runner"],
     propose_code_patch: ["github_actions_runner"]
   };
@@ -166,7 +168,7 @@ test("executor metadata matches the actual Worker and GitHub Actions routing", (
   assert.match(workerSchedulerSource, /action_type IN \('project_status_report','social_metrics_report'\)/);
   assert.match(workerSchedulerSource, /action_type IN \('service_health_report','repository_quality_check'\)/);
   assert.doesNotMatch(workerSchedulerSource, /source_security_audit|inspect_repository|propose_code_patch/);
-  assert.match(workerSource, /action_type IN \('repository_quality_check','service_health_report','source_security_audit','inspect_repository','run_repository_tests','propose_code_patch'\)/);
+  assert.match(workerSource, /action_type IN \('repository_quality_check','service_health_report','source_security_audit','inspect_repository','architecture_review','run_repository_tests','propose_code_patch'\)/);
   assert.match(runnerSource, /if \(task\.actionType === "inspect_repository"\)/);
   assert.match(runnerSource, /if \(task\.actionType === "run_repository_tests"\)/);
   assert.match(runnerSource, /function runFixedRepositoryTests\(task\)/);
@@ -175,7 +177,7 @@ test("executor metadata matches the actual Worker and GitHub Actions routing", (
   assert.ok(runnerActions, "GitHub runner must declare its action allowlist");
   assert.deepEqual(
     [...runnerActions[1].matchAll(/"([a-z_]+)"/g)].map(match => match[1]),
-    ["service_health_report", "repository_quality_check", "source_security_audit", "inspect_repository", "propose_code_patch"]
+    ["service_health_report", "repository_quality_check", "source_security_audit", "inspect_repository", "architecture_review", "propose_code_patch"]
   );
 });
 
@@ -201,9 +203,9 @@ test("runner does not create an automatic self-assessment follow-up", () => {
 });
 
 test("repository inspection report file-size limits stay aligned across Worker and Runner", () => {
-  assert.match(workerSource, /file\.bytes > 600000/);
-  assert.match(runnerSource, /file\.size > 600000/);
-  assert.match(runnerSource, /file\.bytes > 600000/);
+  assert.match(workerSource, /file\.bytes > 620000/);
+  assert.match(runnerSource, /file\.size > 620000/);
+  assert.match(runnerSource, /file\.bytes > 620000/);
 });
 
 test("AI mission planner uses JSON mode and extracts one complete balanced object", () => {
@@ -411,7 +413,8 @@ test("isolated test workflow runs one fixed suite without secrets or network acc
     "./intelligence-patch-generation.mjs",
     "./intelligence-patch-generation-service.mjs",
     "./intelligence-ai-quota.mjs",
-    "./intelligence-capabilities.mjs"
+    "./intelligence-capabilities.mjs",
+    "./intelligence-architecture-review.mjs"
   ]);
   for (const forbidden of [
     ["process", ".", "env"].join(""),
@@ -1356,8 +1359,8 @@ test("Intelligence mission planning and repository semantic analysis use the pro
 });
 
 test("repository inspection and source audit accept worker.js while preserving strict byte and SHA bounds", () => {
-  assert.match(runnerSource, /file\.size > 600000/);
-  assert.match(runnerSource, /file\.bytes > 600000/);
+  assert.match(runnerSource, /file\.size > 620000/);
+  assert.match(runnerSource, /file\.bytes > 620000/);
   assert.match(runnerSource, /totalBytes > 750000/);
   assert.match(runnerSource, /totalBytes <= 750000/);
   assert.match(runnerSource, /file\.path !== path/);
@@ -1585,7 +1588,8 @@ test("capability schemas are deeply immutable, including nested allowlists and v
     "scripts/intelligence-capabilities.mjs",
     "scripts/intelligence-capabilities.test.mjs",
     ".github/workflows/mehran-intelligence-runner.yml",
-    "docs/INTELLIGENCE_EXECUTION_PROTOCOL.md"
+    "docs/INTELLIGENCE_EXECUTION_PROTOCOL.md",
+    "scripts/intelligence-architecture-review.mjs"
   ]);
   assert.throws(() => pathsRule.itemEnum.push("secrets.env"), TypeError);
   assert.throws(() => { pathsRule.maxItems = 1000; }, TypeError);
@@ -1640,4 +1644,44 @@ test("agent validates claimed task envelopes and returns the claim token", () =>
   assert.match(agentSource, /JSON\.stringify\(\{ claimToken, status: outcome\.status, result: bounded\(outcome\.result, 2900\) \}\)/);
   assert.match(agentSource, /encodeURIComponent\(taskId\)/);
   assert.doesNotMatch(agentSource, /encodeURIComponent\(task\.id\)/);
+});
+
+import { buildIntelligenceArchitectureReview, compactIntelligenceArchitectureReview } from "./intelligence-architecture-review.mjs";
+test("private inbox resolves and attaches a verified immutable base SHA only for authorized test tasks", () => {
+  assert.match(workerSource, /resolveMainCommitSha/);
+  assert.match(workerSource, /mission\.scope\.allowed_actions\.includes\("run_repository_tests"\)/);
+  assert.match(workerSource, /baseSha: testBaseSha/);
+  assert.match(workerSource, /private_inbox_test_base_sha_invalid/);
+});
+
+test("deterministic architecture review produces evidence-linked layers without AI", () => {
+  const paths = ["worker.js","scripts/intelligence-agent.mjs","scripts/intelligence-capabilities.mjs",".github/workflows/mehran-intelligence-runner.yml","docs/INTELLIGENCE_EXECUTION_PROTOCOL.md","scripts/intelligence-architecture-review.mjs"];
+  const workerFixture = [
+    "async function ingestPrivateIntelligenceInbox() {}",
+    "function createIntelligenceWorkPackage() {}",
+    "const intelligence_work_packages = 1;",
+    "const intelligence_tasks = 1;",
+    "const WORKERS_AI_INTELLIGENCE_DAILY_RESERVATION_CREDITS = 7000;",
+    "function reserveSocialWorkersAIBudget() {}"
+  ].join(String.fromCharCode(10));
+  const files = paths.map(path => ({ path, content: path === "worker.js"
+    ? workerFixture
+    : path === "scripts/intelligence-capabilities.mjs" ? "const INTELLIGENCE_CAPABILITIES = {};\\nconst permissionTier = 'read_only';\\n"
+    : "export const reviewFixture = true;\\n" }));
+  const result = buildIntelligenceArchitectureReview({ repository: "Mehranmsh/mehranmsh.github.io", commitSha: "a".repeat(40), files });
+  assert.equal(result.mode, "deterministic_static_evidence_no_ai_inference");
+  assert.equal(result.source.filesInspected, 6);
+  assert.ok(result.architecture.some(item => item.id === "orchestration" && item.status === "present"));
+  assert.ok(result.architecture.some(item => item.id === "ai_quota" && item.status === "present"));
+  assert.ok(result.limitations.some(item => item.includes("not an LLM-generated semantic review")));
+  const compact = compactIntelligenceArchitectureReview(result, 2900);
+  assert.ok(compact.length <= 2900);
+  assert.equal(JSON.parse(compact).architecture.length, 8);
+});
+test("deterministic architecture review rejects unapproved paths, duplicate files, and invalid revisions", () => {
+  const paths = ["worker.js","scripts/intelligence-agent.mjs","scripts/intelligence-capabilities.mjs",".github/workflows/mehran-intelligence-runner.yml","docs/INTELLIGENCE_EXECUTION_PROTOCOL.md","scripts/intelligence-architecture-review.mjs"];
+  const files = paths.map(path => ({ path, content: "export const x = 1;\\n" }));
+  assert.throws(() => buildIntelligenceArchitectureReview({ commitSha: "bad", files }), /commit SHA/);
+  assert.throws(() => buildIntelligenceArchitectureReview({ commitSha: "b".repeat(40), files: [...files.slice(0, 5), { path: "../secrets", content: "x" }] }), /allowlist/);
+  assert.throws(() => buildIntelligenceArchitectureReview({ commitSha: "b".repeat(40), files: [...files, files[0]] }), /six-file/);
 });

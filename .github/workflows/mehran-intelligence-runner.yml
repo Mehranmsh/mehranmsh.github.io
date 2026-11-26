@@ -44,10 +44,11 @@ jobs:
         run: |
           node --input-type=module <<'NODE'
           import { spawnSync } from "node:child_process";
-          import { mkdtempSync, rmSync } from "node:fs";
+          import { mkdtempSync, readFileSync, rmSync } from "node:fs";
           import { tmpdir } from "node:os";
           import { join } from "node:path";
           import { createHash } from "node:crypto";
+          import { compactIntelligenceArchitectureReview } from "./scripts/intelligence-architecture-review.mjs";
           import { verifyIntelligenceResultCheckpoint } from "./scripts/intelligence-checkpoint.mjs";
           import { readBoundedResponse } from "./scripts/intelligence-bounded-response.mjs";
           const base = process.env.MEHRAN_AGENT_URL;
@@ -296,6 +297,12 @@ jobs:
             if (task.actionType === "run_repository_tests") {
               return runFixedRepositoryTests(task);
             }
+            if (task.actionType === "architecture_review") {
+              const { buildIntelligenceArchitectureReview } = await import("./scripts/intelligence-architecture-review.mjs");
+              const reviewPaths = ["worker.js","scripts/intelligence-agent.mjs","scripts/intelligence-capabilities.mjs",".github/workflows/mehran-intelligence-runner.yml","docs/INTELLIGENCE_EXECUTION_PROTOCOL.md","scripts/intelligence-architecture-review.mjs"];
+              const commitSha = runHost("git", ["rev-parse", "HEAD"]);
+              return buildIntelligenceArchitectureReview({ repository: "Mehranmsh/mehranmsh.github.io", commitSha, files: reviewPaths.map(path => ({ path, content: readFileSync(path, "utf8") })) });
+            }
             if (task.actionType === "propose_code_patch") {
               let payload = {};
               let checkpoint = {};
@@ -408,7 +415,8 @@ jobs:
                 "scripts/intelligence-capabilities.mjs",
                 "scripts/intelligence-capabilities.test.mjs",
                 ".github/workflows/mehran-intelligence-runner.yml",
-                "docs/INTELLIGENCE_EXECUTION_PROTOCOL.md"
+                "docs/INTELLIGENCE_EXECUTION_PROTOCOL.md",
+                "scripts/intelligence-architecture-review.mjs"
               ]);
               let payload = {};
               try {
@@ -444,7 +452,7 @@ jobs:
                 const file = await readJsonResponse(response, 1024 * 1024);
                 if (file.type !== "file" || file.path !== path || file.encoding !== "base64" ||
                     typeof file.content !== "string" || typeof file.sha !== "string" || !/^[a-f0-9]{40}$/i.test(file.sha) ||
-                    !Number.isInteger(file.size) || file.size < 0 || file.size > 600000) {
+                    !Number.isInteger(file.size) || file.size < 0 || file.size > 620000) {
                   throw new Error(`GitHub returned an invalid or oversized source file for ${path}.`);
                 }
                 const source = Buffer.from(file.content.replace(/\n/g, ""), "base64").toString("utf8");
@@ -508,7 +516,7 @@ jobs:
                 const file = await readJsonResponse(response, 1024 * 1024);
                 if (file.type !== "file" || file.path !== path || typeof file.content !== "string" || file.encoding !== "base64" ||
                     typeof file.sha !== "string" || !/^[a-f0-9]{40}$/i.test(file.sha) ||
-                    !Number.isInteger(file.size) || file.size < 0 || file.size > 600000) {
+                    !Number.isInteger(file.size) || file.size < 0 || file.size > 620000) {
                   throw new Error(`Unexpected or oversized GitHub content response for ${path}`);
                 }
                 const text = Buffer.from(file.content.replace(/\n/g, ""), "base64").toString("utf8");
@@ -591,7 +599,7 @@ jobs:
               const validationSource = validationStart >= 0 && validationEnd > validationStart ? workerSource.text.slice(validationStart, validationEnd) : "";
               const agentSource = agentStart >= 0 && agentEnd > agentStart ? workerSource.text.slice(agentStart, agentEnd) : "";
               const mcpSource = mcpStart >= 0 && mcpEnd > mcpStart ? workerSource.text.slice(mcpStart, mcpEnd) : "";
-              const capabilityActions = ["service_health_report", "repository_quality_check", "source_security_audit", "inspect_repository", "propose_code_patch"];
+              const capabilityActions = ["service_health_report", "repository_quality_check", "source_security_audit", "inspect_repository", "architecture_review", "propose_code_patch"];
               const capabilitySections = [plannerSource, validationSource, agentSource, mcpSource, runnerSource.text];
               const capabilityAllowlistAligned = capabilitySections.every(section =>
                 section.length > 0 && capabilityActions.every(action => section.includes(action))
@@ -655,6 +663,9 @@ jobs:
           function serializeBoundedResult(value, maxChars = 3000) {
             if (!Number.isInteger(maxChars) || maxChars < 256) {
               throw new Error("Invalid bounded-result character limit.");
+            }
+            if (value?.type === "architecture_review") {
+              return compactIntelligenceArchitectureReview(value, maxChars);
             }
             const full = JSON.stringify(value);
             if (typeof full !== "string") throw new Error("Task result is not JSON serializable.");
@@ -771,7 +782,8 @@ jobs:
                   "scripts/intelligence-capabilities.mjs",
                   "scripts/intelligence-capabilities.test.mjs",
                   ".github/workflows/mehran-intelligence-runner.yml",
-                  "docs/INTELLIGENCE_EXECUTION_PROTOCOL.md"
+                  "docs/INTELLIGENCE_EXECUTION_PROTOCOL.md",
+                  "scripts/intelligence-architecture-review.mjs"
                 ]);
                 const files = Array.isArray(report?.files) ? report.files : [];
                 const seen = new Set();
@@ -779,7 +791,7 @@ jobs:
                 const filesValid = files.length >= 1 && files.length <= 6 && files.every(file => {
                   if (!file || typeof file.path !== "string" || !allowedPaths.has(file.path) || seen.has(file.path) ||
                       typeof file.blobSha !== "string" || !/^[a-f0-9]{40}$/i.test(file.blobSha) ||
-                      !Number.isInteger(file.bytes) || file.bytes < 0 || file.bytes > 600000 ||
+                      !Number.isInteger(file.bytes) || file.bytes < 0 || file.bytes > 620000 ||
                       !Number.isInteger(file.lineCount) || file.lineCount < 0 || file.lineCount > 20000 ||
                       !Array.isArray(file.symbols) || file.symbols.length > 2 ||
                       file.symbols.some(symbol => typeof symbol !== "string" || symbol.length > 60)) return false;

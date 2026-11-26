@@ -1,4 +1,5 @@
 import { execFile } from "node:child_process";
+import { readFileSync } from "node:fs";
 import { promisify } from "node:util";
 import { readBoundedResponse } from "./intelligence-bounded-response.mjs";
 
@@ -77,7 +78,7 @@ async function main() {
   const claimToken = typeof task.claimToken === "string" ? task.claimToken : "";
   const allowedActions = new Set([
     "repository_quality_check", "service_health_report", "source_security_audit",
-    "inspect_repository", "run_repository_tests", "propose_code_patch"
+    "inspect_repository", "architecture_review", "run_repository_tests", "propose_code_patch"
   ]);
   if (!/^[A-Za-z0-9._:-]{1,160}$/.test(taskId) || !/^[A-Za-z0-9_-]{43}$/.test(claimToken) ||
       typeof task.actionType !== "string" || !allowedActions.has(task.actionType)) {
@@ -87,7 +88,13 @@ async function main() {
   console.log(`Claimed task ${bounded(taskId, 80)}: ${bounded(task.title, 160)}`);
   let outcome;
   try {
-    if (task.actionType === "repository_quality_check") {
+    if (task.actionType === "architecture_review") {
+      const { buildIntelligenceArchitectureReview, compactIntelligenceArchitectureReview } = await import("./intelligence-architecture-review.mjs");
+      const reviewPaths = ["worker.js","scripts/intelligence-agent.mjs","scripts/intelligence-capabilities.mjs",".github/workflows/mehran-intelligence-runner.yml","docs/INTELLIGENCE_EXECUTION_PROTOCOL.md","scripts/intelligence-architecture-review.mjs"];
+      const commit = await run("git", ["rev-parse", "HEAD"], { timeout: 10000, maxBuffer: 4096 });
+      const review = buildIntelligenceArchitectureReview({ repository: "Mehranmsh/mehranmsh.github.io", commitSha: String(commit.stdout || "").trim(), files: reviewPaths.map(path => ({ path, content: readFileSync(new URL("../" + path, import.meta.url), "utf8") })) });
+      outcome = { status: "completed", result: compactIntelligenceArchitectureReview(review, 2800) };
+    } else if (task.actionType === "repository_quality_check") {
       outcome = await runQualityChecks();
     } else if (task.actionType === "service_health_report") {
       outcome = await runServiceHealth();
