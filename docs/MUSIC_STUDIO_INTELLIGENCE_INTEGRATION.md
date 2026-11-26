@@ -38,6 +38,43 @@ Make MEHRAN INTELLIGENCE the production coordinator across the complete Music St
 - Final export and versioned archive
 
 Intelligence participates at every stage by analyzing, planning, explaining, and evaluating. Audio processing itself must be executed by a verified DSP/model tool, not simulated by text responses.
+### Stage-by-stage Intelligence responsibilities
+
+Intelligence is a studio-wide co-producer, not a Vocal Lab-only feature. Every stage exposes contextual guidance, stage-specific checks, and a clear explanation of why a recommendation was made.
+
+| Studio stage | Intelligence assistance |
+|---|---|
+| Project brief / Overview | Clarify the song's story, genre, emotional arc, target sound, singer range, and practical recording constraints. |
+| Lyrics Lab | Review meaning, natural phrasing, syllable density, rhyme, singability, breath points, and emotional progression; offer alternatives without replacing approved lyrics. |
+| Composition | Help explore key and tempo, melodic contour, phrase length, harmony, chord movement, and section contrast; flag notes or phrases likely to be uncomfortable for the singer. |
+| Arrangement | Suggest instrument roles, register, density, entrances/exits, dynamics, transitions, backing vocals, and space around the lead. |
+| Recording | Provide setup checklist, input-level/headroom guidance, take organization, and recording-quality diagnostics. |
+| Performance Coach / Vocal Lab | Turn the approved lyric and melody into a phrase-by-phrase singing guide; analyze a recorded take for pitch/rhythm/phrasing only when a suitable analysis engine is available. |
+| Instrument editing | Help identify timing, tuning, arrangement, and balance issues; recommend edits as reversible proposals. |
+| Mixing | Explain masking, tonal balance, dynamics, stereo placement, effects, and reference comparisons; suggest bounded changes and loudness-matched A/B. |
+| Mastering | Check headroom, loudness, true-peak risk, tonal/dynamic consistency, and delivery targets; never label a file mastered without actual processing and validation. |
+| Export / Archive | Verify format, sample rate, bit depth where supported, channel layout, duration, file integrity, and version provenance. |
+
+### MEHRAN PERFORMANCE COACH
+
+Performance coaching is a first-class capability available from the relevant lyric, composition, and Vocal Lab contexts, not a tool restricted to audio cleanup. For each phrase or lyric line, the coach should be able to present:
+
+- The intended emotion and energy, with a short reason tied to the song's story.
+- Suggested delivery: soft, intimate, conversational, strong, airy, restrained, or another clearly explained direction.
+- Word-level emphasis and which syllables should remain light.
+- Breath marks and phrase boundaries, checked against the melody and available breath length.
+- Notes or syllables to sustain, shorten, release, or connect (legato/staccato).
+- Optional ornament, vibrato, dynamics, and phrasing suggestions, never mandatory.
+- A singer-friendly practice sequence: speak the line rhythmically, hum the melody, sing slowly, then perform at target tempo.
+- After a take is recorded, a comparison report for pitch contour, timing, note stability, phrase endings, and alignment with the intended melody, but only when a validated pitch/onset analysis component is available.
+
+The coach must distinguish musical facts from artistic suggestions. It must not invent exact notes, claim to hear a recording it has not analyzed, or promise that automated pitch scores define a good performance. Emotion, interpretation, and vocal identity remain with the singer.
+
+Initial delivery should be offline and take-based: the singer chooses a phrase or take, receives a written/visual guide, records, and reviews feedback. Real-time live coaching is a later phase because it requires low-latency audio analysis and careful mobile performance testing. Do not imply that real-time coaching already exists.
+
+### Shared stage intelligence contract
+
+Use one versioned stage graph and common task/result envelope across the whole Studio. Each stage task identifies its stage, active project revision, selected inputs, expected output type, allowed operations, and quality checks. Analysis-only tasks must remain read-only. Any processing creates a new derived asset, retains the original, records provenance, and supports A/B and undo. AUTO STUDIO may carry out only explicitly allow-listed reversible operations within resource limits; PRO STUDIO exposes the same proposals and parameters for manual control.
 
 ## Two operating modes
 
