@@ -13,6 +13,7 @@ const DEFAULT_LIMITS = Object.freeze({
   maxGraphNodes: 40,
   maxGraphEdges: 80,
   maxTasks: 50,
+  maxInputRecords: 5000,
   maxOutputChars: 18000
 });
 const SENSITIVE = new Set(["secret", "credential", "wallet", "financial", "private_social", "health", "identity"]);
@@ -48,9 +49,11 @@ export function buildIntelligenceContextSnapshot(records, options = {}) {
     maxGraphNodes: boundedInteger(options.maxGraphNodes, DEFAULT_LIMITS.maxGraphNodes, 100),
     maxGraphEdges: boundedInteger(options.maxGraphEdges, DEFAULT_LIMITS.maxGraphEdges, 200),
     maxTasks: boundedInteger(options.maxTasks, DEFAULT_LIMITS.maxTasks, 100),
+    maxInputRecords: boundedInteger(options.maxInputRecords, DEFAULT_LIMITS.maxInputRecords, 10000),
     maxOutputChars: Math.max(512, boundedInteger(options.maxOutputChars, DEFAULT_LIMITS.maxOutputChars, 30000))
   };
-  const ownerRecords = records.filter(record =>
+  const boundedRecords = records.slice(0, limits.maxInputRecords);
+  const ownerRecords = boundedRecords.filter(record =>
     record && typeof record === "object" && !Array.isArray(record) &&
     record.owner_uid === ownerUid && !record.deleted_at &&
     (!record.status || record.status === "active") &&
@@ -121,6 +124,8 @@ export function buildIntelligenceContextSnapshot(records, options = {}) {
     diagnostics: {
       ownerScoped: true,
       inputRecords: records.length,
+      inspectedInputRecords: boundedRecords.length,
+      omittedInputRecords: Math.max(0, records.length - boundedRecords.length),
       inspectedOwnerRecords: ownerRecords.length,
       memoryItems: memory.memories.length,
       graphNodes: memory.graph.nodes.length,
