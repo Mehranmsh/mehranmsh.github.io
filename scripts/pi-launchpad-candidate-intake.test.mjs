@@ -42,13 +42,24 @@ test("rejects missing identities and malformed records", () => {
   assert.equal(result.rejected.length, 4);
 });
 
-test("deduplicates token IDs without silently replacing the first record", () => {
+test("deduplicates token IDs without silently replacing the first valid record", () => {
   const result = preparePiLaunchpadCandidateIntake([
     { tokenId: "same", name: "First" }, { tokenId: "same", name: "Second" }
   ]);
   assert.equal(result.candidateCount, 1);
   assert.equal(result.candidates[0].name, "First");
   assert.equal(result.rejected[0].reason, "duplicate_token_id");
+});
+
+test("an invalid row does not reserve a token ID against a later valid row", () => {
+  const result = preparePiLaunchpadCandidateIntake([
+    { tokenId: "same", name: "Invalid", symbol: "S".repeat(25) },
+    { tokenId: "same", name: "Valid", symbol: "OK" }
+  ]);
+  assert.equal(result.candidateCount, 1);
+  assert.equal(result.candidates[0].name, "Valid");
+  assert.equal(result.rejectedCount, 1);
+  assert.equal(result.rejected[0].reason, "invalid_symbol");
 });
 
 test("rejects Testnet and other network claims from the Mainnet intake", () => {
