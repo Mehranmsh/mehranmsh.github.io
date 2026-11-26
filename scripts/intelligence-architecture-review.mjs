@@ -82,3 +82,55 @@ export function buildIntelligenceArchitectureReview(input) {
     limitations: ["This is deterministic source analysis, not an LLM-generated semantic review.", "Evidence is limited to the six fixed files and exact commit SHA listed above.", "No repository code was executed, no external AI provider was called, and no source or production state was modified."]
   };
 }
+
+
+export function compactIntelligenceArchitectureReview(report, maxChars = 2900) {
+  if (!report || report.type !== "intelligence_architecture_review" ||
+      !Number.isInteger(maxChars) || maxChars < 512) {
+    throw new Error("A valid architecture review and bounded output size are required.");
+  }
+  const compact = {
+    type: report.type,
+    generatedAt: report.generatedAt,
+    mode: report.mode,
+    repository: report.repository,
+    commitSha: report.commitSha,
+    source: {
+      filesInspected: Number(report.source?.filesInspected || 0),
+      totalBytes: Number(report.source?.totalBytes || 0)
+    },
+    summary: report.summary,
+    architecture: (Array.isArray(report.architecture) ? report.architecture : []).map(item => ({
+      id: String(item?.id || "").slice(0, 40),
+      title: String(item?.title || "").slice(0, 80),
+      status: item?.status,
+      evidence: (Array.isArray(item?.evidence) ? item.evidence : []).slice(0, 1).map(ev => ({
+        path: String(ev?.path || "").slice(0, 100),
+        line: Number(ev?.line || 0)
+      }))
+    })),
+    gaps: (Array.isArray(report.gaps) ? report.gaps : []).slice(0, 4).map(item => ({
+      id: String(item?.id || "").slice(0, 60),
+      severity: item?.severity,
+      detail: String(item?.detail || "").slice(0, 100)
+    })),
+    targetBlueprint: (Array.isArray(report.targetBlueprint) ? report.targetBlueprint : []).slice(0, 7).map(item => String(item).slice(0, 64)),
+    roadmap: (Array.isArray(report.roadmap) ? report.roadmap : []).slice(0, 4).map(item => ({
+      phase: Number(item?.phase || 0),
+      name: String(item?.name || "").slice(0, 40),
+      actions: (Array.isArray(item?.actions) ? item.actions : []).slice(0, 1).map(action => String(action).slice(0, 90))
+    })),
+    limitations: (Array.isArray(report.limitations) ? report.limitations : []).slice(0, 2).map(item => String(item).slice(0, 100))
+  };
+  let serialized = JSON.stringify(compact);
+  if (serialized.length > maxChars) {
+    compact.architecture = compact.architecture.map(item => ({ ...item, title: item.title.slice(0, 48), evidence: item.evidence.slice(0, 1) }));
+    compact.gaps = compact.gaps.slice(0, 3).map(item => ({ ...item, detail: item.detail.slice(0, 64) }));
+    compact.targetBlueprint = compact.targetBlueprint.slice(0, 5).map(item => item.slice(0, 48));
+    compact.roadmap = compact.roadmap.slice(0, 3).map(item => ({ ...item, name: item.name.slice(0, 28), actions: item.actions.slice(0, 1).map(action => action.slice(0, 60)) }));
+    compact.limitations = compact.limitations.slice(0, 1).map(item => item.slice(0, 80));
+    serialized = JSON.stringify(compact);
+  }
+  if (serialized.length > maxChars) throw new Error("Architecture review exceeds the bounded task-result size.");
+  return serialized;
+}
