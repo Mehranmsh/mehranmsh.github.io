@@ -6,7 +6,7 @@
  */
 const HEX_ID = /^plev_[a-f0-9]{32}$/;
 const NETWORKS = new Set(["pi-mainnet", "pi-testnet"]);
-const TYPES = new Set([
+const SOURCE_KIND_BY_TYPE = Object.freeze({\n  official_project_claim: "official_project",\n  chain_indexer_observation: "chain_indexer",\n  dex_indexer_observation: "dex_indexer",\n  security_audit_claim: "security_auditor",\n  community_claim: "community"\n});\nconst TYPES = new Set([
   "official_project_claim",
   "chain_indexer_observation",
   "dex_indexer_observation",
