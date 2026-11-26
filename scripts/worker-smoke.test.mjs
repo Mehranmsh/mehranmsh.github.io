@@ -629,7 +629,7 @@ test("Agent API stale-claim recovery includes package-bound allowlisted tasks", 
   const route = workerSource.slice(start, end);
   assert.equal((route.match(/UPDATE intelligence_tasks SET status='blocked'/g) || []).length, 1);
   assert.equal((route.match(/UPDATE intelligence_tasks SET status='accepted'/g) || []).length, 1);
-  assert.match(route, /datetime\(agent_claimed_at\) < datetime\('now','-15 minutes'\)/);
+  assert.match(route, /datetime\(agent_claimed_at\)<datetime\('now','-15 minutes'\)/);
   assert.match(route, /action_type IN \('repository_quality_check','service_health_report','source_security_audit','inspect_repository','run_repository_tests','propose_code_patch'\)/);
   assert.match(route, /work_package_id IS NULL OR EXISTS \(SELECT 1 FROM intelligence_work_packages wp, json_each\(CASE WHEN json_valid\(wp\.scope_json\) THEN wp\.scope_json ELSE '\{\}' END, '\$\.allowedActions'\) scoped WHERE wp\.id=t\.work_package_id AND scoped\.value=t\.action_type\)/,
     "claim selection must revalidate each package task against its persisted allowedActions");
