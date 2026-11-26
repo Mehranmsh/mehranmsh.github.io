@@ -126,3 +126,22 @@ test("rejects a replacement envelope for a different archive id", () => {
     replacementEnvelopeSha256: foreignDigest
   }).accepted, false);
 });
+
+
+test("every D1 statement has an exact placeholder-to-binding count", () => {
+  const result = buildPiTestnetArchiveD1ReplacementPlan(input);
+  assert.equal(result.accepted, true);
+  for (const [phaseName, statements] of [
+    ["phase1", result.phase1],
+    ["phase2", result.phase2]
+  ]) {
+    for (const [index, item] of statements.entries()) {
+      const placeholderCount = (item.sql.match(/\\?/g) || []).length;
+      assert.equal(
+        placeholderCount,
+        item.params.length,
+        `${phaseName} statement ${index + 1} has mismatched SQL bindings`
+      );
+    }
+  }
+});
