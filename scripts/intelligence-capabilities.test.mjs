@@ -357,7 +357,7 @@ test("private runner processes queued work without automatically seeding baselin
   assert.doesNotMatch(runnerSource, /mehran-intelligence-repo-inspection-v2-/);
   assert.doesNotMatch(runnerSource, /mehran-intelligence-self-improvement-v3-/);
   assert.doesNotMatch(runnerSource, /mehran-intelligence-fixed-tests-v2-/);
-  assert.match(runnerSource, /request\("\/agent\/v1\/tasks\/next"\)/);
+  assert.match(runnerSource, /request\("\/agent\/v1\/owner\/tasks\/next", \{\}, ownerHeaders\)/);
   assert.match(runnerSource, /Automatic baseline, AI self-improvement, and fixed-test package seeding is intentionally disabled/);
   assert.ok(runnerSource.includes('cron: "*/15 * * * *"'));
   assert.doesNotMatch(runnerSource, /create-review-pr-from-verified-patch/);
@@ -990,11 +990,15 @@ test("Patch generation timeout and model failures remain terminal instead of tri
 });
 
 test("Intelligence task recovery is claim-token scoped, bounded, and attempt limited", () => {
-  const start = workerSource.indexOf('if (path === "/agent/v1/tasks/next" && method === "GET")');
-  const end = workerSource.indexOf('const checkpointMatch = path.match', start);
+  const start = workerSource.indexOf('if ((path === "/agent/v1/tasks/next" || path === "/agent/v1/owner/tasks/next") && method === "GET")');
+  const end = workerSource.indexOf('const taskRouteLane =', start);
   assert.ok(start >= 0 && end > start);
   const claimRoute = workerSource.slice(start, end);
-  assert.match(claimRoute, /datetime\(agent_claimed_at\) < datetime\('now','-15 minutes'\)/);
+  assert.match(claimRoute, /datetime\(agent_claimed_at\)<datetime\('now','-15 minutes'\)/);
+  assert.match(claimRoute, /queue_lane='owner'/);
+  assert.match(claimRoute, /queue_lane='shared'/);
+  assert.match(claimRoute, /owner_uid IS NOT NULL/);
+  assert.match(claimRoute, /owner_uid IS NULL/);
   assert.match(claimRoute, /COALESCE\(attempts,0\)>=COALESCE\(max_attempts,3\)/);
   assert.match(claimRoute, /COALESCE\(attempts,0\)<COALESCE\(max_attempts,3\)/);
   assert.match(claimRoute, /attempts=COALESCE\(attempts,0\)\+1/);
