@@ -6170,9 +6170,14 @@ async function ensureIntelligenceSchedulerRunsTable(env) {
 
 const INTELLIGENCE_INSPECT_ALLOWED_PATHS = Object.freeze([
   "worker.js",
+  "index.html",
+  "music-studio.html",
+  "instrument-sampler.js",
+  "engine/server.py",
+  "engine/model_policy.py",
+  "engine/preflight.py",
   "scripts/intelligence-agent.mjs",
   "scripts/intelligence-capabilities.mjs",
-  "scripts/intelligence-capabilities.test.mjs",
   ".github/workflows/mehran-intelligence-runner.yml",
   "docs/INTELLIGENCE_EXECUTION_PROTOCOL.md"
 ]);
@@ -7393,6 +7398,15 @@ async function ingestPrivateIntelligenceInbox(env) {
       const repositoryBaseSha = mission.scope.allowed_actions.includes("run_repository_tests")
         ? await resolvePrivateInboxRepositoryBaseSha()
         : "";
+      const inspectionPaths = resolvePrivateIntelligenceInspectionPaths(mission);
+      const inspectionTasks = inspectionPaths.map((path, index) => ({
+        taskId: "inspect-source-" + (index + 1),
+        title: "Inspect module source: " + path,
+        description: "Read this one allowlisted source file at the immutable repository commit, then perform evidence-bounded semantic analysis. Do not execute repository content or modify files.",
+        actionType: "inspect_repository",
+        dependsOn: [],
+        paths: [path]
+      }));
       const packageInput = {
         idempotencyKey: "private-inbox:" + mission.mission_id,
         title: cleanText(mission.title, 150) || "Private Intelligence diagnostic",
@@ -7408,14 +7422,7 @@ async function ingestPrivateIntelligenceInbox(env) {
           evidence
         },
         tasks: [
-          {
-            taskId: "inspect-source",
-            title: "Inspect exact Intelligence source and runner files",
-            description: "Read the allowlisted source files at the current repository commit. Trace the generated diff validation and private report persistence paths. Do not execute repository content or modify files.",
-            actionType: "inspect_repository",
-            dependsOn: [],
-            paths: resolvePrivateIntelligenceInspectionPaths(mission)
-          },
+          ...inspectionTasks,
           {
             taskId: "security-review",
             title: "Run bounded source security audit",
@@ -7428,7 +7435,7 @@ async function ingestPrivateIntelligenceInbox(env) {
             title: "Verify repository and runner state",
             description: "Collect repository metadata and runner configuration needed to anchor the diagnostic findings to the current source revision.",
             actionType: "repository_quality_check",
-            dependsOn: ["inspect-source"]
+            dependsOn: inspectionTasks.map(item => item.taskId)
           },
           ...(mission.scope.allowed_actions.includes("run_repository_tests") ? [{
             taskId: "repository-tests",
