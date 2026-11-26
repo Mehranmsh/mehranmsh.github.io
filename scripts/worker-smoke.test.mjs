@@ -490,7 +490,7 @@ test("Intelligence task listing repairs only stale approval labels on explicitly
   assert.ok(start >= 0 && end > start);
   const route = workerSource.slice(start, end);
   assert.match(route, /status='awaiting_approval' AND requires_approval=0/);
-  assert.ok(route.includes("assigned_to='mehran_intelligence' AND queue_lane='owner'"));
+  assert.ok(route.includes("assigned_to IN ('mehran_intelligence','shared')"));
   assert.ok(route.includes("action_type IN ('project_status_report','social_metrics_report','service_health_report','repository_quality_check')"));
   assert.ok(route.indexOf("UPDATE intelligence_tasks") < route.indexOf("SELECT * FROM intelligence_tasks"));
 });
@@ -1430,7 +1430,7 @@ test("MEHRAN Intelligence Agent API is enabled only behind its dedicated bearer 
   assert.match(route, /status='awaiting_approval' AND requires_approval=0/);
   assert.match(route, /agent_claimed_at=CURRENT_TIMESTAMP/);
   assert.match(route, /WHERE id=\? AND status IN \('queued','accepted','retry_wait'\).*\$\{lanePredicate\}/s);
-  assert.match(route, /agent_claimed_at IS NOT NULL AND datetime\(agent_claimed_at\) < datetime\('now','-15 minutes'\)/);
+  assert.match(route, /agent_claimed_at IS NOT NULL AND datetime\(agent_claimed_at\)<datetime\('now','-15 minutes'\)/);
   assert.match(route, /agent_claimed_at IS NOT NULL AND datetime\(agent_claimed_at\)>=datetime\('now','-15 minutes'\)/);
   assert.doesNotMatch(route, /work_package_id IS NULL AND agent_claimed_at IS NOT NULL/,
     "agent API recovery must also release expired claims from durable work packages");
@@ -1492,7 +1492,7 @@ test("scheduled Intelligence runner is single-flight, secret-backed and restrict
     "each scheduled tick must bound both task count and execution time");
   assert.match(runner, /remaining eligible tasks stay queued for the next scheduled tick/,
     "unclaimed work must remain queued when the execution budget is reached");
-  assert.match(workerSource, /datetime\(agent_claimed_at\) < datetime\('now','-15 minutes'\)/,
+  assert.match(workerSource, /datetime\(agent_claimed_at\)<datetime\('now','-15 minutes'\)/,
     "claim recovery must use the documented 15-minute ownership window");
   assert.match(runner, /if: github\.ref == 'refs\/heads\/main'/);
   assert.match(runner, /permissions:\s*contents:\s*read/,
@@ -2753,7 +2753,7 @@ test("Task Hub can create and label only owner-approved allowlisted actions", ()
   }
   assert.match(worker, /const autoApproved=preapprovedActions\.includes\(actionType\)&&\["mehran_intelligence","shared"\]\.includes\(assignedTo\)&&body\.requiresApproval!==true/);
   assert.match(worker, /const requiresApproval=Boolean\(body\.requiresApproval\|\|\s*\(actionType&&!autoApproved\)\)/);
-  assert.match(worker, /action_type,action_payload\) VALUES\(\?,\?,\?,\?,\?,\?,\?,\?,\?,\?\)/);
+  assert.match(worker, /action_type,action_payload,owner_uid,queue_lane\) VALUES\(\?,\?,\?,\?,\?,\?,\?,\?,\?,\?,\?,\?\)/);
   assert.match(html, /actionTypes\[task\.actionType\]/);
 });
 
@@ -3409,7 +3409,7 @@ test("Agent task claim tokens fence checkpoint and result commits to the current
   const schedulerRecoveryEnd = workerSource.indexOf('// Repair only stale approval labels', schedulerRecoveryStart);
   const schedulerRecovery = workerSource.slice(schedulerRecoveryStart, schedulerRecoveryEnd);
   assert.match(schedulerRecovery, /SET status=\?,agent_claimed_at=NULL,agent_claim_token_hash=''/);
-  assert.match(schedulerRecovery, /WHERE id=\? AND status='in_progress' AND agent_claimed_at IS NOT NULL AND datetime\(agent_claimed_at\)<datetime\('now','-15 minutes'\)/,
+  assert.match(schedulerRecovery, /WHERE id=\? AND status='in_progress'.*agent_claimed_at IS NOT NULL AND datetime\(agent_claimed_at\)<datetime\('now','-15 minutes'\)/s,
     "scheduler recovery must re-check stale ownership atomically before revoking a claim");
   assert.ok(schedulerRecovery.includes("json_each(CASE WHEN json_valid(wp.scope_json) THEN wp.scope_json ELSE '{}' END, '$.allowedActions')"),
     "scheduled recovery must exclude package tasks without explicit action authorization");
