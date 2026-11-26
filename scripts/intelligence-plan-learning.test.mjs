@@ -67,3 +67,17 @@ test("is deterministic, bounded and read-only", () => {
   assert.deepEqual({revisions,events},before);
   assert.equal(a.diagnostics.revisionsInspected,1);
 });
+
+
+test("selects newest bounded history and ignores duplicate event identifiers", () => {
+  const revisions = [rev(1,[task("a")]),rev(2,[task("a",{priority:"high"})]),
+    rev(3,[task("a",{priority:"normal"})]),rev(4,[task("a",{priority:"high"})])];
+  const duplicated = event(4,"a","failed");
+  const result = learnFromIntelligencePlanOutcomes(revisions.reverse(),
+    [event(2,"a","completed"),event(3,"a","failed"),duplicated,{...duplicated,revision_id:"r2",event_id:duplicated.event_id}],
+    {...opts,maxRevisions:3,maxEvents:3});
+  assert.equal(result.diagnostics.revisionsAccepted,3);
+  assert.equal(result.diagnostics.eventsInspected,3);
+  assert.equal(result.observations.length,2);
+  assert.ok(result.observations.every(item => item.revision_version >= 2));
+});
