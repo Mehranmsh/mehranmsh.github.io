@@ -209,7 +209,9 @@ export const PREAPPROVED_INTELLIGENCE_ACTION_TYPES = Object.freeze(
 );
 
 export function getIntelligenceCapability(capabilityId) {
-  return typeof capabilityId === "string" ? INTELLIGENCE_CAPABILITIES[capabilityId] || null : null;
+  return typeof capabilityId === "string" && Object.hasOwn(INTELLIGENCE_CAPABILITIES, capabilityId)
+    ? INTELLIGENCE_CAPABILITIES[capabilityId]
+    : null;
 }
 
 function validateValue(value, rule) {
