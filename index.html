@@ -1082,6 +1082,7 @@ input:focus,textarea:focus,select:focus,button:focus-visible,a:focus-visible{out
 #page-social .social-section-kicker{color:#8faeea;font-size:8px;letter-spacing:2px}
 #page-social .social-feed-heading h2{margin:6px 0 0;color:#eaf0fb;font-size:22px;font-weight:600;letter-spacing:-.7px}
 #page-social .social-feed-count{border:1px solid var(--q-line);border-radius:30px;color:#8da1bd;font-size:9px}
+#page-social .social-explore-filters{display:flex;gap:7px;flex-wrap:wrap;margin:12px 0 16px}#page-social .social-explore-filters .active{border-color:#4aaed2;background:rgba(54,158,198,.16);color:#b9edff}#page-social .explore-item{position:relative;overflow:hidden;border-radius:13px;background:#101c2e;min-height:150px}#page-social .explore-item>button{display:block;width:100%;height:100%;min-height:150px;padding:0;border:0;background:transparent}#page-social .explore-item img,#page-social .explore-item video{width:100%;height:100%;min-height:150px;object-fit:cover;display:block}#page-social .explore-text-tile{display:flex;flex-direction:column;gap:8px;justify-content:center;min-height:150px;padding:16px;text-align:left;color:#eaf0fb}#page-social .explore-text-tile span{font-size:11px;color:#9eb0c8;line-height:1.5}#page-social .explore-item-meta{display:flex;justify-content:space-between;gap:6px;padding:8px 9px;color:#eaf0fb;font-size:10px}#page-social .explore-item-meta small{color:#8da1bd}
 #page-social .social-feed-personalization{display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin-top:10px;color:#9eb0c8;font-size:10px}#page-social .social-feed-personalization label{display:flex;gap:6px;align-items:center}#page-social .social-feed-personalization input{width:112px;accent-color:#57c9ef}#page-social .social-feed-personalization button{font-size:9px;padding:5px 8px}
 #page-social #feedList{display:grid;gap:17px}
 #page-social #feedList>*{overflow:hidden;border:1px solid var(--q-line);border-radius:17px;background:#101c2e;box-shadow:0 12px 35px rgba(0,0,0,.13)}
@@ -1483,7 +1484,7 @@ body:has(#page-nexus.active) .main{padding-top:17px!important;padding-bottom:0!i
  </div>
 </main>
 
-<div class="social-view" id="social-explore"><div class="section-title"><h2>Explore people & posts</h2><span class="small-text">Search SOCIAL community</span></div><input class="search-box" id="exploreSearch" placeholder="Search people, posts, groups and channels..."><div id="searchResults"></div><div id="exploreGrid" class="explore-grid"></div><div id="exploreEmpty" class="empty">Search for people or topics to discover the community.</div></div>
+<div class="social-view" id="social-explore"><div class="section-title"><h2>Explore people & posts</h2><span class="small-text">Discover with MEHRAN Intelligence</span></div><input class="search-box" id="exploreSearch" placeholder="Search posts and creators..."><div class="social-explore-filters" role="group" aria-label="Explore filters"><button type="button" class="post-action explore-filter active" data-explore-filter="all" onclick="setExploreFilter('all')">✦ For you</button><button type="button" class="post-action explore-filter" data-explore-filter="media" onclick="setExploreFilter('media')">Media</button><button type="button" class="post-action explore-filter" data-explore-filter="videos" onclick="setExploreFilter('videos')">Videos</button><button type="button" class="post-action explore-filter" data-explore-filter="business" onclick="setExploreFilter('business')">Businesses</button><button type="button" class="post-action explore-filter" data-explore-filter="ai" onclick="setExploreFilter('ai')">AI accounts</button></div><div id="searchResults"></div><div id="exploreGrid" class="explore-grid"></div><div id="exploreEmpty" class="empty">No matching content yet. Try another search or filter.</div></div>
 
 <div class="social-view" id="social-reels"><div class="section-title"><h2>Reels</h2><span class="small-text">Short video discovery</span></div><div class="notice warn">Reels currently displays video posts saved locally on this device. Public video discovery and upload storage are not connected yet.</div><div id="reelsList"></div></div>
 
@@ -2831,15 +2832,27 @@ if(first)mediaHTML='<div class="post-media-stage" id="postmedia-'+post.id+'">'+m
 return '<article class="social-card" id="post-'+post.id+'"><div class="post-head"><div class="avatar">'+(post.avatarUrl?'<img src="'+sx(post.avatarUrl)+'" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:50%">':escapeHTML((post.author||"M").charAt(0).toUpperCase()))+'</div><div class="user-info"><strong>'+escapeHTML(post.displayName||post.author)+'</strong>'+(identityLabel?'<small style="color:#78dfff;font-weight:700">'+identityLabel+'</small>':'')+'<small>'+escapeHTML(post.date||"")+'</small></div>'+(socialUser&&post.author===currentUsername()?'<button class="post-action" onclick="deletePost(\''+post.id+'\')">Delete</button>':'')+'</div>'+(post.text?'<div class="post-text">'+socialRenderCustomEmoji(post.text)+'</div>':'')+mediaHTML+'<div class="post-actions"><button class="post-action" onclick="socialFeedShowLess(\''+post.id+'\')">− Show less</button><button class="post-action '+(liked?"liked":"")+'" onclick="toggleLike(\''+post.id+'\')">♡ '+Number(post.likesCount??(post.likes||[]).length)+' Likes</button><span class="small-text">'+Number(post.commentsCount??(post.comments||[]).length)+' comments</span><button class="post-action" onclick="socialBookmark(\''+post.id+'\',false)">☆ Save</button><button class="post-action" onclick="socialShare(\''+post.id+'\')">↗ Share</button><button class="post-action" onclick="socialTrackView(\''+post.id+'\')">◉ View</button></div><div class="comment-list">'+comments+'</div><div class="comment-form"><button type="button" class="btn secondary small" data-social-emoji-trigger data-emoji-target="comment-'+post.id+'">☺</button><input id="comment-'+post.id+'" placeholder="Write a comment..." onclick="if(!socialUser)requireAuth(\'comment\')"><button class="btn secondary small" onclick="addComment(\''+post.id+'\')">Send</button></div></article>';
 }).join("");
 }
+let exploreFilter="all";
+window.setExploreFilter=function(filter){exploreFilter=["all","media","videos","business","ai"].includes(filter)?filter:"all";document.querySelectorAll("[data-explore-filter]").forEach(button=>button.classList.toggle("active",button.dataset.exploreFilter===exploreFilter));renderExplore();};
+window.openExplorePost=function(id){switchSocial("feed");const target=$("post-"+id);if(target)target.scrollIntoView({behavior:"smooth",block:"start"});};
 function renderExplore(){
 const grid=$("exploreGrid");if(!grid)return;
-const q=($("exploreSearch")?.value||"").toLowerCase();
-const filtered=posts.filter(p=>(p.text||"").toLowerCase().includes(q)||(p.author||"").toLowerCase().includes(q));
+const q=($("exploreSearch")?.value||"").trim().toLowerCase();
+const ranked=typeof getRankedSocialFeedPosts==="function"?getRankedSocialFeedPosts():posts.slice();
+const filtered=ranked.filter(p=>{
+const text=String(p.text||"").toLowerCase(),author=String(p.author||"").toLowerCase(),name=String(p.displayName||"").toLowerCase(),media=getPostMedia(p);
+if(q&&!text.includes(q)&&!author.includes(q)&&!name.includes(q))return false;
+if(exploreFilter==="media"&&!media.length)return false;
+if(exploreFilter==="videos"&&!media.some(item=>item.type==="video"))return false;
+if(exploreFilter==="business"&&p.accountType!=="business")return false;
+if(exploreFilter==="ai"&&p.accountType!=="ai")return false;
+return true;
+});
 $("exploreEmpty").classList.toggle("hidden",filtered.length>0);
 grid.innerHTML=filtered.map(p=>{
-const m=getPostMedia(p)[0];
-if(!m)return '<div class="explore-item"><button onclick="switchSocial(\'feed\')">✧</button></div>';
-return '<div class="explore-item"><button onclick="switchSocial(\'feed\')">'+(m.type==="video"?'<video src="'+m.data+'" muted></video>':'<img src="'+m.data+'" alt="Explore post">')+'</button></div>';
+const m=getPostMedia(p)[0],label=p.accountType==="business"?"Business":p.accountType==="ai"?"AI account":"Community";
+const visual=m?(m.type==="video"?'<video src="'+sx(m.data)+'" muted playsinline preload="metadata"></video>':'<img src="'+sx(m.data)+'" alt="Explore post" loading="lazy">'):'<div class="explore-text-tile"><strong>'+escapeHTML(p.displayName||p.author||"Member")+'</strong><span>'+escapeHTML((p.text||"").slice(0,110))+'</span></div>';
+return '<div class="explore-item"><button type="button" onclick="openExplorePost(\''+String(p.id).replace(/['\\\\]/g,"")+'\')" aria-label="Open post by '+escapeHTML(p.displayName||p.author||"member")+'">'+visual+'</button><div class="explore-item-meta"><strong>'+escapeHTML(p.displayName||p.author||"Member")+'</strong><small>'+label+'</small></div></div>';
 }).join("");
 }
 $("exploreSearch").addEventListener("input",renderExplore);
