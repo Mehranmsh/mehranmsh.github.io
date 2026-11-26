@@ -60,3 +60,8 @@ A separate review-only SQL proposal is provided at `scripts/sql/pi-launchpad-evi
 - database triggers that reject updates and deletes, preserving the original evidence projection.
 
 SQLite compatibility tests exercise these constraints locally. This is a schema proposal only: it has not been applied to Cloudflare D1, no persistence adapter or credentials are configured, and no live data is written. A future verification result must be represented as a separate append-only event or record after independent design/review, never by mutating this original evidence row.
+
+
+## D1 adapter statement contract
+
+The pure helper in `scripts/pi-launchpad-evidence-d1-adapter.mjs` converts one validated registry projection into a parameterized insert/read-back batch plan. It uses `ON CONFLICT(record_id) DO NOTHING`, so retries cannot mutate an existing row. The caller must execute both statements together with D1 `batch()` and compare every selected column with the expected row. Missing or mismatched read-back is a hard conflict. The planner validates the Pi network label, evidence/source-kind pairing, HTTPS provenance, timestamps, JSON serialization, and the forced unverified/blocked states. It does not execute SQL, connect to D1, load credentials, or persist data. The schema remains unapplied.

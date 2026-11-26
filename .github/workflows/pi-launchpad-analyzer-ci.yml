@@ -11,6 +11,7 @@ on:
       - feat/pi-launchpad-candidate-intake
       - fix/pi-launchpad-candidate-intake-dedupe
       - feat/pi-launchpad-evidence-d1-schema
+      - feat/pi-launchpad-evidence-d1-adapter-contract
     paths:
       - "scripts/pi-launchpad-analyzer.mjs"
       - "scripts/pi-launchpad-analyzer.test.mjs"
@@ -69,6 +70,8 @@ on:
       - "scripts/pi-launchpad-batch-screen.test.mjs"
       - "scripts/pi-launchpad-candidate-intake.mjs"
       - "scripts/pi-launchpad-candidate-intake.test.mjs"
+      - "scripts/pi-launchpad-evidence-d1-adapter.mjs"
+      - "scripts/pi-launchpad-evidence-d1-adapter.test.mjs"
       - ".github/workflows/pi-launchpad-analyzer-ci.yml"
 
 permissions:
@@ -94,6 +97,7 @@ jobs:
           node --check scripts/pi-launchpad-metrics-gateway.mjs
           node --check scripts/pi-launchpad-verified-analyzer.mjs
           node --check scripts/pi-launchpad-candidate-intake.mjs
+          node --check scripts/pi-launchpad-evidence-d1-adapter.mjs
           node --check scripts/pi-testnet-rpc-policy.mjs
           node --check scripts/pi-testnet-observation-archive.mjs
           node --check scripts/pi-testnet-observation-storage-policy.mjs
