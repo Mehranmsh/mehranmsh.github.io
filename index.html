@@ -2776,7 +2776,10 @@ function getPostMedia(post){if(Array.isArray(post.media)&&post.media.length)retu
 function mediaMarkup(item){if(item.type==="video")return '<video src="'+item.data+'" controls playsinline preload="metadata"></video>';return '<img src="'+item.data+'" alt="Post media">'}
 const SOCIAL_FEED_MODE_KEY="msh_social_feed_mode_v1",SOCIAL_FEED_SIGNALS_KEY="msh_social_feed_signals_v1";
 let socialFeedMode=localStorage.getItem(SOCIAL_FEED_MODE_KEY)==="latest"?"latest":"hybrid";
-let socialFeedSignals=readJSON(SOCIAL_FEED_SIGNALS_KEY,{});
+let socialFeedSignals={};
+let socialFeedOwnerKey="";
+function loadSocialFeedSignalsForCurrentUser(){const owner=String(socialUser?.username||"guest").toLowerCase();if(owner===socialFeedOwnerKey)return;socialFeedOwnerKey=owner;socialFeedSignals=readJSON(SOCIAL_FEED_SIGNALS_KEY+":"+encodeURIComponent(owner),{});}
+
 function socialFeedDate(post){const raw=post.createdAt||post.date;const value=raw?new Date(raw).getTime():0;return Number.isFinite(value)?value:0}
 function socialFeedAuthor(post){return String(post.author||post.username||"unknown").toLowerCase()}
 function socialFeedEngagement(post){return Math.log1p(Math.max(0,Number(post.likesCount||0)))*5+Math.log1p(Math.max(0,Number(post.commentsCount||0)))*4}
@@ -2807,9 +2810,10 @@ if(latest)latest.setAttribute("aria-pressed",String(socialFeedMode==="latest"));
 if(title)title.textContent=socialFeedMode==="hybrid"?"For you":"Latest";
 }
 window.setSocialFeedMode=function(mode){socialFeedMode=mode==="latest"?"latest":"hybrid";localStorage.setItem(SOCIAL_FEED_MODE_KEY,socialFeedMode);updateSocialFeedModeUI();renderFeed();};
-window.socialFeedShowLess=function(id){const key=String(id);socialFeedSignals[key]={...(socialFeedSignals[key]||{}),less:Math.min(3,Number(socialFeedSignals[key]?.less||0)+1)};saveJSON(SOCIAL_FEED_SIGNALS_KEY,socialFeedSignals);renderFeed();toast("We'll show fewer posts like this.");};
+window.socialFeedShowLess=function(id){loadSocialFeedSignalsForCurrentUser();const key=String(id);socialFeedSignals[key]={...(socialFeedSignals[key]||{}),less:Math.min(3,Number(socialFeedSignals[key]?.less||0)+1)};saveJSON(SOCIAL_FEED_SIGNALS_KEY+":"+encodeURIComponent(socialFeedOwnerKey),socialFeedSignals);renderFeed();toast("Fewer similar posts will appear.");};
 function renderFeed(){
 const list=$("feedList");if(!list)return;
+loadSocialFeedSignalsForCurrentUser();
 updateSocialFeedModeUI();
 $("feedCount").textContent=posts.length+" posts";
 if(!posts.length){list.innerHTML='<div class="empty">Your feed is ready.<br>There are no posts stored on this device yet.<br><button class="btn" style="margin-top:12px" onclick="openCreate()">Create the first post</button></div>';return}
