@@ -15,6 +15,8 @@ on:
       - "scripts/pi-launchpad-connector-policy.test.mjs"
       - "scripts/pi-launchpad-snapshot-monitor.mjs"
       - "scripts/pi-launchpad-snapshot-monitor.test.mjs"
+      - "scripts/pi-launchpad-portfolio-ranker.mjs"
+      - "scripts/pi-launchpad-portfolio-ranker.test.mjs"
       - ".github/workflows/pi-launchpad-analyzer-ci.yml"
 
 permissions:
