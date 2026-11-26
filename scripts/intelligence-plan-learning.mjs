@@ -43,10 +43,11 @@ export function learnFromIntelligencePlanOutcomes(revisions, progressEvents, opt
     ? Math.min(options.maxRevisions, planLearningMAX_REVISIONS) : 20;
   const maxEvents = Number.isInteger(options.maxEvents) && options.maxEvents > 0
     ? Math.min(options.maxEvents, planLearningMAX_EVENTS) : planLearningMAX_EVENTS;
-  const acceptedRevisions = revisions.slice(0, maxRevisions)
+  const acceptedRevisions = revisions
     .filter(item => item && item.owner_uid === ownerUid && Number.isInteger(item.version) &&
       item.version > 0 && planLearningParseTime(item.created_at) !== null && Array.isArray(item.tasks))
-    .sort((a, b) => a.version - b.version || planLearningClean(a.revision_id).localeCompare(planLearningClean(b.revision_id)));
+    .sort((a, b) => a.version - b.version || planLearningClean(a.revision_id).localeCompare(planLearningClean(b.revision_id)))
+    .slice(-maxRevisions);
   const uniqueRevisions = [];
   const versions = new Set(), revisionIds = new Set();
   for (const revision of acceptedRevisions) {
@@ -55,12 +56,21 @@ export function learnFromIntelligencePlanOutcomes(revisions, progressEvents, opt
     versions.add(revision.version); revisionIds.add(id); uniqueRevisions.push(revision);
   }
   const latestEvents = new Map();
-  for (const event of progressEvents.slice(0, maxEvents)) {
+  const seenEventIds = new Set();
+  const boundedEvents = progressEvents
+    .filter(event => event && event.owner_uid === ownerUid && event.actor_uid === ownerUid &&
+      event.explicit_confirmation === true && planLearningVALID_STATES.has(String(event.progress_state || "").toLowerCase()) &&
+      planLearningParseTime(event.occurred_at) !== null)
+    .sort((a, b) => planLearningParseTime(b.occurred_at) - planLearningParseTime(a.occurred_at) ||
+      planLearningClean(b.event_id, 120).localeCompare(planLearningClean(a.event_id, 120)))
+    .slice(0, maxEvents);
+  for (const event of boundedEvents) {
     if (!event || event.owner_uid !== ownerUid || event.actor_uid !== ownerUid ||
         event.explicit_confirmation !== true || !planLearningVALID_STATES.has(String(event.progress_state || "").toLowerCase())) continue;
     const eventId = planLearningClean(event.event_id, 120), revisionId = planLearningClean(event.revision_id, 120);
     const taskId = planLearningClean(event.task_id, 120), occurred = planLearningParseTime(event.occurred_at);
-    if (!eventId || !revisionId || !taskId || occurred === null) continue;
+    if (!eventId || seenEventIds.has(eventId) || !revisionId || !taskId || occurred === null) continue;
+    seenEventIds.add(eventId);
     const key = revisionId + "\u0000" + taskId;
     const prior = latestEvents.get(key);
     if (!prior || occurred > prior.time || (occurred === prior.time && eventId > prior.event_id)) {
