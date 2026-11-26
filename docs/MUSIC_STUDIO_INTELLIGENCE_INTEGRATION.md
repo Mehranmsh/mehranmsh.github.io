@@ -197,3 +197,13 @@ The current browser storage model also needs a deliberate migration plan before 
 - Peak/RMS/DC and low-percentile window energy are screening metrics, not reliable standalone noise, reverb, pitch, or artistic-quality classifiers.
 - Next: add a versioned analysis result contract and local tests using synthetic WAV fixtures (silence, clean sine, clipping, DC offset, and added noise); then implement conservative, reversible DSP stages with loudness-matched A/B preview.
 - Do not label the result as studio-quality mastering or claim AI analysis until the full Intelligence task bridge and verified audio processing are integrated.
+
+
+## Performance Coach: first local guidance slice
+
+- Added a contextual **MEHRAN PERFORMANCE COACH** panel to the existing Vocal Performance Guide.
+- It creates phrase-level practice suggestions from the selected lyric line, punctuation, manually selected delivery feel, and manually segmented syllable/word steps.
+- Guidance covers delivery restraint, phrase endings, punctuation pauses, word clarity, and a simple speak-separately-then-connect practice sequence.
+- This is a deterministic local coaching aid, not a generative AI call. It consumes no AI quota and uploads no lyric or audio data.
+- It deliberately does not claim exact note, pitch, rhythm, breath-capacity, or emotional-intent detection. Exact melodic guidance requires a validated lyric-to-melody alignment and pitch/onset analysis path.
+- Existing user-selected notes, tempo, syllable segmentation, and saved guide data remain the source of truth; the coach does not overwrite them.
