@@ -17,6 +17,13 @@ const FIELDS = Object.freeze({
 const isRecord = (v) => v !== null && typeof v === "object" && !Array.isArray(v) &&
   (Object.getPrototypeOf(v) === Object.prototype || Object.getPrototypeOf(v) === null);
 const reject = (evidenceId, code) => Object.freeze({ evidenceId: evidenceId ?? null, accepted: false, code });
+const deepFreeze = (value) => {
+  if (value && typeof value === "object" && !Object.isFrozen(value)) {
+    for (const child of Object.values(value)) deepFreeze(child);
+    Object.freeze(value);
+  }
+  return value;
+};
 
 export function buildPiLaunchpadVerifiedMetrics({ envelope, attestations, trustRecords, now } = {}) {
   const timestamp = now instanceof Date ? now.getTime() : now;
@@ -84,7 +91,7 @@ export function buildPiLaunchpadVerifiedMetrics({ envelope, attestations, trustR
   return Object.freeze({
     gatewayVersion: PI_LAUNCHPAD_METRICS_GATEWAY_VERSION,
     tokenId: validation.tokenId,
-    verifiedMetrics: Object.freeze(verifiedMetrics),
+    verifiedMetrics: deepFreeze(verifiedMetrics),
     acceptedRecords: Object.freeze(acceptedRecords),
     rejectedRecords: Object.freeze(rejectedRecords),
     acceptedCount: acceptedRecords.length,
