@@ -60,7 +60,7 @@ test("rejects forged verified flags, invalid signatures, and mismatched evidence
   forged.signature = "A".repeat(88);
   const mismatch = attestation({ value: 89 });
   const result = buildPiLaunchpadVerifiedScoringEvidence({
-    validation: validated(), attestations: [forged, mismatch], trustRecords, now: NOW
+    envelope: envelope(), attestations: [forged, mismatch], trustRecords, now: NOW
   });
   assert.deepEqual({ ...result.scoringEvidence }, {});
   assert.equal(result.rejectedCount, 2);
@@ -81,7 +81,7 @@ test("never allows sourceVerification or non-scoreable metrics into component sc
     signature: sign(null, Buffer.from(canonical(payload)), privateKey).toString("base64")
   };
   const result = buildPiLaunchpadVerifiedScoringEvidence({
-    validation: validated(), attestations: [signed], trustRecords, now: NOW
+    envelope: envelope(), attestations: [signed], trustRecords, now: NOW
   });
   assert.deepEqual({ ...result.scoringEvidence }, {});
   assert.equal(result.rejectedRecords[0].code, "field_not_scoreable");
@@ -91,7 +91,7 @@ test("rejects duplicate attestations and conflicting scores for one component", 
   const first = attestation();
   const duplicate = attestation({ evidenceId: "evidence-team-1" });
   const result = buildPiLaunchpadVerifiedScoringEvidence({
-    validation: validated(), attestations: [first, duplicate], trustRecords, now: NOW
+    envelope: envelope(), attestations: [first, duplicate], trustRecords, now: NOW
   });
   assert.deepEqual({ ...result.scoringEvidence }, {});
   assert.ok(result.rejectedRecords.some(x => x.code === "duplicate_attestation"));
@@ -99,7 +99,7 @@ test("rejects duplicate attestations and conflicting scores for one component", 
 
 test("fails closed when trust anchors are absent or validation is forged structurally", () => {
   assert.throws(() => buildPiLaunchpadVerifiedScoringEvidence({
-    validation: validated(), attestations: [attestation()], trustRecords: [], now: NOW
+    envelope: envelope(), attestations: [attestation()], trustRecords: [], now: NOW
   }), TypeError);
   assert.throws(() => buildPiLaunchpadVerifiedScoringEvidence({
     envelope: { accepted: true, tokenId: "x", sources: [], evidence: [] },
@@ -111,7 +111,7 @@ test("rejects stale attestations and attestations bound to another token", () =>
   const stale = attestation({ observedAt: "2026-11-20T11:00:00.000Z" });
   const wrongToken = attestation({ tokenId: "other-token" });
   const result = buildPiLaunchpadVerifiedScoringEvidence({
-    validation: validated(), attestations: [stale, wrongToken], trustRecords, now: NOW
+    envelope: envelope(), attestations: [stale, wrongToken], trustRecords, now: NOW
   });
   assert.deepEqual({ ...result.scoringEvidence }, {});
   assert.equal(result.rejectedCount, 2);
