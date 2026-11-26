@@ -12,7 +12,7 @@ const trustedKeys = { "test-auditor": {
 } };
 const now = Date.parse("2026-11-26T12:00:00.000Z");
 const payload = {
-  tokenId: "pi-token-1", evidenceId: "evidence-1", field: "liquidity.tvlPi",
+  issuer: "independent-auditor", tokenId: "pi-token-1", evidenceId: "evidence-1", field: "liquidity.tvlPi",
   sourceUrl: "https://auditor.example/report/1",
   observedAt: "2026-11-26T11:00:00.000Z",
   expiresAt: "2026-11-27T11:00:00.000Z",
