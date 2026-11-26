@@ -6,8 +6,8 @@ CREATE TABLE IF NOT EXISTS pi_testnet_archives (
   archive_scope TEXT NOT NULL,
   archive_id TEXT NOT NULL CHECK(length(archive_id) = 64 AND archive_id NOT GLOB '*[^0-9a-f]*'),
   envelope_json TEXT NOT NULL CHECK(json_valid(envelope_json)
-    AND json_extract(envelope_json, '$.archive_scope') = archive_scope
-    AND json_extract(envelope_json, '$.archive_id') = archive_id),
+    AND json_extract(envelope_json, '$.archiveScope') = archive_scope
+    AND json_extract(envelope_json, '$.archiveId') = archive_id),
   envelope_sha256 TEXT NOT NULL CHECK(length(envelope_sha256) = 64 AND envelope_sha256 NOT GLOB '*[^0-9a-f]*'),
   updated_at TEXT NOT NULL,
   PRIMARY KEY (archive_scope, archive_id)
@@ -20,8 +20,8 @@ CREATE TABLE IF NOT EXISTS pi_testnet_archive_replacement_ops (
   source_sha256 TEXT NOT NULL CHECK(length(source_sha256) = 64 AND source_sha256 NOT GLOB '*[^0-9a-f]*'),
   replacement_sha256 TEXT NOT NULL CHECK(length(replacement_sha256) = 64 AND replacement_sha256 NOT GLOB '*[^0-9a-f]*'),
   replacement_envelope_json TEXT NOT NULL CHECK(json_valid(replacement_envelope_json)
-    AND json_extract(replacement_envelope_json, '$.archive_scope') = archive_scope
-    AND json_extract(replacement_envelope_json, '$.archive_id') = archive_id),
+    AND json_extract(replacement_envelope_json, '$.archiveScope') = archive_scope
+    AND json_extract(replacement_envelope_json, '$.archiveId') = archive_id),
   prepared_record_json TEXT NOT NULL,
   prepared_record_sha256 TEXT NOT NULL CHECK(length(prepared_record_sha256) = 64 AND prepared_record_sha256 NOT GLOB '*[^0-9a-f]*'),
   state TEXT NOT NULL CHECK(state IN ('prepared', 'committed')),
