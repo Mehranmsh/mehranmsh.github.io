@@ -1,6 +1,6 @@
 # INTELLIGENCE Queue Isolation Design
 
-Status: design checkpoint; not wired into production scheduling.
+Status: implementation under PR review; not merged or deployed. End-to-end acceptance and CI must pass before describing isolation as active.
 
 ## Verified current behavior
 
