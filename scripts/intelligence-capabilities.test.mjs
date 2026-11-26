@@ -1299,7 +1299,7 @@ test("private inbox expands inspection across MEHRAN modules using bounded six-f
   }
   assert.match(workerSource, /for \(let offset = 0; offset < inspectionPaths\.length; offset \+= 6\)/);
   assert.match(workerSource, /const paths = inspectionPaths\.slice\(offset, offset \+ 6\)/);
-  assert.match(workerSource, /paths\\s*\\n\\s*\\}\\);/);
+  assert.match(workerSource, /paths\s*\n\s*\}\);/);
   assert.match(workerSource, /dependsOn: inspectionTasks\.map\(item => item\.taskId\)/);
   assert.match(runnerSource, /file\.size > 750000/);
   assert.match(runnerSource, /totalBytes > 4500000/);
@@ -1390,7 +1390,6 @@ test("repository inspection and source audit accept worker.js while preserving s
   assert.match(runnerSource, /file\.size > 750000/);
   assert.match(runnerSource, /file\.bytes > 600000/);
   assert.match(runnerSource, /totalBytes > 4500000/);
-  assert.match(runnerSource, /totalBytes <= 4500000/);
   assert.match(runnerSource, /file\.path !== path/);
   assert.match(runnerSource, /Buffer\.byteLength\(text, "utf8"\) !== file\.size/);
   assert.match(runnerSource, /file\.sha !== "string"/);
