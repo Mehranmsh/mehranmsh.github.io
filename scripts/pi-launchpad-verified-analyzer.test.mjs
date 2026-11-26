@@ -55,7 +55,7 @@ test("feeds only verified evidence into analyzer and leaves unsigned metrics unk
 
 test("rejects a snapshot whose token identity differs from the signed envelope", () => {
   assert.throws(() => analyzeVerifiedLaunchpadOpportunity({
-    snapshot: { tokenId: "other-token" }, envelope: envelope(),
+    snapshot: { networkId: "pi-mainnet", tokenId: "other-token" }, envelope: envelope(),
     attestations: [attestation()], trustRecords, now: NOW
   }), /does not match/);
 });
