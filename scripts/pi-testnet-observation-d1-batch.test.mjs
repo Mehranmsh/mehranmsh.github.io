@@ -80,3 +80,14 @@ test("rejects mismatched envelope digest and unlinked journal records", () => {
     ...input, preparedRecordJson: JSON.stringify({ state: "prepared" })
   }).accepted, false);
 });
+
+test("rejects a replacement envelope for a different archive id", () => {
+  const foreignEnvelope = { ...replacementEnvelope, archiveId: "c".repeat(64) };
+  const foreignJson = JSON.stringify(foreignEnvelope);
+  const foreignDigest = createHash("sha256").update(foreignJson, "utf8").digest("hex");
+  assert.equal(buildPiTestnetArchiveD1ReplacementPlan({
+    ...input,
+    replacementEnvelopeJson: foreignJson,
+    replacementEnvelopeSha256: foreignDigest
+  }).accepted, false);
+});
