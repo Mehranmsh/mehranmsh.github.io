@@ -1581,7 +1581,11 @@ test("Workers AI has separate Music, SOCIAL and MEHRAN INTELLIGENCE budgets unde
   assert.match(workerSource, /reserveSocialWorkersAIBudget\(env, structure === "short" \? 250 : 500, "music"\)/);
   assert.match(workerSource, /reserveSocialWorkersAIBudget\(env, 500, "social"\)/);
   assert.match(workerSource, /reserveSocialWorkersAIBudget\(env, Number\(options\.cloudflareReservation \|\| 500\), "intelligence"\)/);
-  assert.match(workerSource, /WORKERS_AI_GLOBAL_DAILY_RESERVATION_CREDITS,selected\.cap/);
+  assert.match(workerSource, /WORKERS_AI_CUSTOMER_DAILY_RESERVATION_CREDITS = 2000/);
+  assert.match(workerSource, /const totalReservationCondition = productKey === "intelligence"/);
+  assert.match(workerSource, /workers_ai_daily_budget\.total_reserved\+excluded\.total_reserved<=\?/);
+  assert.match(workerSource, /workers_ai_daily_budget\.music_reserved\+workers_ai_daily_budget\.social_reserved\+excluded\.total_reserved/);
+  assert.match(workerSource, /totalReservationCap,selected\.cap/);
   assert.doesNotMatch(workerSource, /intelligence_ai_daily_budget/);
 });
 
