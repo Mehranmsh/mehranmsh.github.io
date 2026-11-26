@@ -16,7 +16,7 @@ const trustRecords = [{
   revoked: false
 }];
 const envelope = () => ({
-  schemaVersion: 1, tokenId: "pi-token-1", observedAt: "2026-11-26T11:00:00.000Z",
+  schemaVersion: 1, networkId: "pi-mainnet", tokenId: "pi-token-1", observedAt: "2026-11-26T11:00:00.000Z",
   sources: [{
     sourceId: "auditor-source", kind: "security_auditor",
     url: "https://auditor.example/report/1", trustLevel: "publisher_claim",
@@ -34,7 +34,7 @@ const canonical = (v) => {
 };
 const attestation = (overrides = {}) => {
   const payload = {
-    issuer: "independent-auditor", tokenId: "pi-token-1",
+    issuer: "independent-auditor", networkId: "pi-mainnet", tokenId: "pi-token-1",
     evidenceId: "evidence-team-1", field: "teamTransparency",
     sourceUrl: "https://auditor.example/report/1",
     observedAt: "2026-11-26T11:00:00.000Z",
@@ -70,7 +70,7 @@ test("rejects forged verified flags, invalid signatures, and mismatched evidence
 
 test("never allows sourceVerification or non-scoreable metrics into component scores", () => {
   const payload = {
-    issuer: "independent-auditor", tokenId: "pi-token-1",
+    issuer: "independent-auditor", networkId: "pi-mainnet", tokenId: "pi-token-1",
     evidenceId: "evidence-source-1", field: "sourceVerification",
     sourceUrl: "https://auditor.example/report/1",
     observedAt: "2026-11-26T11:00:00.000Z",
