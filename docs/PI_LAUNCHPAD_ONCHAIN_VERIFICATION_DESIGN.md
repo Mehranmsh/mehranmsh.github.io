@@ -167,3 +167,15 @@ Critical limitations:
 - A production adapter must obtain keys from a reviewed server-side KMS/secret-management design, enforce key ID to key mapping, isolate scopes/tenants, rotate keys safely, and never accept key bytes from clients.
 - The supplied test keys are fixtures only. Do not reuse them outside tests.
 - Testnet observations remain explicitly ineligible for Mainnet scoring.
+
+
+## Testnet archive keyring and rotation contract (2026-11-26)
+
+Two pure helpers now define a safer application-side key lifecycle boundary:
+- The keyring accepts a bounded set of explicitly injected 32-byte key records, rejects duplicate IDs and malformed records, and requires an available, non-revoked active key.
+- Encryption uses only the explicitly selected active key. Historical non-revoked keys may be resolved for decryption; unknown and revoked keys fail closed.
+- Key material is copied when accepted and when returned by the resolver. The helpers do not generate, persist, log, or retrieve secrets. Production callers must inject keys only from trusted server-side secret management and must never accept client-provided key bytes.
+- The rotation helper decrypts and fully verifies the source archive, encrypts it under the active key with a fresh nonce, then decrypts and verifies the destination envelope before returning it. The archive identity must remain unchanged.
+- Rotation returns a new envelope in memory only. It does not overwrite or persist the old envelope, perform atomic replacement, revoke old keys, schedule rotation, or create backups. A separately reviewed persistence adapter must manage safe replacement and retention.
+- Test fixtures are not production keys. No D1, KMS, secret manager, filesystem, network, Workers AI, wallet, signing, or Launchpad scoring integration is introduced.
+- All observations remain Testnet-only and explicitly ineligible for Mainnet scoring.
