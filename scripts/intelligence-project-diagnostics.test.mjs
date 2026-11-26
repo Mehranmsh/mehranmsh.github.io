@@ -49,6 +49,16 @@ test("filters other owners, deleted, inactive, and sensitive records", () => {
   assert.equal(result.diagnostics.inspectedRecords, 0);
 });
 
+test("does not inspect health or identity classified records", () => {
+  const result = diagnoseIntelligenceProjectState([
+    record("safe"),
+    record("health-note", { sensitivity: "health" }),
+    record("identity-note", { sensitivity: "identity" })
+  ], { ownerUid: "owner-a", now: NOW });
+  assert.equal(result.diagnostics.inspectedRecords, 1);
+  assert.deepEqual(result.staleRecords.map(item => item.memory_key), []);
+});
+
 test("reports missing project metadata without inventing a timestamp", () => {
   const result = diagnoseIntelligenceProjectState([
     record("missing", { updated_at: "not-a-date", source: "" })
