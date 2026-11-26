@@ -4,7 +4,12 @@ import { generateKeyPairSync, sign } from "node:crypto";
 import { verifyPiLaunchpadAttestation } from "./pi-launchpad-attestation-verifier.mjs";
 
 const { publicKey, privateKey } = generateKeyPairSync("ed25519");
-const trustedKeys = { "test-auditor": { publicKeyPem: publicKey.export({ type: "spki", format: "pem" }) } };
+const trustedKeys = { "test-auditor": {
+  publicKeyPem: publicKey.export({ type: "spki", format: "pem" }),
+  issuer: "independent-auditor",
+  allowedSourceOrigins: ["https://auditor.example"],
+  allowedFields: ["liquidity.tvlPi", "holders.top10Percent"]
+} };
 const now = Date.parse("2026-11-26T12:00:00.000Z");
 const payload = {
   tokenId: "pi-token-1", evidenceId: "evidence-1", field: "liquidity.tvlPi",
@@ -72,4 +77,23 @@ test("rejects inherited-property records at the trust boundary", () => {
   const forged = signed();
   forged.payload = inheritedPayload;
   assert.equal(verifyPiLaunchpadAttestation(forged, trustedKeys, { now }).code, "invalid_attestation");
+});
+
+test("enforces signer issuer, source-origin, and field scopes", () => {
+  const wrongIssuer = { ...payload, issuer: "project-owner" };
+  assert.equal(verifyPiLaunchpadAttestation(signed(wrongIssuer), trustedKeys, { now }).code, "invalid_payload");
+  const wrongOrigin = { ...payload, sourceUrl: "https://other.example/report/1" };
+  assert.equal(verifyPiLaunchpadAttestation(signed(wrongOrigin), trustedKeys, { now }).code, "source_out_of_scope");
+  const wrongField = { ...payload, field: "teamTransparency" };
+  assert.equal(verifyPiLaunchpadAttestation(signed(wrongField), trustedKeys, { now }).code, "field_out_of_scope");
+});
+
+test("rejects incomplete signer scope configuration", () => {
+  const incomplete = { "test-auditor": {
+    publicKeyPem: trustedKeys["test-auditor"].publicKeyPem,
+    issuer: "independent-auditor",
+    allowedSourceOrigins: [],
+    allowedFields: ["liquidity.tvlPi"]
+  } };
+  assert.equal(verifyPiLaunchpadAttestation(signed(), incomplete, { now }).code, "unavailable_or_revoked_key");
 });
