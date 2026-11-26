@@ -54,17 +54,21 @@ test("rejects future timestamps and unsupported source trust labels", () => {
   assert.equal(validateLaunchpadDataEnvelope(trust, { now: NOW }).code, "invalid_source_record");
 });
 
-test("ledger excludes publisher claims from scoring", () => {
+test("ledger excludes all self-asserted trust labels from scoring", () => {
   const result = validateLaunchpadDataEnvelope(validEnvelope(), { now: NOW });
   const ledger = buildLaunchpadEvidenceLedger(result);
-  assert.equal(ledger[0].usableForScoring, true);
+  assert.equal(ledger[0].usableForScoring, false);
   assert.equal(ledger[1].usableForScoring, false);
+  assert.match(ledger[0].scoringNote, /attestation verifier/);
 });
 
-test("rejects missing provenance and overlarge evidence batches", () => {
+test("rejects missing provenance, object-valued evidence, and overlarge batches", () => {
   const missing = validEnvelope();
   delete missing.sources[0].evidence[0].reference;
   assert.equal(validateLaunchpadDataEnvelope(missing, { now: NOW }).code, "invalid_evidence_item");
+  const objectValue = validEnvelope();
+  objectValue.sources[0].evidence[0].value = { forged: true };
+  assert.equal(validateLaunchpadDataEnvelope(objectValue, { now: NOW }).code, "invalid_evidence_item");
   const large = validEnvelope();
   large.sources[0].evidence = Array.from({ length: 81 }, (_, i) => ({
     field: "field-" + i, value: i, trustLevel: "unverified",
