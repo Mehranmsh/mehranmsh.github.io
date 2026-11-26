@@ -415,7 +415,8 @@ import { compactIntelligenceArchitectureReview } from "./scripts/intelligence-ar
                 "scripts/intelligence-capabilities.mjs",
                 "scripts/intelligence-capabilities.test.mjs",
                 ".github/workflows/mehran-intelligence-runner.yml",
-                "docs/INTELLIGENCE_EXECUTION_PROTOCOL.md"
+                "docs/INTELLIGENCE_EXECUTION_PROTOCOL.md",
+                "scripts/intelligence-architecture-review.mjs"
               ]);
               let payload = {};
               try {
@@ -781,7 +782,8 @@ import { compactIntelligenceArchitectureReview } from "./scripts/intelligence-ar
                   "scripts/intelligence-capabilities.mjs",
                   "scripts/intelligence-capabilities.test.mjs",
                   ".github/workflows/mehran-intelligence-runner.yml",
-                  "docs/INTELLIGENCE_EXECUTION_PROTOCOL.md"
+                  "docs/INTELLIGENCE_EXECUTION_PROTOCOL.md",
+                  "scripts/intelligence-architecture-review.mjs"
                 ]);
                 const files = Array.isArray(report?.files) ? report.files : [];
                 const seen = new Set();
