@@ -49,6 +49,10 @@ test("record identifiers are deterministic and change when evidence identity cha
   const other = buildPiLaunchpadEvidenceRegistry({ envelope: changed, now: NOW });
   assert.equal(first.records[0].recordId, same.records[0].recordId);
   assert.notEqual(first.records[0].recordId, other.records[0].recordId);
+  const changedValue = envelope();
+  changedValue.sources[0].evidence[0].value = 76;
+  const valueVariant = buildPiLaunchpadEvidenceRegistry({ envelope: changedValue, now: NOW });
+  assert.notEqual(first.records[0].recordId, valueVariant.records[0].recordId);
 });
 
 test("a valid signature changes signer status only, never chain verification or scoring", () => {
