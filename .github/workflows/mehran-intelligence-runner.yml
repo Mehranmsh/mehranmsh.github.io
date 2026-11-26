@@ -92,6 +92,16 @@ jobs:
             if (path === "/health") return "worker_health";
             return "agent_api";
           }
+          async function readJsonResponse(response, maxBytes) {
+            const raw = await readBoundedResponse(response, maxBytes);
+            try {
+              const value = raw ? JSON.parse(raw) : {};
+              if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("invalid JSON object");
+              return value;
+            } catch {
+              throw new Error("Remote API returned invalid or oversized JSON.");
+            }
+          }
           async function request(path, options = {}, headers = agentHeaders, timeoutMs = 20000) {
             const requestStartedAt = Date.now();
             const traceId = traceRunId + "-" + (++requestSequence);
@@ -310,7 +320,7 @@ jobs:
                   headers, signal: AbortSignal.timeout(15000)
                 });
                 if (!response.ok) throw new Error(`GitHub main commit lookup HTTP ${response.status}`);
-                const commit = await response.json();
+                const commit = await readJsonResponse(response, 65536);
                 baseSha = String(commit?.sha || "").toLowerCase();
                 if (!/^[a-f0-9]{40}$/.test(baseSha)) throw new Error("GitHub returned an invalid main commit SHA.");
                 const saved = await request(`/agent/v1/tasks/${encodeURIComponent(task.id)}/checkpoint`, {
@@ -431,7 +441,7 @@ jobs:
                   headers, signal: AbortSignal.timeout(15000)
                 });
                 if (!response.ok) throw new Error(`GitHub source read failed for allowlisted path ${path}: HTTP ${response.status}`);
-                const file = await response.json();
+                const file = await readJsonResponse(response, 1024 * 1024);
                 if (file.type !== "file" || file.path !== path || file.encoding !== "base64" ||
                     typeof file.content !== "string" || typeof file.sha !== "string" || !/^[a-f0-9]{40}$/i.test(file.sha) ||
                     !Number.isInteger(file.size) || file.size < 0 || file.size > 600000) {
