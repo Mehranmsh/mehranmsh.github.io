@@ -19,7 +19,11 @@ on:
       - "scripts/pi-launchpad-verified-analyzer.test.mjs"
       - "scripts/pi-launchpad-verified-analyzer-metrics.test.mjs"
       - "scripts/pi-testnet-rpc-policy.mjs"
-      - "scripts/pi-testnet-rpc-policy.test.mjs"\n      - "scripts/pi-testnet-observation-archive.mjs"\n      - "scripts/pi-testnet-observation-archive.test.mjs"\n      - "scripts/pi-testnet-observation-storage-policy.mjs"\n      - "scripts/pi-testnet-observation-storage-policy.test.mjs"
+      - "scripts/pi-testnet-rpc-policy.test.mjs"
+      - "scripts/pi-testnet-observation-archive.mjs"
+      - "scripts/pi-testnet-observation-archive.test.mjs"
+      - "scripts/pi-testnet-observation-storage-policy.mjs"
+      - "scripts/pi-testnet-observation-storage-policy.test.mjs"
       - "scripts/pi-launchpad-trust-store.mjs"
       - "scripts/pi-launchpad-trust-store.test.mjs"
       - "scripts/pi-launchpad-source-registry.mjs"
@@ -55,6 +59,9 @@ jobs:
           node --check scripts/pi-launchpad-analyzer.mjs
           node --check scripts/pi-launchpad-evidence-gateway.mjs
           node --check scripts/pi-launchpad-metrics-gateway.mjs
-          node --check scripts/pi-launchpad-verified-analyzer.mjs\n          node --check scripts/pi-testnet-rpc-policy.mjs\n          node --check scripts/pi-testnet-observation-archive.mjs\n          node --check scripts/pi-testnet-observation-storage-policy.mjs
+          node --check scripts/pi-launchpad-verified-analyzer.mjs
+          node --check scripts/pi-testnet-rpc-policy.mjs
+          node --check scripts/pi-testnet-observation-archive.mjs
+          node --check scripts/pi-testnet-observation-storage-policy.mjs
       - name: Run analyzer tests
-        run: node --test --test-reporter=tap scripts/pi-launchpad-*.test.mjs
+        run: node --test --test-reporter=tap scripts/pi-launchpad-*.test.mjs scripts/pi-testnet-*.test.mjs
