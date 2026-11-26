@@ -61,3 +61,22 @@ test("applies configured coverage threshold and bounded penalties", () => {
   assert.equal(result.ranked[0].riskPenalty, 12);
   assert.equal(result.ranked[0].priorityScore, 38);
 });
+
+
+test("rejects classification labels that contradict the numeric score", () => {
+  const result = rankPiLaunchpadPortfolio([
+    candidate("fake-strong", 20, 95, "strong_candidate"),
+    candidate("fake-watch", 90, 95, "watchlist"),
+    candidate("fake-weak", 70, 95, "weak_candidate"),
+    candidate("fake-low-risk", 90, 95, "high_risk"),
+    candidate("valid-strong", 85, 95, "strong_candidate"),
+    candidate("valid-watch", 70, 95, "watchlist"),
+    candidate("valid-weak", 50, 95, "weak_candidate"),
+    candidate("valid-high-risk", 30, 95, "high_risk")
+  ]);
+  assert.deepEqual(result.ranked.map((item) => item.tokenId), [
+    "valid-strong", "valid-watch", "valid-weak", "valid-high-risk"
+  ]);
+  assert.equal(result.excluded.length, 4);
+  assert.ok(result.excluded.every((item) => item.reason === "classification_score_mismatch"));
+});
