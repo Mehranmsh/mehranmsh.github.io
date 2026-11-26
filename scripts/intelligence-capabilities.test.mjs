@@ -1297,9 +1297,12 @@ test("private inbox expands inspection across MEHRAN modules using bounded singl
     assert.ok(runnerSource.includes('"' + path + '"'), "Runner must allow " + path);
     assert.ok(getIntelligenceCapability("inspect_repository").inputSchema.properties.paths.itemEnum.includes(path));
   }
-  assert.match(workerSource, /const inspectionTasks = inspectionPaths\.map\(\(path, index\) =>/);
-  assert.match(workerSource, /paths: \[path\]/);
+  assert.match(workerSource, /for \(let offset = 0; offset < inspectionPaths\.length; offset \+= 6\)/);
+  assert.match(workerSource, /const paths = inspectionPaths\.slice\(offset, offset \+ 6\)/);
+  assert.match(workerSource, /paths,/);
   assert.match(workerSource, /dependsOn: inspectionTasks\.map\(item => item\.taskId\)/);
+  assert.match(runnerSource, /file\.size > 750000/);
+  assert.match(runnerSource, /totalBytes > 4500000/);
   assert.match(runnerSource, /path === "index\.html"/);
   assert.match(runnerSource, /path === "music-studio\.html"/);
 });
