@@ -1,7 +1,7 @@
+import { INTELLIGENCE_PATCH_TARGETS } from "./intelligence-patch-targets.mjs";
+
 const MAX_PATCH_BYTES = 8192;
-const ALLOWED_PATCH_PATHS = Object.freeze([
-  "scripts/intelligence-capabilities.test.mjs"
-]);
+const ALLOWED_PATCH_PATHS = Object.freeze(Object.keys(INTELLIGENCE_PATCH_TARGETS));
 
 function fail(code) {
   return { ok: false, code };
@@ -22,7 +22,7 @@ function validLineNumber(value) {
 
 /**
  * Validate a proposed unified diff without applying it.
- * This first rollout deliberately permits test-only edits to one exact path.
+ * This rollout permits one exact path from the explicit test-only target registry.
  */
 export function validatePatchProposal(input) {
   if (!input || typeof input !== "object" || Array.isArray(input)) return fail("invalid_input");
