@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { analyzeLaunchpadOpportunity, LAUNCHPAD_ANALYZER_VERSION } from "./pi-launchpad-analyzer.mjs";
 import "./pi-launchpad-data-adapter.test.mjs";
 import "./pi-launchpad-attestation-verifier.test.mjs";
+import "./pi-launchpad-trust-store.test.mjs";
 import "./pi-launchpad-source-registry.test.mjs";
 import "./pi-launchpad-batch-screen.test.mjs";
 import "./pi-launchpad-portfolio-ranker.test.mjs";
