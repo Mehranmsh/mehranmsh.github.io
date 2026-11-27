@@ -1641,3 +1641,14 @@ test("agent validates claimed task envelopes and returns the claim token", () =>
   assert.match(agentSource, /encodeURIComponent\(taskId\)/);
   assert.doesNotMatch(agentSource, /encodeURIComponent\(task\.id\)/);
 });
+
+test("Pi Launchpad candidate analysis is an active read-only runner capability", () => {
+  const snapshotJson = JSON.stringify({ tokenId: "pi-token-001", evidence: {} });
+  const capability = getIntelligenceCapability("pi_launchpad_candidate_analysis");
+  assert.equal(capability.status, "active");
+  assert.equal(capability.permissionTier, "read_only");
+  assert.deepEqual(capability.executors, ["github_actions_runner"]);
+  assert.equal(validateIntelligenceCapabilityRequest("pi_launchpad_candidate_analysis", { snapshotJson }).ok, true);
+  assert.equal(validateIntelligenceCapabilityRequest("pi_launchpad_candidate_analysis", {}).code, "missing_required_field");
+  assert.equal(validateIntelligenceCapabilityRequest("pi_launchpad_candidate_analysis", { snapshotJson, wallet: "not-allowed" }).code, "unknown_input_field");
+});
