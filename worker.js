@@ -6269,15 +6269,13 @@ async function reserveIntelligenceMissionGeneratorSlot(env, cycleKey, packageId,
   }
   // Owner-triggered manual bootstrap may proceed past packages already awaiting
   // attention; genuinely active or retrying work continues to block generation.
-  const blockingStatuses = options?.ignoreAttentionRequiredBlockers === true
-    ? "('queued','in_progress','waiting_retry')"
-    : "('queued','in_progress','waiting_retry','attention_required')";
+  const ignoreAttentionRequired = options?.ignoreAttentionRequiredBlockers === true ? 1 : 0;
   const result = await env.DB.prepare(`
     INSERT INTO intelligence_mission_generator_lock(id,cycle_key,package_id,status,expires_at,updated_at)
     SELECT 1, ?, ?, 'reserved', datetime('now','+2 minutes'), CURRENT_TIMESTAMP
     WHERE NOT EXISTS (
       SELECT 1 FROM intelligence_work_packages
-      WHERE status IN ${blockingStatuses}
+      WHERE status IN ('queued','in_progress','waiting_retry') OR (status='attention_required' AND ? = 0)
     )
     ON CONFLICT(id) DO UPDATE SET
       cycle_key=excluded.cycle_key,
@@ -6291,9 +6289,9 @@ async function reserveIntelligenceMissionGeneratorSlot(env, cycleKey, packageId,
       )
       AND NOT EXISTS (
         SELECT 1 FROM intelligence_work_packages
-        WHERE status IN ${blockingStatuses}
+        WHERE status IN ('queued','in_progress','waiting_retry') OR (status='attention_required' AND ? = 0)
       )
-  `).bind(cycleKey, packageId).run();
+  `).bind(cycleKey, packageId, ignoreAttentionRequired, ignoreAttentionRequired).run();
   const changes = Number(result?.meta?.changes ?? result?.changes ?? 0);
   return changes === 1
     ? { reserved: true, packageId, cycleKey }
