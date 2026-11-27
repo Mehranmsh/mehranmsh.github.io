@@ -32,6 +32,90 @@ jobs:
           ref: main
           fetch-depth: 0
           persist-credentials: false
+      - name: Verify production semantic analysis against immutable repository evidence
+        if: github.event_name == 'push'
+        timeout-minutes: 3
+        env:
+          MEHRAN_ORCHESTRATOR_TOKEN: ${{ secrets.MEHRAN_ORCHESTRATOR_TOKEN }}
+          MEHRAN_AGENT_URL: https://mehran-msh-auth.mehran79mehran.workers.dev
+        run: |
+          node --input-type=module <<'NODE'
+          import { execFileSync } from "node:child_process";
+          import { buildIntelligenceInspectionExcerpt } from "./scripts/intelligence-inspection-excerpts.mjs";
+
+          const base = process.env.MEHRAN_AGENT_URL;
+          const token = process.env.MEHRAN_ORCHESTRATOR_TOKEN || "";
+          const commitSha = String(process.env.GITHUB_SHA || "").toLowerCase();
+          if (!base || token.length < 40 || token.length > 200 || !/^[a-f0-9]{40}$/.test(commitSha)) {
+            throw new Error("Production semantic verification prerequisites are missing or invalid.");
+          }
+
+          const paths = [
+            "worker.js",
+            "scripts/intelligence-agent.mjs",
+            "scripts/intelligence-capabilities.mjs",
+            "scripts/intelligence-capabilities.test.mjs",
+            ".github/workflows/mehran-intelligence-runner.yml",
+            "docs/INTELLIGENCE_EXECUTION_PROTOCOL.md"
+          ];
+          const files = [];
+          let totalChars = 0;
+          for (const path of paths) {
+            const source = execFileSync("git", ["show", `${commitSha}:${path}`], {
+              encoding: "utf8", maxBuffer: 2 * 1024 * 1024
+            });
+            const excerpt = buildIntelligenceInspectionExcerpt(path, source, 2800);
+            if (!excerpt || excerpt.length > 2800) throw new Error("A bounded source excerpt could not be prepared.");
+            files.push({
+              path,
+              sha: execFileSync("git", ["rev-parse", `${commitSha}:${path}`], { encoding: "utf8" }).trim(),
+              excerpt
+            });
+            totalChars += excerpt.length;
+          }
+          if (files.length !== 6 || totalChars > 16000) {
+            throw new Error("Production semantic verification exceeded its source-evidence bounds.");
+          }
+
+          const response = await fetch(base + "/agent/v1/repository/analyze", {
+            method: "POST",
+            headers: {
+              "Authorization": `Bearer ${token}`,
+              "Accept": "application/json",
+              "Content-Type": "application/json",
+              "X-Intelligence-Trace-Id": `prod-semantic-${commitSha.slice(0,12)}`
+            },
+            body: JSON.stringify({ commitSha, files }),
+            signal: AbortSignal.timeout(90000)
+          });
+          const raw = await response.text();
+          if (raw.length > 65536) throw new Error("Production semantic response exceeded the safe response limit.");
+          let payload;
+          try { payload = raw ? JSON.parse(raw) : {}; }
+          catch { throw new Error(`Production semantic endpoint returned non-JSON HTTP ${response.status}.`); }
+          if (!response.ok || payload.success !== true || payload.commitSha !== commitSha ||
+              !payload.analysis || typeof payload.analysis.summary !== "string" ||
+              !Array.isArray(payload.analysis.findings) || !Array.isArray(payload.analysis.limitations)) {
+            const diagnostic = payload.diagnostic && typeof payload.diagnostic === "object"
+              ? {
+                  stage: String(payload.diagnostic.stage || "").slice(0,60),
+                  code: String(payload.diagnostic.code || "").slice(0,80),
+                  httpStatus: response.status
+                }
+              : { httpStatus: response.status };
+            throw new Error("Production semantic verification failed: " + JSON.stringify(diagnostic));
+          }
+          console.log("[production-semantic-verification] " + JSON.stringify({
+            success: true,
+            commitSha,
+            files: files.length,
+            totalChars,
+            findings: payload.analysis.findings.length,
+            limitations: payload.analysis.limitations.length,
+            model: String(payload.model || "unknown").slice(0,100),
+            traceId: String(payload.diagnostic?.traceId || "").slice(0,100)
+          }));
+          NODE
       - name: Bootstrap the first bounded read-only work package and execute approved tasks
         id: execute_runner
         timeout-minutes: 7
