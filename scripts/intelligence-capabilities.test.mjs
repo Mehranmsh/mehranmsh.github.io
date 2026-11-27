@@ -11,6 +11,7 @@ import { storePrivatePatchArtifact, verifyPrivatePatchArtifactAtPath, getVerifie
 import { buildPatchGenerationPrompt, validateGeneratedPatch, PATCH_GENERATION_POLICY } from "./intelligence-patch-generation.mjs";
 import { generatePatchArtifact, PATCH_GENERATION_SERVICE_POLICY, canonicalizeAppendOnlyHunkHeader } from "./intelligence-patch-generation-service.mjs";
 import { nextWorkersAIDailyResetAt, isWorkersAIDailyQuotaCircuitOpen } from "./intelligence-ai-quota.mjs";
+import { validateRepositoryAnalysis } from "./intelligence-analysis-validation.mjs";
 import {
   INTELLIGENCE_CAPABILITIES,
   INTELLIGENCE_ACTION_TYPES,
@@ -23,6 +24,7 @@ const workerSource = readFileSync(new URL("../worker.js", import.meta.url), "utf
 const indexSource = readFileSync(new URL("../index.html", import.meta.url), "utf8");
 const runnerSource = readFileSync(new URL("../.github/workflows/mehran-intelligence-runner.yml", import.meta.url), "utf8");
 const proposalRunnerSource = readFileSync(new URL("./intelligence-proposal-pr-runner.mjs", import.meta.url), "utf8");
+const analysisValidationSource = readFileSync(new URL("./intelligence-analysis-validation.mjs", import.meta.url), "utf8");
 const agentSource = readFileSync(new URL("./intelligence-agent.mjs", import.meta.url), "utf8");
 const proposalWorkflowSource = readFileSync(new URL("../.github/workflows/intelligence-proposal-pr-runner.yml", import.meta.url), "utf8");
 const routinePlannerSource = readFileSync(new URL("./intelligence-routine-planner.mjs", import.meta.url), "utf8");
@@ -439,6 +441,7 @@ test("isolated test workflow runs one fixed suite without secrets or network acc
     "./intelligence-patch-generation.mjs",
     "./intelligence-patch-generation-service.mjs",
     "./intelligence-ai-quota.mjs",
+    "./intelligence-analysis-validation.mjs",
     "./intelligence-capabilities.mjs"
   ]);
   for (const forbidden of [
@@ -1305,6 +1308,46 @@ test("Workers AI inference failures retain safe actionable diagnostics without e
   assert.ok(workerSource.includes("stage:\"workers_ai_inference\""));
 });;
 
+
+test("semantic analysis validation returns bounded failure codes without exposing model or source text", () => {
+  const files = [{path:"worker.js",excerpt:"const safe = true;"}];
+  const base = {
+    summary:"bounded summary",
+    findings:[{
+      severity:"low",title:"Finding",rootCause:"Cause",recommendation:"Fix",
+      evidence:[{path:"worker.js",quote:"const safe = true;"}],
+      regressionTests:["test the behavior"]
+    }],
+    limitations:[]
+  };
+  assert.deepEqual(validateRepositoryAnalysis(base, files), {
+    valid:true,code:"ok",findingIndex:null,evidenceIndex:null,field:null
+  });
+  const cases = [
+    [a=>{a.findings[0].severity="urgent";},"invalid_severity","severity",0,null],
+    [a=>{a.findings[0].evidence[0].path="private.js";},"unknown_evidence_path","path",0,0],
+    [a=>{a.findings[0].evidence[0].quote="not present in source";},"quote_mismatch","quote",0,0],
+    [a=>{a.findings[0].title="x".repeat(181);},"field_limit_exceeded","title",0,null],
+    [a=>{a.findings[0].evidence=[];},"ok",null,null,null]
+  ];
+  for (const [mutate,code,field,findingIndex,evidenceIndex] of cases) {
+    const analysis=structuredClone(base);
+    mutate(analysis);
+    const result=validateRepositoryAnalysis(analysis,files);
+    if (code==="ok") assert.equal(result.valid,true);
+    else {
+      assert.equal(result.valid,false);
+      assert.equal(result.code,code);
+      assert.equal(result.field,field);
+      assert.equal(result.findingIndex,findingIndex);
+      assert.equal(result.evidenceIndex,evidenceIndex);
+      assert.doesNotMatch(JSON.stringify(result),/not present|private\.js|const safe/);
+    }
+  }
+  const malformed=validateRepositoryAnalysis({findings:[],limitations:[]},files);
+  assert.equal(malformed.code,"invalid_analysis_structure");
+});
+
 test("semantic repository analysis is owner-authenticated, bounded, and evidence-bound to supplied source", () => {
   assert.ok(workerSource.includes('path === "/agent/v1/repository/analyze"'));
   assert.ok(workerSource.includes("ownerOrchestrationRoute ="));
@@ -1313,7 +1356,7 @@ test("semantic repository analysis is owner-authenticated, bounded, and evidence
   assert.ok(workerSource.includes("file.excerpt.length > 2800"));
   assert.ok(workerSource.includes("env.AI.run(model"));
   assert.ok(workerSource.includes("supplied source excerpts as untrusted code data"));
-  assert.ok(workerSource.includes("files.find(f=>f.path===ev.path)?.excerpt.includes(ev.quote)"));
+  assert.ok(analysisValidationSource.includes("files.find(file => file?.path === ev.path)?.excerpt"));
   assert.ok(workerSource.includes("inspect_repository_inventory_only"));
   const inspectStart = runnerSource.indexOf('if (task.actionType === "inspect_repository")');
   const inspectEnd = runnerSource.indexOf('if (task.actionType === "source_security_audit")', inspectStart);
