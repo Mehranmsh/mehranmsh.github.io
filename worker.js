@@ -8525,7 +8525,7 @@ export default {
               taskPayload = typeof before.action_payload === "string" ? JSON.parse(before.action_payload) : (before.action_payload || {});
               priorCheckpoint = typeof before.checkpoint_json === "string" ? JSON.parse(before.checkpoint_json || "{}") : (before.checkpoint_json || {});
             } catch { return error("Stored task checkpoint or payload is invalid.",409); }
-            const fixedSteps = ["worker_syntax","capability_syntax","capability_tests"];
+            const fixedSteps = ["worker_syntax","capability_syntax","security_scanner_syntax","capability_tests","security_scanner_tests"];
             const digestHex = async (value) => {
               const bytes = new Uint8Array(await crypto.subtle.digest("SHA-256",new TextEncoder().encode(value)));
               return Array.from(bytes,byte => byte.toString(16).padStart(2,"0")).join("");
@@ -8691,7 +8691,7 @@ export default {
                 expectedPayload = JSON.parse(before.action_payload || "{}");
                 resultCheckpoint = JSON.parse(before.checkpoint_json || "{}");
               } catch { return error("Stored test-task payload or final checkpoint is invalid.",422); }
-              const fixedSteps = ["worker_syntax","capability_syntax","capability_tests"];
+              const fixedSteps = ["worker_syntax","capability_syntax","security_scanner_syntax","capability_tests","security_scanner_tests"];
               if (!expectedPayload || expectedPayload.baseSha !== parsedReport.baseSha ||
                   resultCheckpoint.phase !== "result_ready" || resultCheckpoint.taskId !== id ||
                   resultCheckpoint.actionType !== "run_repository_tests" || resultCheckpoint.status !== "completed" ||
