@@ -4117,6 +4117,19 @@ test("private inbox resolves and attaches an immutable base SHA before creating 
 });
 
 
+test("AI mission plans validate and persist acceptance criteria before package creation", () => {
+  const start = workerSource.indexOf("async function planIntelligenceMission");
+  const end = workerSource.indexOf("export function verifyIntelligenceReport", start);
+  assert.ok(start >= 0 && end > start, "AI mission planner must exist");
+  const planner = workerSource.slice(start, end);
+  const normalizeAt = planner.indexOf("normalizeIntelligenceAcceptanceCriteria(plan.acceptanceCriteria, normalizedTasks)");
+  const persistAt = planner.indexOf("scope.acceptanceCriteria = objectiveCriteria.criteria");
+  const createAt = planner.indexOf("const created = await createIntelligenceWorkPackage(env, {", persistAt);
+  assert.ok(normalizeAt >= 0 && persistAt > normalizeAt && createAt > persistAt,
+    "AI criteria must be validated and attached to scope before package creation");
+  assert.match(planner, /ai_acceptance_criteria_invalid/);
+});
+
 test("scheduled package finalization requires verified objective evidence", () => {
   const start = workerSource.indexOf("async function refreshIntelligenceWorkPackageSnapshot");
   const end = workerSource.indexOf("async function ensureIntelligenceSchedulerRunsTable", start);
