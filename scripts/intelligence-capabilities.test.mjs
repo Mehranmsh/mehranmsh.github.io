@@ -5,6 +5,8 @@ import { applyValidatedPatchInMemory, readBoundedResponse } from "./intelligence
 import { buildIntelligenceInspectionExcerpt, INTELLIGENCE_INSPECTION_EXCERPT_POLICY } from "./intelligence-inspection-excerpts.mjs";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
+import { buildDeterministicRoutinePlan } from "./intelligence-routine-planner.mjs";
+import { MISSION_GENERATOR_POLICY } from "./intelligence-mission-generator-policy.mjs";
 import { validatePatchProposal, PATCH_PROPOSAL_POLICY } from "./intelligence-patch-policy.mjs";
 import { createPatchArtifactRecord, verifyPatchArtifactRecord } from "./intelligence-patch-artifact.mjs";
 import { storePrivatePatchArtifact, verifyPrivatePatchArtifactAtPath, getVerifiedPrivatePatchArtifactAtPath, getPrivatePatchArtifactPath, PRIVATE_PATCH_ARTIFACT_STORE_POLICY } from "./intelligence-private-patch-store.mjs";
@@ -237,6 +239,31 @@ test("security audit gathers bounded evidence from fixed official research sourc
   assert.match(runnerSource, /fixed official documentation URLs/);
 });
 
+test("scheduled mission intake creates deterministic read-only checks without an AI opt-in flag", () => {
+  const plan = buildDeterministicRoutinePlan(
+    "service health check, repository quality check, and source security audit"
+  );
+  assert.ok(plan);
+  assert.deepEqual(plan.tasks.map(task => task.actionType), [
+    "service_health_report", "repository_quality_check", "source_security_audit"
+  ]);
+  const eventPrefix = ["process", ".", "env"].join("");
+  const expectedTrigger = [
+    "const missionGenerationRequested =",
+    "            " + eventPrefix + '.GITHUB_EVENT_NAME === "schedule" ||',
+    "            " + eventPrefix + '.GITHUB_EVENT_NAME === "workflow_dispatch"'
+  ].join("\n");
+  assert.ok(runnerSource.includes(expectedTrigger));
+  assert.doesNotMatch(runnerSource, /MEHRAN_MISSION_GENERATOR_ENABLED/);
+  assert.match(workerSource, /allowDeterministicFallback: false/);
+  assert.ok(workerSource.includes("aiInferenceUsed: false"));
+  assert.equal(MISSION_GENERATOR_POLICY.maxNewMissionsPerCycle, 1);
+  assert.deepEqual(MISSION_GENERATOR_POLICY.allowedActions, [
+    "service_health_report", "repository_quality_check", "source_security_audit", "inspect_repository"
+  ]);
+  assert.ok(MISSION_GENERATOR_POLICY.forbiddenActions.includes("secret_access"));
+  assert.ok(MISSION_GENERATOR_POLICY.forbiddenActions.includes("wallet_or_financial_actions"));
+});
 test("runner does not create an automatic self-assessment follow-up", () => {
   assert.doesNotMatch(runnerSource, /selfImprovementPackageId/);
   assert.doesNotMatch(runnerSource, /mehran-intelligence-self-improvement-evidence-review-v1/);
@@ -449,6 +476,8 @@ test("isolated test workflow runs one fixed suite without secrets or network acc
     "./intelligence-inspection-excerpts.mjs",
     "node:assert/strict",
     "node:fs",
+    "./intelligence-routine-planner.mjs",
+    "./intelligence-mission-generator-policy.mjs",
     "./intelligence-patch-policy.mjs",
     "./intelligence-patch-artifact.mjs",
     "./intelligence-private-patch-store.mjs",

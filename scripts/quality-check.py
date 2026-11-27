@@ -8,7 +8,7 @@ import sys
 import json
 
 ROOT = Path(__file__).resolve().parents[1]
-HTML_FILES = [ROOT / "index.html", ROOT / "music-studio.html"]
+HTML_FILES = [ROOT / "index.html", ROOT / "music-studio.html", ROOT / "privacy.html", ROOT / "terms.html"]
 WORKER_FILE = ROOT / "worker.js"
 ENGINE_FILE = ROOT / "engine" / "server.py"
 SAMPLER_FILE = ROOT / "instrument-sampler.js"
@@ -87,7 +87,7 @@ def main():
                 run_node_check(candidate)
                 checked += 1
                 file_checked += 1
-            if file_checked == 0:
+            if file_checked == 0 and html_file.name in {"index.html", "music-studio.html"}:
                 raise SystemExit(f"No inline JavaScript blocks were found in {html_file.name}; refusing a false-green check.")
 
     print("3/4 Checking Music Studio user-facing safety and workflow controls...")
