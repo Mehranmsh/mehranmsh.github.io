@@ -1227,8 +1227,8 @@ test("private report storage preserves safe HTTP status diagnostics", () => {
   const diagnosticEnd = workerSource.indexOf('console.error("INTELLIGENCE_PRIVATE_REPORT_STORE_FAILURE"', diagnosticStart);
   assert.ok(diagnosticStart >= 0 && diagnosticEnd > diagnosticStart, "private report storage diagnostic must be locatable");
   const diagnostic = workerSource.slice(diagnosticStart, diagnosticEnd);
-  assert.ok(diagnostic.includes("status \\d{3}\\."), "HTTP status regex must match a three-digit status code");
-  assert.equal(diagnostic.includes("status \\\\d{3}\\."), false, "regex must not search for a literal backslash-d sequence");
+  assert.ok(diagnostic.includes("status \\d{3}\."), "HTTP status regex must match a three-digit status code");
+  assert.equal(diagnostic.includes("status \\\\d{3}\."), false, "regex must not search for a literal backslash-d sequence");
 });
 
 
@@ -1754,14 +1754,14 @@ test("deterministic fallback readiness checks cannot be reported as mission comp
   assert.ok(refreshStart >= 0 && refreshEnd > refreshStart);
   const refresh = workerSource.slice(refreshStart, refreshEnd);
   assert.match(refresh, /scope_json FROM intelligence_work_packages/);
-  assert.match(refresh, /packageScope\\.planner === "deterministic_fallback"/);
-  assert.match(refresh, /allCompleted \\? \\(isDeterministicFallback \\? "attention_required" : "completed"\\)/);
+  assert.match(refresh, /packageScope\.planner === "deterministic_fallback"/);
+  assert.match(refresh, /allCompleted \? \(isDeterministicFallback \? "attention_required" : "completed"\)/);
   assert.match(refresh, /reason: "deterministic_fallback_only"/);
 
   const persistStart = workerSource.indexOf("export async function persistIntelligencePackageReport");
   const persistEnd = workerSource.indexOf("async function blockIntelligenceTasksWithTerminalDependencies", persistStart);
   assert.ok(persistStart >= 0 && persistEnd > persistStart);
   const persist = workerSource.slice(persistStart, persistEnd);
-  assert.match(persist, /mission_execution: snapshot\\.missionExecution/);
+  assert.match(persist, /mission_execution: snapshot\.missionExecution/);
   assert.match(persist, /owner mission was not executed or verified/);
 });
