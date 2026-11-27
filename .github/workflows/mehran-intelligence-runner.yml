@@ -310,9 +310,7 @@ jobs:
                   typeof snapshot.tokenId !== "string" || !snapshot.tokenId.trim() || snapshot.tokenId.length > 120) {
                 throw new Error("Pi Launchpad snapshot identity is invalid.");
               }
-              const { analyzeLaunchpadOpportunity } = await import("../../scripts/pi-launchpad-analyzer.mjs").catch(async () =>
-                await import("./scripts/pi-launchpad-analyzer.mjs")
-              );
+              const { analyzeLaunchpadOpportunity } = await import("./scripts/pi-launchpad-analyzer.mjs");
               const analysis = analyzeLaunchpadOpportunity(snapshot);
               return {
                 type: "pi_launchpad_candidate_analysis",
