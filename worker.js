@@ -290,14 +290,13 @@ function safeWorkersAIErrorDetails(err) {
   };
 }
 
-// Separate daily product allowances with one shared fail-closed ceiling.
+// Owner and customer reservations are isolated before provider inference.
 // These are conservative reservation credits, NOT Cloudflare's measured Neurons.
-// Cloudflare Free itself remains the final hard stop at 10,000 actual Neurons/day.
-// Keep 10% headroom for model variance and unrelated account-level AI usage.
-// Intelligence receives a larger allocation so planning and self-audit are not
-// starved by its former 3,000-credit product sub-cap. The shared 9,000 ceiling
-// and Cloudflare's actual account limit remain enforced.
+// Cloudflare Free's account-level hard limit remains a separate final ceiling.
+// The owner gets a dedicated 7,000-credit reservation; all customer products
+// share a separate 2,000-credit ceiling and cannot consume the owner's reserve.
 const WORKERS_AI_INTELLIGENCE_DAILY_RESERVATION_CREDITS = 7000;
+const WORKERS_AI_CUSTOMER_DAILY_RESERVATION_CREDITS = 2000;
 const WORKERS_AI_GLOBAL_DAILY_RESERVATION_CREDITS = 9000;
 const WORKERS_AI_MUSIC_DAILY_RESERVATION_CREDITS = 6000;
 const WORKERS_AI_SOCIAL_DAILY_RESERVATION_CREDITS = 3000;
@@ -314,6 +313,12 @@ async function reserveSocialWorkersAIBudget(env, reservedCredits, productKey = "
   await ensureSocialTables(env);
   const dayKey = new Date().toISOString().slice(0, 10);
   const column = selected.column;
+  const totalReservationCondition = productKey === "intelligence"
+    ? "workers_ai_daily_budget.total_reserved+excluded.total_reserved<=?"
+    : "(workers_ai_daily_budget.music_reserved+workers_ai_daily_budget.social_reserved+excluded.total_reserved)<=?";
+  const totalReservationCap = productKey === "intelligence"
+    ? WORKERS_AI_GLOBAL_DAILY_RESERVATION_CREDITS
+    : WORKERS_AI_CUSTOMER_DAILY_RESERVATION_CREDITS;
   const row = await env.DB.prepare(`
     INSERT INTO workers_ai_daily_budget(day_key,${column},total_reserved,request_count)
     VALUES(?,?,?,1)
@@ -322,11 +327,10 @@ async function reserveSocialWorkersAIBudget(env, reservedCredits, productKey = "
       total_reserved=workers_ai_daily_budget.total_reserved+excluded.total_reserved,
       request_count=workers_ai_daily_budget.request_count+1,
       updated_at=CURRENT_TIMESTAMP
-    WHERE workers_ai_daily_budget.total_reserved+excluded.total_reserved<=?
+    WHERE ${totalReservationCondition}
       AND workers_ai_daily_budget.${column}+excluded.${column}<=?
     RETURNING ${column} AS product_reserved,total_reserved,request_count
-  `).bind(dayKey,reservedCredits,reservedCredits,
-    WORKERS_AI_GLOBAL_DAILY_RESERVATION_CREDITS,selected.cap).first();
+  `).bind(dayKey,reservedCredits,reservedCredits,totalReservationCap,selected.cap).first();
   return {
     allowed: !!row,
     product: productKey,
