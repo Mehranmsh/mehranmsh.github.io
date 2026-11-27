@@ -1670,3 +1670,13 @@ test("agent validates claimed task envelopes and returns the claim token", () =>
   assert.doesNotMatch(agentSource, /encodeURIComponent\(task\.id\)/);
 });
 
+
+test("fixed repository test plan includes static security scanner syntax and regression tests", () => {
+  const stepSource = readFileSync(new URL("./intelligence-step-checkpoint.mjs", import.meta.url), "utf8");
+  const runnerSource = readFileSync(new URL("../.github/workflows/mehran-intelligence-runner.yml", import.meta.url), "utf8");
+  assert.ok(stepSource.includes('"security_scanner_syntax"'));
+  assert.ok(stepSource.includes('"security_scanner_tests"'));
+  assert.ok(runnerSource.includes('["security_scanner_syntax", ["node", "--check", "scripts/intelligence-static-security-audit.mjs"]]'));
+  assert.ok(runnerSource.includes('["security_scanner_tests", ["node", "--test", "--test-reporter=tap", "scripts/intelligence-static-security-audit.test.mjs"]]'));
+  assert.ok(runnerSource.includes('stepId !== "security_scanner_tests"'));
+});
