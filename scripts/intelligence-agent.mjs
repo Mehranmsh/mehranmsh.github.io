@@ -54,7 +54,8 @@ async function runRepositoryTests() {
     ["Worker syntax", "node", ["--check", "worker.js"]],
     ["Capability syntax", "node", ["--check", "scripts/intelligence-capabilities.mjs"]],
     ["Checkpoint syntax", "node", ["--check", "scripts/intelligence-checkpoint.mjs"]],
-    ["Fixed Intelligence policy suite", "node", ["--test", "scripts/intelligence-capabilities.test.mjs", "scripts/intelligence-repository-inventory.test.mjs", "scripts/intelligence-checkpoint.test.mjs", "scripts/intelligence-inbox-schema.test.mjs", "scripts/intelligence-report-finalization.test.mjs"]]
+    ["Step checkpoint syntax", "node", ["--check", "scripts/intelligence-step-checkpoint.mjs"]],
+    ["Fixed Intelligence policy suite", "node", ["--test", "scripts/intelligence-capabilities.test.mjs", "scripts/intelligence-repository-inventory.test.mjs", "scripts/intelligence-checkpoint.test.mjs", "scripts/intelligence-step-checkpoint.test.mjs", "scripts/intelligence-inbox-schema.test.mjs", "scripts/intelligence-report-finalization.test.mjs"]]
   ];
   const output = [];
   for (const [label, executable, args] of steps) {
