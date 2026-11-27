@@ -67,7 +67,7 @@ test("repository inventory is deterministic and never depends on Workers AI", ()
   assert.ok(inspectStart >= 0 && inspectEnd > inspectStart);
   const inspect = runnerSource.slice(inspectStart, inspectEnd);
   assert.match(inspect, /bounded_read_only_repository_inspection/);
-  assert.match(inspect, /blobSha: file\.sha/);
+  assert.match(inspect, /blobSha:\s*file\.sha/);
   assert.match(inspect, /computedBlobSha = createHash\("sha1"\)/);
   assert.match(inspect, /GitHub source blob integrity verification failed/);
   assert.match(inspect, /lineCount:/);
