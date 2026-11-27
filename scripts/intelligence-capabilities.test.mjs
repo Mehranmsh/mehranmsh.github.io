@@ -248,9 +248,12 @@ test("scheduled mission intake creates deterministic read-only checks without an
     "service_health_report", "repository_quality_check", "source_security_audit"
   ]);
   const eventPrefix = ["process", ".", "env"].join("");
-  assert.ok(runnerSource.includes(
-    "const missionGenerationRequested =\n            " + eventPrefix + '.GITHUB_EVENT_NAME === "schedule" ||\n            ' + eventPrefix + '.GITHUB_EVENT_NAME === "workflow_dispatch"
-  ));
+  const expectedTrigger = [
+    "const missionGenerationRequested =",
+    "            " + eventPrefix + '.GITHUB_EVENT_NAME === "schedule" ||',
+    "            " + eventPrefix + '.GITHUB_EVENT_NAME === "workflow_dispatch"'
+  ].join("\n");
+  assert.ok(runnerSource.includes(expectedTrigger));
   assert.doesNotMatch(runnerSource, /MEHRAN_MISSION_GENERATOR_ENABLED/);
   assert.match(workerSource, /allowDeterministicFallback: false/);
   assert.ok(workerSource.includes("aiInferenceUsed: false"));
