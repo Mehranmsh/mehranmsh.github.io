@@ -3203,7 +3203,7 @@ test("private report persistence writes a minimized JSON report to the dedicated
       return {
         bind(...args) { this.args = args; return this; },
         async first() {
-          if (sql.includes("SELECT id,created_at,report_stored_at FROM intelligence_work_packages")) return { id: "package-1", created_at: "2026-11-22T20:00:00.000Z", report_stored_at: null };
+          if (sql.includes("SELECT id,created_at,report_stored_at,scope_json FROM intelligence_work_packages")) return { id: "package-1", created_at: "2026-11-22T20:00:00.000Z", report_stored_at: null };
           throw new Error("Unexpected first query: " + sql);
         },
         async all() {
@@ -3261,7 +3261,7 @@ test("private report finalization verifies existing artifact bytes before markin
       return {
         bind() { return this; },
         async first() {
-          if (sql.includes("SELECT id,created_at,report_stored_at FROM intelligence_work_packages")) {
+          if (sql.includes("SELECT id,created_at,report_stored_at,scope_json FROM intelligence_work_packages")) {
             return { id: "package-verify", created_at: "2026-11-22T20:00:00.000Z", report_stored_at: reportStoredAt };
           }
           throw new Error("Unexpected first query: " + sql);
@@ -3322,7 +3322,7 @@ test("private report retries accept only legacy generated_at drift and keep repo
       return {
         bind() { return this; },
         async first() {
-          if (sql.includes("SELECT id,created_at,report_stored_at FROM intelligence_work_packages")) {
+          if (sql.includes("SELECT id,created_at,report_stored_at,scope_json FROM intelligence_work_packages")) {
             return { id: "package-stable", created_at: "2026-11-22T20:00:00.000Z", report_stored_at: reportStoredAt };
           }
           throw new Error("Unexpected first query: " + sql);
