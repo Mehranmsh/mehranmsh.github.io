@@ -1227,8 +1227,8 @@ test("private report storage preserves safe HTTP status diagnostics", () => {
   const diagnosticEnd = workerSource.indexOf('console.error("INTELLIGENCE_PRIVATE_REPORT_STORE_FAILURE"', diagnosticStart);
   assert.ok(diagnosticStart >= 0 && diagnosticEnd > diagnosticStart, "private report storage diagnostic must be locatable");
   const diagnostic = workerSource.slice(diagnosticStart, diagnosticEnd);
-  assert.ok(diagnostic.includes("status \\d{3}\\."), "HTTP status regex must match a three-digit status code");
-  assert.equal(diagnostic.includes("status \\\\d{3}\\."), false, "regex must not search for a literal backslash-d sequence");
+  assert.ok(diagnostic.includes(String.raw`status \d{3}\.`), "HTTP status regex must match a three-digit status code");
+  assert.equal(diagnostic.includes(String.raw`status \\d{3}\\.`), false, "regex must not search for a literal backslash-d sequence");
 });
 
 
@@ -1746,3 +1746,24 @@ test("agent validates claimed task envelopes and returns the claim token", () =>
   assert.match(agentSource, /encodeURIComponent\(taskId\)/);
   assert.doesNotMatch(agentSource, /encodeURIComponent\(task\.id\)/);
 });
+
+
+test("work packages cannot claim mission completion without independent objective acceptance evidence", () => {
+  const refreshStart = workerSource.indexOf("async function refreshIntelligenceWorkPackageSnapshot");
+  const refreshEnd = workerSource.indexOf("async function ensureIntelligenceSchedulerRunsTable", refreshStart);
+  assert.ok(refreshStart >= 0 && refreshEnd > refreshStart);
+  const refresh = workerSource.slice(refreshStart, refreshEnd);
+  assert.ok(refresh.includes("scope_json FROM intelligence_work_packages"));
+  assert.ok(refresh.includes('packageScope.planner === "deterministic_fallback"'));
+  assert.ok(refresh.includes("verified: false"));
+  assert.ok(refresh.includes('reason: isDeterministicFallback ? "deterministic_fallback_only" : "no_independent_acceptance_verifier"'));
+  assert.ok(refresh.includes('allCompleted ? "attention_required"'));
+  assert.ok(refresh.includes("Never finalize a work package as completed until independent objective-level"));
+
+  const persistStart = workerSource.indexOf("export async function persistIntelligencePackageReport");
+  const persistEnd = workerSource.indexOf("async function blockIntelligenceTasksWithTerminalDependencies", persistStart);
+  assert.ok(persistStart >= 0 && persistEnd > persistStart);
+  const persist = workerSource.slice(persistStart, persistEnd);
+  assert.ok(persist.includes("mission_execution: snapshot.missionExecution"));
+  assert.ok(persist.includes("mission completion is not verified"));
+});;;
