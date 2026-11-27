@@ -1,3 +1,4 @@
+import { validateMissionAcceptanceCriteria, evaluateMissionAcceptance } from "./intelligence-acceptance.mjs";
 import test from "node:test";
 import "./intelligence-mission-generator-policy.test.mjs";
 import "./intelligence-mission-generator-d1.test.mjs";
@@ -1767,3 +1768,46 @@ test("work packages cannot claim mission completion without independent objectiv
   assert.ok(persist.includes("mission_execution: snapshot.missionExecution"));
   assert.ok(persist.includes("mission completion is not verified"));
 });;;
+
+
+test("mission acceptance v1 requires explicit criteria bound to unique allowlisted tasks", () => {
+  const tasks = [
+    { taskId: "inspect-1", actionType: "inspect_repository" },
+    { taskId: "tests-1", actionType: "run_repository_tests" }
+  ];
+  const valid = validateMissionAcceptanceCriteria([
+    { id: "criterion-inspect", taskId: "inspect-1", actionType: "inspect_repository", type: "validated_task_report" },
+    { id: "criterion-tests", taskId: "tests-1", actionType: "run_repository_tests", type: "validated_task_report" }
+  ], tasks);
+  assert.equal(valid.ok, true);
+  assert.equal(valid.criteria.length, 2);
+  assert.equal(validateMissionAcceptanceCriteria([], tasks).ok, false);
+  assert.equal(validateMissionAcceptanceCriteria([
+    { id: "bad", taskId: "missing", actionType: "inspect_repository", type: "validated_task_report" }
+  ], tasks).ok, false);
+  assert.equal(validateMissionAcceptanceCriteria([
+    { id: "bad", taskId: "inspect-1", actionType: "run_repository_tests", type: "validated_task_report" }
+  ], tasks).ok, false);
+  assert.equal(validateMissionAcceptanceCriteria([
+    { id: "same", taskId: "inspect-1", actionType: "inspect_repository", type: "validated_task_report" },
+    { id: "same", taskId: "tests-1", actionType: "run_repository_tests", type: "validated_task_report" }
+  ], tasks).ok, false);
+});
+
+test("mission acceptance v1 fails closed on missing, failed, mismatched, or invalid reports", () => {
+  const criteria = [
+    { id: "c1", taskId: "task-1", actionType: "source_security_audit", type: "validated_task_report" }
+  ];
+  const verify = (action, report) => ({ passed: report?.type === action, checks: ["report_identity"] });
+  const passed = evaluateMissionAcceptance(criteria, [
+    { taskId: "task-1", actionType: "source_security_audit", status: "completed", report: { type: "source_security_audit" } }
+  ], verify);
+  assert.equal(passed.verified, true);
+  assert.equal(evaluateMissionAcceptance(criteria, [], verify).verified, false);
+  assert.equal(evaluateMissionAcceptance(criteria, [
+    { taskId: "task-1", actionType: "source_security_audit", status: "failed", report: { type: "source_security_audit" } }
+  ], verify).verified, false);
+  assert.equal(evaluateMissionAcceptance(criteria, [
+    { taskId: "task-1", actionType: "source_security_audit", status: "completed", report: "{invalid" }
+  ], verify).verified, false);
+});
