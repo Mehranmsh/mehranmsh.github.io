@@ -1,6 +1,6 @@
 const MAX_CRITERIA = 8;
 const MAX_EVIDENCE_PER_CRITERION = 5;
-const PATH_PATTERN = /^[A-Za-z][A-Za-z0-9]*(?:\\.[A-Za-z][A-Za-z0-9]*){0,5}$/;
+const PATH_PATTERN = /^[A-Za-z][A-Za-z0-9]*(?:\.[A-Za-z][A-Za-z0-9]*){0,5}$/;
 const OPERATORS = new Set(["exists", "equals", "not_equals", "gte", "lte", "includes", "min_items"]);
 const own = (value, key) => value && typeof value === "object" && !Array.isArray(value) && Object.hasOwn(value, key);
 
