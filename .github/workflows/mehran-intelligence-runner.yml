@@ -318,7 +318,11 @@ jobs:
               try {
                 const generated = await request("/agent/v1/missions/generate", {
                   method: "POST",
-                  body: JSON.stringify({ cycleKey })
+                  body: JSON.stringify({
+                    cycleKey,
+                    // Only a deliberate manual run may bypass packages already awaiting owner attention.
+                    ignoreAttentionRequiredBlockers: process.env.GITHUB_EVENT_NAME === "workflow_dispatch"
+                  })
                 }, ownerHeaders, 12000);
                 console.log("[mission-generator] " + JSON.stringify({
                   success: generated.success === true,

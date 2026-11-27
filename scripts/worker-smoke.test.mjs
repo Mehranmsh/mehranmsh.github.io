@@ -1568,6 +1568,14 @@ test("scheduled Intelligence runner is single-flight, secret-backed and restrict
   assert.ok(runner.includes('request("/agent/v1/missions/generate"'));
   assert.ok(runner.includes("Math.floor(Date.now() / 900000) * 900000"));
   assert.ok(runner.includes("Safely paused: active work or another generator reservation exists"));
+  assert.ok(runner.includes('ignoreAttentionRequiredBlockers: process.env.GITHUB_EVENT_NAME === "workflow_dispatch"'),
+    "only deliberate manual dispatch may request the attention-required override");
+  assert.match(workerSource, /options\?\.ignoreAttentionRequiredBlockers === true/);
+  assert.match(workerSource, /generatorReservation\.ignoreAttentionRequiredBlockers === true/);
+  assert.match(workerSource, /body\.ignoreAttentionRequiredBlockers === true/);
+  assert.match(workerSource, /status IN \('queued','in_progress','waiting_retry'\) OR \(status='attention_required' AND \? = 0\)/);
+  assert.match(workerSource, /\.bind\(cycleKey, packageId, ignoreAttentionRequired, ignoreAttentionRequired\)/,
+    "manual bootstrap may bypass only attention-required packages, not active or retrying work");
 
   assert.match(runner, /service_health_report/);
   assert.match(runner, /repository_quality_check/);

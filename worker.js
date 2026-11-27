@@ -6262,17 +6262,20 @@ export function validateIntelligenceWorkPackage(input) {
   return { ok: true, idempotencyKey, title, objective, priority, scope, scopeJson, tasks: normalized };
 }
 
-async function reserveIntelligenceMissionGeneratorSlot(env, cycleKey, packageId) {
+async function reserveIntelligenceMissionGeneratorSlot(env, cycleKey, packageId, options = {}) {
   if (typeof cycleKey !== "string" || !/^\d{8}T\d{4}$/.test(cycleKey) ||
       typeof packageId !== "string" || !/^[0-9a-f-]{36}$/i.test(packageId)) {
     return { reserved: false, reason: "invalid_reservation_input" };
   }
+  // Owner-triggered manual bootstrap may proceed past packages already awaiting
+  // attention; genuinely active or retrying work continues to block generation.
+  const ignoreAttentionRequired = options?.ignoreAttentionRequiredBlockers === true ? 1 : 0;
   const result = await env.DB.prepare(`
     INSERT INTO intelligence_mission_generator_lock(id,cycle_key,package_id,status,expires_at,updated_at)
     SELECT 1, ?, ?, 'reserved', datetime('now','+2 minutes'), CURRENT_TIMESTAMP
     WHERE NOT EXISTS (
       SELECT 1 FROM intelligence_work_packages
-      WHERE status IN ('queued','in_progress','waiting_retry','attention_required')
+      WHERE status IN ('queued','in_progress','waiting_retry') OR (status='attention_required' AND ? = 0)
     )
     ON CONFLICT(id) DO UPDATE SET
       cycle_key=excluded.cycle_key,
@@ -6286,9 +6289,9 @@ async function reserveIntelligenceMissionGeneratorSlot(env, cycleKey, packageId)
       )
       AND NOT EXISTS (
         SELECT 1 FROM intelligence_work_packages
-        WHERE status IN ('queued','in_progress','waiting_retry','attention_required')
+        WHERE status IN ('queued','in_progress','waiting_retry') OR (status='attention_required' AND ? = 0)
       )
-  `).bind(cycleKey, packageId).run();
+  `).bind(cycleKey, packageId, ignoreAttentionRequired, ignoreAttentionRequired).run();
   const changes = Number(result?.meta?.changes ?? result?.changes ?? 0);
   return changes === 1
     ? { reserved: true, packageId, cycleKey }
@@ -6322,7 +6325,9 @@ async function createIntelligenceWorkPackage(env, input) {
   const packageId = generatorReservation?.packageId || crypto.randomUUID();
   let generatorSlotReserved = false;
   if (generatorReservation) {
-    const reservation = await reserveIntelligenceMissionGeneratorSlot(env, generatorReservation.cycleKey, packageId);
+    const reservation = await reserveIntelligenceMissionGeneratorSlot(env, generatorReservation.cycleKey, packageId, {
+      ignoreAttentionRequiredBlockers: generatorReservation.ignoreAttentionRequiredBlockers === true
+    });
     if (!reservation.reserved) {
       return { success: false, error: "Mission generation paused: another active work package or generator reservation exists.", code: -32010, reason: reservation.reason };
     }
@@ -8282,6 +8287,10 @@ export default {
         if (path === "/agent/v1/missions/generate" && method === "POST") {
           const body = await readBody(request);
           const cycleKey = cleanText(body?.cycleKey, 32);
+          if (!body || Object.keys(body).some(key => !["cycleKey","ignoreAttentionRequiredBlockers"].includes(key)) ||
+              (body.ignoreAttentionRequiredBlockers !== undefined && typeof body.ignoreAttentionRequiredBlockers !== "boolean")) {
+            return error("Only a cycle key and an optional boolean manual-bootstrap override are accepted.", 400);
+          }
           const cycleMatch = /^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})$/.exec(cycleKey);
           const cycleDate = cycleMatch ? new Date(Date.UTC(Number(cycleMatch[1]), Number(cycleMatch[2]) - 1, Number(cycleMatch[3]), Number(cycleMatch[4]), Number(cycleMatch[5]))) : null;
           if (!cycleMatch || !cycleDate || cycleDate.toISOString().replace(/[^0-9T]/g, "").slice(0, 13) !== cycleKey || Number(cycleMatch[5]) % 15 !== 0) return error("A valid UTC 15-minute cycle key is required.", 400);
@@ -8293,7 +8302,11 @@ export default {
             idempotencyKey,
             ownerUid: "mehran_intelligence",
             allowDeterministicFallback: false,
-            generatorReservation: { cycleKey, packageId }
+            generatorReservation: {
+              cycleKey,
+              packageId,
+              ignoreAttentionRequiredBlockers: body.ignoreAttentionRequiredBlockers === true
+            }
           });
           if (!planned.success) return json({ success: false, error: planned.error || "Mission generation was safely paused.", reason: planned.reason }, planned.code === -32010 ? 409 : planned.code === -32003 ? 503 : 400);
           return json({ success: true, ...planned, generator: { cycleKey, mode: "deterministic_read_only", aiInferenceUsed: false } }, planned.duplicate ? 200 : 202);
