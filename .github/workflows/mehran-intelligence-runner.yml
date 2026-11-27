@@ -293,6 +293,35 @@ jobs:
             if (!task || task.status !== "in_progress" || task.requiresApproval !== false || !["mehran_intelligence", "shared"].includes(task.assignedTo)) {
               throw new Error("Claimed task failed assignment, approval, or status validation.");
             }
+            if (task.actionType === "pi_launchpad_candidate_analysis") {
+              let payload = {};
+              try {
+                payload = typeof task.actionPayload === "string" ? JSON.parse(task.actionPayload) : (task.actionPayload || {});
+              } catch {
+                throw new Error("Pi Launchpad snapshot payload is not valid JSON.");
+              }
+              if (typeof payload.snapshotJson !== "string" || payload.snapshotJson.length < 20 || payload.snapshotJson.length > 8000) {
+                throw new Error("Pi Launchpad analysis requires one bounded snapshotJson string.");
+              }
+              let snapshot;
+              try { snapshot = JSON.parse(payload.snapshotJson); }
+              catch { throw new Error("Pi Launchpad snapshotJson is not valid JSON."); }
+              if (!snapshot || typeof snapshot !== "object" || Array.isArray(snapshot) ||
+                  typeof snapshot.tokenId !== "string" || !snapshot.tokenId.trim() || snapshot.tokenId.length > 120) {
+                throw new Error("Pi Launchpad snapshot identity is invalid.");
+              }
+              const { analyzeLaunchpadOpportunity } = await import("../../scripts/pi-launchpad-analyzer.mjs").catch(async () =>
+                await import("./scripts/pi-launchpad-analyzer.mjs")
+              );
+              const analysis = analyzeLaunchpadOpportunity(snapshot);
+              return {
+                type: "pi_launchpad_candidate_analysis",
+                generatedAt: new Date().toISOString(),
+                verificationStatus: "owner_supplied_unverified",
+                analysis,
+                notice: "Preliminary screening of owner-supplied data only. No live Pi or DEX data was fetched; evidence, contract claims, liquidity, and team claims remain unverified. This is not investment advice."
+              };
+            }
             if (task.actionType === "run_repository_tests") {
               return runFixedRepositoryTests(task);
             }
