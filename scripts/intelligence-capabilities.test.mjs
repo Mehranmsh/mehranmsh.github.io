@@ -1758,7 +1758,11 @@ test("work packages cannot claim mission completion without independent objectiv
   assert.ok(refresh.includes("scope_json FROM intelligence_work_packages"));
   assert.ok(refresh.includes('packageScope.planner === "deterministic_fallback"'));
   assert.ok(refresh.includes("verified: false"));
-  assert.ok(refresh.includes('reason: isDeterministicFallback ? "deterministic_fallback_only" : "no_independent_acceptance_verifier"'));
+  assert.ok(refresh.includes('acceptanceEvaluation?.verified === true'));
+  assert.ok(refresh.includes('task_reports_validated_semantic_review_required'));
+  assert.ok(refresh.includes('verified: false'));
+  assert.ok(refresh.includes('evaluateMissionAcceptance('));
+  assert.ok(refresh.includes('verifyIntelligenceReport'));
   assert.ok(refresh.includes('allCompleted ? "attention_required"'));
   assert.ok(refresh.includes("Never finalize a work package as completed until independent objective-level"));
 
