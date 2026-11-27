@@ -25,9 +25,10 @@ const feedbackReviewImport = 'import { buildIntelligenceFeedbackReview } from ".
 const planHistoryImport = 'import { compareIntelligencePlanVersions } from "./scripts/intelligence-plan-history.mjs";';
 const planLearningImport = 'import { learnFromIntelligencePlanOutcomes } from "./scripts/intelligence-plan-learning.mjs";';
 const analysisValidationImport = 'import { discardFindingsWithUnknownEvidencePaths, validateRepositoryAnalysis } from "./scripts/intelligence-analysis-validation.mjs";';
+const objectiveVerificationImport = 'import { normalizeIntelligenceAcceptanceCriteria, verifyIntelligenceObjective } from "./scripts/intelligence-objective-verification.mjs";';
 if (!workerSource.includes(capabilityImport) || !workerSource.includes(patchStoreImport) ||
     !workerSource.includes(patchGenerationImport) || !workerSource.includes(inboxSchemaImport) ||
-    !workerSource.includes(routinePlannerImport) || !workerSource.includes(memoryRankingImport) || !workerSource.includes(answerQualityImport) || !workerSource.includes(retryPolicyImport) || !workerSource.includes(feedbackReviewImport) || !workerSource.includes(planHistoryImport) || !workerSource.includes(planLearningImport) || !workerSource.includes(analysisValidationImport)) {
+    !workerSource.includes(routinePlannerImport) || !workerSource.includes(memoryRankingImport) || !workerSource.includes(answerQualityImport) || !workerSource.includes(retryPolicyImport) || !workerSource.includes(feedbackReviewImport) || !workerSource.includes(planHistoryImport) || !workerSource.includes(planLearningImport) || !workerSource.includes(analysisValidationImport) || !workerSource.includes(objectiveVerificationImport)) {
   throw new Error("Worker capability, patch storage, or private inbox schema imports were not found");
 }
 const policySource = await readFile(new URL("./intelligence-patch-policy.mjs", import.meta.url), "utf8");
@@ -60,6 +61,7 @@ const planLearningSource = (await readFile(new URL("./intelligence-plan-learning
   .replace("export function learnFromIntelligencePlanOutcomes", "function learnFromIntelligencePlanOutcomes");
 const analysisValidationSource = (await readFile(new URL("./intelligence-analysis-validation.mjs", import.meta.url), "utf8"))
   .replace("export function validateRepositoryAnalysis", "function validateRepositoryAnalysis");
+const objectiveVerificationSource = await readFile(new URL("./intelligence-objective-verification.mjs", import.meta.url), "utf8");
 const feedbackReviewSource = (await readFile(new URL("./intelligence-feedback-review.mjs", import.meta.url), "utf8"))
   .replace('from "./intelligence-feedback-learning.mjs"', 'from "' + feedbackLearningUrl + '"')
   .replace("export function buildIntelligenceFeedbackReview", "function buildIntelligenceFeedbackReview")
@@ -123,8 +125,10 @@ const workerRest = workerSource.replace(capabilityImport, "")
   .replace(feedbackReviewImport, "")
    .replace(planHistoryImport, "")
   .replace(planLearningImport, "")
-  .replace(analysisValidationImport, "");
-const workerSourceForTest = knowledgeGraphSource + "\n" + memoryRankingSource + "\n" + feedbackReviewSource + "\n" + planHistorySource + "\n" + planLearningSource + "\n" + analysisValidationSource + "\n" + routinePlannerSource + "\n" + retryPolicySource + `\nimport { storePrivatePatchArtifact, verifyPrivatePatchArtifactAtPath, getPrivatePatchArtifactPath, getVerifiedPrivatePatchArtifactAtPath } from "${patchStoreTestUrl}";
+  .replace(analysisValidationImport, "")
+  .replace(objectiveVerificationImport, "");
+const objectiveVerificationUrl = moduleUrl(objectiveVerificationSource);
+const workerSourceForTest = knowledgeGraphSource + "\n" + memoryRankingSource + "\n" + feedbackReviewSource + "\n" + planHistorySource + "\n" + planLearningSource + "\n" + analysisValidationSource + "\n" + `import { normalizeIntelligenceAcceptanceCriteria, verifyIntelligenceObjective } from "${objectiveVerificationUrl}";\n` + routinePlannerSource + "\n" + retryPolicySource + `\nimport { storePrivatePatchArtifact, verifyPrivatePatchArtifactAtPath, getPrivatePatchArtifactPath, getVerifiedPrivatePatchArtifactAtPath } from "${patchStoreTestUrl}";
 import { generatePatchArtifact } from "${patchGenerationTestUrl}";
 import { validatePrivateIntelligenceMission } from "${inboxSchemaUrl}";
 const INTELLIGENCE_ACTION_TYPES = ${JSON.stringify(INTELLIGENCE_ACTION_TYPES)};
