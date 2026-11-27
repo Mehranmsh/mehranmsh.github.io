@@ -7684,7 +7684,7 @@ export default {
             } else if (candidate.action_type === "service_health_report") {
               await env.DB.prepare("SELECT 1 AS healthy").first();
               const projects = await env.DB.prepare("SELECT COUNT(*) AS total FROM projects").first();
-              report = { type:candidate.action_type, generatedAt:new Date().toISOString(), database:"healthy", projectRecords:Number(projects?.total || 0) };
+              report = { type:candidate.action_type, generatedAt:new Date().toISOString(), worker:"online", database:true, databaseStatus:"healthy", projectRecords:Number(projects?.total || 0) };
             } else if (candidate.action_type === "repository_quality_check") {
               // Fixed public repository only. Metadata reads only; no code execution or writes.
               const controller = new AbortController();
