@@ -10,7 +10,7 @@ import { normalizeIntelligenceAnswer } from "./scripts/intelligence-answer-quali
 import { planIntelligenceRetry } from "./scripts/intelligence-retry-policy.mjs";
 import { compareIntelligencePlanVersions } from "./scripts/intelligence-plan-history.mjs";
 import { learnFromIntelligencePlanOutcomes } from "./scripts/intelligence-plan-learning.mjs";
-import { validateRepositoryAnalysis } from "./scripts/intelligence-analysis-validation.mjs";
+import { discardFindingsWithUnknownEvidencePaths, validateRepositoryAnalysis } from "./scripts/intelligence-analysis-validation.mjs";
 
 function nextWorkersAIDailyResetAt(attemptedAt) {
   const timestamp = typeof attemptedAt === "number" ? attemptedAt : Date.parse(attemptedAt);
@@ -8195,6 +8195,7 @@ export default {
           else if (typeof raw === "string" && raw.length <= 16000) {
             try { analysis = JSON.parse(extractIntelligenceJsonObject(raw)); } catch {}
           }
+          analysis = discardFindingsWithUnknownEvidencePaths(analysis, files);
           const validation = validateRepositoryAnalysis(analysis, files);
           if (!validation.valid) {
             const validationDiagnostic = {
