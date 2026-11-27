@@ -18,3 +18,13 @@ test("repository inventory rejects paths, duplicate files, invalid commits and o
   assert.throws(()=>buildRepositoryInventory([file],"bad"));
   assert.throws(()=>buildRepositoryInventory([{...file,content:"x".repeat(600001)}],"b".repeat(40)));
 });
+
+import { readFileSync } from "node:fs";
+test("agent executes repository tests only through a fixed AI-free command list", () => {
+  const source = readFileSync(new URL("./intelligence-agent.mjs", import.meta.url), "utf8");
+  assert.ok(source.includes("async function runRepositoryTests()"));
+  assert.ok(source.includes("task.actionType === \"run_repository_tests\""));
+  assert.ok(source.includes("\"--test\", \"scripts/intelligence-capabilities.test.mjs\""));
+  assert.equal(source.includes("execSync("), false);
+  assert.equal(source.includes("spawnSync("), false);
+});
