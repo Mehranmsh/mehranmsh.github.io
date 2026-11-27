@@ -1264,6 +1264,15 @@ test("private report base64 verification strips actual whitespace before decodin
 });
 
 
+test("Worker validates immutable repository inspection result checkpoints before persistence", () => {
+  assert.match(workerSource, /if \(before\.action_type === "inspect_repository"\)/);
+  assert.match(workerSource, /Repository inspection checkpoint schema, identity, or digest is invalid/);
+  assert.match(workerSource, /report\?\.commitSha !== cp\.baseSha/);
+  assert.match(workerSource, /Repository inspection report does not match its bounded evidence schema or immutable source commit/);
+  assert.match(workerSource, /Repository inspection result checkpoint is immutable once saved/);
+  assert.match(runnerSource, /task\.actionType === "inspect_repository".*resultReport\?\.commitSha/s);
+});
+
 test("repository inspection checkpoints are revalidated against the current Worker report contract before resume", () => {
   assert.match(runnerSource, /savedCheckpoint\.phase === "result_ready" && task\.actionType === "inspect_repository"/);
   assert.match(runnerSource, /report\?\.type === "inspect_repository"/);
