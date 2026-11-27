@@ -6097,39 +6097,52 @@ async function blockIntelligenceTasksWithTerminalDependencies(env, packageId) {
 
 async function refreshIntelligenceWorkPackageSnapshot(env, packageId) {
   if (!packageId) return null;
-  const pkg = await env.DB.prepare("SELECT status FROM intelligence_work_packages WHERE id=?").bind(packageId).first();
+  const pkg = await env.DB.prepare("SELECT status,scope_json FROM intelligence_work_packages WHERE id=?").bind(packageId).first();
   await blockIntelligenceTasksWithTerminalDependencies(env, packageId);
   if (!pkg) return null;
-  const result = await env.DB.prepare("SELECT status,COUNT(*) AS total FROM intelligence_tasks WHERE work_package_id=? GROUP BY status").bind(packageId).all();
-  const counts = {total:0,completed:0,blocked:0,failed:0,cancelled:0,awaitingApproval:0,inProgress:0,queued:0,retryWaiting:0,blockedDependencies:0};
-  for (const row of result.results || []) {
-    const n = Number(row.total || 0);
-    counts.total += n;
-    if (row.status === "completed") counts.completed += n;
-    else if (row.status === "blocked") counts.blocked += n;
-    else if (row.status === "failed") counts.failed += n;
-    else if (row.status === "cancelled") counts.cancelled += n;
-    else if (row.status === "awaiting_approval") counts.awaitingApproval += n;
-    else if (row.status === "in_progress") counts.inProgress += n;
-    else if (row.status === "retry_wait") counts.retryWaiting += n;
-    else counts.queued += n;
+  const result = await env.DB.prepare("SELECT id,status,action_payload,result_text FROM intelligence_tasks WHERE work_package_id=? ORDER BY created_at ASC,id ASC").bind(packageId).all();
+  const tasks = result.results || [];
+  const counts = {total:tasks.length,completed:0,blocked:0,failed:0,cancelled:0,awaitingApproval:0,inProgress:0,queued:0,retryWaiting:0,blockedDependencies:0};
+  for (const row of tasks) {
+    if (row.status === "completed") counts.completed++;
+    else if (row.status === "blocked") counts.blocked++;
+    else if (row.status === "failed") counts.failed++;
+    else if (row.status === "cancelled") counts.cancelled++;
+    else if (row.status === "awaiting_approval") counts.awaitingApproval++;
+    else if (row.status === "in_progress") counts.inProgress++;
+    else if (row.status === "retry_wait") counts.retryWaiting++;
+    else counts.queued++;
   }
   const dependencyResult = await env.DB.prepare("SELECT COUNT(DISTINCT child.id) AS total FROM intelligence_task_dependencies d JOIN intelligence_tasks child ON child.id=d.task_id JOIN intelligence_tasks parent ON parent.id=d.depends_on_task_id WHERE child.work_package_id=? AND child.status IN ('queued','accepted','retry_wait') AND parent.status IN ('blocked','failed','cancelled')").bind(packageId).first();
   counts.blockedDependencies = Number(dependencyResult?.total || 0);
+  let packageScope = {};
+  try { packageScope = JSON.parse(pkg.scope_json || "{}"); } catch { packageScope = {}; }
+  const objectiveVerification = verifyIntelligenceObjective(packageScope.acceptanceCriteria, tasks);
   const allCompleted = counts.total > 0 && counts.completed === counts.total;
+  const objectiveComplete = allCompleted && objectiveVerification.verified;
   const hasRunnableQueued = counts.queued > counts.blockedDependencies;
-  // A blocked task must not finalize a package while sibling work is still running.
-  // Queued tasks whose dependencies are already blocked are terminal for this package.
-  const status = allCompleted ? "completed"
+  // Task completion alone never proves the owner objective. Missing or mismatched evidence fails closed.
+  const status = objectiveComplete ? "completed"
+    : allCompleted ? "attention_required"
     : counts.inProgress ? "in_progress"
     : counts.retryWaiting && !hasRunnableQueued ? "waiting_retry"
     : hasRunnableQueued ? "queued"
     : (counts.blocked || counts.failed || counts.cancelled || counts.awaitingApproval || counts.blockedDependencies) ? "attention_required"
     : "queued";
   const reportIsQuiescent = isIntelligenceReportQuiescent(counts);
-  const report = {status,counts,generatedAt:new Date().toISOString()};
+  const report = {
+    status, counts,
+    objectiveVerification: {
+      verified: objectiveVerification.verified,
+      passed: objectiveVerification.passed,
+      total: objectiveVerification.total,
+      reason: objectiveVerification.reason,
+      criteria: objectiveVerification.criteria
+    },
+    generatedAt: new Date().toISOString()
+  };
   if ((pkg.status || "queued") !== status) {
-    const details = JSON.stringify({fromStatus:pkg.status || "queued",toStatus:status,counts});
+    const details = JSON.stringify({fromStatus:pkg.status || "queued",toStatus:status,counts,objectiveVerification:report.objectiveVerification});
     const eventId = crypto.randomUUID();
     await env.DB.batch([
       env.DB.prepare("UPDATE intelligence_work_packages SET status=?,report_json=?,updated_at=CURRENT_TIMESTAMP WHERE id=?").bind(status,JSON.stringify(report),packageId),
@@ -6145,7 +6158,6 @@ async function refreshIntelligenceWorkPackageSnapshot(env, packageId) {
     try {
       await persistIntelligencePackageReport(env, packageId, report);
     } catch (err) {
-      // Report storage is best-effort and must never break task scheduling.
       console.error("INTELLIGENCE_PRIVATE_REPORT_STORE_FAILURE", String(err?.message || err).slice(0,180));
     }
   }
@@ -6372,9 +6384,17 @@ async function createIntelligenceFallbackPackage(env, mission, idempotencyKey, r
       dependsOn: []
     }
   ];
-  const objectiveCriteria = normalizeIntelligenceAcceptanceCriteria(plan.acceptanceCriteria, normalizedTasks);
-  if (!objectiveCriteria.valid) return fallback("ai_acceptance_criteria_invalid", objectiveCriteria.reason);
-  scope.acceptanceCriteria = objectiveCriteria.criteria;
+  scope.acceptanceCriteria = [
+    { id: "worker-online", description: "The production Worker is online", evidence: [{ taskId: "service-health", path: "worker", operator: "equals", expected: "online" }] },
+    { id: "database-connected", description: "The production database is connected", evidence: [{ taskId: "service-health", path: "database", operator: "equals", expected: true }] },
+    { id: "repository-identity", description: "The expected repository was inspected", evidence: [{ taskId: "repository-quality", path: "repository", operator: "equals", expected: "Mehranmsh/mehranmsh.github.io" }] },
+    { id: "latest-commit-known", description: "The latest repository commit is identified", evidence: [{ taskId: "repository-quality", path: "latestCommit", operator: "exists" }] },
+    { id: "security-audit-passed", description: "The deterministic source security checks passed", evidence: [
+      { taskId: "source-security", path: "summary.status", operator: "equals", expected: "passed" },
+      { taskId: "source-security", path: "summary.failed", operator: "equals", expected: 0 }
+    ] },
+    { id: "repository-inventory", description: "At least one allowlisted source file was inspected", evidence: [{ taskId: "inspect-intelligence-core", path: "summary.filesInspected", operator: "gte", expected: 1 }] }
+  ];
   const created = await createIntelligenceWorkPackage(env, {
     idempotencyKey,
     title: "MEHRAN INTELLIGENCE deterministic mission intake",
@@ -8416,7 +8436,7 @@ export default {
           await blockIntelligenceTasksWithTerminalDependencies(env, packageId);
           const pkg = await env.DB.prepare("SELECT id,title,objective,scope_json,priority,status,created_at,updated_at FROM intelligence_work_packages WHERE id=?").bind(packageId).first();
           if (!pkg) return error("Work package not found.",404);
-          const tasks = await env.DB.prepare("SELECT id,title,status,action_type,requires_approval,result_text,attempts,max_attempts,next_attempt_at,checkpoint_json,last_error_code,updated_at FROM intelligence_tasks WHERE work_package_id=? ORDER BY created_at ASC").bind(packageId).all();
+          const tasks = await env.DB.prepare("SELECT id,title,status,action_type,action_payload,requires_approval,result_text,attempts,max_attempts,next_attempt_at,checkpoint_json,last_error_code,updated_at FROM intelligence_tasks WHERE work_package_id=? ORDER BY created_at ASC").bind(packageId).all();
           const events = await env.DB.prepare("SELECT task_id,event_type,from_status,to_status,actor,details_json,created_at FROM intelligence_task_events WHERE work_package_id=? ORDER BY created_at ASC LIMIT 100").bind(packageId).all();
           const rows = tasks.results || [];
           const counts = {total:rows.length,completed:0,blocked:0,failed:0,cancelled:0,awaitingApproval:0,inProgress:0,queued:0,retryWaiting:0};
