@@ -11,6 +11,7 @@ import { planIntelligenceRetry } from "./scripts/intelligence-retry-policy.mjs";
 import { compareIntelligencePlanVersions } from "./scripts/intelligence-plan-history.mjs";
 import { learnFromIntelligencePlanOutcomes } from "./scripts/intelligence-plan-learning.mjs";
 import { discardFindingsWithUnknownEvidencePaths, validateRepositoryAnalysis } from "./scripts/intelligence-analysis-validation.mjs";
+import { validateMissionAcceptanceCriteria, evaluateMissionAcceptance } from "./scripts/intelligence-acceptance.mjs";
 
 function nextWorkersAIDailyResetAt(attemptedAt) {
   const timestamp = typeof attemptedAt === "number" ? attemptedAt : Date.parse(attemptedAt);
@@ -6130,12 +6131,47 @@ async function refreshIntelligenceWorkPackageSnapshot(env, packageId) {
     if (parsedScope && typeof parsedScope === "object" && !Array.isArray(parsedScope)) packageScope = parsedScope;
   } catch {}
   const isDeterministicFallback = packageScope.planner === "deterministic_fallback";
-  // No planner currently supplies independently verified owner-mission acceptance evidence.
-  // Task-level schema checks are not proof that the package objective was achieved.
+  let acceptanceEvaluation = null;
+  if (allCompleted && Array.isArray(packageScope.acceptanceCriteria) && packageScope.acceptanceCriteria.length) {
+    const rows = await env.DB.prepare(
+      "SELECT id,status,action_type,action_payload,result_text FROM intelligence_tasks WHERE work_package_id=? ORDER BY created_at ASC,id ASC"
+    ).bind(packageId).all();
+    const taskResults = (rows.results || []).map(row => {
+      let payload = {};
+      let report = null;
+      try { payload = JSON.parse(String(row.action_payload || "{}")); } catch {}
+      try { report = JSON.parse(String(row.result_text || "")); } catch {}
+      return {
+        taskId: typeof payload.sourceTaskId === "string" ? payload.sourceTaskId : "",
+        status: row.status,
+        actionType: row.action_type,
+        report
+      };
+    });
+    acceptanceEvaluation = evaluateMissionAcceptance(
+      packageScope.acceptanceCriteria,
+      taskResults,
+      verifyIntelligenceReport
+    );
+  }
+  // Action-specific reports are checked against the exact task rows. This is
+  // stronger than task status alone, but is not semantic proof of the owner objective.
   const missionExecution = {
     verified: false,
-    reason: isDeterministicFallback ? "deterministic_fallback_only" : "no_independent_acceptance_verifier",
-    planner: cleanText(packageScope.planner, 80) || "unknown"
+    taskEvidenceVerified: acceptanceEvaluation?.verified === true,
+    reason: isDeterministicFallback ? "deterministic_fallback_only"
+      : acceptanceEvaluation?.verified === true ? "task_reports_validated_semantic_review_required"
+      : acceptanceEvaluation ? "acceptance_criteria_failed" : "no_independent_acceptance_verifier",
+    planner: cleanText(packageScope.planner, 80) || "unknown",
+    ...(acceptanceEvaluation ? {
+      acceptance: {
+        verifier: "action_report_schema_v1",
+        evaluatedAt: new Date().toISOString(),
+        verified: acceptanceEvaluation.verified,
+        reason: acceptanceEvaluation.reason,
+        checks: acceptanceEvaluation.checks
+      }
+    } : {})
   };
   const hasRunnableQueued = counts.queued > counts.blockedDependencies;
   // Never finalize a work package as completed until independent objective-level
@@ -6208,7 +6244,6 @@ export function validateIntelligenceWorkPackage(input) {
   const objective = cleanText(input.objective, 2000);
   const priority = input.priority === undefined ? "normal" : input.priority;
   const scope = input.scope && typeof input.scope === "object" && !Array.isArray(input.scope) ? input.scope : {};
-  const scopeJson = JSON.stringify(scope);
   const tasks = Array.isArray(input.tasks) ? input.tasks : [];
   if (!idempotencyKey || !/^[A-Za-z0-9._:-]{8,120}$/.test(idempotencyKey) || !title || !tasks.length || tasks.length > 20) {
     return fail("A valid idempotencyKey, title, and 1-20 tasks are required.");
@@ -6248,6 +6283,13 @@ export function validateIntelligenceWorkPackage(input) {
     known.add(taskId);
     normalized.push({ taskId, title: taskTitle, description, actionType, dependencies, ...(paths ? { paths } : {}), ...(baseSha ? { baseSha } : {}), ...(patchObjective ? { objective: patchObjective.trim() } : {}) });
   }
+  if (Object.hasOwn(scope, "acceptanceCriteria")) {
+    const acceptance = validateMissionAcceptanceCriteria(scope.acceptanceCriteria, normalized);
+    if (!acceptance.ok) return fail(acceptance.error);
+    scope.acceptanceCriteria = acceptance.criteria;
+  }
+  const scopeJson = JSON.stringify(scope);
+  if (!scopeJson || scopeJson.length > 4000) return fail("Work package scope exceeds the 4 KB limit.");
   return { ok: true, idempotencyKey, title, objective, priority, scope, scopeJson, tasks: normalized };
 }
 
