@@ -1300,15 +1300,31 @@ test("repository inspection checkpoints are revalidated against the current Work
   assert.ok(runnerSource.indexOf("Ignoring stale repository-inspection checkpoint") < runnerSource.indexOf("Resuming task " + '" + task.id'));
 });
 
-test("package report snapshots wait until runnable sibling tasks are quiescent", () => {
+test("package report snapshots use actual task-claim eligibility and do not strand unclaimable queued packages", () => {
   const start = workerSource.indexOf("async function refreshIntelligenceWorkPackageSnapshot");
   const end = workerSource.indexOf("async function ensureIntelligenceSchedulerRunsTable", start);
   const snapshot = workerSource.slice(start, end);
   assert.match(snapshot, /else if \(row\.status === "cancelled"\) counts\.cancelled \+= n/);
   assert.match(snapshot, /counts\.inProgress \? "in_progress"/);
-  assert.match(snapshot, /counts\.queued > counts\.blockedDependencies/);
+  assert.match(snapshot, /runnableTaskResult = await env\.DB\.prepare/);
+  assert.match(snapshot, /t\.requires_approval=0/);
+  assert.match(snapshot, /t\.assigned_to IN \('mehran_intelligence','shared'\)/);
+  assert.match(snapshot, /COALESCE\(t\.attempts,0\)<COALESCE\(t\.max_attempts,3\)/);
+  assert.match(snapshot, /t\.next_attempt_at IS NULL OR datetime\(t\.next_attempt_at\)<=datetime\('now'\)/);
+  assert.match(snapshot, /parent\.status<>'completed'/);
+  assert.match(snapshot, /hasRunnableQueued \? "queued"\s*: "attention_required"/);
   assert.match(snapshot, /reportIsQuiescent = isIntelligenceReportQuiescent\(counts\)/);
   assert.match(snapshot, /includes\(status\) && reportIsQuiescent/);
+});
+
+test("mission generation reconciles stale package snapshots before applying active-work blockers", () => {
+  const start = workerSource.indexOf("async function reserveIntelligenceMissionGeneratorSlot");
+  const end = workerSource.indexOf("async function releaseIntelligenceMissionGeneratorSlot", start);
+  assert.ok(start >= 0 && end > start);
+  const reserve = workerSource.slice(start, end);
+  assert.match(reserve, /SELECT id FROM intelligence_work_packages WHERE status IN \('queued','in_progress','waiting_retry'\)/);
+  assert.match(reserve, /refreshIntelligenceWorkPackageSnapshot\(env, row\.id\)/);
+  assert.ok(reserve.indexOf("refreshIntelligenceWorkPackageSnapshot") < reserve.indexOf("const result = await env.DB.prepare"));
 });
 
 test("Workers AI inference failures retain safe actionable diagnostics without exposing request content", () => {
