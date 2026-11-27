@@ -78,6 +78,18 @@ export function rankPiLaunchpadPortfolio(candidates, options = {}) {
       return;
     }
 
+    // Never allow a malformed analysis to promote a low-scoring project
+    // through a manually supplied classification label.
+    const scoreMatchesClassification =
+      (normalized.classification === "strong_candidate" && normalized.score >= 80) ||
+      (normalized.classification === "watchlist" && normalized.score >= 65 && normalized.score < 80) ||
+      (normalized.classification === "weak_candidate" && normalized.score >= 45 && normalized.score < 65) ||
+      (normalized.classification === "high_risk" && normalized.score < 45);
+    if (!scoreMatchesClassification) {
+      excluded.push({ index, tokenId: normalized.tokenId, reason: "classification_score_mismatch" });
+      return;
+    }
+
     const riskPenalty = Math.min(maxRiskPenalty, normalized.risks.length * riskPenaltyPerFlag);
     const monitoringPenalty = eventPenalty(normalized.events);
     const priorityScore = Math.round(clamp(normalized.score - riskPenalty - monitoringPenalty, 0, 100) * 100) / 100;

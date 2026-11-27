@@ -8,7 +8,7 @@ const candidate = (tokenId, score, coveragePercent = 85, classification = "stron
 
 test("ranks eligible candidates by adjusted priority and stable tie-breaks", () => {
   const result = rankPiLaunchpadPortfolio([
-    candidate("b", 80, 90), candidate("a", 80, 95), candidate("c", 75, 90)
+    candidate("b", 80, 90), candidate("a", 80, 95), candidate("c", 75, 90, "watchlist")
   ]);
   assert.equal(result.rankerVersion, PI_LAUNCHPAD_RANKER_VERSION);
   assert.deepEqual(result.ranked.map((item) => item.tokenId), ["a", "b", "c"]);
@@ -44,7 +44,7 @@ test("risk flags and monitoring events reduce priority without hiding source sco
 
 test("rejects malformed entries, duplicate IDs, and invalid options safely", () => {
   const result = rankPiLaunchpadPortfolio([
-    null, candidate("same", 70), candidate("same", 99), candidate("bad", 101)
+    null, candidate("same", 70, 85, "watchlist"), candidate("same", 99), candidate("bad", 101)
   ], { minCoveragePercent: 70 });
   assert.equal(result.ranked.length, 1);
   assert.deepEqual(result.excluded.map((item) => item.reason), [
@@ -60,4 +60,23 @@ test("applies configured coverage threshold and bounded penalties", () => {
   ], { minCoveragePercent: 70, riskPenaltyPerFlag: 9, maxRiskPenalty: 12 });
   assert.equal(result.ranked[0].riskPenalty, 12);
   assert.equal(result.ranked[0].priorityScore, 38);
+});
+
+
+test("rejects classification labels that contradict the numeric score", () => {
+  const result = rankPiLaunchpadPortfolio([
+    candidate("fake-strong", 20, 95, "strong_candidate"),
+    candidate("fake-watch", 90, 95, "watchlist"),
+    candidate("fake-weak", 70, 95, "weak_candidate"),
+    candidate("fake-low-risk", 90, 95, "high_risk"),
+    candidate("valid-strong", 85, 95, "strong_candidate"),
+    candidate("valid-watch", 70, 95, "watchlist"),
+    candidate("valid-weak", 50, 95, "weak_candidate"),
+    candidate("valid-high-risk", 30, 95, "high_risk")
+  ]);
+  assert.deepEqual(result.ranked.map((item) => item.tokenId), [
+    "valid-strong", "valid-watch", "valid-weak", "valid-high-risk"
+  ]);
+  assert.equal(result.excluded.length, 4);
+  assert.ok(result.excluded.every((item) => item.reason === "classification_score_mismatch"));
 });
