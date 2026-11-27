@@ -298,9 +298,9 @@ jobs:
                 }
                 if (stepId === "capability_tests" || stepId === "security_scanner_tests") {
                   const stepTests = {
-                    total: Number(output.match(/^# tests (\\d+)$/m)?.[1] || 0),
-                    passed: Number(output.match(/^# pass (\\d+)$/m)?.[1] || 0),
-                    failed: Number(output.match(/^# fail (\\d+)$/m)?.[1] || 0)
+                    total: Number(output.match(/^# tests (\d+)$/m)?.[1] || 0),
+                    passed: Number(output.match(/^# pass (\d+)$/m)?.[1] || 0),
+                    failed: Number(output.match(/^# fail (\d+)$/m)?.[1] || 0)
                   };
                   if (stepTests.total < 1 || stepTests.failed !== 0 || stepTests.passed !== stepTests.total) {
                     throw new Error(stepId + " did not report a complete passing test set.");
