@@ -5796,7 +5796,7 @@ async function persistIntelligenceNotification(env, row) {
       typeof payload.generatedAt !== "string" || payload.generatedAt.length > 40) {
     throw new Error("Private notification payload failed validation.");
   }
-  const countKeys = ["total","completed","blocked","failed","awaitingApproval","inProgress","queued","retryWaiting","blockedDependencies"];
+  const countKeys = ["total","completed","blocked","failed","cancelled","awaitingApproval","inProgress","queued","retryWaiting","blockedDependencies"];
   if (!payload.counts || typeof payload.counts !== "object" || Array.isArray(payload.counts) ||
       Object.keys(payload.counts).some(key => !countKeys.includes(key))) {
     throw new Error("Private notification counts failed validation.");
