@@ -886,13 +886,19 @@ jobs:
             if (savedCheckpoint.phase === "result_ready" && task.actionType === "source_security_audit") {
               try {
                 const checkpointReport = JSON.parse(savedCheckpoint.result || "null");
-                checkpointMatchesCurrentSchema = checkpointMatchesCurrentSchema && checkpointReport?.type === "source_security_audit" &&
-                  checkpointReport?.mode === "deterministic_read_only_static_audit";
-              } catch {
-                checkpointMatchesCurrentSchema = false;
-              }
+                const audit = checkpointReport?.staticPatternAudit;
+                checkpointMatchesCurrentSchema = checkpointMatchesCurrentSchema &&
+                  checkpointReport?.type === "source_security_audit" &&
+                  checkpointReport?.mode === "deterministic_read_only_static_audit" &&
+                  /^[a-f0-9]{40}$/i.test(savedCheckpoint.baseSha || "") &&
+                  audit?.type === "source_security_audit" &&
+                  audit?.mode === "bounded_static_pattern_scan" &&
+                  audit?.commitSha === savedCheckpoint.baseSha &&
+                  audit?.repository === "Mehranmsh/mehranmsh.github.io" &&
+                  Array.isArray(audit?.findings) && audit.findings.length <= 100;
+              } catch { checkpointMatchesCurrentSchema = false; }
               if (!checkpointMatchesCurrentSchema) {
-                console.log("Ignoring stale source-security-audit checkpoint; current Worker schema requires deterministic_read_only_static_audit.");
+                console.log("Ignoring stale source-security-audit checkpoint; immutable source commit or bounded scan schema did not match.");
               }
             }
             if (savedCheckpoint.phase === "result_ready" && task.actionType === "propose_code_patch") {
