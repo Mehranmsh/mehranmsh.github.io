@@ -46,3 +46,32 @@ test("caps caller-supplied batch limit and validates input type", () => {
   const input = [result("one", 80)];
   assert.equal(screenPiLaunchpadBatch(input, { maxCandidates: 999999 }).accepted, true);
 });
+
+test("carries matching explainable reports alongside ranked verified-analysis inputs", () => {
+  const analysisReport = Object.freeze({
+    generatedAt: "2026-11-27T12:00:00.000Z",
+    identity: Object.freeze({ tokenId: "with-report" }),
+    verdict: Object.freeze({ classification: "strong_candidate" })
+  });
+  const report = screenPiLaunchpadBatch([{
+    analysis: {
+      ...result("with-report", 91),
+      analysisReport
+    }
+  }]);
+  assert.equal(report.ranked[0].reportStatus, "attached_precomputed_report");
+  assert.equal(report.ranked[0].analysisReport, analysisReport);
+});
+
+test("does not attach a report whose token identity differs from the ranked candidate", () => {
+  const report = screenPiLaunchpadBatch([{
+    ...result("candidate-a", 90),
+    analysisReport: {
+      generatedAt: "2026-11-27T12:00:00.000Z",
+      identity: { tokenId: "candidate-b" },
+      verdict: { classification: "strong_candidate" }
+    }
+  }]);
+  assert.equal(report.ranked[0].analysisReport, null);
+  assert.equal(report.ranked[0].reportStatus, "report_unavailable");
+});
