@@ -55,6 +55,7 @@ jobs:
             readOnly: data.readOnly,
             aggregateOnly: data.aggregateOnly,
             packages: data.packages,
+            taskLedger: data.taskLedger,
             generatorLock: data.generatorLock
           };
           console.log("[production-409-diagnostics] " + JSON.stringify(report));
