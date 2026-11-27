@@ -41,8 +41,8 @@ test("reports provenance freshness and rejected evidence without claiming factua
     },
     verifiedMetrics: { acceptedRecords: [], rejectedRecords: [] }
   });
-  assert.equal(report.provenance.acceptedAttestationCount, 2);
-  assert.equal(report.provenance.rejectedAttestationCount, 1);
+  assert.equal(report.provenance.acceptedEvidenceRecordCount, 2);
+  assert.equal(report.provenance.rejectedEvidenceRecordCount, 1);
   assert.equal(report.provenance.staleOrUndatedEvidenceCount, 1);
   assert.equal(report.provenance.acceptedEvidence[0].freshness, "fresh_by_policy");
   assert.equal(report.provenance.acceptedEvidence[1].freshness, "stale_by_policy");
@@ -61,4 +61,27 @@ test("requires explicit report time and bounds freshness policy", () => {
   const analysis = analyzeLaunchpadOpportunity({ tokenId: "validation" });
   assert.throws(() => buildPiLaunchpadAnalysisReport(analysis), /timestamp/);
   assert.throws(() => buildPiLaunchpadAnalysisReport(analysis, { now: NOW, maxEvidenceAgeDays: 500 }), /between 0 and 365/);
+});
+
+test("marks future-dated evidence as invalid freshness rather than fresh", () => {
+  const analysis = analyzeLaunchpadOpportunity({ tokenId: "future-evidence", evidence: { utility: 80 } });
+  const report = buildPiLaunchpadAnalysisReport(analysis, {
+    now: NOW,
+    verifiedEvidence: { acceptedRecords: [{ evidenceId: "ev-future", observedAt: "2026-11-28T12:00:00.000Z" }] }
+  });
+  assert.equal(report.provenance.acceptedEvidence[0].freshness, "future_timestamp");
+  assert.equal(report.provenance.staleOrUndatedEvidenceCount, 1);
+});
+
+test("explains when critical-risk policy caps an otherwise higher weighted score", () => {
+  const analysis = analyzeLaunchpadOpportunity({
+    tokenId: "critical-cap",
+    evidence: { utility: 100, teamTransparency: 100, tokenomics: 100, marketActivity: 100, contractSecurity: 100 },
+    riskFlags: ["Honeypot behavior reported"]
+  });
+  const report = buildPiLaunchpadAnalysisReport(analysis, { now: NOW });
+  assert.equal(report.verdict.score, 25);
+  assert.equal(report.verdict.uncappedWeightedScore, 100);
+  assert.equal(report.verdict.scoreCapApplied, true);
+  assert.match(report.verdict.scoreCapExplanation, /capped/);
 });
