@@ -237,6 +237,16 @@ test("security audit gathers bounded evidence from fixed official research sourc
   assert.match(runnerSource, /fixed official documentation URLs/);
 });
 
+test("production semantic AI verification is best-effort and cannot block deterministic runner tasks", () => {
+  const semanticStep = runnerSource.slice(
+    runnerSource.indexOf("- name: Verify production semantic analysis against immutable repository evidence"),
+    runnerSource.indexOf("- name: Bootstrap the first bounded read-only work package")
+  );
+  assert.match(semanticStep, /continue-on-error: true/);
+  assert.ok(runnerSource.indexOf("- name: Bootstrap the first bounded read-only work package") >
+    runnerSource.indexOf("- name: Verify production semantic analysis against immutable repository evidence"));
+});
+
 test("runner does not create an automatic self-assessment follow-up", () => {
   assert.doesNotMatch(runnerSource, /selfImprovementPackageId/);
   assert.doesNotMatch(runnerSource, /mehran-intelligence-self-improvement-evidence-review-v1/);
