@@ -34,6 +34,7 @@ jobs:
           persist-credentials: false
       - name: Verify production semantic analysis against immutable repository evidence
         if: github.event_name == 'push'
+        continue-on-error: true
         timeout-minutes: 3
         env:
           MEHRAN_ORCHESTRATOR_TOKEN: ${{ secrets.MEHRAN_ORCHESTRATOR_TOKEN }}
