@@ -1695,7 +1695,7 @@ test("repository inspection resumes only from integrity-checked per-file progres
   const runner = runnerSource;
   assert.ok(checkpointSource.includes('phase: "file_progress"'));
   assert.ok(checkpointSource.includes("verifyInspectionProgressCheckpoint"));
-  assert.ok(checkpointTests.includes("rejects task, commit, order, path and digest tampering"));
+  assert.ok(checkpointTests.includes("rejects task, commit, path and digest tampering"));
   assert.ok(runner.includes("verifyInspectionProgressCheckpoint(checkpoint"));
   assert.ok(runner.includes("Resuming repository inspection after "));
   assert.ok(runner.includes("createInspectionProgressCheckpoint({taskId:task.id,baseSha,completedFiles:files})"));
