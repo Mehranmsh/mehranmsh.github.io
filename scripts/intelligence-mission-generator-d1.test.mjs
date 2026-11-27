@@ -26,7 +26,8 @@ test("D1 mission-generator reservation SQL and insert guard pass SQLite integrat
     db.exec(trigger);
     const reserveSlot = db.prepare(reserveSql);
     const addPackage = db.prepare("INSERT INTO intelligence_work_packages(id,idempotency_key,title,created_by) VALUES(?,?,?,?)");
-    const reserve = (cycle, id) => Number(reserveSlot.run(cycle, id).changes);
+    const reserve = (cycle, id, ignoreAttentionRequired = false) =>
+      Number(reserveSlot.run(cycle, id, ignoreAttentionRequired ? 1 : 0, ignoreAttentionRequired ? 1 : 0).changes);
     const add = (id, key) => addPackage.run(id, key, "test", "test");
 
     assert.equal(reserve("20261125T0615", "pkg-a"), 1);
@@ -41,6 +42,14 @@ test("D1 mission-generator reservation SQL and insert guard pass SQLite integrat
     db.prepare("UPDATE intelligence_mission_generator_lock SET expires_at=datetime('now','-1 minute') WHERE id=1").run();
     assert.equal(reserve("20261125T0645", "pkg-d"), 1);
     assert.throws(() => add("pkg-e", "key-e"), /reservation is active/i);
+    db.prepare(release).run("pkg-d");
+    add("pkg-f", "key-f");
+    db.prepare("UPDATE intelligence_work_packages SET status='attention_required' WHERE id='pkg-f'").run();
+    assert.equal(reserve("20261125T0700", "pkg-g"), 0,
+      "scheduled/default generation must remain blocked by attention-required packages");
+    assert.equal(reserve("20261125T0700", "pkg-g", true), 1,
+      "an explicit manual bootstrap may bypass only attention-required packages");
+
   } finally {
     db.close();
   }
