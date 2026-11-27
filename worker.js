@@ -5852,6 +5852,16 @@ async function persistIntelligenceNotification(env, row) {
   }
   return {stored:true,alreadyExists:false,path,artifactSha256:expectedHash};
 }
+function buildIntelligenceReportRevisionPath(year, month, packageId, contentHash) {
+  if (typeof year !== "string" || !/^[0-9]{4}$/.test(year) ||
+      typeof month !== "string" || !/^(0[1-9]|1[0-2])$/.test(month) ||
+      typeof packageId !== "string" || !/^[A-Za-z0-9-]{1,100}$/.test(packageId) ||
+      typeof contentHash !== "string" || !/^[A-Za-z0-9_-]{16,}$/.test(contentHash)) {
+    throw new Error("Invalid Intelligence report revision identity.");
+  }
+  return "reports/" + year + "/" + month + "/" + packageId + "-" + contentHash.slice(0,16) + ".json";
+}
+
 export async function persistIntelligencePackageReport(env, packageId, snapshot) {
   const token = typeof env.MEHRAN_REPORTS_GITHUB_TOKEN === "string"
     ? env.MEHRAN_REPORTS_GITHUB_TOKEN.trim() : "";
@@ -5947,8 +5957,8 @@ export async function persistIntelligencePackageReport(env, packageId, snapshot)
     }
   }
 
-  const path = `reports/${year}/${month}/${packageId}.json`;
-  const apiUrl = `https://api.github.com/repos/Mehranmsh/mehran-intelligence-reports/contents/${path}`;
+  let path = `reports/${year}/${month}/${packageId}.json`;
+  let apiUrl = `https://api.github.com/repos/Mehranmsh/mehran-intelligence-reports/contents/${path}`;
   const headers = {
     "Accept": "application/vnd.github+json",
     "Authorization": `Bearer ${token}`,
@@ -6010,14 +6020,21 @@ export async function persistIntelligencePackageReport(env, packageId, snapshot)
         }
       } catch {}
       if (!timestampOnlyMatch) {
-        throw new Error("Existing private report content does not match the current package snapshot.");
+        // Preserve the prior immutable artifact and archive this snapshot separately.
+        return { exists: false, conflict: true };
       }
     }
     await reportStage("marker_write", () => env.DB.prepare("UPDATE intelligence_work_packages SET report_stored_at=CURRENT_TIMESTAMP WHERE id=? AND report_stored_at IS NULL").bind(packageId).run());
     return { exists: true };
   }
 
-  const existing = await reportStage("github_verify", () => verifyExistingReport());
+  let existing = await reportStage("github_verify", () => verifyExistingReport());
+  if (existing.conflict) {
+    path = buildIntelligenceReportRevisionPath(year, month, packageId, expectedReportHash);
+    apiUrl = `https://api.github.com/repos/Mehranmsh/mehran-intelligence-reports/contents/${path}`;
+    existing = await reportStage("github_revision_verify", () => verifyExistingReport());
+    if (existing.conflict) throw new Error("Existing private report revision does not match the current package snapshot.");
+  }
   if (existing.exists) {
     return { stored: true, alreadyExists: true, path, artifactSha256: expectedReportHash };
   }

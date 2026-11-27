@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { isIntelligenceReportQuiescent } from "./intelligence-report-finalization.mjs";
+import { buildIntelligenceReportRevisionPath, isIntelligenceReportQuiescent } from "./intelligence-report-finalization.mjs";
 
 const quiet = {
   inProgress: 0,
@@ -34,4 +34,20 @@ test("missing, negative, or non-integer counters fail closed", () => {
   assert.equal(isIntelligenceReportQuiescent({ ...quiet, queued: null }), false);
   assert.equal(isIntelligenceReportQuiescent({ ...quiet, blockedDependencies: -1 }), false);
   assert.equal(isIntelligenceReportQuiescent({ ...quiet, inProgress: 0.5 }), false);
+});
+
+
+test("conflicting immutable reports receive deterministic content-addressed revision paths", () => {
+  const hash = "AbCdEf0123456789_-";
+  const first = buildIntelligenceReportRevisionPath("2026", "11", "package-123", hash);
+  assert.equal(first, "reports/2026/11/package-123-AbCdEf0123456789.json");
+  assert.equal(buildIntelligenceReportRevisionPath("2026", "11", "package-123", hash), first);
+  assert.notEqual(buildIntelligenceReportRevisionPath("2026", "11", "package-123", "Z".repeat(16)), first);
+});
+
+test("report revision paths reject unsafe identity components", () => {
+  assert.throws(() => buildIntelligenceReportRevisionPath("../", "11", "package-123", "A".repeat(16)));
+  assert.throws(() => buildIntelligenceReportRevisionPath("2026", "13", "package-123", "A".repeat(16)));
+  assert.throws(() => buildIntelligenceReportRevisionPath("2026", "11", "../secret", "A".repeat(16)));
+  assert.throws(() => buildIntelligenceReportRevisionPath("2026", "11", "package-123", "short"));
 });
