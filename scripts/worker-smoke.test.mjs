@@ -172,6 +172,17 @@ async function request(path, { method = "GET", origin, headers = {}, body } = {}
 }
 
 
+test("service health executor emits the canonical evidence schema used by objective criteria", () => {
+  const start = workerSource.indexOf('candidate.action_type === "service_health_report"');
+  const end = workerSource.indexOf('candidate.action_type === "repository_quality_check"', start);
+  assert.ok(start >= 0 && end > start, "service health executor must exist");
+  const executor = workerSource.slice(start, end);
+  assert.match(executor, /SELECT 1 AS healthy/);
+  assert.match(executor, /worker:"online", database:true/);
+  assert.match(executor, /databaseStatus:"healthy"/);
+  assert.match(executor, /projectRecords:Number\(projects\?\.total \|\| 0\)/);
+});
+
 test("Intelligence package completion requires evidence-backed acceptance criteria", () => {
   const tasks = [
     { id: "health", status: "completed", result_text: JSON.stringify({ worker: "online", database: true }) }
