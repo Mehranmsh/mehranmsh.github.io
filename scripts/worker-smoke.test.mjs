@@ -4122,5 +4122,9 @@ test("private inbox resolves and attaches an immutable base SHA before creating 
   assert.ok(inbox.includes('const repositoryBaseSha = mission.scope.allowed_actions.includes("run_repository_tests")'));
   assert.ok(inbox.includes('actionType: "run_repository_tests"'));
   assert.ok(inbox.includes("baseSha: repositoryBaseSha"));
+  assert.ok(inbox.includes('id: "inspect-source-report", taskId: "inspect-source", actionType: "inspect_repository"'));
+  assert.ok(inbox.includes('id: "security-review-report", taskId: "security-review", actionType: "source_security_audit"'));
+  assert.ok(inbox.includes('id: "repository-check-report", taskId: "repository-check", actionType: "repository_quality_check"'));
+  assert.ok(inbox.includes('id: "repository-tests-report", taskId: "repository-tests", actionType: "run_repository_tests"'));
   assert.ok(inbox.includes("private_inbox_package_creation_failed"));
 });
