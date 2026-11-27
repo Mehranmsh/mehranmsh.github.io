@@ -6709,7 +6709,7 @@ export function verifyIntelligenceReport(actionType, report) {
   } else if (actionType === "run_repository_tests") {
     const tests = report.tests && typeof report.tests === "object" ? report.tests : {};
     const container = report.container && typeof report.container === "object" ? report.container : {};
-    const expectedSteps = ["worker_syntax", "capability_syntax", "capability_tests"];
+    const expectedSteps = ["worker_syntax", "capability_syntax", "security_scanner_syntax", "capability_tests", "security_scanner_tests"];
     const validCompletedSteps = Array.isArray(report.completedSteps) &&
       report.completedSteps.length === expectedSteps.length &&
       report.completedSteps.every((step, index) => step === expectedSteps[index]);
