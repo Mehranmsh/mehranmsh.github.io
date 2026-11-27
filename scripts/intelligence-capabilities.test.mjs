@@ -1652,3 +1652,11 @@ test("Pi Launchpad candidate analysis is an active read-only runner capability",
   assert.equal(validateIntelligenceCapabilityRequest("pi_launchpad_candidate_analysis", {}).code, "missing_required_field");
   assert.equal(validateIntelligenceCapabilityRequest("pi_launchpad_candidate_analysis", { snapshotJson, wallet: "not-allowed" }).code, "unknown_input_field");
 });
+
+test("Pi Launchpad screening is wired through the Worker queue and both Intelligence runners", () => {
+  assert.match(workerSource, /globalAllowedActions = \[[^\]]*pi_launchpad_candidate_analysis/);
+  assert.match(workerSource, /action_type IN \([^)]*pi_launchpad_candidate_analysis/);
+  assert.match(runnerSource, /task\.actionType === "pi_launchpad_candidate_analysis"/);
+  assert.match(agentSource, /"pi_launchpad_candidate_analysis"/);
+  assert.match(runnerSource, /verificationStatus: "owner_supplied_unverified"/);
+});
