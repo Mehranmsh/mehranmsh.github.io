@@ -539,6 +539,38 @@ test("work-package action types must stay within the declared per-package scope"
   assert.match(creationRoute, /!validDependencies/);
 });
 
+test("work-package acceptance criteria are explicitly bound to unique in-scope task identities", () => {
+  const base = {
+    idempotencyKey: "acceptance-scope-2026-11-27",
+    title: "Acceptance-bound work package",
+    objective: "Verify declared task evidence without overstating mission completion.",
+    scope: {
+      mode: "read_only",
+      allowedActions: ["service_health_report"],
+      acceptanceCriteria: [
+        { id: "health-evidence", taskId: "health", actionType: "service_health_report", type: "validated_task_report" }
+      ]
+    },
+    tasks: [{ taskId: "health", title: "Check health", actionType: "service_health_report" }]
+  };
+  const valid = validateIntelligenceWorkPackage(base);
+  assert.equal(valid.ok, true);
+  assert.equal(valid.scope.acceptanceCriteria.length, 1);
+  assert.equal(validateIntelligenceWorkPackage({
+    ...base, scope: { ...base.scope, acceptanceCriteria: [] }
+  }).ok, false);
+  assert.equal(validateIntelligenceWorkPackage({
+    ...base, scope: { ...base.scope, acceptanceCriteria: [
+      { id: "bad", taskId: "missing", actionType: "service_health_report", type: "validated_task_report" }
+    ] }
+  }).ok, false);
+  assert.equal(validateIntelligenceWorkPackage({
+    ...base, scope: { ...base.scope, acceptanceCriteria: [
+      { id: "bad", taskId: "health", actionType: "repository_quality_check", type: "validated_task_report" }
+    ] }
+  }).ok, false);
+});
+
 test("proposal-only work-package tasks require a bounded objective", () => {
   const base = {
     idempotencyKey: "patch-proposal-queue-001",
