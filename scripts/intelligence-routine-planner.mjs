@@ -37,11 +37,37 @@ export function buildDeterministicRoutinePlan(mission) {
     });
   }
   if (!tasks.length) return null;
+  const acceptanceCriteria = [];
+  for (const task of tasks) {
+    if (task.actionType === "service_health_report") {
+      acceptanceCriteria.push(
+        { id: "worker-online", description: "The production Worker is online", evidence: [{ taskId: task.taskId, path: "worker", operator: "equals", expected: "online" }] },
+        { id: "database-connected", description: "The production database is connected", evidence: [{ taskId: task.taskId, path: "database", operator: "equals", expected: true }] }
+      );
+    } else if (task.actionType === "repository_quality_check") {
+      acceptanceCriteria.push(
+        { id: "repository-identity", description: "The expected repository was inspected", evidence: [{ taskId: task.taskId, path: "repository", operator: "equals", expected: "Mehranmsh/mehranmsh.github.io" }] },
+        { id: "latest-commit-known", description: "The latest repository commit is identified", evidence: [{ taskId: task.taskId, path: "latestCommit", operator: "exists" }] }
+      );
+    } else if (task.actionType === "source_security_audit") {
+      acceptanceCriteria.push(
+        { id: "security-audit-passed", description: "All deterministic source security checks passed", evidence: [
+          { taskId: task.taskId, path: "summary.status", operator: "equals", expected: "passed" },
+          { taskId: task.taskId, path: "summary.failed", operator: "equals", expected: 0 }
+        ] }
+      );
+    } else if (task.actionType === "inspect_repository") {
+      acceptanceCriteria.push(
+        { id: "repository-inventory", description: "At least one allowlisted source file was inspected", evidence: [{ taskId: task.taskId, path: "summary.filesInspected", operator: "gte", expected: 1 }] }
+      );
+    }
+  }
   return {
     title: "MEHRAN INTELLIGENCE routine checks",
     objective: "Complete only the explicitly recognized routine read-only checks using deterministic rules, without invoking an AI provider.",
     priority: "normal",
     planSummary: "Recognized routine checks were planned locally by the deterministic rules engine. No AI inference was requested.",
+    acceptanceCriteria,
     tasks
   };
 }

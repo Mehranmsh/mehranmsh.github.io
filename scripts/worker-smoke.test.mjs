@@ -7,6 +7,7 @@ import {
   PREAPPROVED_INTELLIGENCE_ACTION_TYPES
 } from "./intelligence-capabilities.mjs";
 import { createPatchArtifactRecord } from "./intelligence-patch-artifact.mjs";
+import { normalizeIntelligenceAcceptanceCriteria, verifyIntelligenceObjective } from "./intelligence-objective-verification.mjs";
 
 const workerSource = await readFile(new URL("../worker.js", import.meta.url), "utf8");
 const indexSource = await readFile(new URL("../index.html", import.meta.url), "utf8");
@@ -24,9 +25,10 @@ const feedbackReviewImport = 'import { buildIntelligenceFeedbackReview } from ".
 const planHistoryImport = 'import { compareIntelligencePlanVersions } from "./scripts/intelligence-plan-history.mjs";';
 const planLearningImport = 'import { learnFromIntelligencePlanOutcomes } from "./scripts/intelligence-plan-learning.mjs";';
 const analysisValidationImport = 'import { discardFindingsWithUnknownEvidencePaths, validateRepositoryAnalysis } from "./scripts/intelligence-analysis-validation.mjs";';
+const objectiveVerificationImport = 'import { normalizeIntelligenceAcceptanceCriteria, verifyIntelligenceObjective } from "./scripts/intelligence-objective-verification.mjs";';
 if (!workerSource.includes(capabilityImport) || !workerSource.includes(patchStoreImport) ||
     !workerSource.includes(patchGenerationImport) || !workerSource.includes(inboxSchemaImport) ||
-    !workerSource.includes(routinePlannerImport) || !workerSource.includes(memoryRankingImport) || !workerSource.includes(answerQualityImport) || !workerSource.includes(retryPolicyImport) || !workerSource.includes(feedbackReviewImport) || !workerSource.includes(planHistoryImport) || !workerSource.includes(planLearningImport) || !workerSource.includes(analysisValidationImport)) {
+    !workerSource.includes(routinePlannerImport) || !workerSource.includes(memoryRankingImport) || !workerSource.includes(answerQualityImport) || !workerSource.includes(retryPolicyImport) || !workerSource.includes(feedbackReviewImport) || !workerSource.includes(planHistoryImport) || !workerSource.includes(planLearningImport) || !workerSource.includes(analysisValidationImport) || !workerSource.includes(objectiveVerificationImport)) {
   throw new Error("Worker capability, patch storage, or private inbox schema imports were not found");
 }
 const policySource = await readFile(new URL("./intelligence-patch-policy.mjs", import.meta.url), "utf8");
@@ -59,6 +61,7 @@ const planLearningSource = (await readFile(new URL("./intelligence-plan-learning
   .replace("export function learnFromIntelligencePlanOutcomes", "function learnFromIntelligencePlanOutcomes");
 const analysisValidationSource = (await readFile(new URL("./intelligence-analysis-validation.mjs", import.meta.url), "utf8"))
   .replace("export function validateRepositoryAnalysis", "function validateRepositoryAnalysis");
+const objectiveVerificationSource = await readFile(new URL("./intelligence-objective-verification.mjs", import.meta.url), "utf8");
 const feedbackReviewSource = (await readFile(new URL("./intelligence-feedback-review.mjs", import.meta.url), "utf8"))
   .replace('from "./intelligence-feedback-learning.mjs"', 'from "' + feedbackLearningUrl + '"')
   .replace("export function buildIntelligenceFeedbackReview", "function buildIntelligenceFeedbackReview")
@@ -122,8 +125,10 @@ const workerRest = workerSource.replace(capabilityImport, "")
   .replace(feedbackReviewImport, "")
    .replace(planHistoryImport, "")
   .replace(planLearningImport, "")
-  .replace(analysisValidationImport, "");
-const workerSourceForTest = knowledgeGraphSource + "\n" + memoryRankingSource + "\n" + feedbackReviewSource + "\n" + planHistorySource + "\n" + planLearningSource + "\n" + analysisValidationSource + "\n" + routinePlannerSource + "\n" + retryPolicySource + `\nimport { storePrivatePatchArtifact, verifyPrivatePatchArtifactAtPath, getPrivatePatchArtifactPath, getVerifiedPrivatePatchArtifactAtPath } from "${patchStoreTestUrl}";
+  .replace(analysisValidationImport, "")
+  .replace(objectiveVerificationImport, "");
+const objectiveVerificationUrl = moduleUrl(objectiveVerificationSource);
+const workerSourceForTest = knowledgeGraphSource + "\n" + memoryRankingSource + "\n" + feedbackReviewSource + "\n" + planHistorySource + "\n" + planLearningSource + "\n" + analysisValidationSource + "\n" + `import { normalizeIntelligenceAcceptanceCriteria, verifyIntelligenceObjective } from "${objectiveVerificationUrl}";\n` + routinePlannerSource + "\n" + retryPolicySource + `\nimport { storePrivatePatchArtifact, verifyPrivatePatchArtifactAtPath, getPrivatePatchArtifactPath, getVerifiedPrivatePatchArtifactAtPath } from "${patchStoreTestUrl}";
 import { generatePatchArtifact } from "${patchGenerationTestUrl}";
 import { validatePrivateIntelligenceMission } from "${inboxSchemaUrl}";
 const INTELLIGENCE_ACTION_TYPES = ${JSON.stringify(INTELLIGENCE_ACTION_TYPES)};
@@ -165,6 +170,23 @@ async function request(path, { method = "GET", origin, headers = {}, body } = {}
     body: body === undefined ? undefined : JSON.stringify(body)
   }), env);
 }
+
+
+test("Intelligence package completion requires evidence-backed acceptance criteria", () => {
+  const tasks = [
+    { id: "health", status: "completed", result_text: JSON.stringify({ worker: "online", database: true }) }
+  ];
+  const criteria = [
+    { id: "worker-online", description: "Worker is online", evidence: [{ taskId: "health", path: "worker", operator: "equals", expected: "online" }] },
+    { id: "database-connected", description: "Database is connected", evidence: [{ taskId: "health", path: "database", operator: "equals", expected: true }] }
+  ];
+  assert.equal(normalizeIntelligenceAcceptanceCriteria(criteria, tasks).valid, true);
+  assert.equal(verifyIntelligenceObjective(criteria, tasks).verified, true);
+  assert.equal(verifyIntelligenceObjective([], tasks).status, "attention_required");
+  assert.equal(verifyIntelligenceObjective([
+    { id: "false-proof", description: "Database is offline", evidence: [{ taskId: "health", path: "database", operator: "equals", expected: false }] }
+  ], tasks).verified, false);
+});
 
 test("plan history learning is owner-scoped, advisory, and included in its read API", () => {
   assert.match(workerSource, /learnFromIntelligencePlanOutcomes\(revisions,progressEvents/);
@@ -4092,4 +4114,38 @@ test("private inbox resolves and attaches an immutable base SHA before creating 
   assert.ok(inbox.includes('actionType: "run_repository_tests"'));
   assert.ok(inbox.includes("baseSha: repositoryBaseSha"));
   assert.ok(inbox.includes("private_inbox_package_creation_failed"));
+});
+
+
+test("AI mission plans validate and persist acceptance criteria before package creation", () => {
+  const start = workerSource.indexOf("async function planIntelligenceMission");
+  const end = workerSource.indexOf("export function verifyIntelligenceReport", start);
+  assert.ok(start >= 0 && end > start, "AI mission planner must exist");
+  const planner = workerSource.slice(start, end);
+  const normalizeAt = planner.indexOf("normalizeIntelligenceAcceptanceCriteria(plan.acceptanceCriteria, normalizedTasks)");
+  const persistAt = planner.indexOf("scope.acceptanceCriteria = objectiveCriteria.criteria");
+  const createAt = planner.indexOf("const created = await createIntelligenceWorkPackage(env, {", persistAt);
+  assert.ok(normalizeAt >= 0 && persistAt > normalizeAt && createAt > persistAt,
+    "AI criteria must be validated and attached to scope before package creation");
+  assert.match(planner, /ai_acceptance_criteria_invalid/);
+});
+
+test("scheduled package finalization requires verified objective evidence", () => {
+  const start = workerSource.indexOf("async function refreshIntelligenceWorkPackageSnapshot");
+  const end = workerSource.indexOf("async function ensureIntelligenceSchedulerRunsTable", start);
+  assert.ok(start >= 0 && end > start, "scheduled package snapshot finalizer must exist");
+  const finalizer = workerSource.slice(start, end);
+  assert.match(finalizer, /verifyIntelligenceObjective\(packageScope\.acceptanceCriteria, tasks\)/);
+  assert.match(finalizer, /objectiveComplete \? "completed"/);
+  assert.match(finalizer, /allCompleted \? "attention_required"/);
+  assert.match(finalizer, /objectiveVerification:/);
+});
+
+test("deterministic fallback missions define their own acceptance criteria", () => {
+  const start = workerSource.indexOf("async function createIntelligenceFallbackPackage");
+  const end = workerSource.indexOf("function extractIntelligenceJsonObject", start);
+  assert.ok(start >= 0 && end > start, "deterministic fallback planner must exist");
+  const fallback = workerSource.slice(start, end);
+  assert.match(fallback, /scope\.acceptanceCriteria = \[/);
+  assert.doesNotMatch(fallback, /plan\.acceptanceCriteria|normalizedTasks|return fallback\(/);
 });
