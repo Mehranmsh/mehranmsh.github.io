@@ -3,7 +3,7 @@
 
 export const MISSION_GENERATOR_POLICY = Object.freeze({
   maxNewMissionsPerCycle: 1,
-  activePackageStatuses: Object.freeze(["queued", "in_progress", "waiting_retry", "attention_required"]),
+  activePackageStatuses: Object.freeze(["queued", "in_progress", "waiting_retry"]),
   allowedActions: Object.freeze([
     "service_health_report",
     "repository_quality_check",

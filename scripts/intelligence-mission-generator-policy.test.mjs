@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 
 const workerSource = readFileSync(new URL("../worker.js", import.meta.url), "utf8");
+const runnerSource = readFileSync(new URL("../.github/workflows/mehran-intelligence-runner.yml", import.meta.url), "utf8");
 import {
   MISSION_GENERATOR_POLICY,
   getMissionGeneratorDecision,
@@ -21,6 +22,26 @@ test("generator pauses when any nonterminal package is active", () => {
   assert.equal(result.allowed, false);
   assert.equal(result.reason, "active_work_package_exists");
   assert.deepEqual(result.activePackageIds, ["pkg-1"]);
+});
+
+test("attention-required packages do not block owner-authorized scheduled generation", () => {
+  const result = getMissionGeneratorDecision({
+    packages: [{ id: "pkg-attention", status: "attention_required" }]
+  });
+  assert.equal(result.allowed, true);
+  assert.equal(result.reason, "clear");
+});
+
+test("queued, in-progress, and retrying packages still block generation", () => {
+  for (const status of ["queued", "in_progress", "waiting_retry"]) {
+    const result = getMissionGeneratorDecision({ packages: [{ id: "pkg-active", status }] });
+    assert.equal(result.allowed, false, status);
+    assert.equal(result.reason, "active_work_package_exists", status);
+  }
+});
+
+test("runner sends the explicit attention-required bypass for scheduled generation", () => {
+  assert.match(runnerSource, /ignoreAttentionRequiredBlockers:\s*true/);
 });
 
 test("completed, failed, and cancelled packages do not block a new cycle", () => {

@@ -1568,8 +1568,8 @@ test("scheduled Intelligence runner is single-flight, secret-backed and restrict
   assert.ok(runner.includes('request("/agent/v1/missions/generate"'));
   assert.ok(runner.includes("Math.floor(Date.now() / 900000) * 900000"));
   assert.ok(runner.includes("Safely paused: active work or another generator reservation exists"));
-  assert.ok(runner.includes('ignoreAttentionRequiredBlockers: process.env.GITHUB_EVENT_NAME === "workflow_dispatch"'),
-    "only deliberate manual dispatch may request the attention-required override");
+  assert.ok(runner.includes("ignoreAttentionRequiredBlockers: true"),
+    "owner-authorized scheduled generation may bypass attention-required packages");
   assert.match(workerSource, /options\?\.ignoreAttentionRequiredBlockers === true/);
   assert.match(workerSource, /generatorReservation\.ignoreAttentionRequiredBlockers === true/);
   assert.match(workerSource, /body\.ignoreAttentionRequiredBlockers === true/);

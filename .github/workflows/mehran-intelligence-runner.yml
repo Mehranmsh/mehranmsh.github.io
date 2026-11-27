@@ -303,8 +303,8 @@ jobs:
             // Telemetry must never block mission execution during a rolling Worker deployment.
             console.log("Runner start telemetry temporarily unavailable; continuing work: " + String(error?.message || error).slice(0,160));
           }
-          // Scheduled generation remains opt-in. A deliberate manual dispatch also runs
-          // one idempotent, deterministic, read-only bootstrap cycle for post-deploy verification.
+          // Scheduled generation remains opt-in. Once enabled, owner-authorized generation may
+          // pass attention_required packages, but active queued/running/retrying work still blocks it.
           const missionGenerationRequested =
             (process.env.GITHUB_EVENT_NAME === "schedule" &&
              process.env.MEHRAN_MISSION_GENERATOR_ENABLED === "true") ||
@@ -329,8 +329,9 @@ jobs:
                   method: "POST",
                   body: JSON.stringify({
                     cycleKey,
-                    // Only a deliberate manual run may bypass packages already awaiting owner attention.
-                    ignoreAttentionRequiredBlockers: process.env.GITHUB_EVENT_NAME === "workflow_dispatch"
+                    // Owner explicitly authorized scheduled generation to pass attention_required packages.
+                    // The Worker still blocks queued, in-progress, retrying work and competing reservations.
+                    ignoreAttentionRequiredBlockers: true
                   })
                 }, ownerHeaders, 12000);
                 console.log("[mission-generator] " + JSON.stringify({
