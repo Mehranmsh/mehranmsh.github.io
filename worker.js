@@ -6100,19 +6100,22 @@ async function refreshIntelligenceWorkPackageSnapshot(env, packageId) {
   const pkg = await env.DB.prepare("SELECT status,scope_json FROM intelligence_work_packages WHERE id=?").bind(packageId).first();
   await blockIntelligenceTasksWithTerminalDependencies(env, packageId);
   if (!pkg) return null;
-  const result = await env.DB.prepare("SELECT id,status,action_payload,result_text FROM intelligence_tasks WHERE work_package_id=? ORDER BY created_at ASC,id ASC").bind(packageId).all();
-  const tasks = result.results || [];
-  const counts = {total:tasks.length,completed:0,blocked:0,failed:0,cancelled:0,awaitingApproval:0,inProgress:0,queued:0,retryWaiting:0,blockedDependencies:0};
-  for (const row of tasks) {
-    if (row.status === "completed") counts.completed++;
-    else if (row.status === "blocked") counts.blocked++;
-    else if (row.status === "failed") counts.failed++;
-    else if (row.status === "cancelled") counts.cancelled++;
-    else if (row.status === "awaiting_approval") counts.awaitingApproval++;
-    else if (row.status === "in_progress") counts.inProgress++;
-    else if (row.status === "retry_wait") counts.retryWaiting++;
-    else counts.queued++;
+  const result = await env.DB.prepare("SELECT status,COUNT(*) AS total FROM intelligence_tasks WHERE work_package_id=? GROUP BY status").bind(packageId).all();
+  const counts = {total:0,completed:0,blocked:0,failed:0,cancelled:0,awaitingApproval:0,inProgress:0,queued:0,retryWaiting:0,blockedDependencies:0};
+  for (const row of result.results || []) {
+    const n = Number(row.total || 0);
+    counts.total += n;
+    if (row.status === "completed") counts.completed += n;
+    else if (row.status === "blocked") counts.blocked += n;
+    else if (row.status === "failed") counts.failed += n;
+    else if (row.status === "cancelled") counts.cancelled += n;
+    else if (row.status === "awaiting_approval") counts.awaitingApproval += n;
+    else if (row.status === "in_progress") counts.inProgress += n;
+    else if (row.status === "retry_wait") counts.retryWaiting += n;
+    else counts.queued += n;
   }
+  const taskResult = await env.DB.prepare("SELECT id,status,action_payload,result_text FROM intelligence_tasks WHERE work_package_id=? ORDER BY created_at ASC,id ASC").bind(packageId).all();
+  const tasks = taskResult.results || [];
   const dependencyResult = await env.DB.prepare("SELECT COUNT(DISTINCT child.id) AS total FROM intelligence_task_dependencies d JOIN intelligence_tasks child ON child.id=d.task_id JOIN intelligence_tasks parent ON parent.id=d.depends_on_task_id WHERE child.work_package_id=? AND child.status IN ('queued','accepted','retry_wait') AND parent.status IN ('blocked','failed','cancelled')").bind(packageId).first();
   counts.blockedDependencies = Number(dependencyResult?.total || 0);
   let packageScope = {};
