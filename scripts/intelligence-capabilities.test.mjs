@@ -133,7 +133,7 @@ test("fixed repository tests are active only through the isolated GitHub runner"
   assert.match(workerSource, /expectedPayload\.baseSha !== parsedReport\.baseSha/);
   assert.match(runnerSource, /if \(task\.actionType === "run_repository_tests"\)/);
   assert.match(runnerSource, /function runFixedRepositoryTests\(task\)/);
-  assert.match(runnerSource, /node --check worker\.js/);
+  assert.match(runnerSource, /\["node", "--check", "worker\.js"\]/);
   assert.match(runnerSource, /"--network", "none"/);
   assert.match(runnerSource, /"--read-only"/);
   assert.match(runnerSource, /"--cap-drop", "ALL"/);
