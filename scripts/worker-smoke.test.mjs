@@ -7,6 +7,7 @@ import {
   PREAPPROVED_INTELLIGENCE_ACTION_TYPES
 } from "./intelligence-capabilities.mjs";
 import { createPatchArtifactRecord } from "./intelligence-patch-artifact.mjs";
+import { normalizeIntelligenceAcceptanceCriteria, verifyIntelligenceObjective } from "./intelligence-objective-verification.mjs";
 
 const workerSource = await readFile(new URL("../worker.js", import.meta.url), "utf8");
 const indexSource = await readFile(new URL("../index.html", import.meta.url), "utf8");
@@ -165,6 +166,23 @@ async function request(path, { method = "GET", origin, headers = {}, body } = {}
     body: body === undefined ? undefined : JSON.stringify(body)
   }), env);
 }
+
+
+test("Intelligence package completion requires evidence-backed acceptance criteria", () => {
+  const tasks = [
+    { id: "health", status: "completed", result_text: JSON.stringify({ worker: "online", database: true }) }
+  ];
+  const criteria = [
+    { id: "worker-online", description: "Worker is online", evidence: [{ taskId: "health", path: "worker", operator: "equals", expected: "online" }] },
+    { id: "database-connected", description: "Database is connected", evidence: [{ taskId: "health", path: "database", operator: "equals", expected: true }] }
+  ];
+  assert.equal(normalizeIntelligenceAcceptanceCriteria(criteria, tasks).valid, true);
+  assert.equal(verifyIntelligenceObjective(criteria, tasks).verified, true);
+  assert.equal(verifyIntelligenceObjective([], tasks).status, "attention_required");
+  assert.equal(verifyIntelligenceObjective([
+    { id: "false-proof", description: "Database is offline", evidence: [{ taskId: "health", path: "database", operator: "equals", expected: false }] }
+  ], tasks).verified, false);
+});
 
 test("plan history learning is owner-scoped, advisory, and included in its read API", () => {
   assert.match(workerSource, /learnFromIntelligencePlanOutcomes\(revisions,progressEvents/);
