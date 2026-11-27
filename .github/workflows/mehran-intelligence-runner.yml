@@ -303,10 +303,13 @@ jobs:
             // Telemetry must never block mission execution during a rolling Worker deployment.
             console.log("Runner start telemetry temporarily unavailable; continuing work: " + String(error?.message || error).slice(0,160));
           }
-          // Mission generation is opt-in, scheduled-only, deterministic, read-only, and owner-token protected.
-          // The repository variable is intentionally absent/false by default.
-          if (process.env.GITHUB_EVENT_NAME === "schedule" &&
-              process.env.MEHRAN_MISSION_GENERATOR_ENABLED === "true") {
+          // Scheduled generation remains opt-in. A deliberate manual dispatch also runs
+          // one idempotent, deterministic, read-only bootstrap cycle for post-deploy verification.
+          const missionGenerationRequested =
+            (process.env.GITHUB_EVENT_NAME === "schedule" &&
+             process.env.MEHRAN_MISSION_GENERATOR_ENABLED === "true") ||
+            process.env.GITHUB_EVENT_NAME === "workflow_dispatch";
+          if (missionGenerationRequested) {
             if (orchestratorToken.length < 40 || orchestratorToken.length > 200) {
               console.log("[mission-generator] Disabled for this tick: owner orchestration token is unavailable.");
             } else {
