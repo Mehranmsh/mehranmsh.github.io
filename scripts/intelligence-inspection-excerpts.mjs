@@ -54,10 +54,6 @@ const DEFAULT_MAX_CHARS = 2800;
 const MAX_WINDOWS = 7;
 const WINDOW_CHARS = 360;
 
-function boundedInteger(value, fallback, maximum) {
-  return Number.isInteger(value) && value > 0 ? Math.min(value, maximum) : fallback;
-}
-
 function extractWindow(source, index, budget) {
   const half = Math.floor(budget / 2);
   let start = Math.max(0, index - half);
@@ -101,7 +97,7 @@ export function buildIntelligenceInspectionExcerpt(path, source, maxChars = DEFA
 
   let excerpt = "";
   for (const window of windows) {
-    const marker = `\n[${path} bytes ${window.start}-${window.end}]\n`;
+    const marker = `\n[${path} chars ${window.start}-${window.end}]\n`;
     const separator = excerpt ? "\n" : "";
     const remaining = limit - excerpt.length - separator.length - marker.length;
     if (remaining <= 0) break;
