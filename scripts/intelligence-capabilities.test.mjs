@@ -430,6 +430,7 @@ test("isolated test workflow runs one fixed suite without secrets or network acc
   assert.deepEqual(importedModules, [
     "node:test",
     "./intelligence-patch-apply.mjs",
+    "./intelligence-inspection-excerpts.mjs",
     "node:assert/strict",
     "node:fs",
     "./intelligence-patch-policy.mjs",
