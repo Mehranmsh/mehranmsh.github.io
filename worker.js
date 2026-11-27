@@ -8656,6 +8656,36 @@ export default {
               return error("Unsupported prior repository inspection checkpoint phase.",409);
             }
           }
+          if (before.action_type === "source_security_audit") {
+            const cp = body.checkpoint;
+            let prior = {};
+            try { prior = JSON.parse(before.checkpoint_json || "{}"); } catch { return error("Stored source audit checkpoint is invalid.",409); }
+            const expected = ["actionType","baseSha","phase","preparedAt","result","resultSha256","status","taskId"];
+            const keys = Object.keys(cp).sort();
+            const digestBytes = new Uint8Array(await crypto.subtle.digest("SHA-256",new TextEncoder().encode(cp.result || "")));
+            const digest = Array.from(digestBytes,byte => byte.toString(16).padStart(2,"0")).join("");
+            if (keys.length !== expected.length || keys.some((key,index) => key !== expected[index]) ||
+                cp.phase !== "result_ready" || cp.taskId !== id || cp.actionType !== "source_security_audit" ||
+                cp.status !== "completed" || !/^[a-f0-9]{40}$/i.test(cp.baseSha || "") ||
+                typeof cp.result !== "string" || !cp.result || cp.result.length > 3000 ||
+                !Number.isFinite(Date.parse(cp.preparedAt || "")) || cp.resultSha256 !== digest) {
+              return error("Source security audit checkpoint schema, identity, or digest is invalid.",422);
+            }
+            let report;
+            try { report = JSON.parse(cp.result); } catch { return error("Source audit report is invalid JSON.",422); }
+            const audit = report.staticPatternAudit;
+            const findings = Array.isArray(audit && audit.findings) ? audit.findings : [];
+            const allowed = new Set(["worker.js",".github/workflows/mehran-intelligence-runner.yml","docs/INTELLIGENCE_EXECUTION_PROTOCOL.md"]);
+            const validFindings = findings.length <= 100 && findings.every(item => item && allowed.has(item.path) && Number.isInteger(item.line) && item.line > 0 && ["critical","high","medium","low"].includes(item.severity) && typeof item.rule === "string" && /^[a-z0-9_]{1,80}$/.test(item.rule));
+            if (report.type !== "source_security_audit" || report.mode !== "deterministic_read_only_static_audit" ||
+                !audit || audit.type !== "source_security_audit" || audit.mode !== "bounded_static_pattern_scan" ||
+                audit.repository !== "Mehranmsh/mehranmsh.github.io" || audit.commitSha !== cp.baseSha ||
+                !validFindings || !audit.summary || audit.summary.findings !== findings.length || audit.summary.filesScanned !== 3) {
+              return error("Source audit report does not match its bounded schema or immutable source commit.",422);
+            }
+            if (prior.phase === "result_ready" && (prior.taskId !== id || prior.baseSha !== cp.baseSha || prior.resultSha256 !== cp.resultSha256)) return error("Source audit checkpoint is immutable once saved.",409);
+            if (prior.phase && prior.phase !== "result_ready") return error("Unsupported prior source audit checkpoint phase.",409);
+          }
           const expectedPriorCheckpoint = typeof before.checkpoint_json === "string" ? before.checkpoint_json : "{}";
           const update = await env.DB.prepare("UPDATE intelligence_tasks SET checkpoint_json=?,updated_at=CURRENT_TIMESTAMP WHERE id=? AND status='in_progress' AND agent_claim_token_hash=? AND agent_claimed_at IS NOT NULL AND datetime(agent_claimed_at)>=datetime('now','-15 minutes') AND requires_approval=0 AND assigned_to IN ('mehran_intelligence','shared') AND action_type IN ('repository_quality_check','service_health_report','source_security_audit','inspect_repository','run_repository_tests','propose_code_patch') AND (work_package_id IS NULL OR EXISTS (SELECT 1 FROM intelligence_work_packages wp, json_each(CASE WHEN json_valid(wp.scope_json) THEN wp.scope_json ELSE '{}' END, '$.allowedActions') scoped WHERE wp.id=intelligence_tasks.work_package_id AND scoped.value=intelligence_tasks.action_type)) AND checkpoint_json=?").bind(checkpointJson,id,claimTokenHash,expectedPriorCheckpoint).run();
           if (!Number(update?.meta?.changes || 0)) return error("Task claim expired before checkpoint commit.",409);
