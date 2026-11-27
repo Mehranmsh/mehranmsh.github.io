@@ -141,7 +141,7 @@ test("fixed repository tests are active only through the isolated GitHub runner"
   assert.match(workerSource, /actionType === "run_repository_tests"/);
   assert.match(workerSource, /report\.mode !== "isolated_fixed_repository_test"/);
   assert.match(workerSource, /validCompletedSteps/);
-  assert.match(workerSource, /"worker_syntax", "capability_syntax", "capability_tests"/);
+  assert.match(workerSource, /"worker_syntax", "capability_syntax", "security_scanner_syntax", "capability_tests", "security_scanner_tests"/);
   assert.match(workerSource, /before\.action_payload/);
   assert.match(workerSource, /expectedPayload\.baseSha !== parsedReport\.baseSha/);
   assert.match(runnerSource, /if \(task\.actionType === "run_repository_tests"\)/);
@@ -151,7 +151,7 @@ test("fixed repository tests are active only through the isolated GitHub runner"
   assert.match(runnerSource, /createIntelligenceStepCheckpoint/);
   assert.match(runnerSource, /checkpointSaved !== true/);
   assert.match(runnerSource, /Resuming repository tests after/);
-  assert.match(runnerSource, /if \(completedSteps\.includes\(stepId\) && stepId !== "capability_tests"\)/);
+  assert.match(runnerSource, /if \(completedSteps\.includes\(stepId\) && stepId !== "security_scanner_tests"\)/);
   assert.match(runnerSource, /"--network", "none"/);
   assert.match(runnerSource, /"--read-only"/);
   assert.match(runnerSource, /"--cap-drop", "ALL"/);
