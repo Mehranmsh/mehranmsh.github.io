@@ -8455,20 +8455,48 @@ export default {
             explicitlyAuthorizedCount: Math.max(0, Number(row.explicitly_authorized_count) || 0),
             reviewRequiredCount: Math.max(0, (Number(row.package_count) || 0) - (Number(row.explicitly_authorized_count) || 0))
           }));
+          // Limited owner-only blocker detail makes a 409 actionable without exposing task payloads or scope data.
+          const blockerRows = await env.DB.prepare(
+            "SELECT wp.id,wp.title,wp.status,wp.updated_at," +
+            "(SELECT COUNT(*) FROM intelligence_tasks t WHERE t.work_package_id=wp.id AND t.status='queued') AS queued_tasks," +
+            "(SELECT COUNT(*) FROM intelligence_tasks t WHERE t.work_package_id=wp.id AND t.status='accepted') AS accepted_tasks," +
+            "(SELECT COUNT(*) FROM intelligence_tasks t WHERE t.work_package_id=wp.id AND t.status='in_progress') AS in_progress_tasks," +
+            "(SELECT COUNT(*) FROM intelligence_tasks t WHERE t.work_package_id=wp.id AND t.status='retry_wait') AS retry_wait_tasks," +
+            "(SELECT COUNT(*) FROM intelligence_tasks t WHERE t.work_package_id=wp.id AND t.status='awaiting_approval') AS approval_tasks," +
+            "(SELECT COUNT(*) FROM intelligence_tasks t WHERE t.work_package_id=wp.id AND t.status IN ('blocked','failed','cancelled')) AS terminal_problem_tasks " +
+            "FROM intelligence_work_packages wp WHERE wp.status IN ('queued','in_progress','waiting_retry') " +
+            "ORDER BY CASE wp.status WHEN 'in_progress' THEN 0 WHEN 'waiting_retry' THEN 1 ELSE 2 END,wp.updated_at ASC LIMIT 10"
+          ).all();
+          const blockers = (blockerRows.results || []).map(row => ({
+            id: cleanText(row.id, 100),
+            title: cleanText(row.title, 120),
+            status: cleanText(row.status, 40),
+            updatedAt: row.updated_at || null,
+            tasks: {
+              queued: Math.max(0, Number(row.queued_tasks) || 0),
+              accepted: Math.max(0, Number(row.accepted_tasks) || 0),
+              inProgress: Math.max(0, Number(row.in_progress_tasks) || 0),
+              retryWaiting: Math.max(0, Number(row.retry_wait_tasks) || 0),
+              awaitingApproval: Math.max(0, Number(row.approval_tasks) || 0),
+              terminalProblem: Math.max(0, Number(row.terminal_problem_tasks) || 0)
+            }
+          }));
           const generatorLock = await env.DB.prepare(
             "SELECT status,expires_at,updated_at,CASE WHEN datetime(expires_at)>datetime('now') THEN 1 ELSE 0 END AS lease_active FROM intelligence_mission_generator_lock WHERE id=1"
           ).first();
           return json({
             success: true,
             readOnly: true,
-            aggregateOnly: true,
+            aggregateOnly: false,
             packages: {
               total: rows.reduce((sum, row) => sum + row.packageCount, 0),
               explicitlyAuthorized: rows.reduce((sum, row) => sum + row.explicitlyAuthorizedCount, 0),
               reviewRequired: rows.reduce((sum, row) => sum + row.reviewRequiredCount, 0),
               blockerCount: rows.filter(row => ["queued","in_progress","waiting_retry"].includes(row.status)).reduce((sum,row) => sum + row.packageCount, 0),
               attentionRequiredCount: rows.filter(row => row.status === "attention_required").reduce((sum,row) => sum + row.packageCount, 0),
-              byStatus: rows
+              byStatus: rows,
+              blockers,
+              blockersTruncated: blockers.length === 10
             },
             generatorLock: generatorLock ? {
               status: cleanText(generatorLock.status, 24) || "unknown",
