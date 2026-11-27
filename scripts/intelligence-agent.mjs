@@ -86,7 +86,7 @@ async function runRepositoryInspection(task) {
     if (!response.ok) throw new Error("GitHub source read failed for " + path + ": HTTP " + response.status);
     const file = await response.json();
     if (file.type !== "file" || file.path !== path || file.encoding !== "base64" || typeof file.content !== "string" || typeof file.sha !== "string" || !/^[a-f0-9]{40}$/i.test(file.sha) || !Number.isInteger(file.size) || file.size < 0 || file.size > 600000) throw new Error("Invalid or oversized source file: " + path);
-    const content = Buffer.from(file.content.replace(/\\n/g,""),"base64").toString("utf8");
+    const content = Buffer.from(file.content.replace(/\n/g,""),"base64").toString("utf8");
     const bytes = Buffer.byteLength(content,"utf8");
     if (bytes !== file.size) throw new Error("Source size verification failed for " + path);
     total += bytes; if (total > 750000) throw new Error("Inspection exceeded the 750 KB aggregate source limit.");
