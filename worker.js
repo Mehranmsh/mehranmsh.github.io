@@ -8515,8 +8515,43 @@ export default {
           const claimToken = typeof body.claimToken === "string" ? body.claimToken : "";
           const claimTokenHash = claimToken ? await sha256(claimToken) : "";
           if (!/^[A-Za-z0-9_-]{43}$/.test(claimToken)) return error("A valid task claim token is required.",401);
-          const before = await env.DB.prepare("SELECT id,work_package_id FROM intelligence_tasks WHERE id=? AND status='in_progress' AND agent_claim_token_hash=? AND agent_claimed_at IS NOT NULL AND datetime(agent_claimed_at)>=datetime('now','-15 minutes') AND requires_approval=0 AND assigned_to IN ('mehran_intelligence','shared') AND action_type IN ('repository_quality_check','service_health_report','source_security_audit','inspect_repository','run_repository_tests','propose_code_patch') AND (work_package_id IS NULL OR EXISTS (SELECT 1 FROM intelligence_work_packages wp, json_each(CASE WHEN json_valid(wp.scope_json) THEN wp.scope_json ELSE '{}' END, '$.allowedActions') scoped WHERE wp.id=intelligence_tasks.work_package_id AND scoped.value=intelligence_tasks.action_type))").bind(id,claimTokenHash).first();
+          const before = await env.DB.prepare("SELECT id,work_package_id,action_type,action_payload,checkpoint_json FROM intelligence_tasks WHERE id=? AND status='in_progress' AND agent_claim_token_hash=? AND agent_claimed_at IS NOT NULL AND datetime(agent_claimed_at)>=datetime('now','-15 minutes') AND requires_approval=0 AND assigned_to IN ('mehran_intelligence','shared') AND action_type IN ('repository_quality_check','service_health_report','source_security_audit','inspect_repository','run_repository_tests','propose_code_patch') AND (work_package_id IS NULL OR EXISTS (SELECT 1 FROM intelligence_work_packages wp, json_each(CASE WHEN json_valid(wp.scope_json) THEN wp.scope_json ELSE '{}' END, '$.allowedActions') scoped WHERE wp.id=intelligence_tasks.work_package_id AND scoped.value=intelligence_tasks.action_type))").bind(id,claimTokenHash).first();
           if (!before) return error("Task claim not found, superseded, or expired.",409);
+          if (before.action_type === "run_repository_tests") {
+            const cp = body.checkpoint;
+            const expectedKeys = ["actionType","baseSha","completedSteps","digestSha256","phase","schemaVersion","taskId"];
+            const keys = Object.keys(cp).sort();
+            if (keys.length !== expectedKeys.length || keys.some((key,index) => key !== expectedKeys[index]) ||
+                cp.phase !== "step_progress" || cp.schemaVersion !== 1 || cp.taskId !== id ||
+                cp.actionType !== "run_repository_tests" || typeof cp.baseSha !== "string" || !/^[a-f0-9]{40}$/.test(cp.baseSha) ||
+                !Array.isArray(cp.completedSteps) || cp.completedSteps.length < 1 || cp.completedSteps.length > 3) {
+              return error("Repository test checkpoint schema or task identity is invalid.",422);
+            }
+            let taskPayload = {};
+            let priorCheckpoint = {};
+            try {
+              taskPayload = typeof before.action_payload === "string" ? JSON.parse(before.action_payload) : (before.action_payload || {});
+              priorCheckpoint = typeof before.checkpoint_json === "string" ? JSON.parse(before.checkpoint_json || "{}") : (before.checkpoint_json || {});
+            } catch { return error("Stored task checkpoint or payload is invalid.",409); }
+            if (taskPayload.baseSha && taskPayload.baseSha !== cp.baseSha) return error("Checkpoint source commit does not match the task payload.",409);
+            const fixedSteps = ["worker_syntax","capability_syntax","capability_tests"];
+            if (cp.completedSteps.some((step,index) => step !== fixedSteps[index])) return error("Checkpoint steps are not an ordered prefix of the fixed plan.",422);
+            const canonical = JSON.stringify({schemaVersion:1,phase:"step_progress",taskId:cp.taskId,actionType:cp.actionType,baseSha:cp.baseSha,completedSteps:cp.completedSteps});
+            const digestBytes = new Uint8Array(await crypto.subtle.digest("SHA-256",new TextEncoder().encode(canonical)));
+            const expectedDigest = Array.from(digestBytes,byte => byte.toString(16).padStart(2,"0")).join("");
+            if (cp.digestSha256 !== expectedDigest) return error("Checkpoint digest verification failed.",422);
+            if (priorCheckpoint.phase === "step_progress") {
+              if (priorCheckpoint.taskId !== id || priorCheckpoint.actionType !== cp.actionType || priorCheckpoint.baseSha !== cp.baseSha ||
+                  !Array.isArray(priorCheckpoint.completedSteps) || priorCheckpoint.completedSteps.length > cp.completedSteps.length ||
+                  priorCheckpoint.completedSteps.some((step,index) => step !== cp.completedSteps[index])) {
+                return error("Checkpoint progress cannot be changed or rolled back.",409);
+              }
+            } else if (priorCheckpoint.phase === "result_ready") {
+              return error("A finalized task checkpoint cannot be replaced by step progress.",409);
+            } else if (priorCheckpoint.phase && priorCheckpoint.phase !== "step_progress") {
+              return error("Unsupported prior checkpoint phase.",409);
+            }
+          }
           const update = await env.DB.prepare("UPDATE intelligence_tasks SET checkpoint_json=?,updated_at=CURRENT_TIMESTAMP WHERE id=? AND status='in_progress' AND agent_claim_token_hash=? AND agent_claimed_at IS NOT NULL AND datetime(agent_claimed_at)>=datetime('now','-15 minutes') AND requires_approval=0 AND assigned_to IN ('mehran_intelligence','shared') AND action_type IN ('repository_quality_check','service_health_report','source_security_audit','inspect_repository','run_repository_tests','propose_code_patch') AND (work_package_id IS NULL OR EXISTS (SELECT 1 FROM intelligence_work_packages wp, json_each(CASE WHEN json_valid(wp.scope_json) THEN wp.scope_json ELSE '{}' END, '$.allowedActions') scoped WHERE wp.id=intelligence_tasks.work_package_id AND scoped.value=intelligence_tasks.action_type))").bind(checkpointJson,id,claimTokenHash).run();
           if (!Number(update?.meta?.changes || 0)) return error("Task claim expired before checkpoint commit.",409);
           await env.DB.prepare("INSERT INTO intelligence_task_events(id,work_package_id,task_id,event_type,from_status,to_status,actor,details_json) VALUES(?,?,?,'checkpoint_saved','in_progress','in_progress','mehran_intelligence',?)")
