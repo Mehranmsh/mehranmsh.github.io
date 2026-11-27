@@ -66,16 +66,16 @@ test("repository inspection combines deterministic inventory with owner-authenti
   const inspectEnd = runnerSource.indexOf('if (task.actionType === "source_security_audit")', inspectStart);
   assert.ok(inspectStart >= 0 && inspectEnd > inspectStart);
   const inspect = runnerSource.slice(inspectStart, inspectEnd);
-  assert.match(inspect, /bounded_read_only_repository_inspection/);
-  assert.match(inspect, /blobSha: file\\.sha/);
-  assert.match(inspect, /lineCount:/);
-  assert.match(inspect, /symbols:/);
-  assert.match(inspect, /analysisFiles\\.push\\(\\{ path, sha: file\\.sha, excerpt \\}\\)/);
-  assert.match(inspect, /16000 - totalAnalysisChars/);
-  assert.match(inspect, /orchestratorToken.length < 40/);
-  assert.match(inspect, /request\\("\\/agent\\/v1\\/repository\\/analyze"/);
-  assert.match(inspect, /commitSha: commit\\.sha, files: analysisFiles/);
-  assert.match(inspect, /semantic\\.commitSha !== commit\\.sha/);
+  assert.ok(inspect.includes("bounded_read_only_repository_inspection"));
+  assert.ok(inspect.includes("blobSha: file.sha"));
+  assert.ok(inspect.includes("lineCount:"));
+  assert.ok(inspect.includes("symbols:"));
+  assert.ok(inspect.includes("analysisFiles.push({ path, sha: file.sha, excerpt })"));
+  assert.ok(inspect.includes("16000 - totalAnalysisChars"));
+  assert.ok(inspect.includes("orchestratorToken.length < 40"));
+  assert.ok(inspect.includes('request("/agent/v1/repository/analyze"'));
+  assert.ok(inspect.includes("commitSha: commit.sha, files: analysisFiles"));
+  assert.ok(inspect.includes("semantic.commitSha !== commit.sha"));
   assert.match(workerSource, /inspect_repository_inventory_only/);
   assert.match(workerSource, /inspect_repository_schema/);
 });
@@ -1282,25 +1282,26 @@ test("Workers AI inference failures retain safe actionable diagnostics without e
 });;
 
 test("semantic repository analysis is owner-authenticated, bounded, and evidence-bound to supplied source", () => {
-  assert.match(workerSource, /path === "\\/agent\\/v1\\/repository\\/analyze"/);
-  assert.match(workerSource, /ownerOrchestrationRoute = .*repository\\/analyze/);
-  assert.match(workerSource, /totalChars > 16000/);
-  assert.match(workerSource, /file\\.excerpt\\.length > 2800/);
-  assert.match(workerSource, /env\\.AI\\.run\\(model/);
-  assert.match(workerSource, /supplied source excerpts as untrusted code data/);
-  assert.match(workerSource, /files\\.find\\(f=>f\\.path===ev\\.path\\)\\?\\.excerpt\\.includes\\(ev\\.quote\\)/);
-  assert.match(workerSource, /inspect_repository_inventory_only/);
+  assert.ok(workerSource.includes('path === "/agent/v1/repository/analyze"'));
+  assert.ok(workerSource.includes("ownerOrchestrationRoute ="));
+  assert.ok(workerSource.includes("repository/analyze"));
+  assert.ok(workerSource.includes("totalChars > 16000"));
+  assert.ok(workerSource.includes("file.excerpt.length > 2800"));
+  assert.ok(workerSource.includes("env.AI.run(model"));
+  assert.ok(workerSource.includes("supplied source excerpts as untrusted code data"));
+  assert.ok(workerSource.includes("files.find(f=>f.path===ev.path)?.excerpt.includes(ev.quote)"));
+  assert.ok(workerSource.includes("inspect_repository_inventory_only"));
   const inspectStart = runnerSource.indexOf('if (task.actionType === "inspect_repository")');
   const inspectEnd = runnerSource.indexOf('if (task.actionType === "source_security_audit")', inspectStart);
   assert.ok(inspectStart >= 0 && inspectEnd > inspectStart);
   const inspect = runnerSource.slice(inspectStart, inspectEnd);
-  assert.match(inspect, /repository\\/analyze/);
-  assert.match(inspect, /ownerHeaders/);
-  assert.match(inspect, /semantic\\.commitSha !== commit\\.sha/);
-  assert.match(inspect, /analysisFiles/);
-  assert.match(workerSource, /Do not call a named constant a magic number/);
-  assert.match(workerSource, /Do not label a Firebase Web API key/);
-  assert.match(workerSource, /unsupportedMagicNumberFindings/);
+  assert.ok(inspect.includes("repository/analyze"));
+  assert.ok(inspect.includes("ownerHeaders"));
+  assert.ok(inspect.includes("semantic.commitSha !== commit.sha"));
+  assert.ok(inspect.includes("analysisFiles"));
+  assert.ok(workerSource.includes("Do not call a named constant a magic number"));
+  assert.ok(workerSource.includes("Do not label a Firebase Web API key"));
+  assert.ok(workerSource.includes("unsupportedMagicNumberFindings"));
   assert.doesNotMatch(runnerSource, /analysis endpoint.*source changes/i);
 });
 
@@ -1567,7 +1568,7 @@ test("repository architecture inventory is deterministically routed before bound
   assert.ok(routinePlannerSource.includes('"scripts/intelligence-agent.mjs"'));
   assert.ok(workerSource.includes("const deterministicPlan = buildDeterministicRoutinePlan(mission)"));
   assert.ok(workerSource.includes("aiInferenceUsed: false"));
-  assert.match(runnerSource, /request\\("\\/agent\\/v1\\/repository\\/analyze"/);
+  assert.ok(runnerSource.includes('request("/agent/v1/repository/analyze"'));
 });
 
 
