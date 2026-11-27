@@ -77,7 +77,7 @@ async function main() {
   const claimToken = typeof task.claimToken === "string" ? task.claimToken : "";
   const allowedActions = new Set([
     "repository_quality_check", "service_health_report", "source_security_audit",
-    "inspect_repository", "run_repository_tests", "propose_code_patch"
+    "inspect_repository", "run_repository_tests", "propose_code_patch", "pi_launchpad_candidate_analysis"
   ]);
   if (!/^[A-Za-z0-9._:-]{1,160}$/.test(taskId) || !/^[A-Za-z0-9_-]{43}$/.test(claimToken) ||
       typeof task.actionType !== "string" || !allowedActions.has(task.actionType)) {
@@ -87,15 +87,20 @@ async function main() {
   console.log(`Claimed task ${bounded(taskId, 80)}: ${bounded(task.title, 160)}`);
   let outcome;
   try {
-    if (task.actionType === "repository_quality_check") {
+    if (task.actionType === "pi_launchpad_candidate_analysis") {
+      const payload = typeof task.actionPayload === "string" ? JSON.parse(task.actionPayload) : (task.actionPayload || {});
+      if (typeof payload.snapshotJson !== "string" || payload.snapshotJson.length < 20 || payload.snapshotJson.length > 8000) throw new Error("Pi Launchpad snapshot payload is missing or exceeds its size limit.");
+      const snapshot = JSON.parse(payload.snapshotJson);
+      if (!snapshot || typeof snapshot !== "object" || Array.isArray(snapshot) || typeof snapshot.tokenId !== "string" || !snapshot.tokenId.trim() || snapshot.tokenId.length > 120) throw new Error("Pi Launchpad snapshot identity is invalid.");
+      const { analyzeLaunchpadOpportunity } = await import("./pi-launchpad-analyzer.mjs");
+      const analysis = analyzeLaunchpadOpportunity(snapshot);
+      outcome = { status: "completed", result: JSON.stringify({ type: "pi_launchpad_candidate_analysis", generatedAt: new Date().toISOString(), verificationStatus: "owner_supplied_unverified", analysis, notice: "Preliminary screening of owner-supplied data only. No live Pi or DEX data was fetched; all supplied claims remain unverified." }) };
+    } else if (task.actionType === "repository_quality_check") {
       outcome = await runQualityChecks();
     } else if (task.actionType === "service_health_report") {
       outcome = await runServiceHealth();
     } else {
-      outcome = {
-        status: "blocked",
-        result: `This runner does not yet support action type "${bounded(task.actionType || "(empty)", 100)}". No external change was made.`
-      };
+      outcome = { status: "blocked", result: `This runner does not yet support action type "${bounded(task.actionType || "(empty)", 100)}". No external change was made.` };
     }
   } catch (error) {
     outcome = { status: "blocked", result: bounded(error.message || error) };
