@@ -64,6 +64,39 @@ async function runServiceHealth() {
   return { status: ok ? "completed" : "blocked", result: details.join("\n") };
 }
 
+async function runRepositoryInspection(task) {
+  const token = process.env.GITHUB_TOKEN || "";
+  if (token.length < 20) throw new Error("GitHub read token is unavailable.");
+  let payload = {};
+  try { payload = typeof task.actionPayload === "string" ? JSON.parse(task.actionPayload) : (task.actionPayload || {}); }
+  catch { throw new Error("Inspection task payload is not valid JSON."); }
+  const allowed = new Set(["worker.js","scripts/intelligence-agent.mjs","scripts/intelligence-capabilities.mjs","scripts/intelligence-capabilities.test.mjs",".github/workflows/mehran-intelligence-runner.yml","docs/INTELLIGENCE_EXECUTION_PROTOCOL.md"]);
+  const paths = payload.paths;
+  if (!Array.isArray(paths) || paths.length < 1 || paths.length > 6 || new Set(paths).size !== paths.length || paths.some(p => typeof p !== "string" || !allowed.has(p))) throw new Error("Inspection paths are outside the exact read-only allowlist.");
+  const headers = { Accept:"application/vnd.github+json", Authorization:"Bearer " + token, "User-Agent":"MEHRAN-MSH-INTELLIGENCE" };
+  const repo = "Mehranmsh/mehranmsh.github.io";
+  const cr = await fetch("https://api.github.com/repos/" + repo + "/commits/main", {headers,signal:AbortSignal.timeout(15000)});
+  if (!cr.ok) throw new Error("GitHub main commit lookup HTTP " + cr.status);
+  const commit = await cr.json();
+  if (typeof commit.sha !== "string" || !/^[a-f0-9]{40}$/i.test(commit.sha)) throw new Error("GitHub returned an invalid main commit SHA.");
+  const files = []; let total = 0;
+  for (const path of paths) {
+    const apiPath = path.split("/").map(encodeURIComponent).join("/");
+    const response = await fetch("https://api.github.com/repos/" + repo + "/contents/" + apiPath + "?ref=" + commit.sha, {headers,signal:AbortSignal.timeout(15000)});
+    if (!response.ok) throw new Error("GitHub source read failed for " + path + ": HTTP " + response.status);
+    const file = await response.json();
+    if (file.type !== "file" || file.path !== path || file.encoding !== "base64" || typeof file.content !== "string" || typeof file.sha !== "string" || !/^[a-f0-9]{40}$/i.test(file.sha) || !Number.isInteger(file.size) || file.size < 0 || file.size > 600000) throw new Error("Invalid or oversized source file: " + path);
+    const content = Buffer.from(file.content.replace(/\\n/g,""),"base64").toString("utf8");
+    const bytes = Buffer.byteLength(content,"utf8");
+    if (bytes !== file.size) throw new Error("Source size verification failed for " + path);
+    total += bytes; if (total > 750000) throw new Error("Inspection exceeded the 750 KB aggregate source limit.");
+    files.push({path,blobSha:file.sha,content});
+  }
+  const {buildRepositoryInventory} = await import("./intelligence-repository-inventory.mjs");
+  const report = buildRepositoryInventory(files,commit.sha);
+  return {status:"completed",result:JSON.stringify({...report,generatedAt:new Date().toISOString()})};
+}
+
 async function main() {
   if (!token || token.length < 40) throw new Error("MEHRAN_AGENT_TOKEN is missing or too short.");
   const claimed = await request("/agent/v1/tasks/next");
@@ -91,6 +124,8 @@ async function main() {
       outcome = await runQualityChecks();
     } else if (task.actionType === "service_health_report") {
       outcome = await runServiceHealth();
+    } else if (task.actionType === "inspect_repository") {
+      outcome = await runRepositoryInspection(task);
     } else {
       outcome = {
         status: "blocked",
