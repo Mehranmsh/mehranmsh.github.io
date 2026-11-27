@@ -1,4 +1,3 @@
-import { buildRepositoryInventory, INTELLIGENCE_INVENTORY_PATHS } from "./intelligence-repository-inventory.mjs";
 import test from "node:test";
 import "./intelligence-mission-generator-policy.test.mjs";
 import "./intelligence-mission-generator-d1.test.mjs";
@@ -1643,7 +1642,8 @@ test("agent validates claimed task envelopes and returns the claim token", () =>
   assert.doesNotMatch(agentSource, /encodeURIComponent\(task\.id\)/);
 });
 
-test("deterministic repository inventory is AI-independent and evidence bounded", () => {
+test("deterministic repository inventory is AI-independent and evidence bounded", async () => {
+  const {buildRepositoryInventory,INTELLIGENCE_INVENTORY_PATHS} = await import("./intelligence-repository-inventory.mjs");
   const file = { path:"scripts/intelligence-agent.mjs", blobSha:"a".repeat(40), content:"export function alpha() {}\nexport const beta = 1;\n" };
   const result = buildRepositoryInventory([file],"b".repeat(40));
   assert.equal(result.mode,"bounded_read_only_repository_inspection");
@@ -1652,7 +1652,8 @@ test("deterministic repository inventory is AI-independent and evidence bounded"
   assert.equal(result.analysis.findings.length,0);
   assert.equal(INTELLIGENCE_INVENTORY_PATHS.length,6);
 });
-test("repository inventory rejects paths, duplicate files, invalid commits and oversized content", () => {
+test("repository inventory rejects paths, duplicate files, invalid commits and oversized content", async () => {
+  const {buildRepositoryInventory} = await import("./intelligence-repository-inventory.mjs");
   const file = {path:"worker.js",blobSha:"a".repeat(40),content:"x"};
   assert.throws(()=>buildRepositoryInventory([{...file,path:"README.md"}],"b".repeat(40)));
   assert.throws(()=>buildRepositoryInventory([file,file],"b".repeat(40)));
