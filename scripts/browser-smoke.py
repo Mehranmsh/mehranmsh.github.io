@@ -113,24 +113,29 @@ def main():
                 page = context.new_page()
                 page.on("dialog", lambda dialog: dialog.accept())
                 page.on("pageerror", lambda error: errors.append(getattr(error, "stack", None) or str(error)))
-                # Exercise the MEHRAN MSH application shell and every non-admin workspace route.
+                # Enter SOCIAL through the real dashboard orbit, then exercise the visible workspace navigation.
                 page.goto(base_url + "/index.html", wait_until="domcontentloaded")
                 assert "MEHRAN MSH" in page.title().upper(), "MEHRAN MSH app shell did not load."
-                workspace_pages = ["dashboard", "user", "social", "nexus", "ai", "services"]
+                for page_name in ["dashboard", "social", "user", "nexus", "ai", "services"]:
+                    assert page.locator(f"#page-{page_name}").count() == 1, f"Missing application page section: {page_name}"
+                errors.clear()
+                page.locator("#orbitEnter").click()
+                page.wait_for_function("document.querySelector('#page-social')?.classList.contains('active')", timeout=8000)
+                assert page.locator("#page-social").is_visible(), "Dashboard orbit did not open SOCIAL."
+                if errors:
+                    raise AssertionError("Browser errors while opening SOCIAL from dashboard: " + " | ".join(errors))
+                workspace_pages = ["user", "nexus", "ai", "services"]
                 for page_name in workspace_pages:
-                    page_section = page.locator(f"#page-{page_name}")
-                    assert page_section.count() == 1, f"Missing application page section: {page_name}"
-                    if page_name != "dashboard":
-                        errors.clear()
-                        page.locator(f'[data-page="{page_name}"]').first.click()
-                        page.wait_for_function(
-                            "(name) => document.querySelector('#page-' + name)?.classList.contains('active')",
-                            arg=page_name, timeout=8000
-                        )
-                        assert page_section.is_visible(), f"Workspace route did not render: {page_name}"
-                        if errors:
-                            raise AssertionError(f"Browser errors while opening {page_name}: " + " | ".join(errors))
-                print("APP SHELL ROUTES PASSED:", ", ".join(workspace_pages), flush=True)
+                    errors.clear()
+                    page.locator(f'[data-page="{page_name}"]').first.click()
+                    page.wait_for_function(
+                        "(name) => document.querySelector('#page-' + name)?.classList.contains('active')",
+                        arg=page_name, timeout=8000
+                    )
+                    assert page.locator(f"#page-{page_name}").is_visible(), f"Workspace route did not render: {page_name}"
+                    if errors:
+                        raise AssertionError(f"Browser errors while opening {page_name}: " + " | ".join(errors))
+                print("APP SHELL ROUTES PASSED: dashboard, social, user, nexus, ai, services", flush=True)
                 errors.clear()
 
                 page.goto(base_url + "/music-studio.html", wait_until="networkidle")
