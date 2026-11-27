@@ -91,6 +91,10 @@ test("runner resumes a durable completed result checkpoint without repeating exe
   assert.match(workerSource, /Checkpoint digest verification failed/);
   assert.match(workerSource, /priorCheckpoint\.completedSteps\.length > cp\.completedSteps\.length/);
   assert.match(workerSource, /expectedKeys = \["actionType","baseSha","completedSteps","digestSha256","phase","schemaVersion","taskId"\]/);
+  assert.match(workerSource, /Final repository test checkpoint schema is invalid/);
+  assert.match(workerSource, /Final checkpoint cannot finalize incomplete or mismatched progress/);
+  assert.match(workerSource, /Test report is not backed by its immutable, fully verified final checkpoint/);
+  assert.match(runnerSource, /taskId: task\.id,[\s\S]*?completedSteps: resultReport\.completedSteps/);
 });
 
 test("all eight active capabilities are registered with their permission tiers", () => {
