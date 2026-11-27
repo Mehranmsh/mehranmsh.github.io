@@ -729,6 +729,39 @@ jobs:
             if (typeof full !== "string") throw new Error("Task result is not JSON serializable.");
             if (full.length <= maxChars) return full;
 
+            if (value?.type === "source_security_audit" && value?.staticPatternAudit) {
+              const audit = value.staticPatternAudit;
+              const visibleFindings = Array.isArray(audit.findings) ? audit.findings.slice(0, 18) : [];
+              const visibleCounts = {critical:0,high:0,medium:0,low:0};
+              for (const item of visibleFindings) if (Object.hasOwn(visibleCounts,item.severity)) visibleCounts[item.severity]++;
+              const compactAudit = {
+                type: audit.type, mode: audit.mode, repository: audit.repository, commitSha: audit.commitSha,
+                summary: {filesScanned:audit.summary?.filesScanned,totalBytes:audit.summary?.totalBytes,findings:visibleFindings.length,totalFindings:Number(audit.summary?.findings || 0),severityCounts:visibleCounts},
+                findings: visibleFindings,
+                limitations: Array.isArray(audit.limitations) ? audit.limitations.slice(0,3).map(item => String(item).slice(0,160)) : []
+              };
+              const compactSecurity = {
+                type:value.type, generatedAt:value.generatedAt, mode:value.mode,
+                files:value.files,
+                summary:value.summary,
+                checks:Array.isArray(value.checks) ? value.checks.slice(0,24).map(item => ({id:String(item.id || "").slice(0,80),passed:item.passed === true,detail:String(item.detail || "").slice(0,64)})) : [],
+                staticPatternAudit:compactAudit,
+                limitations:Array.isArray(value.limitations) ? value.limitations.slice(0,3).map(item => String(item).slice(0,120)) : [],
+                detailsTruncated:visibleFindings.length < Number(audit.summary?.findings || 0)
+              };
+              const serializedSecurity = JSON.stringify(compactSecurity);
+              if (serializedSecurity.length <= maxChars) return serializedSecurity;
+              compactSecurity.checks = compactSecurity.checks.slice(0,12);
+              compactSecurity.staticPatternAudit.findings = compactSecurity.staticPatternAudit.findings.slice(0,6);
+              const counts = {critical:0,high:0,medium:0,low:0};
+              for (const item of compactSecurity.staticPatternAudit.findings) if (Object.hasOwn(counts,item.severity)) counts[item.severity]++;
+              compactSecurity.staticPatternAudit.summary.findings = compactSecurity.staticPatternAudit.findings.length;
+              compactSecurity.staticPatternAudit.summary.severityCounts = counts;
+              compactSecurity.detailsTruncated = true;
+              const minimalSecurity = JSON.stringify(compactSecurity);
+              if (minimalSecurity.length <= maxChars) return minimalSecurity;
+              throw new Error("Source security audit report exceeds the bounded result limit after schema-preserving compaction.");
+            }
             // Keep the exact schema required by verifyIntelligenceReport while
             // shortening verbose evidence. In particular, every check retains
             // its id, boolean outcome, and string detail.
