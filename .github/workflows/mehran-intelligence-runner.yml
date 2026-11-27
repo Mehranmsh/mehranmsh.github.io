@@ -929,6 +929,8 @@ jobs:
                       ? { baseSha: resultReport.baseSha, completedSteps: resultReport.completedSteps } : {}),
                     ...(task.actionType === "propose_code_patch" && /^[a-f0-9]{40}$/.test(resultReport?.baseSha || "")
                       ? { baseSha: resultReport.baseSha } : {}),
+                    ...(task.actionType === "inspect_repository" && /^[a-f0-9]{40}$/i.test(resultReport?.commitSha || "")
+                      ? { baseSha: resultReport.commitSha } : {}),
                     result,
                     resultSha256: createHash("sha256").update(result).digest("hex"),
                     preparedAt: new Date().toISOString()
