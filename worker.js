@@ -8588,6 +8588,74 @@ export default {
               return error("Unsupported repository test checkpoint phase.",422);
             }
           }
+          if (before.action_type === "inspect_repository") {
+            const cp = body.checkpoint;
+            let priorCheckpoint = {};
+            try { priorCheckpoint = typeof before.checkpoint_json === "string" ? JSON.parse(before.checkpoint_json || "{}") : (before.checkpoint_json || {}); }
+            catch { return error("Stored inspection checkpoint is invalid.",409); }
+            const expectedKeys = ["actionType","baseSha","phase","preparedAt","result","resultSha256","status","taskId"];
+            const keys = Object.keys(cp).sort();
+            const digestHex = async (value) => {
+              const bytes = new Uint8Array(await crypto.subtle.digest("SHA-256",new TextEncoder().encode(value)));
+              return Array.from(bytes,byte => byte.toString(16).padStart(2,"0")).join("");
+            };
+            if (keys.length !== expectedKeys.length || keys.some((key,index) => key !== expectedKeys[index]) ||
+                cp.phase !== "result_ready" || cp.taskId !== id || cp.actionType !== "inspect_repository" ||
+                cp.status !== "completed" || typeof cp.baseSha !== "string" || !/^[a-f0-9]{40}$/i.test(cp.baseSha) ||
+                typeof cp.result !== "string" || !cp.result || cp.result.length > 3000 ||
+                typeof cp.preparedAt !== "string" || !Number.isFinite(Date.parse(cp.preparedAt)) ||
+                cp.resultSha256 !== await digestHex(cp.result)) {
+              return error("Repository inspection checkpoint schema, identity, or digest is invalid.",422);
+            }
+            let report;
+            try { report = JSON.parse(cp.result); } catch { return error("Repository inspection report is not valid JSON.",422); }
+            const allowedPaths = new Set([
+              "worker.js","scripts/intelligence-agent.mjs","scripts/intelligence-capabilities.mjs",
+              "scripts/intelligence-capabilities.test.mjs",".github/workflows/mehran-intelligence-runner.yml",
+              "docs/INTELLIGENCE_EXECUTION_PROTOCOL.md"
+            ]);
+            const files = Array.isArray(report?.files) ? report.files : [];
+            const seen = new Set();
+            let totalBytes = 0;
+            const filesValid = files.length >= 1 && files.length <= 6 && files.every(file => {
+              if (!file || typeof file.path !== "string" || !allowedPaths.has(file.path) || seen.has(file.path) ||
+                  typeof file.blobSha !== "string" || !/^[a-f0-9]{40}$/i.test(file.blobSha) ||
+                  !Number.isInteger(file.bytes) || file.bytes < 0 || file.bytes > 600000 ||
+                  !Number.isInteger(file.lineCount) || file.lineCount < 0 || file.lineCount > 20000 ||
+                  !Array.isArray(file.symbols) || file.symbols.length > 2 ||
+                  file.symbols.some(symbol => typeof symbol !== "string" || symbol.length > 60)) return false;
+              seen.add(file.path);
+              totalBytes += file.bytes;
+              return true;
+            });
+            const analysis = report?.analysis && typeof report.analysis === "object" ? report.analysis : {};
+            const analysisValid = typeof analysis.summary === "string" && analysis.summary.length <= 1600 &&
+              Array.isArray(analysis.findings) && analysis.findings.length <= 8 &&
+              analysis.findings.every(item => item && ["critical","high","medium","low","info"].includes(item.severity) &&
+                typeof item.title === "string" && item.title.length <= 180 &&
+                typeof item.rootCause === "string" && item.rootCause.length <= 1200 &&
+                typeof item.recommendation === "string" && item.recommendation.length <= 1200 &&
+                Array.isArray(item.evidence) && item.evidence.length <= 5 &&
+                item.evidence.every(ev => ev && seen.has(ev.path) && typeof ev.quote === "string" && ev.quote.length <= 500) &&
+                Array.isArray(item.regressionTests) && item.regressionTests.length <= 6 &&
+                item.regressionTests.every(test => typeof test === "string" && test.length <= 300)) &&
+              Array.isArray(analysis.limitations) && analysis.limitations.length <= 5 &&
+              analysis.limitations.every(item => typeof item === "string" && item.length <= 300);
+            if (report?.type !== "inspect_repository" || report?.mode !== "bounded_read_only_repository_inspection" ||
+                report?.repository !== "Mehranmsh/mehranmsh.github.io" || report?.commitSha !== cp.baseSha ||
+                !filesValid || totalBytes > 750000 || report?.summary?.filesInspected !== files.length ||
+                report?.summary?.totalBytes !== totalBytes || !analysisValid) {
+              return error("Repository inspection report does not match its bounded evidence schema or immutable source commit.",422);
+            }
+            if (priorCheckpoint.phase === "result_ready" &&
+                (priorCheckpoint.taskId !== id || priorCheckpoint.actionType !== cp.actionType ||
+                 priorCheckpoint.baseSha !== cp.baseSha || priorCheckpoint.resultSha256 !== cp.resultSha256)) {
+              return error("Repository inspection result checkpoint is immutable once saved.",409);
+            }
+            if (priorCheckpoint.phase && priorCheckpoint.phase !== "result_ready") {
+              return error("Unsupported prior repository inspection checkpoint phase.",409);
+            }
+          }
           const expectedPriorCheckpoint = typeof before.checkpoint_json === "string" ? before.checkpoint_json : "{}";
           const update = await env.DB.prepare("UPDATE intelligence_tasks SET checkpoint_json=?,updated_at=CURRENT_TIMESTAMP WHERE id=? AND status='in_progress' AND agent_claim_token_hash=? AND agent_claimed_at IS NOT NULL AND datetime(agent_claimed_at)>=datetime('now','-15 minutes') AND requires_approval=0 AND assigned_to IN ('mehran_intelligence','shared') AND action_type IN ('repository_quality_check','service_health_report','source_security_audit','inspect_repository','run_repository_tests','propose_code_patch') AND (work_package_id IS NULL OR EXISTS (SELECT 1 FROM intelligence_work_packages wp, json_each(CASE WHEN json_valid(wp.scope_json) THEN wp.scope_json ELSE '{}' END, '$.allowedActions') scoped WHERE wp.id=intelligence_tasks.work_package_id AND scoped.value=intelligence_tasks.action_type)) AND checkpoint_json=?").bind(checkpointJson,id,claimTokenHash,expectedPriorCheckpoint).run();
           if (!Number(update?.meta?.changes || 0)) return error("Task claim expired before checkpoint commit.",409);
