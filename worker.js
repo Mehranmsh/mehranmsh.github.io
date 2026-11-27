@@ -8474,7 +8474,7 @@ export default {
             taskCount: Math.max(0, Number(row.task_count) || 0)
           }));
           const blockedTaskCauses = await env.DB.prepare(
-            "SELECT CASE WHEN t.last_error_code IN ('dependency_terminal','dependency_missing','dependency_cross_package','attempt_limit_reached','unsupported_action','action_not_in_package_scope','approval_required') THEN t.last_error_code ELSE CASE WHEN t.last_error_code IS NULL OR t.last_error_code='' THEN 'no_error_code' ELSE 'other' END END AS cause, COUNT(*) AS task_count FROM intelligence_work_packages wp JOIN intelligence_tasks t ON t.work_package_id=wp.id WHERE wp.status IN ('queued','in_progress','waiting_retry') AND t.status IN ('blocked','failed','cancelled') GROUP BY cause ORDER BY cause LIMIT 20"
+            "SELECT CASE WHEN t.last_error_code IN ('dependency_terminal','dependency_missing','dependency_cross_package','attempt_limit_reached','unsupported_action','action_not_in_package_scope','approval_required','claim_expired_max_attempts','claim_expired_retry','transient_execution_error','retry_limit_reached','execution_blocked') THEN t.last_error_code ELSE CASE WHEN t.last_error_code IS NULL OR t.last_error_code='' THEN 'no_error_code' ELSE 'other' END END AS cause, COUNT(*) AS task_count FROM intelligence_work_packages wp JOIN intelligence_tasks t ON t.work_package_id=wp.id WHERE wp.status IN ('queued','in_progress','waiting_retry') AND t.status IN ('blocked','failed','cancelled') GROUP BY cause ORDER BY cause LIMIT 20"
           ).all();
           const blockedTaskCauseSummary = (blockedTaskCauses.results || []).map(row => ({
             cause: cleanText(row.cause, 48) || "unknown",
