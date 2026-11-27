@@ -2933,6 +2933,8 @@ test("MEHRAN INTELLIGENCE owner notification outbox is authenticated and lease-b
   assert.ok(route.includes('path === "/agent/v1/work-packages" && method === "POST"'));
   assert.ok(route.includes('path === "/agent/v1/work-packages/scope-diagnostics" && method === "GET"'), "scope diagnostics must be an explicit owner-only GET route");
   assert.ok(route.includes('packages: {') && route.includes('aggregateOnly: true') && route.includes('reviewRequiredCount'), "scope diagnostics must return bounded aggregate counts only");
+  assert.ok(route.includes("blockerCount") && route.includes("attentionRequiredCount"), "scope diagnostics must distinguish package blockers from attention-required packages");
+  assert.ok(route.includes("generatorLock") && route.includes("leaseActive") && route.includes("expiresAt"), "scope diagnostics must expose only bounded generator lease metadata");
   assert.ok(route.includes("json_each(CASE WHEN json_valid(scope_json) THEN scope_json ELSE '{}' END,'$.allowedActions')"), "scope diagnostics must safely classify malformed or missing legacy scope JSON");
   assert.ok(route.includes("it.work_package_id=intelligence_work_packages.id") && route.includes("authorized.value=it.action_type"), "scope diagnostics must verify every package task against its declared action authorization");
   assert.ok(route.includes("EXISTS (SELECT 1 FROM intelligence_tasks it WHERE it.work_package_id=intelligence_work_packages.id)"), "empty legacy packages must be flagged for review");
