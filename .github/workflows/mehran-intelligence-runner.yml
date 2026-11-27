@@ -303,7 +303,7 @@ jobs:
                     throw new Error("Capability test suite did not report a complete passing test set.");
                   }
                 }
-                completedSteps.push(stepId);
+                if (!completedSteps.includes(stepId)) completedSteps.push(stepId);
                 const durable = createIntelligenceStepCheckpoint({
                   taskId: task.id, actionType: task.actionType, baseSha, completedSteps
                 });
