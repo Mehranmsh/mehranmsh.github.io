@@ -530,6 +530,8 @@ jobs:
                 const source = Buffer.from(file.content.replace(/\n/g, ""), "base64").toString("utf8");
                 const bytes = Buffer.byteLength(source, "utf8");
                 if (bytes !== file.size) throw new Error(`GitHub source size verification failed for ${path}.`);
+                const computedBlobSha = createHash("sha1").update(Buffer.from("blob " + bytes + "\\0")).update(source).digest("hex");
+                if (computedBlobSha !== file.sha) throw new Error(`GitHub source blob integrity verification failed for ${path}.`);
                 totalBytes += bytes;
                 if (totalBytes > 750000) throw new Error("Inspection exceeded the 750 KB aggregate source limit.");
                 const symbols = new Set();
