@@ -59,14 +59,14 @@ async function runRepositoryTests() {
   for (const [label, executable, args] of steps) {
     try {
       const result = await run(executable, args, { timeout: 180000, maxBuffer: 1024 * 1024 });
-      output.push("PASS: " + label + "\\n" + bounded(result.stdout, 900));
+      output.push("PASS: " + label + "\n" + bounded(result.stdout, 900));
       if (result.stderr) output.push(bounded(result.stderr, 300));
     } catch (error) {
-      output.push("FAIL: " + label + "\\n" + bounded(error.stdout, 700) + "\\n" + bounded(error.stderr, 900));
-      return { status: "blocked", result: output.join("\\n\\n") };
+      output.push("FAIL: " + label + "\n" + bounded(error.stdout, 700) + "\n" + bounded(error.stderr, 900));
+      return { status: "blocked", result: output.join("\n\n") };
     }
   }
-  return { status: "completed", result: output.join("\\n\\n") };
+  return { status: "completed", result: output.join("\n\n") };
 }
 async function runServiceHealth() {
   const response = await fetch(new URL("/health", WORKER), { signal: AbortSignal.timeout(15000) });
