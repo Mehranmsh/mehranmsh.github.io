@@ -40,6 +40,12 @@ export function verifyIntelligenceStepCheckpoint(checkpoint, expected) {
   if (!checkpoint || typeof checkpoint !== "object" || Array.isArray(checkpoint)) {
     return { valid: false, reason: "invalid_checkpoint" };
   }
+  const allowedKeys = ["actionType", "baseSha", "completedSteps", "digestSha256", "phase", "schemaVersion", "taskId"];
+  const actualKeys = Object.keys(checkpoint).sort();
+  if (actualKeys.length !== allowedKeys.length ||
+      actualKeys.some((key, index) => key !== allowedKeys[index])) {
+    return { valid: false, reason: "unexpected_checkpoint_fields" };
+  }
   if (checkpoint.phase !== "step_progress" || checkpoint.schemaVersion !== 1) {
     return { valid: false, reason: "unsupported_checkpoint_schema" };
   }
