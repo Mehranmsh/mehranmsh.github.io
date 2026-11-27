@@ -7468,6 +7468,14 @@ async function ingestPrivateIntelligenceInbox(env) {
           source: "private_owner_inbox",
           missionId: mission.mission_id,
           allowedActions: ["inspect_repository","source_security_audit","repository_quality_check", ...(mission.scope.allowed_actions.includes("run_repository_tests") ? ["run_repository_tests"] : [])],
+          acceptanceCriteria: [
+            { id: "inspect-source-report", taskId: "inspect-source", actionType: "inspect_repository", type: "validated_task_report" },
+            { id: "security-review-report", taskId: "security-review", actionType: "source_security_audit", type: "validated_task_report" },
+            { id: "repository-check-report", taskId: "repository-check", actionType: "repository_quality_check", type: "validated_task_report" },
+            ...(mission.scope.allowed_actions.includes("run_repository_tests") ? [
+              { id: "repository-tests-report", taskId: "repository-tests", actionType: "run_repository_tests", type: "validated_task_report" }
+            ] : [])
+          ],
           forbidden: ["source_changes","patch_application","branch_creation","pull_request_creation","merge","deployment","secret_access","credential_output","wallet_operations","financial_operations","arbitrary_shell","production_state_changes"],
           deliverables: Array.isArray(mission.deliverables) ? mission.deliverables.slice(0, 6).map(item => cleanText(item, 300)) : [],
           evidence
