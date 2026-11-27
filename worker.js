@@ -5862,7 +5862,7 @@ export async function persistIntelligencePackageReport(env, packageId, snapshot)
   let pkg;
   try {
     pkg = await env.DB.prepare(
-      "SELECT id,created_at,report_stored_at FROM intelligence_work_packages WHERE id=?"
+      "SELECT id,created_at,report_stored_at,scope_json FROM intelligence_work_packages WHERE id=?"
     ).bind(packageId).first();
   } catch {
     throw new Error("report_package_lookup_failed");
@@ -5900,10 +5900,13 @@ export async function persistIntelligencePackageReport(env, packageId, snapshot)
     source: "mehran_intelligence",
     report_type: "work_package_summary",
     status: snapshot.status === "completed" ? "success" : "warning",
-    summary: "MEHRAN INTELLIGENCE work package reached a final status.",
+    summary: snapshot.missionExecution?.verified === false
+      ? "Readiness tasks finished, but the owner mission was not planned or independently verified."
+      : "MEHRAN INTELLIGENCE work package reached a final status.",
     data: {
       work_package_id: pkg.id,
       status: snapshot.status,
+      mission_execution: snapshot.missionExecution || { verified: null, reason: "not_recorded" },
       counts: snapshot.counts || {},
       tasks: (taskResult.results || []).map(task => {
         const rawResult = String(task.result_text || "");
@@ -5928,9 +5931,14 @@ export async function persistIntelligencePackageReport(env, packageId, snapshot)
         };
       })
     },
-    warnings: snapshot.status === "attention_required"
-      ? ["One or more tasks require attention; inspect the authenticated work-package record for details."]
-      : [],
+    warnings: [
+      ...(snapshot.status === "attention_required"
+        ? ["One or more tasks require attention; inspect the authenticated work-package record for details."]
+        : []),
+      ...(snapshot.missionExecution?.verified === false
+        ? ["Deterministic fallback tasks are readiness checks only; the owner mission was not executed or verified."]
+        : [])
+    ],
     evidence: [{ kind: "work_package_id", reference: packageId }]
   };
 
@@ -6096,7 +6104,7 @@ async function blockIntelligenceTasksWithTerminalDependencies(env, packageId) {
 
 async function refreshIntelligenceWorkPackageSnapshot(env, packageId) {
   if (!packageId) return null;
-  const pkg = await env.DB.prepare("SELECT status FROM intelligence_work_packages WHERE id=?").bind(packageId).first();
+  const pkg = await env.DB.prepare("SELECT status,scope_json FROM intelligence_work_packages WHERE id=?").bind(packageId).first();
   await blockIntelligenceTasksWithTerminalDependencies(env, packageId);
   if (!pkg) return null;
   const result = await env.DB.prepare("SELECT status,COUNT(*) AS total FROM intelligence_tasks WHERE work_package_id=? GROUP BY status").bind(packageId).all();
@@ -6116,17 +6124,27 @@ async function refreshIntelligenceWorkPackageSnapshot(env, packageId) {
   const dependencyResult = await env.DB.prepare("SELECT COUNT(DISTINCT child.id) AS total FROM intelligence_task_dependencies d JOIN intelligence_tasks child ON child.id=d.task_id JOIN intelligence_tasks parent ON parent.id=d.depends_on_task_id WHERE child.work_package_id=? AND child.status IN ('queued','accepted','retry_wait') AND parent.status IN ('blocked','failed','cancelled')").bind(packageId).first();
   counts.blockedDependencies = Number(dependencyResult?.total || 0);
   const allCompleted = counts.total > 0 && counts.completed === counts.total;
+  let packageScope = {};
+  try {
+    const parsedScope = JSON.parse(String(pkg.scope_json || "{}"));
+    if (parsedScope && typeof parsedScope === "object" && !Array.isArray(parsedScope)) packageScope = parsedScope;
+  } catch {}
+  const isDeterministicFallback = packageScope.planner === "deterministic_fallback";
+  const missionExecution = isDeterministicFallback
+    ? { verified: false, reason: "deterministic_fallback_only", planner: "deterministic_fallback" }
+    : { verified: null, reason: "no_independent_acceptance_verifier" };
   const hasRunnableQueued = counts.queued > counts.blockedDependencies;
+  // Readiness fallback tasks cannot prove that the owner's actual mission ran.
+  // Keep the package in attention_required even when every generic check passes.
   // A blocked task must not finalize a package while sibling work is still running.
-  // Queued tasks whose dependencies are already blocked are terminal for this package.
-  const status = allCompleted ? "completed"
+  const status = allCompleted ? (isDeterministicFallback ? "attention_required" : "completed")
     : counts.inProgress ? "in_progress"
     : counts.retryWaiting && !hasRunnableQueued ? "waiting_retry"
     : hasRunnableQueued ? "queued"
     : (counts.blocked || counts.failed || counts.cancelled || counts.awaitingApproval || counts.blockedDependencies) ? "attention_required"
     : "queued";
   const reportIsQuiescent = isIntelligenceReportQuiescent(counts);
-  const report = {status,counts,generatedAt:new Date().toISOString()};
+  const report = {status,counts,missionExecution,generatedAt:new Date().toISOString()};
   if ((pkg.status || "queued") !== status) {
     const details = JSON.stringify({fromStatus:pkg.status || "queued",toStatus:status,counts});
     const eventId = crypto.randomUUID();
