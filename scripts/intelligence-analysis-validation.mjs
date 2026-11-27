@@ -1,5 +1,30 @@
 // Safe, bounded diagnostics for semantic-analysis response validation.
 // Never return or log model-generated text, source excerpts, or evidence quotes.
+
+// Remove only findings whose evidence points outside the exact supplied source set.
+// Never rewrite/guess a model-generated path; all retained evidence still passes strict validation.
+export function discardFindingsWithUnknownEvidencePaths(analysis, files) {
+  if (!analysis || typeof analysis !== "object" || Array.isArray(analysis) ||
+      !Array.isArray(analysis.findings) || !Array.isArray(files)) return analysis;
+  const allowedPaths = new Set(files.map(file => file?.path).filter(path => typeof path === "string"));
+  const retained = analysis.findings.filter(item =>
+    item && typeof item === "object" && !Array.isArray(item) &&
+    Array.isArray(item.evidence) &&
+    item.evidence.every(ev => ev && typeof ev === "object" && !Array.isArray(ev) &&
+      typeof ev.path === "string" && allowedPaths.has(ev.path))
+  );
+  const discarded = retained.length !== analysis.findings.length;
+  if (!discarded) return analysis;
+  return {
+    ...analysis,
+    findings: retained,
+    limitations: [
+      ...(Array.isArray(analysis.limitations) ? analysis.limitations : []),
+      "One or more findings were omitted because their evidence referenced a path outside the exact supplied source set."
+    ].slice(0, 5)
+  };
+}
+
 export function validateRepositoryAnalysis(analysis, files) {
   const fail = (code, findingIndex = null, evidenceIndex = null, field = null) => ({
     valid: false, code, findingIndex, evidenceIndex, field
