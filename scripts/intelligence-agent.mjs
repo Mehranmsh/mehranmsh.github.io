@@ -53,6 +53,7 @@ async function runRepositoryTests() {
   const steps = [
     ["Worker syntax", "node", ["--check", "worker.js"]],
     ["Capability syntax", "node", ["--check", "scripts/intelligence-capabilities.mjs"]],
+    ["Static security scanner syntax", "node", ["--check", "scripts/intelligence-static-security-audit.mjs"]],
     ["Checkpoint syntax", "node", ["--check", "scripts/intelligence-checkpoint.mjs"]],
     ["Static security scanner syntax", "node", ["--check", "scripts/intelligence-static-security-audit.mjs"]],
     ["Step checkpoint syntax", "node", ["--check", "scripts/intelligence-step-checkpoint.mjs"]],
