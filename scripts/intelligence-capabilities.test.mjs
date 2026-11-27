@@ -445,6 +445,7 @@ test("isolated test workflow runs one fixed suite without secrets or network acc
   const importedModules = [...isolatedTestSource.matchAll(/from ["']([^"']+)["']/g)]
     .map((match) => match[1]);
   assert.deepEqual(importedModules, [
+    "./intelligence-acceptance.mjs",
     "node:test",
     "./intelligence-patch-apply.mjs",
     "./intelligence-inspection-excerpts.mjs",
