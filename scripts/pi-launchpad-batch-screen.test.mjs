@@ -75,3 +75,14 @@ test("does not attach a report whose token identity differs from the ranked cand
   assert.equal(report.ranked[0].analysisReport, null);
   assert.equal(report.ranked[0].reportStatus, "report_unavailable");
 });
+
+test("includes a side-by-side comparison in the batch result", () => {
+  const report = screenPiLaunchpadBatch([
+    result("compare-a", 91, "strong_candidate", 90),
+    result("compare-b", 78, "watchlist", 75)
+  ]);
+  assert.equal(report.comparison.accepted, true);
+  assert.equal(report.comparison.comparedCount, report.ranked.length);
+  assert.equal(report.comparison.entries[0].tokenId, report.ranked[0].tokenId);
+  assert.equal(report.comparison.averages.evidenceCoveragePercent.value, 82.5);
+});
