@@ -182,3 +182,10 @@ The request lifecycle is deliberately fail-closed. A newly reserved request ente
 The atomic request reservation occurs before IP rate-limit accounting, so only the single winning delivery consumes one of the three daily attempts. A rejected rate-limit reservation is recorded as terminal and never reaches AI generation or budget reservation. These guarantees are covered by mocked Worker/D1 and artifact-store tests; they are not evidence of a live production D1 or production GitHub storage run.
 
 PR #217 consolidates the bounded generation API, private artifact storage, and queue executor on a clean branch based on `main`. Its CI checks pass, but the pull request remains open as a draft and has not been merged or deployed. Therefore none of these capabilities is production-active. Even after deployment, this executor will **not** apply patches, write to the source repository, create branches or pull requests, merge changes, or deploy code. Generated artifacts remain private proposals requiring a separate owner review path.
+
+
+## Resumable repository inspection
+
+The scheduled runner checkpoints each successfully verified source file before reading the next one. A checkpoint contains only bounded inventory metadata (path, Git blob SHA, byte count, line count, and at most two declaration names); it never stores source contents. Every progress checkpoint is bound to the task ID and one immutable 40-character commit SHA, carries a SHA-256 digest, and must be an ordered prefix of the task's exact allowlisted path list. The Worker validates the schema, digest, source bounds, task identity, and monotonic progress before saving it with compare-and-swap semantics.
+
+When a runner resumes, it verifies the checkpoint and reads only the remaining paths from the same immutable commit. Finalization is rejected unless the final report exactly matches all checkpointed file metadata. This is resumability of inventory collection, not semantic code review or a claim that an interrupted in-flight file read was completed.
