@@ -23,6 +23,26 @@ test("generator pauses when any nonterminal package is active", () => {
   assert.deepEqual(result.activePackageIds, ["pkg-1"]);
 });
 
+test("attention-required packages do not block owner-authorized scheduled generation", () => {
+  const result = getMissionGeneratorDecision({
+    packages: [{ id: "pkg-attention", status: "attention_required" }]
+  });
+  assert.equal(result.allowed, true);
+  assert.equal(result.reason, "clear");
+});
+
+test("queued, in-progress, and retrying packages still block generation", () => {
+  for (const status of ["queued", "in_progress", "waiting_retry"]) {
+    const result = getMissionGeneratorDecision({ packages: [{ id: "pkg-active", status }] });
+    assert.equal(result.allowed, false, status);
+    assert.equal(result.reason, "active_work_package_exists", status);
+  }
+});
+
+test("runner sends the explicit attention-required bypass for scheduled generation", () => {
+  assert.match(workerSource, /ignoreAttentionRequiredBlockers:\s*true/);
+});
+
 test("completed, failed, and cancelled packages do not block a new cycle", () => {
   const result = getMissionGeneratorDecision({
     packages: ["completed", "failed", "cancelled"].map(status => ({ status }))
