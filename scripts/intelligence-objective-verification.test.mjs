@@ -46,3 +46,22 @@ test("all evidence checks must pass before an objective is completed", () => {
   assert.equal(result.verified, false);
   assert.equal(result.criteria[0].verified, false);
 });
+
+test("persisted task IDs resolve to their original planner task IDs", () => {
+  const persistedTasks = [
+    {
+      id: "package-123:health",
+      action_payload: JSON.stringify({ sourceTaskId: "health" }),
+      status: "completed",
+      result_text: JSON.stringify({ worker: "online" })
+    }
+  ];
+  const criteria = [
+    { id: "worker-online", description: "Worker is online", evidence: [
+      { taskId: "health", path: "worker", operator: "equals", expected: "online" }
+    ] }
+  ];
+  const result = verifyIntelligenceObjective(criteria, persistedTasks);
+  assert.equal(result.verified, true);
+  assert.equal(result.criteria[0].evidence[0].reason, "evidence_verified");
+});
