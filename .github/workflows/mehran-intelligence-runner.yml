@@ -922,8 +922,11 @@ jobs:
                   const resultReport = JSON.parse(result);
                   const checkpoint = {
                     phase: "result_ready",
+                    taskId: task.id,
                     actionType: task.actionType,
                     status,
+                    ...(task.actionType === "run_repository_tests" && /^[a-f0-9]{40}$/.test(resultReport?.baseSha || "")
+                      ? { baseSha: resultReport.baseSha, completedSteps: resultReport.completedSteps } : {}),
                     ...(task.actionType === "propose_code_patch" && /^[a-f0-9]{40}$/.test(resultReport?.baseSha || "")
                       ? { baseSha: resultReport.baseSha } : {}),
                     result,
