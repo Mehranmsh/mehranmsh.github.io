@@ -3,6 +3,7 @@
  * and the deterministic analyzer. Unsigned snapshot scores/metrics are ignored.
  */
 import { analyzeLaunchpadOpportunity } from "./pi-launchpad-analyzer.mjs";
+import { buildPiLaunchpadAnalysisReport } from "./pi-launchpad-analysis-report.mjs";
 import { buildPiLaunchpadVerifiedScoringEvidence } from "./pi-launchpad-evidence-gateway.mjs";
 import { buildPiLaunchpadVerifiedMetrics } from "./pi-launchpad-metrics-gateway.mjs";
 
@@ -33,8 +34,15 @@ export function analyzeVerifiedLaunchpadOpportunity({
     evidence: verified.scoringEvidence,
     ...verifiedMetrics.verifiedMetrics
   });
+  const analysisReport = buildPiLaunchpadAnalysisReport(analysis, {
+    verifiedEvidence: verified,
+    verifiedMetrics,
+    now
+  });
+
   return Object.freeze({
     ...analysis,
+    analysisReport,
     verifiedEvidence: Object.freeze({
       gatewayVersion: verified.gatewayVersion,
       acceptedCount: verified.acceptedCount,

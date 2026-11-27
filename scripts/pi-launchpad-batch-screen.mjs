@@ -3,6 +3,7 @@
  * This is not a live discovery crawler and does not fetch or authenticate evidence.
  */
 import { rankPiLaunchpadPortfolio } from "./pi-launchpad-portfolio-ranker.mjs";
+import { comparePiLaunchpadBatch } from "./pi-launchpad-comparison.mjs";
 
 export const PI_LAUNCHPAD_BATCH_VERSION = "0.1.0";
 export const PI_LAUNCHPAD_BATCH_MAX_CANDIDATES = 500;
@@ -45,6 +46,24 @@ export function screenPiLaunchpadBatch(input, options = {}) {
   });
 
   const portfolio = rankPiLaunchpadPortfolio(normalized, options);
+  const analysesByTokenId = new Map(normalized.map((item) => {
+    const analysis = item.analysis && typeof item.analysis === "object" ? item.analysis : item;
+    return [analysis.tokenId.trim(), analysis];
+  }));
+  const rankedWithReports = portfolio.ranked.map((candidate) => {
+    const analysis = analysesByTokenId.get(candidate.tokenId);
+    const report = analysis?.analysisReport;
+    const reportMatches = report && typeof report === "object" &&
+      report.identity?.tokenId === candidate.tokenId &&
+      typeof report.generatedAt === "string" &&
+      typeof report.verdict?.classification === "string";
+    return Object.freeze({
+      ...candidate,
+      analysisReport: reportMatches ? report : null,
+      reportStatus: reportMatches ? "attached_precomputed_report" : "report_unavailable"
+    });
+  });
+  const comparison = comparePiLaunchpadBatch({ accepted: true, ranked: rankedWithReports });
   const classifications = {
     strong_candidate: 0,
     watchlist: 0,
@@ -89,7 +108,8 @@ export function screenPiLaunchpadBatch(input, options = {}) {
     averageEvidenceCoverage: coverageCount ? Math.round(totalCoverage / coverageCount * 100) / 100 : null,
     averageRawScore: scoreCount ? Math.round(totalScore / scoreCount * 100) / 100 : null,
     classifications: Object.freeze(classifications),
-    ranked: portfolio.ranked,
+    ranked: Object.freeze(rankedWithReports),
+    comparison,
     excluded: Object.freeze([
       ...portfolio.excluded,
       ...inputIssues.map((issue) => Object.freeze({
@@ -98,6 +118,6 @@ export function screenPiLaunchpadBatch(input, options = {}) {
         reason: issue.reason
       }))
     ]),
-    notice: "Batch screening summarizes supplied analyses only. It does not discover projects, verify evidence, fetch live Pi data, or recommend trades."
+    notice: "Batch screening summarizes supplied analyses only. Attached reports are carried through from the analysis input and are not re-verified here. This module does not discover projects, verify evidence, fetch live Pi data, or recommend trades."
   });
 }
