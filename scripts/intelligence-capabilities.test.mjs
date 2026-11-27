@@ -88,7 +88,7 @@ test("runner resumes a durable completed result checkpoint without repeating exe
   assert.ok(workerSource.includes('checkpointBytes > 4096'));
 });
 
-test("all eight active capabilities are registered with their permission tiers", () => {
+test("all nine active capabilities are registered with their permission tiers", () => {
   const expected = [
     "project_status_report",
     "social_metrics_report",
@@ -97,7 +97,8 @@ test("all eight active capabilities are registered with their permission tiers",
     "source_security_audit",
     "inspect_repository",
     "run_repository_tests",
-    "propose_code_patch"
+    "propose_code_patch",
+    "pi_launchpad_candidate_analysis"
   ];
   assert.deepEqual(INTELLIGENCE_ACTION_TYPES, expected);
   assert.deepEqual(PREAPPROVED_INTELLIGENCE_ACTION_TYPES, expected);
@@ -105,6 +106,7 @@ test("all eight active capabilities are registered with their permission tiers",
     const item = getIntelligenceCapability(id);
     const isolated = id === "run_repository_tests";
     const proposal = id === "propose_code_patch";
+    const launchpad = id === "pi_launchpad_candidate_analysis";
     assert.equal(item.status, "active");
     assert.equal(item.permissionTier, proposal ? "proposal_only" : isolated ? "isolated_ci" : "read_only");
     assert.equal(item.requiresApproval, false);
@@ -112,7 +114,8 @@ test("all eight active capabilities are registered with their permission tiers",
     const input = id === "inspect_repository"
       ? { paths: ["worker.js"] }
       : isolated ? { baseSha: "a".repeat(40) }
-      : proposal ? { objective: "Add a regression test for a safe parser boundary" } : {};
+      : proposal ? { objective: "Add a regression test for a safe parser boundary" }
+      : launchpad ? { snapshotJson: JSON.stringify({ tokenId: "test-token" }) } : {};
     assert.equal(validateIntelligenceCapabilityRequest(id, input).ok, true);
   }
 });
@@ -157,7 +160,8 @@ test("executor metadata matches the actual Worker and GitHub Actions routing", (
     source_security_audit: ["github_actions_runner"],
     inspect_repository: ["github_actions_runner"],
     run_repository_tests: ["github_actions_runner"],
-    propose_code_patch: ["github_actions_runner"]
+    propose_code_patch: ["github_actions_runner"],
+    pi_launchpad_candidate_analysis: ["github_actions_runner"]
   };
   for (const [id, executors] of Object.entries(expected)) {
     assert.deepEqual(getIntelligenceCapability(id).executors, executors, id);
@@ -175,7 +179,7 @@ test("executor metadata matches the actual Worker and GitHub Actions routing", (
   assert.ok(runnerActions, "GitHub runner must declare its action allowlist");
   assert.deepEqual(
     [...runnerActions[1].matchAll(/"([a-z_]+)"/g)].map(match => match[1]),
-    ["service_health_report", "repository_quality_check", "source_security_audit", "inspect_repository", "propose_code_patch"]
+    ["service_health_report", "repository_quality_check", "source_security_audit", "inspect_repository", "propose_code_patch", "pi_launchpad_candidate_analysis"]
   );
 });
 
