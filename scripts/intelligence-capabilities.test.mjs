@@ -11,7 +11,7 @@ import { storePrivatePatchArtifact, verifyPrivatePatchArtifactAtPath, getVerifie
 import { buildPatchGenerationPrompt, validateGeneratedPatch, PATCH_GENERATION_POLICY } from "./intelligence-patch-generation.mjs";
 import { generatePatchArtifact, PATCH_GENERATION_SERVICE_POLICY, canonicalizeAppendOnlyHunkHeader } from "./intelligence-patch-generation-service.mjs";
 import { nextWorkersAIDailyResetAt, isWorkersAIDailyQuotaCircuitOpen } from "./intelligence-ai-quota.mjs";
-import { validateRepositoryAnalysis } from "./intelligence-analysis-validation.mjs";
+import { discardFindingsWithUnknownEvidencePaths, validateRepositoryAnalysis } from "./intelligence-analysis-validation.mjs";
 import {
   INTELLIGENCE_CAPABILITIES,
   INTELLIGENCE_ACTION_TYPES,
@@ -1322,6 +1322,23 @@ test("Workers AI inference failures retain safe actionable diagnostics without e
   assert.ok(workerSource.includes("stage:\"workers_ai_inference\""));
 });;
 
+
+test("semantic analysis discards findings with unknown evidence paths without weakening evidence validation", () => {
+  const files = [{path:"worker.js",excerpt:"const safe = true;"}];
+  const valid = {
+    severity:"low",title:"Valid",rootCause:"Cause",recommendation:"Fix",
+    evidence:[{path:"worker.js",quote:"const safe = true;"}],regressionTests:["test it"]
+  };
+  const invalid = {...valid,title:"Untrusted path",evidence:[{path:"invented/path.js",quote:"anything"}]};
+  const source = {summary:"bounded",findings:[invalid,valid],limitations:[]};
+  const sanitized = discardFindingsWithUnknownEvidencePaths(source,files);
+  assert.equal(sanitized.findings.length,1);
+  assert.equal(sanitized.findings[0].title,"Valid");
+  assert.equal(sanitized.limitations.length,1);
+  assert.equal(validateRepositoryAnalysis(sanitized,files).valid,true);
+  assert.equal(source.findings.length,2,"input analysis remains unchanged");
+  assert.doesNotMatch(JSON.stringify(sanitized),/invented\/path\.js/);
+});
 
 test("semantic analysis validation returns bounded failure codes without exposing model or source text", () => {
   const files = [{path:"worker.js",excerpt:"const safe = true;"}];
