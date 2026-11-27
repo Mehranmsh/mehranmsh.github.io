@@ -8519,37 +8519,73 @@ export default {
           if (!before) return error("Task claim not found, superseded, or expired.",409);
           if (before.action_type === "run_repository_tests") {
             const cp = body.checkpoint;
-            const expectedKeys = ["actionType","baseSha","completedSteps","digestSha256","phase","schemaVersion","taskId"];
-            const keys = Object.keys(cp).sort();
-            if (keys.length !== expectedKeys.length || keys.some((key,index) => key !== expectedKeys[index]) ||
-                cp.phase !== "step_progress" || cp.schemaVersion !== 1 || cp.taskId !== id ||
-                cp.actionType !== "run_repository_tests" || typeof cp.baseSha !== "string" || !/^[a-f0-9]{40}$/.test(cp.baseSha) ||
-                !Array.isArray(cp.completedSteps) || cp.completedSteps.length < 1 || cp.completedSteps.length > 3) {
-              return error("Repository test checkpoint schema or task identity is invalid.",422);
-            }
             let taskPayload = {};
             let priorCheckpoint = {};
             try {
               taskPayload = typeof before.action_payload === "string" ? JSON.parse(before.action_payload) : (before.action_payload || {});
               priorCheckpoint = typeof before.checkpoint_json === "string" ? JSON.parse(before.checkpoint_json || "{}") : (before.checkpoint_json || {});
             } catch { return error("Stored task checkpoint or payload is invalid.",409); }
-            if (taskPayload.baseSha && taskPayload.baseSha !== cp.baseSha) return error("Checkpoint source commit does not match the task payload.",409);
             const fixedSteps = ["worker_syntax","capability_syntax","capability_tests"];
-            if (cp.completedSteps.some((step,index) => step !== fixedSteps[index])) return error("Checkpoint steps are not an ordered prefix of the fixed plan.",422);
-            const canonical = JSON.stringify({schemaVersion:1,phase:"step_progress",taskId:cp.taskId,actionType:cp.actionType,baseSha:cp.baseSha,completedSteps:cp.completedSteps});
-            const digestBytes = new Uint8Array(await crypto.subtle.digest("SHA-256",new TextEncoder().encode(canonical)));
-            const expectedDigest = Array.from(digestBytes,byte => byte.toString(16).padStart(2,"0")).join("");
-            if (cp.digestSha256 !== expectedDigest) return error("Checkpoint digest verification failed.",422);
-            if (priorCheckpoint.phase === "step_progress") {
-              if (priorCheckpoint.taskId !== id || priorCheckpoint.actionType !== cp.actionType || priorCheckpoint.baseSha !== cp.baseSha ||
-                  !Array.isArray(priorCheckpoint.completedSteps) || priorCheckpoint.completedSteps.length > cp.completedSteps.length ||
-                  priorCheckpoint.completedSteps.some((step,index) => step !== cp.completedSteps[index])) {
-                return error("Checkpoint progress cannot be changed or rolled back.",409);
+            const digestHex = async (value) => {
+              const bytes = new Uint8Array(await crypto.subtle.digest("SHA-256",new TextEncoder().encode(value)));
+              return Array.from(bytes,byte => byte.toString(16).padStart(2,"0")).join("");
+            };
+            if (cp.phase === "step_progress") {
+              const expectedKeys = ["actionType","baseSha","completedSteps","digestSha256","phase","schemaVersion","taskId"];
+              const keys = Object.keys(cp).sort();
+              if (keys.length !== expectedKeys.length || keys.some((key,index) => key !== expectedKeys[index]) ||
+                  cp.schemaVersion !== 1 || cp.taskId !== id || cp.actionType !== "run_repository_tests" ||
+                  typeof cp.baseSha !== "string" || !/^[a-f0-9]{40}$/.test(cp.baseSha) ||
+                  !Array.isArray(cp.completedSteps) || cp.completedSteps.length < 1 || cp.completedSteps.length > fixedSteps.length) {
+                return error("Repository test checkpoint schema or task identity is invalid.",422);
               }
-            } else if (priorCheckpoint.phase === "result_ready") {
-              return error("A finalized task checkpoint cannot be replaced by step progress.",409);
-            } else if (priorCheckpoint.phase && priorCheckpoint.phase !== "step_progress") {
-              return error("Unsupported prior checkpoint phase.",409);
+              if (taskPayload.baseSha && taskPayload.baseSha !== cp.baseSha) return error("Checkpoint source commit does not match the task payload.",409);
+              if (cp.completedSteps.some((step,index) => step !== fixedSteps[index])) return error("Checkpoint steps are not an ordered prefix of the fixed plan.",422);
+              const canonical = JSON.stringify({schemaVersion:1,phase:"step_progress",taskId:cp.taskId,actionType:cp.actionType,baseSha:cp.baseSha,completedSteps:cp.completedSteps});
+              if (cp.digestSha256 !== await digestHex(canonical)) return error("Checkpoint digest verification failed.",422);
+              if (priorCheckpoint.phase === "step_progress") {
+                if (priorCheckpoint.taskId !== id || priorCheckpoint.actionType !== cp.actionType || priorCheckpoint.baseSha !== cp.baseSha ||
+                    !Array.isArray(priorCheckpoint.completedSteps) || priorCheckpoint.completedSteps.length > cp.completedSteps.length ||
+                    priorCheckpoint.completedSteps.some((step,index) => step !== cp.completedSteps[index])) {
+                  return error("Checkpoint progress cannot be changed or rolled back.",409);
+                }
+              } else if (priorCheckpoint.phase === "result_ready") {
+                return error("A finalized task checkpoint cannot be replaced by step progress.",409);
+              } else if (priorCheckpoint.phase && priorCheckpoint.phase !== "step_progress") {
+                return error("Unsupported prior checkpoint phase.",409);
+              }
+            } else if (cp.phase === "result_ready") {
+              const expectedKeys = ["actionType","baseSha","completedSteps","phase","preparedAt","result","resultSha256","status","taskId"];
+              const keys = Object.keys(cp).sort();
+              if (keys.length !== expectedKeys.length || keys.some((key,index) => key !== expectedKeys[index]) ||
+                  cp.taskId !== id || cp.actionType !== "run_repository_tests" || cp.status !== "completed" ||
+                  typeof cp.baseSha !== "string" || !/^[a-f0-9]{40}$/.test(cp.baseSha) ||
+                  !Array.isArray(cp.completedSteps) || cp.completedSteps.length !== fixedSteps.length ||
+                  cp.completedSteps.some((step,index) => step !== fixedSteps[index]) ||
+                  typeof cp.result !== "string" || !cp.result || cp.result.length > 3000 ||
+                  typeof cp.preparedAt !== "string" || !Number.isFinite(Date.parse(cp.preparedAt))) {
+                return error("Final repository test checkpoint schema is invalid.",422);
+              }
+              if (taskPayload.baseSha !== cp.baseSha) return error("Final checkpoint commit does not match the immutable task commit.",409);
+              if (cp.resultSha256 !== await digestHex(cp.result)) return error("Final checkpoint result digest is invalid.",422);
+              let report;
+              try { report = JSON.parse(cp.result); } catch { return error("Final checkpoint report is not valid JSON.",422); }
+              if (report.baseSha !== cp.baseSha || report.passed !== true ||
+                  !Array.isArray(report.completedSteps) || report.completedSteps.length !== fixedSteps.length ||
+                  report.completedSteps.some((step,index) => step !== fixedSteps[index])) {
+                return error("Final checkpoint report does not match verified test progress.",422);
+              }
+              if (priorCheckpoint.phase === "step_progress" &&
+                  (!Array.isArray(priorCheckpoint.completedSteps) || priorCheckpoint.completedSteps.length !== fixedSteps.length ||
+                   priorCheckpoint.taskId !== id || priorCheckpoint.baseSha !== cp.baseSha ||
+                   priorCheckpoint.completedSteps.some((step,index) => step !== fixedSteps[index]))) {
+                return error("Final checkpoint cannot finalize incomplete or mismatched progress.",409);
+              }
+              if (priorCheckpoint.phase === "result_ready" && priorCheckpoint.resultSha256 !== cp.resultSha256) {
+                return error("Final result checkpoint is immutable once saved.",409);
+              }
+            } else {
+              return error("Unsupported repository test checkpoint phase.",422);
             }
           }
           const update = await env.DB.prepare("UPDATE intelligence_tasks SET checkpoint_json=?,updated_at=CURRENT_TIMESTAMP WHERE id=? AND status='in_progress' AND agent_claim_token_hash=? AND agent_claimed_at IS NOT NULL AND datetime(agent_claimed_at)>=datetime('now','-15 minutes') AND requires_approval=0 AND assigned_to IN ('mehran_intelligence','shared') AND action_type IN ('repository_quality_check','service_health_report','source_security_audit','inspect_repository','run_repository_tests','propose_code_patch') AND (work_package_id IS NULL OR EXISTS (SELECT 1 FROM intelligence_work_packages wp, json_each(CASE WHEN json_valid(wp.scope_json) THEN wp.scope_json ELSE '{}' END, '$.allowedActions') scoped WHERE wp.id=intelligence_tasks.work_package_id AND scoped.value=intelligence_tasks.action_type))").bind(checkpointJson,id,claimTokenHash).run();
@@ -8581,9 +8617,23 @@ export default {
             if (!acceptance.passed) return error("Task result failed independent schema verification: " + acceptance.checks.join(","),422);
             if (before.action_type === "run_repository_tests") {
               let expectedPayload;
-              try { expectedPayload = JSON.parse(before.action_payload || "{}"); } catch { return error("Stored test-task payload is invalid.",422); }
-              if (!expectedPayload || expectedPayload.baseSha !== parsedReport.baseSha) {
-                return error("Test report commit does not match the immutable task commit.",422);
+              let resultCheckpoint;
+              try {
+                expectedPayload = JSON.parse(before.action_payload || "{}");
+                resultCheckpoint = JSON.parse(before.checkpoint_json || "{}");
+              } catch { return error("Stored test-task payload or final checkpoint is invalid.",422); }
+              const fixedSteps = ["worker_syntax","capability_syntax","capability_tests"];
+              if (!expectedPayload || expectedPayload.baseSha !== parsedReport.baseSha ||
+                  resultCheckpoint.phase !== "result_ready" || resultCheckpoint.taskId !== id ||
+                  resultCheckpoint.actionType !== "run_repository_tests" || resultCheckpoint.status !== "completed" ||
+                  resultCheckpoint.baseSha !== parsedReport.baseSha || resultCheckpoint.result !== resultText ||
+                  !Array.isArray(resultCheckpoint.completedSteps) || resultCheckpoint.completedSteps.length !== fixedSteps.length ||
+                  resultCheckpoint.completedSteps.some((step,index) => step !== fixedSteps[index]) ||
+                  resultCheckpoint.resultSha256 !== await (async value => {
+                    const bytes = new Uint8Array(await crypto.subtle.digest("SHA-256",new TextEncoder().encode(value)));
+                    return Array.from(bytes,byte => byte.toString(16).padStart(2,"0")).join("");
+                  })(resultText)) {
+                return error("Test report is not backed by its immutable, fully verified final checkpoint.",422);
               }
             }
             if (before.action_type === "propose_code_patch") {
