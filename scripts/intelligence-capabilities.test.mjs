@@ -1687,3 +1687,20 @@ test("fixed repository test plan includes static security scanner syntax and reg
   assert.ok(runnerSource.includes('["security_scanner_tests", ["node", "--test", "--test-reporter=tap", "scripts/intelligence-static-security-audit.test.mjs"]]'));
   assert.ok(runnerSource.includes('stepId !== "security_scanner_tests"'));
 });
+
+
+test("repository inspection resumes only from integrity-checked per-file progress", () => {
+  const checkpointSource = readFileSync(new URL("./intelligence-inspection-checkpoint.mjs", import.meta.url), "utf8");
+  const checkpointTests = readFileSync(new URL("./intelligence-inspection-checkpoint.test.mjs", import.meta.url), "utf8");
+  const runner = runnerSource;
+  assert.ok(checkpointSource.includes('phase: "file_progress"'));
+  assert.ok(checkpointSource.includes("verifyInspectionProgressCheckpoint"));
+  assert.ok(checkpointTests.includes("rejects task, commit, order, path and digest tampering"));
+  assert.ok(runner.includes("verifyInspectionProgressCheckpoint(checkpoint"));
+  assert.ok(runner.includes("Resuming repository inspection after "));
+  assert.ok(runner.includes("createInspectionProgressCheckpoint({taskId:task.id,baseSha,completedFiles:files})"));
+  assert.ok(runner.includes("Inspection file progress could not be durably checkpointed") || runner.includes("inspection file progress could not be durably checkpointed"));
+  assert.ok(workerSource.includes("Repository inspection progress cannot be changed or rolled back."));
+  assert.ok(workerSource.includes("Final inspection report does not match all durably checkpointed source files."));
+  assert.ok(workerSource.includes("Repository inspection progress digest verification failed."));
+});
