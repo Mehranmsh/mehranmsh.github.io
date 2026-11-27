@@ -122,7 +122,6 @@ jobs:
         env:
           MEHRAN_AGENT_TOKEN: ${{ secrets.MEHRAN_AGENT_TOKEN }}
           MEHRAN_ORCHESTRATOR_TOKEN: ${{ secrets.MEHRAN_ORCHESTRATOR_TOKEN }}
-          MEHRAN_MISSION_GENERATOR_ENABLED: ${{ vars.MEHRAN_MISSION_GENERATOR_ENABLED }}
           MEHRAN_AGENT_URL: https://mehran-msh-auth.mehran79mehran.workers.dev
           GITHUB_TOKEN: ${{ github.token }}
         run: |
@@ -303,11 +302,11 @@ jobs:
             // Telemetry must never block mission execution during a rolling Worker deployment.
             console.log("Runner start telemetry temporarily unavailable; continuing work: " + String(error?.message || error).slice(0,160));
           }
-          // Scheduled generation remains opt-in. Once enabled, owner-authorized generation may
-          // pass attention_required packages, but active queued/running/retrying work still blocks it.
+          // Scheduled intake is enabled by default: this fixed mission is recognized by
+          // buildDeterministicRoutinePlan and creates only bounded read-only checks without AI.
+          // The Worker still blocks queued, in-progress, retrying work and competing reservations.
           const missionGenerationRequested =
-            (process.env.GITHUB_EVENT_NAME === "schedule" &&
-             process.env.MEHRAN_MISSION_GENERATOR_ENABLED === "true") ||
+            process.env.GITHUB_EVENT_NAME === "schedule" ||
             process.env.GITHUB_EVENT_NAME === "workflow_dispatch";
           if (missionGenerationRequested) {
             if (orchestratorToken.length < 40 || orchestratorToken.length > 200) {
