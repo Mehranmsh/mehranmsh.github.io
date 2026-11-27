@@ -10,6 +10,7 @@ import { normalizeIntelligenceAnswer } from "./scripts/intelligence-answer-quali
 import { planIntelligenceRetry } from "./scripts/intelligence-retry-policy.mjs";
 import { compareIntelligencePlanVersions } from "./scripts/intelligence-plan-history.mjs";
 import { learnFromIntelligencePlanOutcomes } from "./scripts/intelligence-plan-learning.mjs";
+import { validateRepositoryAnalysis } from "./scripts/intelligence-analysis-validation.mjs";
 
 function nextWorkersAIDailyResetAt(attemptedAt) {
   const timestamp = typeof attemptedAt === "number" ? attemptedAt : Date.parse(attemptedAt);
@@ -8194,23 +8195,21 @@ export default {
           else if (typeof raw === "string" && raw.length <= 16000) {
             try { analysis = JSON.parse(extractIntelligenceJsonObject(raw)); } catch {}
           }
-          if (!analysis || typeof analysis.summary !== "string" || analysis.summary.length > 1600 ||
-              !Array.isArray(analysis.findings) || analysis.findings.length > 8 ||
-              !Array.isArray(analysis.limitations) || analysis.limitations.length > 5) {
-            return error("Workers AI returned an invalid analysis structure.",502);
-          }
-          const validFindings = analysis.findings.every(item =>
-            item && ["critical","high","medium","low","info"].includes(item.severity) &&
-            typeof item.title === "string" && item.title.length <= 180 &&
-            typeof item.rootCause === "string" && item.rootCause.length <= 1200 &&
-            typeof item.recommendation === "string" && item.recommendation.length <= 1200 &&
-            Array.isArray(item.evidence) && item.evidence.length <= 5 &&
-            item.evidence.every(ev => ev && seen.has(ev.path) && typeof ev.quote === "string" && ev.quote.length <= 500 && files.find(f=>f.path===ev.path)?.excerpt.includes(ev.quote)) &&
-            Array.isArray(item.regressionTests) && item.regressionTests.length <= 6 &&
-            item.regressionTests.every(test=>typeof test==="string" && test.length<=300)
-          );
-          if (!validFindings || analysis.limitations.some(item=>typeof item!=="string"||item.length>300)) {
-            return error("Workers AI analysis failed evidence validation.",502);
+          const validation = validateRepositoryAnalysis(analysis, files);
+          if (!validation.valid) {
+            const validationDiagnostic = {
+              traceId,
+              elapsedMs: Date.now() - inferenceStartedAt,
+              code: validation.code,
+              findingIndex: validation.findingIndex,
+              evidenceIndex: validation.evidenceIndex,
+              field: validation.field
+            };
+            console.warn("INTELLIGENCE_CODE_ANALYSIS_VALIDATION_REJECTED", JSON.stringify(validationDiagnostic));
+            if (validation.code === "invalid_analysis_structure") {
+              return json({success:false,error:"Workers AI returned an invalid analysis structure.",diagnostic:{stage:"analysis_validation",operation:"repository_analyze",...validationDiagnostic}},502);
+            }
+            return json({success:false,error:"Workers AI analysis failed evidence validation.",diagnostic:{stage:"analysis_validation",operation:"repository_analyze",...validationDiagnostic}},502);
           }
           const unsupportedMagicNumberFindings = analysis.findings.filter(item =>
             /magic number/i.test(item.title) &&
