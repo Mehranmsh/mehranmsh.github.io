@@ -1573,8 +1573,8 @@ test("scheduled Intelligence runner is single-flight, secret-backed and restrict
   assert.match(workerSource, /options\?\.ignoreAttentionRequiredBlockers === true/);
   assert.match(workerSource, /generatorReservation\.ignoreAttentionRequiredBlockers === true/);
   assert.match(workerSource, /body\.ignoreAttentionRequiredBlockers === true/);
-  assert.match(workerSource, /status IN \$\{blockingStatuses\}/);
-  assert.match(workerSource, /\? "('queued','in_progress','waiting_retry')"/,
+  assert.match(workerSource, /status IN \('queued','in_progress','waiting_retry'\) OR \(status='attention_required' AND \? = 0\)/);
+  assert.match(workerSource, /\.bind\(cycleKey, packageId, ignoreAttentionRequired, ignoreAttentionRequired\)/,
     "manual bootstrap may bypass only attention-required packages, not active or retrying work");
 
   assert.match(runner, /service_health_report/);
