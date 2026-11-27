@@ -2,6 +2,7 @@ import test from "node:test";
 import "./intelligence-mission-generator-policy.test.mjs";
 import "./intelligence-mission-generator-d1.test.mjs";
 import { applyValidatedPatchInMemory, readBoundedResponse } from "./intelligence-patch-apply.mjs";
+import { buildIntelligenceInspectionExcerpt, INTELLIGENCE_INSPECTION_EXCERPT_POLICY } from "./intelligence-inspection-excerpts.mjs";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { validatePatchProposal, PATCH_PROPOSAL_POLICY } from "./intelligence-patch-policy.mjs";
@@ -61,6 +62,26 @@ test("bounded inspection serialization preserves a schema-valid semantic analysi
   assert.match(serializer, /item\?\.rootCause/);
 });
 
+test("semantic inspection selects deterministic path-aware source windows instead of file prefixes", () => {
+  const anchor = 'if (path === "/agent/v1/repository/analyze"';
+  const source = "prefix ".repeat(900) + "\\n" + anchor + " && ownerOrchestrationRoute" +
+    "middle ".repeat(900) + "\\nif (path === \"/agent/v1/tasks/next\")";
+  const excerpt = buildIntelligenceInspectionExcerpt("worker.js", source);
+  assert.ok(excerpt.includes(anchor));
+  assert.ok(excerpt.includes('if (path === "/agent/v1/tasks/next")'));
+  assert.ok(excerpt.length <= INTELLIGENCE_INSPECTION_EXCERPT_POLICY.maxCharsPerFile);
+  assert.equal(excerpt, buildIntelligenceInspectionExcerpt("worker.js", source));
+  assert.equal(buildIntelligenceInspectionExcerpt("worker.js", source, 0), "");
+  assert.equal(INTELLIGENCE_INSPECTION_EXCERPT_POLICY.selection, "deterministic_path_aware_source_windows");
+  assert.equal(INTELLIGENCE_INSPECTION_EXCERPT_POLICY.sourceExecution, false);
+});
+
+test("semantic inspection falls back to a bounded prefix only when no path anchors exist", () => {
+  const source = "x".repeat(5000);
+  assert.equal(buildIntelligenceInspectionExcerpt("unknown-path", source, 640), "x".repeat(640));
+  assert.equal(buildIntelligenceInspectionExcerpt("unknown-path", ""), "");
+});
+
 test("repository inspection combines deterministic inventory with owner-authenticated semantic analysis", () => {
   const inspectStart = runnerSource.indexOf('if (task.actionType === "inspect_repository")');
   const inspectEnd = runnerSource.indexOf('if (task.actionType === "source_security_audit")', inspectStart);
@@ -71,7 +92,9 @@ test("repository inspection combines deterministic inventory with owner-authenti
   assert.ok(inspect.includes("lineCount:"));
   assert.ok(inspect.includes("symbols:"));
   assert.ok(inspect.includes("analysisFiles.push({ path, sha: file.sha, excerpt })"));
+  assert.ok(inspect.includes("buildIntelligenceInspectionExcerpt(path, source, Math.min(2800, 16000 - totalAnalysisChars))"));
   assert.ok(inspect.includes("16000 - totalAnalysisChars"));
+  assert.ok(runnerSource.includes('import { buildIntelligenceInspectionExcerpt } from "./scripts/intelligence-inspection-excerpts.mjs"'));
   assert.ok(inspect.includes("orchestratorToken.length < 40"));
   assert.ok(inspect.includes('request("/agent/v1/repository/analyze"'));
   assert.ok(inspect.includes("commitSha: commit.sha, files: analysisFiles"));
