@@ -6263,7 +6263,7 @@ export function validateIntelligenceWorkPackage(input) {
 }
 
 async function reserveIntelligenceMissionGeneratorSlot(env, cycleKey, packageId, options = {}) {
-  if (typeof cycleKey !== "string" || !/^\\d{8}T\\d{4}$/.test(cycleKey) ||
+  if (typeof cycleKey !== "string" || !/^\d{8}T\d{4}$/.test(cycleKey) ||
       typeof packageId !== "string" || !/^[0-9a-f-]{36}$/i.test(packageId)) {
     return { reserved: false, reason: "invalid_reservation_input" };
   }
