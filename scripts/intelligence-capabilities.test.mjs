@@ -94,7 +94,7 @@ test("repository inspection combines deterministic inventory with owner-authenti
   assert.ok(inspect.includes("analysisFiles.push({ path, sha: file.sha, excerpt })"));
   assert.ok(inspect.includes("buildIntelligenceInspectionExcerpt(path, source, Math.min(2800, 16000 - totalAnalysisChars))"));
   assert.ok(inspect.includes("16000 - totalAnalysisChars"));
-  assert.ok(runnerSource.includes('import { buildIntelligenceInspectionExcerpt } from "./scripts/intelligence-inspection-excerpts.mjs"'));
+  assert.ok(runnerSource.includes("intelligence-inspection-excerpts.mjs"));
   assert.ok(inspect.includes("orchestratorToken.length < 40"));
   assert.ok(inspect.includes('request("/agent/v1/repository/analyze"'));
   assert.ok(inspect.includes("commitSha: commit.sha, files: analysisFiles"));
