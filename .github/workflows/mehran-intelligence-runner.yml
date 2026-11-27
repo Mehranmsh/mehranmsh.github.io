@@ -50,6 +50,7 @@ jobs:
           import { createHash } from "node:crypto";
           import { verifyIntelligenceResultCheckpoint } from "./scripts/intelligence-checkpoint.mjs";
           import { createIntelligenceStepCheckpoint, verifyIntelligenceStepCheckpoint, REPOSITORY_TEST_STEPS } from "./scripts/intelligence-step-checkpoint.mjs";
+          import { createInspectionProgressCheckpoint, verifyInspectionProgressCheckpoint } from "./scripts/intelligence-inspection-checkpoint.mjs";
           import { readBoundedResponse } from "./scripts/intelligence-bounded-response.mjs";
           import { buildStaticSecurityAudit } from "./scripts/intelligence-static-security-audit.mjs";
           const base = process.env.MEHRAN_AGENT_URL;
@@ -489,17 +490,34 @@ jobs:
                 "User-Agent": "MEHRAN-MSH-INTELLIGENCE"
               };
               if ((process.env.GITHUB_TOKEN || "").length < 20) throw new Error("GitHub read token is unavailable.");
-              const commitResponse = await fetch(`https://api.github.com/repos/${repository}/commits/main`, {
-                headers, signal: AbortSignal.timeout(15000)
-              });
-              if (!commitResponse.ok) throw new Error(`GitHub main commit lookup HTTP ${commitResponse.status}`);
-              const commit = await readJsonResponse(commitResponse, 65536);
-              if (typeof commit.sha !== "string" || !/^[a-f0-9]{40}$/i.test(commit.sha)) throw new Error("GitHub returned an invalid main commit SHA.");
-              const files = [];
-              let totalBytes = 0;
-              for (const path of paths) {
+              let checkpoint = {};
+              try { checkpoint = typeof task.checkpoint === "string" ? JSON.parse(task.checkpoint || "{}") : (task.checkpoint || {}); }
+              catch { throw new Error("Inspection checkpoint is not valid JSON."); }
+              let baseSha = "";
+              let files = [];
+              if (checkpoint.phase === "file_progress") {
+                const integrity = verifyInspectionProgressCheckpoint(checkpoint, {taskId:task.id});
+                if (!integrity.valid) throw new Error("Stored inspection progress failed integrity validation: " + integrity.reason);
+                baseSha = integrity.baseSha;
+                files = integrity.completedFiles;
+                if (files.some((file,index)=>file.path !== paths[index])) throw new Error("Stored inspection progress does not match the task's requested path order.");
+                console.log("Resuming repository inspection after " + files.length + " verified files.");
+              } else if (Object.keys(checkpoint).length && checkpoint.phase !== "result_ready") {
+                throw new Error("Unknown inspection checkpoint phase; refusing an unsafe restart.");
+              }
+              if (!baseSha) {
+                const commitResponse = await fetch(`https://api.github.com/repos/${repository}/commits/main`, {
+                  headers, signal: AbortSignal.timeout(15000)
+                });
+                if (!commitResponse.ok) throw new Error(`GitHub main commit lookup HTTP ${commitResponse.status}`);
+                const commit = await readJsonResponse(commitResponse, 65536);
+                if (typeof commit.sha !== "string" || !/^[a-f0-9]{40}$/i.test(commit.sha)) throw new Error("GitHub returned an invalid main commit SHA.");
+                baseSha = commit.sha;
+              }
+              let totalBytes = files.reduce((sum,file)=>sum+file.bytes,0);
+              for (const path of paths.slice(files.length)) {
                 const apiPath = path.split("/").map(encodeURIComponent).join("/");
-                const response = await fetch(`https://api.github.com/repos/${repository}/contents/${apiPath}?ref=${commit.sha}`, {
+                const response = await fetch(`https://api.github.com/repos/${repository}/contents/${apiPath}?ref=${baseSha}`, {
                   headers, signal: AbortSignal.timeout(15000)
                 });
                 if (!response.ok) throw new Error(`GitHub source read failed for allowlisted path ${path}: HTTP ${response.status}`);
@@ -509,35 +527,34 @@ jobs:
                     !Number.isInteger(file.size) || file.size < 0 || file.size > 600000) {
                   throw new Error(`GitHub returned an invalid or oversized source file for ${path}.`);
                 }
-                const source = Buffer.from(file.content.replace(/\n/g, ""), "base64").toString("utf8");
+                const source = Buffer.from(file.content.replace(/\\n/g, ""), "base64").toString("utf8");
                 const bytes = Buffer.byteLength(source, "utf8");
                 if (bytes !== file.size) throw new Error(`GitHub source size verification failed for ${path}.`);
                 totalBytes += bytes;
                 if (totalBytes > 750000) throw new Error("Inspection exceeded the 750 KB aggregate source limit.");
                 const symbols = new Set();
                 const patterns = [
-                  /^\s*(?:export\s+)?(?:async\s+)?(?:function|class)\s+([A-Za-z_$][\w$]*)/gm,
-                  /^\s*(?:export\s+)?(?:const|let|var)\s+([A-Za-z_$][\w$]*)/gm
+                  /^\\s*(?:export\\s+)?(?:async\\s+)?(?:function|class)\\s+([A-Za-z_$][\\w$]*)/gm,
+                  /^\\s*(?:export\\s+)?(?:const|let|var)\\s+([A-Za-z_$][\\w$]*)/gm
                 ];
                 for (const pattern of patterns) {
                   let match;
                   while ((match = pattern.exec(source)) && symbols.size < 2) symbols.add(match[1]);
                 }
-                files.push({
-                  path,
-                  blobSha: file.sha,
-                  bytes,
-                  lineCount: source.length ? source.split(/\r\n|\n|\r/).length : 0,
-                  symbols: [...symbols].map(symbol => symbol.slice(0, 60))
+                files.push({path,blobSha:file.sha,bytes,lineCount:source.length?source.split(/\\r\\n|\\n|\\r/).length:0,symbols:[...symbols].map(symbol=>symbol.slice(0,60))});
+                const durable = createInspectionProgressCheckpoint({taskId:task.id,baseSha,completedFiles:files});
+                const saved = await request(`/agent/v1/tasks/${encodeURIComponent(task.id)}/checkpoint`, {
+                  method:"POST", body:JSON.stringify({checkpoint:durable,claimToken:task.claimToken})
                 });
-
+                if (saved.checkpointSaved !== true) throw new Error("Verified inspection file progress could not be durably checkpointed.");
+                console.log("Durable inspection checkpoint saved: " + path);
               }
               return {
                 type: task.actionType,
                 generatedAt: new Date().toISOString(),
                 mode: "bounded_read_only_repository_inspection",
                 repository,
-                commitSha: commit.sha,
+                commitSha: baseSha,
                 summary: { filesInspected: files.length, totalBytes },
                 files,
                 analysis: {
