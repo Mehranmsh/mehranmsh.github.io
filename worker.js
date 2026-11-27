@@ -8790,11 +8790,20 @@ export default {
                 const bytes = new Uint8Array(await crypto.subtle.digest("SHA-256",new TextEncoder().encode(value)));
                 return Array.from(bytes,byte => byte.toString(16).padStart(2,"0")).join("");
               })(resultText);
+              const reportFiles = Array.isArray(parsedReport.files) ? parsedReport.files : [];
+              const payload = JSON.parse(before.action_payload || "{}");
+              const requestedPaths = Array.isArray(payload.paths) ? payload.paths : [];
+              const priorFiles = checkpoint.phase === "file_progress" && Array.isArray(checkpoint.completedFiles)
+                ? checkpoint.completedFiles : [];
               if (checkpoint.phase !== "result_ready" || checkpoint.taskId !== id ||
                   checkpoint.actionType !== "inspect_repository" || checkpoint.status !== "completed" ||
                   checkpoint.result !== resultText || checkpoint.resultSha256 !== digest ||
-                  checkpoint.baseSha !== parsedReport.commitSha) {
-                return error("Repository inspection result is not backed by its immutable, verified checkpoint.",422);
+                  checkpoint.baseSha !== parsedReport.commitSha ||
+                  reportFiles.length !== requestedPaths.length ||
+                  reportFiles.some((file,index)=>file.path !== requestedPaths[index]) ||
+                  (priorFiles.length > 0 && (priorFiles.length !== reportFiles.length ||
+                    priorFiles.some((file,index)=>JSON.stringify(file)!==JSON.stringify(reportFiles[index]))))) {
+                return error("Repository inspection result is not backed by its immutable, fully checkpointed source inventory.",422);
               }
             }
             if (before.action_type === "source_security_audit") {
