@@ -8750,6 +8750,19 @@ export default {
                 return error("Repository inspection result is not backed by its immutable, verified checkpoint.",422);
               }
             }
+            if (before.action_type === "source_security_audit") {
+              let checkpoint;
+              try { checkpoint = JSON.parse(before.checkpoint_json || "{}"); } catch { return error("Stored source audit checkpoint is invalid.",422); }
+              const bytes = new Uint8Array(await crypto.subtle.digest("SHA-256",new TextEncoder().encode(resultText)));
+              const digest = Array.from(bytes,byte => byte.toString(16).padStart(2,"0")).join("");
+              let report;
+              try { report = JSON.parse(resultText); } catch { return error("Source audit result is invalid JSON.",422); }
+              if (checkpoint.phase !== "result_ready" || checkpoint.taskId !== id || checkpoint.actionType !== "source_security_audit" ||
+                  checkpoint.status !== "completed" || checkpoint.result !== resultText || checkpoint.resultSha256 !== digest ||
+                  checkpoint.baseSha !== report.staticPatternAudit?.commitSha) {
+                return error("Source security audit result is not backed by its immutable, verified checkpoint.",422);
+              }
+            }
             if (before.action_type === "propose_code_patch") {
               let expectedPayload;
               let checkpoint;
