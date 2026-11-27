@@ -6140,15 +6140,37 @@ async function refreshIntelligenceWorkPackageSnapshot(env, packageId) {
   const objectiveVerification = verifyIntelligenceObjective(packageScope.acceptanceCriteria, tasks);
   const allCompleted = counts.total > 0 && counts.completed === counts.total;
   const objectiveComplete = allCompleted && objectiveVerification.verified;
-  const hasRunnableQueued = counts.queued > counts.blockedDependencies;
+  // Match the task-claim endpoint's eligibility rules exactly. Merely having a
+  // queued row is not enough: it must be authorized, assigned, within its retry
+  // budget, due now, and have all dependencies completed.
+  const runnableTaskResult = await env.DB.prepare(`
+    SELECT COUNT(*) AS total
+    FROM intelligence_tasks t
+    WHERE t.work_package_id=?
+      AND t.status IN ('queued','accepted','retry_wait')
+      AND t.requires_approval=0
+      AND t.assigned_to IN ('mehran_intelligence','shared')
+      AND t.action_type IN ('service_health_report','repository_quality_check','source_security_audit','inspect_repository','run_repository_tests','propose_code_patch')
+      AND COALESCE(t.attempts,0)<COALESCE(t.max_attempts,3)
+      AND (t.next_attempt_at IS NULL OR datetime(t.next_attempt_at)<=datetime('now'))
+      AND EXISTS (
+        SELECT 1 FROM json_each(CASE WHEN json_valid(?) THEN ? ELSE '{}' END,'$.allowedActions') allowed
+        WHERE allowed.type='text' AND allowed.value=t.action_type
+      )
+      AND NOT EXISTS (
+        SELECT 1 FROM intelligence_task_dependencies d
+        JOIN intelligence_tasks parent ON parent.id=d.depends_on_task_id
+        WHERE d.task_id=t.id AND parent.status<>'completed'
+      )
+  `).bind(packageId,pkg.scope_json || "{}",pkg.scope_json || "{}").first();
+  const hasRunnableQueued = Number(runnableTaskResult?.total || 0) > 0;
   // Task completion alone never proves the owner objective. Missing or mismatched evidence fails closed.
   const status = objectiveComplete ? "completed"
     : allCompleted ? "attention_required"
     : counts.inProgress ? "in_progress"
     : counts.retryWaiting && !hasRunnableQueued ? "waiting_retry"
     : hasRunnableQueued ? "queued"
-    : (counts.blocked || counts.failed || counts.cancelled || counts.awaitingApproval || counts.blockedDependencies) ? "attention_required"
-    : "queued";
+    : "attention_required";
   const reportIsQuiescent = isIntelligenceReportQuiescent(counts);
   const report = {
     status, counts,
@@ -6267,8 +6289,17 @@ async function reserveIntelligenceMissionGeneratorSlot(env, cycleKey, packageId,
       typeof packageId !== "string" || !/^[0-9a-f-]{36}$/i.test(packageId)) {
     return { reserved: false, reason: "invalid_reservation_input" };
   }
+  // Reconcile stale package snapshots before deciding whether work is still active.
+  // A queued package with no task that the runner can actually claim must move to
+  // attention_required rather than blocking every future mission-generation cycle.
+  const activePackages = await env.DB.prepare(
+    "SELECT id FROM intelligence_work_packages WHERE status IN ('queued','in_progress','waiting_retry') ORDER BY updated_at ASC LIMIT 20"
+  ).all();
+  for (const row of activePackages.results || []) {
+    await refreshIntelligenceWorkPackageSnapshot(env, row.id);
+  }
   // Owner-triggered manual bootstrap may proceed past packages already awaiting
-  // attention; genuinely active or retrying work continues to block generation.
+  // attention; genuinely runnable, in-progress, or retrying work continues to block.
   const ignoreAttentionRequired = options?.ignoreAttentionRequiredBlockers === true ? 1 : 0;
   const result = await env.DB.prepare(`
     INSERT INTO intelligence_mission_generator_lock(id,cycle_key,package_id,status,expires_at,updated_at)
