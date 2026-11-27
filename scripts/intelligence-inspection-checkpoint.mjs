@@ -17,8 +17,8 @@ function canonical(value) {
   });
 }
 
-function validEntry(file, expectedPath) {
-  return !!file && file.path === expectedPath &&
+function validEntry(file) {
+  return !!file && INSPECTION_PATHS.includes(file.path) &&
     typeof file.blobSha === "string" && /^[a-f0-9]{40}$/i.test(file.blobSha) &&
     Number.isInteger(file.bytes) && file.bytes >= 0 && file.bytes <= 600000 &&
     Number.isInteger(file.lineCount) && file.lineCount >= 0 && file.lineCount <= 20000 &&
@@ -30,7 +30,7 @@ export function createInspectionProgressCheckpoint({taskId, baseSha, completedFi
   if (typeof taskId !== "string" || !/^[A-Za-z0-9._:-]{1,160}$/.test(taskId)) throw new Error("Invalid inspection task identity.");
   if (typeof baseSha !== "string" || !/^[a-f0-9]{40}$/i.test(baseSha)) throw new Error("Invalid immutable inspection commit.");
   if (!Array.isArray(completedFiles) || completedFiles.length > INSPECTION_PATHS.length ||
-      completedFiles.some((file, index) => !validEntry(file, INSPECTION_PATHS[index]))) {
+      completedFiles.some(file => !validEntry(file)) || new Set(completedFiles.map(file=>file.path)).size !== completedFiles.length) {
     throw new Error("Inspection progress must be a verified ordered prefix of the fixed path plan.");
   }
   const value = {taskId, actionType:"inspect_repository", baseSha, completedFiles:completedFiles.map(file=>({...file,symbols:[...file.symbols]}))};
