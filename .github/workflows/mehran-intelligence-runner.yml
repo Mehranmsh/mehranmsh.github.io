@@ -50,6 +50,7 @@ jobs:
           import { createHash } from "node:crypto";
           import { verifyIntelligenceResultCheckpoint } from "./scripts/intelligence-checkpoint.mjs";
           import { readBoundedResponse } from "./scripts/intelligence-bounded-response.mjs";
+          import { buildIntelligenceInspectionExcerpt } from "./scripts/intelligence-inspection-excerpts.mjs";
           const base = process.env.MEHRAN_AGENT_URL;
           const agentToken = process.env.MEHRAN_AGENT_TOKEN || "";
           const orchestratorToken = process.env.MEHRAN_ORCHESTRATOR_TOKEN || "";
@@ -470,7 +471,7 @@ jobs:
                   lineCount: source.length ? source.split(/\r\n|\n|\r/).length : 0,
                   symbols: [...symbols].map(symbol => symbol.slice(0, 60))
                 });
-                const excerpt = source.slice(0, Math.min(2800, 16000 - totalAnalysisChars));
+                const excerpt = buildIntelligenceInspectionExcerpt(path, source, Math.min(2800, 16000 - totalAnalysisChars));
                 if (excerpt.trim()) {
                   analysisFiles.push({ path, sha: file.sha, excerpt });
                   totalAnalysisChars += excerpt.length;
@@ -499,7 +500,7 @@ jobs:
                 files,
                 analysis,
                 limitations: [
-                  "Semantic analysis is limited to bounded excerpts from the inspected immutable commit; it is not a full-repository review.",
+                  "Semantic analysis uses deterministic, path-aware source windows around relevant execution and verification anchors, capped at 2,800 characters per file and 16,000 characters total; it is not a full-file review.",
                   "Repository content was treated as untrusted data and was never executed or followed as instructions.",
                   "No tests or code changes are claimed by this inspection task."
                 ]
