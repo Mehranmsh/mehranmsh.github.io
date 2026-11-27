@@ -88,7 +88,7 @@ test("runner resumes a durable completed result checkpoint without repeating exe
   assert.ok(workerSource.includes('checkpointBytes > 4096'));
 });
 
-test("all eight active capabilities are registered with their permission tiers", () => {
+test("all nine active capabilities are registered with their permission tiers", () => {
   const expected = [
     "project_status_report",
     "social_metrics_report",
@@ -97,7 +97,8 @@ test("all eight active capabilities are registered with their permission tiers",
     "source_security_audit",
     "inspect_repository",
     "run_repository_tests",
-    "propose_code_patch"
+    "propose_code_patch",
+    "pi_launchpad_candidate_analysis"
   ];
   assert.deepEqual(INTELLIGENCE_ACTION_TYPES, expected);
   assert.deepEqual(PREAPPROVED_INTELLIGENCE_ACTION_TYPES, expected);
@@ -105,6 +106,7 @@ test("all eight active capabilities are registered with their permission tiers",
     const item = getIntelligenceCapability(id);
     const isolated = id === "run_repository_tests";
     const proposal = id === "propose_code_patch";
+    const launchpad = id === "pi_launchpad_candidate_analysis";
     assert.equal(item.status, "active");
     assert.equal(item.permissionTier, proposal ? "proposal_only" : isolated ? "isolated_ci" : "read_only");
     assert.equal(item.requiresApproval, false);
@@ -112,7 +114,8 @@ test("all eight active capabilities are registered with their permission tiers",
     const input = id === "inspect_repository"
       ? { paths: ["worker.js"] }
       : isolated ? { baseSha: "a".repeat(40) }
-      : proposal ? { objective: "Add a regression test for a safe parser boundary" } : {};
+      : proposal ? { objective: "Add a regression test for a safe parser boundary" }
+      : launchpad ? { snapshotJson: JSON.stringify({ tokenId: "test-token" }) } : {};
     assert.equal(validateIntelligenceCapabilityRequest(id, input).ok, true);
   }
 });
@@ -157,7 +160,8 @@ test("executor metadata matches the actual Worker and GitHub Actions routing", (
     source_security_audit: ["github_actions_runner"],
     inspect_repository: ["github_actions_runner"],
     run_repository_tests: ["github_actions_runner"],
-    propose_code_patch: ["github_actions_runner"]
+    propose_code_patch: ["github_actions_runner"],
+    pi_launchpad_candidate_analysis: ["github_actions_runner"]
   };
   for (const [id, executors] of Object.entries(expected)) {
     assert.deepEqual(getIntelligenceCapability(id).executors, executors, id);
@@ -166,7 +170,7 @@ test("executor metadata matches the actual Worker and GitHub Actions routing", (
   assert.match(workerSchedulerSource, /action_type IN \('project_status_report','social_metrics_report'\)/);
   assert.match(workerSchedulerSource, /action_type IN \('service_health_report','repository_quality_check'\)/);
   assert.doesNotMatch(workerSchedulerSource, /source_security_audit|inspect_repository|propose_code_patch/);
-  assert.match(workerSource, /action_type IN \('repository_quality_check','service_health_report','source_security_audit','inspect_repository','run_repository_tests','propose_code_patch'\)/);
+  assert.match(workerSource, /action_type IN \('repository_quality_check','service_health_report','source_security_audit','inspect_repository','run_repository_tests','propose_code_patch','pi_launchpad_candidate_analysis'\)/);
   assert.match(runnerSource, /if \(task\.actionType === "inspect_repository"\)/);
   assert.match(runnerSource, /if \(task\.actionType === "run_repository_tests"\)/);
   assert.match(runnerSource, /function runFixedRepositoryTests\(task\)/);
@@ -175,7 +179,7 @@ test("executor metadata matches the actual Worker and GitHub Actions routing", (
   assert.ok(runnerActions, "GitHub runner must declare its action allowlist");
   assert.deepEqual(
     [...runnerActions[1].matchAll(/"([a-z_]+)"/g)].map(match => match[1]),
-    ["service_health_report", "repository_quality_check", "source_security_audit", "inspect_repository", "propose_code_patch"]
+    ["service_health_report", "repository_quality_check", "source_security_audit", "inspect_repository", "propose_code_patch", "pi_launchpad_candidate_analysis"]
   );
 });
 
@@ -1640,4 +1644,23 @@ test("agent validates claimed task envelopes and returns the claim token", () =>
   assert.match(agentSource, /JSON\.stringify\(\{ claimToken, status: outcome\.status, result: bounded\(outcome\.result, 2900\) \}\)/);
   assert.match(agentSource, /encodeURIComponent\(taskId\)/);
   assert.doesNotMatch(agentSource, /encodeURIComponent\(task\.id\)/);
+});
+
+test("Pi Launchpad candidate analysis is an active read-only runner capability", () => {
+  const snapshotJson = JSON.stringify({ tokenId: "pi-token-001", evidence: {} });
+  const capability = getIntelligenceCapability("pi_launchpad_candidate_analysis");
+  assert.equal(capability.status, "active");
+  assert.equal(capability.permissionTier, "read_only");
+  assert.deepEqual(capability.executors, ["github_actions_runner"]);
+  assert.equal(validateIntelligenceCapabilityRequest("pi_launchpad_candidate_analysis", { snapshotJson }).ok, true);
+  assert.equal(validateIntelligenceCapabilityRequest("pi_launchpad_candidate_analysis", {}).code, "missing_required_field");
+  assert.equal(validateIntelligenceCapabilityRequest("pi_launchpad_candidate_analysis", { snapshotJson, wallet: "not-allowed" }).code, "unknown_input_field");
+});
+
+test("Pi Launchpad screening is wired through the Worker queue and both Intelligence runners", () => {
+  assert.match(workerSource, /globalAllowedActions = \[[^\]]*pi_launchpad_candidate_analysis/);
+  assert.match(workerSource, /action_type IN \([^)]*pi_launchpad_candidate_analysis/);
+  assert.match(runnerSource, /task\.actionType === "pi_launchpad_candidate_analysis"/);
+  assert.match(agentSource, /"pi_launchpad_candidate_analysis"/);
+  assert.match(runnerSource, /verificationStatus: "owner_supplied_unverified"/);
 });

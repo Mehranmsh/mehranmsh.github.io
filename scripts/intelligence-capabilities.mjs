@@ -149,6 +149,21 @@ export const INTELLIGENCE_CAPABILITIES = Object.freeze({
       }
     }
   }),
+  pi_launchpad_candidate_analysis: freezeCapability({
+    id: "pi_launchpad_candidate_analysis",
+    status: "active",
+    permissionTier: "read_only",
+    executors: ["github_actions_runner"],
+    requiresApproval: false,
+    autonomous: true,
+    description: "Run deterministic preliminary Pi Launchpad screening on one bounded owner-supplied snapshot. All supplied evidence remains unverified; no live data, AI, wallet, signing, or transaction access.",
+    inputSchema: {
+      required: ["snapshotJson"],
+      properties: {
+        snapshotJson: { type: "string", minLength: 20, maxLength: 8000 }
+      }
+    }
+  }),
   merge_pull_request: freezeCapability({
     id: "merge_pull_request",
     status: "blocked",
