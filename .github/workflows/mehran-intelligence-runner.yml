@@ -49,6 +49,7 @@ jobs:
           import { join } from "node:path";
           import { createHash } from "node:crypto";
           import { verifyIntelligenceResultCheckpoint } from "./scripts/intelligence-checkpoint.mjs";
+          import { createIntelligenceStepCheckpoint, verifyIntelligenceStepCheckpoint, REPOSITORY_TEST_STEPS } from "./scripts/intelligence-step-checkpoint.mjs";
           import { readBoundedResponse } from "./scripts/intelligence-bounded-response.mjs";
           const base = process.env.MEHRAN_AGENT_URL;
           const agentToken = process.env.MEHRAN_AGENT_TOKEN || "";
@@ -234,37 +235,91 @@ jobs:
             return String(result.stdout || "").trim();
           }
 
-          function runFixedRepositoryTests(task) {
+          async function runFixedRepositoryTests(task) {
             let payload = {};
+            let checkpoint = {};
             try {
               payload = typeof task.actionPayload === "string" ? JSON.parse(task.actionPayload) : (task.actionPayload || {});
+              checkpoint = typeof task.checkpoint === "string" ? JSON.parse(task.checkpoint || "{}") : (task.checkpoint || {});
             } catch {
-              throw new Error("Test task payload is not valid JSON.");
+              throw new Error("Test task payload or checkpoint is not valid JSON.");
             }
             const baseSha = String(payload.baseSha || "").toLowerCase();
             if (!/^[a-f0-9]{40}$/.test(baseSha)) throw new Error("Test task requires one exact 40-character base SHA.");
             const currentSha = String(process.env.GITHUB_SHA || runHost("git", ["rev-parse", "HEAD"])).toLowerCase();
             if (!/^[a-f0-9]{40}$/.test(currentSha)) throw new Error("Runner checkout SHA is invalid.");
             runHost("git", ["merge-base", "--is-ancestor", baseSha, currentSha]);
+
+            let completedSteps = [];
+            if (checkpoint.phase === "step_progress") {
+              const integrity = verifyIntelligenceStepCheckpoint(checkpoint, {
+                taskId: task.id, actionType: task.actionType, baseSha
+              });
+              if (!integrity.valid) {
+                throw new Error("Stored step checkpoint failed integrity or task identity validation: " + integrity.reason);
+              }
+              completedSteps = integrity.completedSteps;
+              console.log("Resuming repository tests after " + completedSteps.length + " verified steps.");
+            } else if (Object.keys(checkpoint).length > 0 && checkpoint.phase !== "result_ready") {
+              throw new Error("Unknown task checkpoint phase; refusing an unsafe restart.");
+            }
+
             const tempRoot = mkdtempSync(join(tmpdir(), "mehran-intelligence-tests-"));
             const workspace = join(tempRoot, "repo");
+            const image = "node:22-alpine@sha256:1314fb30ec37592d5845e5a160d522c0e680972aa534549940b8d73bde88481a";
+            const stepCommands = [
+              ["worker_syntax", ["node", "--check", "worker.js"]],
+              ["capability_syntax", ["node", "--check", "scripts/intelligence-capabilities.mjs"]],
+              ["capability_tests", ["node", "--test", "--test-reporter=tap", "scripts/intelligence-capabilities.test.mjs"]]
+            ];
+            const outputs = [];
+            let tests = { total: 0, passed: 0, failed: 0 };
             try {
               runHost("git", ["worktree", "add", "--detach", workspace, baseSha]);
-              const image = "node:22-alpine@sha256:1314fb30ec37592d5845e5a160d522c0e680972aa534549940b8d73bde88481a";
-              const args = [
-                "run", "--rm", "--network", "none", "--read-only", "--cap-drop", "ALL",
-                "--security-opt", "no-new-privileges", "--pids-limit", "64", "--memory", "768m",
-                "--cpus", "1", "--tmpfs", "/tmp:rw,noexec,nosuid,nodev,size=64m",
-                "--mount", `type=bind,src=${workspace},dst=/workspace,readonly`,
-                "--workdir", "/workspace", image, "sh", "-c",
-                "node --check worker.js && node --check scripts/intelligence-capabilities.mjs && node --test --test-reporter=tap scripts/intelligence-capabilities.test.mjs"
-              ];
-              const result = spawnSync("docker", args, { encoding: "utf8", timeout: 240000, maxBuffer: 1024 * 1024 });
-              const output = [result.stdout || "", result.stderr || ""].join("\n").slice(-24000);
-              const total = Number(output.match(/^# tests (\d+)$/m)?.[1] || 0);
-              const passed = Number(output.match(/^# pass (\d+)$/m)?.[1] || 0);
-              const failed = Number(output.match(/^# fail (\d+)$/m)?.[1] || 0);
-              const exitCode = Number.isInteger(result.status) ? result.status : 1;
+              for (const [stepId, command] of stepCommands) {
+                if (completedSteps.includes(stepId)) continue;
+                const args = [
+                  "run", "--rm", "--network", "none", "--read-only", "--cap-drop", "ALL",
+                  "--security-opt", "no-new-privileges", "--pids-limit", "64", "--memory", "768m",
+                  "--cpus", "1", "--tmpfs", "/tmp:rw,noexec,nosuid,nodev,size=64m",
+                  "--mount", `type=bind,src=${workspace},dst=/workspace,readonly`,
+                  "--workdir", "/workspace", image, ...command
+                ];
+                const result = spawnSync("docker", args, {
+                  encoding: "utf8", timeout: 240000, maxBuffer: 1024 * 1024
+                });
+                const output = [result.stdout || "", result.stderr || ""].join("\n").slice(-12000);
+                outputs.push(stepId + "\n" + output);
+                if (result.error || result.status !== 0) {
+                  throw new Error(stepId + " failed: " + String(result.error?.message || output || "non-zero exit").slice(0, 500));
+                }
+                if (stepId === "capability_tests") {
+                  tests = {
+                    total: Number(output.match(/^# tests (\\d+)$/m)?.[1] || 0),
+                    passed: Number(output.match(/^# pass (\\d+)$/m)?.[1] || 0),
+                    failed: Number(output.match(/^# fail (\\d+)$/m)?.[1] || 0)
+                  };
+                  if (tests.total < 1 || tests.failed !== 0 || tests.passed !== tests.total) {
+                    throw new Error("Capability test suite did not report a complete passing test set.");
+                  }
+                }
+                completedSteps.push(stepId);
+                const durable = createIntelligenceStepCheckpoint({
+                  taskId: task.id, actionType: task.actionType, baseSha, completedSteps
+                });
+                const saved = await request(`/agent/v1/tasks/${encodeURIComponent(task.id)}/checkpoint`, {
+                  method: "POST",
+                  body: JSON.stringify({ checkpoint: durable, claimToken: task.claimToken })
+                });
+                if (saved.checkpointSaved !== true) {
+                  throw new Error("Verified step progress could not be durably checkpointed.");
+                }
+                console.log("Durable step checkpoint saved: " + stepId);
+              }
+              if (completedSteps.length !== REPOSITORY_TEST_STEPS.length) {
+                throw new Error("Repository test plan did not reach its final verified step.");
+              }
+              const output = outputs.join("\n\n");
               return {
                 type: "run_repository_tests",
                 generatedAt: new Date().toISOString(),
@@ -274,14 +329,15 @@ jobs:
                 workflowRunId: String(process.env.GITHUB_RUN_ID || ""),
                 workflowAttempt: Number(process.env.GITHUB_RUN_ATTEMPT || 0),
                 testSuite: "scripts/intelligence-capabilities.test.mjs",
-                tests: { total, passed, failed },
-                exitCode,
+                completedSteps: [...completedSteps],
+                tests,
+                exitCode: 0,
                 outputSha256: createHash("sha256").update(output).digest("hex"),
                 container: {
                   network: "none", readOnly: true, capDropAll: true, noNewPrivileges: true,
                   memoryMb: 768, cpus: 1, pidsLimit: 64
                 },
-                passed: exitCode === 0 && total > 0 && passed === total && failed === 0
+                passed: tests.total > 0 && tests.passed === tests.total && tests.failed === 0
               };
             } finally {
               try { runHost("git", ["worktree", "remove", "--force", workspace]); } catch {}
