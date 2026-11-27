@@ -5936,7 +5936,7 @@ export async function persistIntelligencePackageReport(env, packageId, snapshot)
         ? ["One or more tasks require attention; inspect the authenticated work-package record for details."]
         : []),
       ...(snapshot.missionExecution?.verified === false
-        ? ["Deterministic fallback tasks are readiness checks only; the owner mission was not executed or verified."]
+        ? ["Work-package tasks lack independent owner-mission acceptance evidence; mission completion is not verified."]
         : [])
     ],
     evidence: [{ kind: "work_package_id", reference: packageId }]
@@ -6130,14 +6130,18 @@ async function refreshIntelligenceWorkPackageSnapshot(env, packageId) {
     if (parsedScope && typeof parsedScope === "object" && !Array.isArray(parsedScope)) packageScope = parsedScope;
   } catch {}
   const isDeterministicFallback = packageScope.planner === "deterministic_fallback";
-  const missionExecution = isDeterministicFallback
-    ? { verified: false, reason: "deterministic_fallback_only", planner: "deterministic_fallback" }
-    : { verified: null, reason: "no_independent_acceptance_verifier" };
+  // No planner currently supplies independently verified owner-mission acceptance evidence.
+  // Task-level schema checks are not proof that the package objective was achieved.
+  const missionExecution = {
+    verified: false,
+    reason: isDeterministicFallback ? "deterministic_fallback_only" : "no_independent_acceptance_verifier",
+    planner: cleanText(packageScope.planner, 80) || "unknown"
+  };
   const hasRunnableQueued = counts.queued > counts.blockedDependencies;
-  // Readiness fallback tasks cannot prove that the owner's actual mission ran.
-  // Keep the package in attention_required even when every generic check passes.
+  // Never finalize a work package as completed until independent objective-level
+  // acceptance checks pass and their evidence is durably attached to the package.
   // A blocked task must not finalize a package while sibling work is still running.
-  const status = allCompleted ? (isDeterministicFallback ? "attention_required" : "completed")
+  const status = allCompleted ? "attention_required"
     : counts.inProgress ? "in_progress"
     : counts.retryWaiting && !hasRunnableQueued ? "waiting_retry"
     : hasRunnableQueued ? "queued"
