@@ -129,6 +129,8 @@ test("fixed repository tests are active only through the isolated GitHub runner"
   assert.equal(validateIntelligenceCapabilityRequest("run_repository_tests", { baseSha: "b".repeat(40), command: "echo unsafe" }).code, "unknown_input_field");
   assert.match(workerSource, /actionType === "run_repository_tests"/);
   assert.match(workerSource, /report\.mode !== "isolated_fixed_repository_test"/);
+  assert.match(workerSource, /validCompletedSteps/);
+  assert.match(workerSource, /"worker_syntax", "capability_syntax", "capability_tests"/);
   assert.match(workerSource, /before\.action_payload/);
   assert.match(workerSource, /expectedPayload\.baseSha !== parsedReport\.baseSha/);
   assert.match(runnerSource, /if \(task\.actionType === "run_repository_tests"\)/);
