@@ -316,6 +316,15 @@ jobs:
               const cycleStart = new Date(Math.floor(Date.now() / 900000) * 900000);
               const cycleKey = cycleStart.toISOString().replace(/[^0-9T]/g, "").slice(0, 13);
               try {
+                try {
+                  const diagnostics = await request("/agent/v1/work-packages/scope-diagnostics", {}, ownerHeaders, 12000);
+                  console.log("[mission-generator] preflight diagnostics " + JSON.stringify({
+                    packages: diagnostics.packages || null,
+                    generatorLock: diagnostics.generatorLock || null
+                  }));
+                } catch (diagnosticError) {
+                  console.log("[mission-generator] preflight diagnostics unavailable: " + String(diagnosticError?.message || diagnosticError).slice(0,160));
+                }
                 const generated = await request("/agent/v1/missions/generate", {
                   method: "POST",
                   body: JSON.stringify({

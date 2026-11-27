@@ -8455,6 +8455,9 @@ export default {
             explicitlyAuthorizedCount: Math.max(0, Number(row.explicitly_authorized_count) || 0),
             reviewRequiredCount: Math.max(0, (Number(row.package_count) || 0) - (Number(row.explicitly_authorized_count) || 0))
           }));
+          const generatorLock = await env.DB.prepare(
+            "SELECT status,expires_at,updated_at,CASE WHEN datetime(expires_at)>datetime('now') THEN 1 ELSE 0 END AS lease_active FROM intelligence_mission_generator_lock WHERE id=1"
+          ).first();
           return json({
             success: true,
             readOnly: true,
@@ -8463,8 +8466,16 @@ export default {
               total: rows.reduce((sum, row) => sum + row.packageCount, 0),
               explicitlyAuthorized: rows.reduce((sum, row) => sum + row.explicitlyAuthorizedCount, 0),
               reviewRequired: rows.reduce((sum, row) => sum + row.reviewRequiredCount, 0),
+              blockerCount: rows.filter(row => ["queued","in_progress","waiting_retry"].includes(row.status)).reduce((sum,row) => sum + row.packageCount, 0),
+              attentionRequiredCount: rows.filter(row => row.status === "attention_required").reduce((sum,row) => sum + row.packageCount, 0),
               byStatus: rows
-            }
+            },
+            generatorLock: generatorLock ? {
+              status: cleanText(generatorLock.status, 24) || "unknown",
+              leaseActive: Number(generatorLock.lease_active) === 1,
+              expiresAt: generatorLock.expires_at || null,
+              updatedAt: generatorLock.updated_at || null
+            } : { status: "absent", leaseActive: false, expiresAt: null, updatedAt: null }
           });
         }
         if (path === "/agent/v1/work-packages/pending-finalization" && method === "GET") {
