@@ -45,6 +45,20 @@ test("Workers AI inference failures expose only bounded sanitized diagnostics to
   assert.doesNotMatch(runnerSource, /console\.log\([^\n]*payload\.diagnostic[^\n]*requestBody/);
 });
 
+test("semantic analysis validation diagnostics are allowlisted and persisted into private task results", () => {
+  assert.ok(runnerSource.includes('payload.diagnostic.stage === "analysis_validation"'));
+  assert.ok(runnerSource.includes('"quote_mismatch"'));
+  assert.ok(runnerSource.includes('"unknown_evidence_path"'));
+  assert.ok(runnerSource.includes('field: allowedFields.has(diagnostic.field) ? diagnostic.field : null'));
+  assert.ok(runnerSource.includes('Safe diagnostic: ${JSON.stringify(error.safeDiagnostic)}'));
+  assert.ok(runnerSource.includes('.slice(0, 3000)'));
+  const diagnosticBranch = runnerSource.slice(
+    runnerSource.indexOf('payload.diagnostic.stage === "analysis_validation"'),
+    runnerSource.indexOf('payload.diagnostic.stage === "budget_reservation"')
+  );
+  assert.doesNotMatch(diagnosticBranch, /message|excerpt|quoteText|sourceCode/i);
+});
+
 test("persistent Workers AI inference 503 failures are not automatically retried", () => {
   assert.match(runnerSource, /const isWorkersAIInferenceFailure = error\?\.safeDiagnostic\?\.stage === "workers_ai_inference"/);
   assert.match(runnerSource, /retryable = !isWorkersAIInferenceFailure && \(/);

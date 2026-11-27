@@ -154,6 +154,30 @@ jobs:
                           causeMessage: String(diagnostic.causeMessage || "").slice(0, 180),
                           message: String(diagnostic.message || "").slice(0, 180)
                         };
+                      } else if (payload.diagnostic.stage === "analysis_validation") {
+                        const diagnostic = payload.diagnostic;
+                        const allowedCodes = new Set([
+                          "invalid_analysis_structure", "invalid_finding_shape", "invalid_severity",
+                          "field_limit_exceeded", "invalid_evidence_array", "invalid_evidence_shape",
+                          "unknown_evidence_path", "quote_mismatch", "invalid_regression_tests"
+                        ]);
+                        const allowedFields = new Set([
+                          "analysis", "finding", "severity", "title", "rootCause", "recommendation",
+                          "evidence", "path", "quote", "regressionTests", "limitations"
+                        ]);
+                        failure.safeDiagnostic = {
+                          stage: "analysis_validation",
+                          operation: "repository_analyze",
+                          traceId: String(diagnostic.traceId || traceId).replace(/[^A-Za-z0-9._:-]/g, "").slice(0, 100),
+                          elapsedMs: Number.isFinite(diagnostic.elapsedMs) && diagnostic.elapsedMs >= 0
+                            ? Math.min(diagnostic.elapsedMs, 600000) : null,
+                          code: allowedCodes.has(diagnostic.code) ? diagnostic.code : "unknown_validation_error",
+                          findingIndex: Number.isInteger(diagnostic.findingIndex) && diagnostic.findingIndex >= 0 && diagnostic.findingIndex < 8
+                            ? diagnostic.findingIndex : null,
+                          evidenceIndex: Number.isInteger(diagnostic.evidenceIndex) && diagnostic.evidenceIndex >= 0 && diagnostic.evidenceIndex < 5
+                            ? diagnostic.evidenceIndex : null,
+                          field: allowedFields.has(diagnostic.field) ? diagnostic.field : null
+                        };
                       } else if (payload.diagnostic.stage === "budget_reservation") {
                         failure.safeDiagnostic = {
                           stage: "budget_reservation",
@@ -910,7 +934,10 @@ jobs:
               const diagnostic = String(error?.message || error).slice(0,300);
               console.log(`Bounded task diagnostic (${task.actionType}): ${diagnostic}`);
               if (error?.safeDiagnostic) console.log("Bounded safe diagnostic: " + JSON.stringify(error.safeDiagnostic));
-              result = `Bounded runner failed: ${diagnostic}`;
+              const safeDiagnosticText = error?.safeDiagnostic
+                ? ` Safe diagnostic: ${JSON.stringify(error.safeDiagnostic)}`
+                : "";
+              result = (`Bounded runner failed: ${diagnostic}` + safeDiagnosticText).slice(0, 3000);
             }
             recordTiming(`task_execute:${task.actionType}`, executionStartedAt);
             await request(`/agent/v1/tasks/${encodeURIComponent(task.id)}/result`, {
