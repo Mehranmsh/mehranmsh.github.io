@@ -6,7 +6,6 @@ const INSPECTION_ANCHORS = Object.freeze({
     "const validFindings =",
     "function validateIntelligenceWorkPackage",
     "verifyIntelligenceReport",
-    "pending-finalization",
     'if (path === "/agent/v1/tasks/next"'
   ],
   ".github/workflows/mehran-intelligence-runner.yml": [
@@ -48,6 +47,7 @@ const INSPECTION_ANCHORS = Object.freeze({
     "## Evidence and verification",
     "## Acceptance criteria for the protocol",
     "## Implementation status and remaining gaps"
+  ]
 });
 
 const DEFAULT_MAX_CHARS = 2800;
@@ -80,7 +80,9 @@ function extractWindow(source, index, budget) {
  */
 export function buildIntelligenceInspectionExcerpt(path, source, maxChars = DEFAULT_MAX_CHARS) {
   if (typeof path !== "string" || typeof source !== "string" || !source.trim()) return "";
-  const limit = boundedInteger(maxChars, DEFAULT_MAX_CHARS, DEFAULT_MAX_CHARS);
+  const requestedLimit = Number.isInteger(maxChars) ? maxChars : DEFAULT_MAX_CHARS;
+  if (requestedLimit <= 0) return "";
+  const limit = Math.min(requestedLimit, DEFAULT_MAX_CHARS);
   const anchors = INSPECTION_ANCHORS[path] || [];
   const windows = [];
   const seenStarts = new Set();
