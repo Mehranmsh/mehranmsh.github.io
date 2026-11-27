@@ -68,3 +68,19 @@ test("does not produce scores when there are no trusted attestations", () => {
   assert.equal(result.score, null);
   assert.equal(result.componentScores.utility, null);
 });
+
+test("attaches an explainable report built only from verified evidence and metrics", () => {
+  const result = analyzeVerifiedLaunchpadOpportunity({
+    snapshot: {
+      networkId: "pi-mainnet", tokenId: "pi-token-1", symbol: "PIT",
+      evidence: { utility: 100 }, liquidity: { tvlPi: 999999 }
+    },
+    envelope: envelope(), attestations: [attestation()], trustRecords, now: NOW
+  });
+  assert.equal(result.analysisReport.identity.tokenId, "pi-token-1");
+  assert.equal(result.analysisReport.verdict.score, result.score);
+  assert.equal(result.analysisReport.scoreBreakdown.components.find((item) => item.key === "utility").score, 92);
+  assert.equal(result.analysisReport.liquidityAssessment.tvlPi, null);
+  assert.equal(result.analysisReport.provenance.acceptedEvidenceRecordCount, 1);
+  assert.ok(result.analysisReport.limitations.some((item) => item.includes("does not fetch live")));
+});
