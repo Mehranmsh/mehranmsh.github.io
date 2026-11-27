@@ -1561,9 +1561,10 @@ test("scheduled Intelligence runner is single-flight, secret-backed and restrict
   assert.match(runner, /task\.assignedTo/);
   assert.match(runner, /secrets\.MEHRAN_AGENT_TOKEN/);
   assert.ok(runner.includes("secrets.MEHRAN_ORCHESTRATOR_TOKEN"));
-  assert.ok(runner.includes("vars.MEHRAN_MISSION_GENERATOR_ENABLED"));
   assert.ok(runner.includes('GITHUB_EVENT_NAME === "schedule"'));
-  assert.ok(runner.includes('MEHRAN_MISSION_GENERATOR_ENABLED === "true"'));
+  assert.ok(runner.includes('GITHUB_EVENT_NAME === "workflow_dispatch"'));
+  assert.doesNotMatch(runner, /MEHRAN_MISSION_GENERATOR_ENABLED/,
+    "deterministic scheduled intake must not depend on a hidden opt-in repository variable");
   assert.ok(runner.includes("orchestratorToken.length < 40"));
   assert.ok(runner.includes('request("/agent/v1/missions/generate"'));
   assert.ok(runner.includes("Math.floor(Date.now() / 900000) * 900000"));
