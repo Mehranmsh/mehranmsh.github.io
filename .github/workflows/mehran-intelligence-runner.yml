@@ -527,21 +527,21 @@ jobs:
                     !Number.isInteger(file.size) || file.size < 0 || file.size > 600000) {
                   throw new Error(`GitHub returned an invalid or oversized source file for ${path}.`);
                 }
-                const source = Buffer.from(file.content.replace(/\\n/g, ""), "base64").toString("utf8");
+                const source = Buffer.from(file.content.replace(/\n/g, ""), "base64").toString("utf8");
                 const bytes = Buffer.byteLength(source, "utf8");
                 if (bytes !== file.size) throw new Error(`GitHub source size verification failed for ${path}.`);
                 totalBytes += bytes;
                 if (totalBytes > 750000) throw new Error("Inspection exceeded the 750 KB aggregate source limit.");
                 const symbols = new Set();
                 const patterns = [
-                  /^\\s*(?:export\\s+)?(?:async\\s+)?(?:function|class)\\s+([A-Za-z_$][\\w$]*)/gm,
-                  /^\\s*(?:export\\s+)?(?:const|let|var)\\s+([A-Za-z_$][\\w$]*)/gm
+                  /^\s*(?:export\s+)?(?:async\s+)?(?:function|class)\s+([A-Za-z_$][\w$]*)/gm,
+                  /^\s*(?:export\s+)?(?:const|let|var)\s+([A-Za-z_$][\w$]*)/gm
                 ];
                 for (const pattern of patterns) {
                   let match;
                   while ((match = pattern.exec(source)) && symbols.size < 2) symbols.add(match[1]);
                 }
-                files.push({path,blobSha:file.sha,bytes,lineCount:source.length?source.split(/\\r\\n|\\n|\\r/).length:0,symbols:[...symbols].map(symbol=>symbol.slice(0,60))});
+                files.push({path,blobSha:file.sha,bytes,lineCount:source.length?source.split(/\r\n|\n|\r/).length:0,symbols:[...symbols].map(symbol=>symbol.slice(0,60))});
                 const durable = createInspectionProgressCheckpoint({taskId:task.id,baseSha,completedFiles:files});
                 const saved = await request(`/agent/v1/tasks/${encodeURIComponent(task.id)}/checkpoint`, {
                   method:"POST", body:JSON.stringify({checkpoint:durable,claimToken:task.claimToken})
