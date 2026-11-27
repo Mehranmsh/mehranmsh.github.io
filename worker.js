@@ -6709,7 +6709,12 @@ export function verifyIntelligenceReport(actionType, report) {
   } else if (actionType === "run_repository_tests") {
     const tests = report.tests && typeof report.tests === "object" ? report.tests : {};
     const container = report.container && typeof report.container === "object" ? report.container : {};
-    if (report.mode !== "isolated_fixed_repository_test" ||
+    const expectedSteps = ["worker_syntax", "capability_syntax", "capability_tests"];
+    const validCompletedSteps = Array.isArray(report.completedSteps) &&
+      report.completedSteps.length === expectedSteps.length &&
+      report.completedSteps.every((step, index) => step === expectedSteps[index]);
+    if (!validCompletedSteps ||
+        report.mode !== "isolated_fixed_repository_test" ||
         report.repository !== "Mehranmsh/mehranmsh.github.io" ||
         typeof report.baseSha !== "string" || !/^[a-f0-9]{40}$/.test(report.baseSha) ||
         typeof report.workflowRunId !== "string" || !/^\d{1,20}$/.test(report.workflowRunId) ||
