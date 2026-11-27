@@ -5,6 +5,7 @@ import { applyValidatedPatchInMemory, readBoundedResponse } from "./intelligence
 import { buildIntelligenceInspectionExcerpt, INTELLIGENCE_INSPECTION_EXCERPT_POLICY } from "./intelligence-inspection-excerpts.mjs";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
+import { buildDeterministicRoutinePlan } from "./intelligence-routine-planner.mjs";
 import { validatePatchProposal, PATCH_PROPOSAL_POLICY } from "./intelligence-patch-policy.mjs";
 import { createPatchArtifactRecord, verifyPatchArtifactRecord } from "./intelligence-patch-artifact.mjs";
 import { storePrivatePatchArtifact, verifyPrivatePatchArtifactAtPath, getVerifiedPrivatePatchArtifactAtPath, getPrivatePatchArtifactPath, PRIVATE_PATCH_ARTIFACT_STORE_POLICY } from "./intelligence-private-patch-store.mjs";
@@ -237,6 +238,20 @@ test("security audit gathers bounded evidence from fixed official research sourc
   assert.match(runnerSource, /fixed official documentation URLs/);
 });
 
+test("scheduled mission intake creates deterministic read-only checks without an AI opt-in flag", () => {
+  const plan = buildDeterministicRoutinePlan(
+    "service health check, repository quality check, and source security audit"
+  );
+  assert.ok(plan);
+  assert.deepEqual(plan.tasks.map(task => task.actionType), [
+    "service_health_report", "repository_quality_check", "source_security_audit"
+  ]);
+  assert.ok(runnerSource.includes('const missionGenerationRequested =\n            process.env.GITHUB_EVENT_NAME === "schedule" ||\n            process.env.GITHUB_EVENT_NAME === "workflow_dispatch"'));
+  assert.doesNotMatch(runnerSource, /MEHRAN_MISSION_GENERATOR_ENABLED/);
+  assert.match(workerSource, /allowDeterministicFallback: false/);
+  assert.ok(workerSource.includes("aiInferenceUsed: false"));
+  assert.match(runnerSource, /maxNewMissionsPerCycle/);
+});
 test("runner does not create an automatic self-assessment follow-up", () => {
   assert.doesNotMatch(runnerSource, /selfImprovementPackageId/);
   assert.doesNotMatch(runnerSource, /mehran-intelligence-self-improvement-evidence-review-v1/);
