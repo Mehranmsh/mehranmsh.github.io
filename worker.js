@@ -8591,69 +8591,116 @@ export default {
           if (before.action_type === "inspect_repository") {
             const cp = body.checkpoint;
             let priorCheckpoint = {};
-            try { priorCheckpoint = typeof before.checkpoint_json === "string" ? JSON.parse(before.checkpoint_json || "{}") : (before.checkpoint_json || {}); }
-            catch { return error("Stored inspection checkpoint is invalid.",409); }
-            const expectedKeys = ["actionType","baseSha","phase","preparedAt","result","resultSha256","status","taskId"];
-            const keys = Object.keys(cp).sort();
+            let taskPayload = {};
+            try {
+              priorCheckpoint = typeof before.checkpoint_json === "string" ? JSON.parse(before.checkpoint_json || "{}") : (before.checkpoint_json || {});
+              taskPayload = typeof before.action_payload === "string" ? JSON.parse(before.action_payload || "{}") : (before.action_payload || {});
+            } catch { return error("Stored inspection checkpoint or task payload is invalid.",409); }
             const digestHex = async (value) => {
               const bytes = new Uint8Array(await crypto.subtle.digest("SHA-256",new TextEncoder().encode(value)));
               return Array.from(bytes,byte => byte.toString(16).padStart(2,"0")).join("");
             };
-            if (keys.length !== expectedKeys.length || keys.some((key,index) => key !== expectedKeys[index]) ||
-                cp.phase !== "result_ready" || cp.taskId !== id || cp.actionType !== "inspect_repository" ||
-                cp.status !== "completed" || typeof cp.baseSha !== "string" || !/^[a-f0-9]{40}$/i.test(cp.baseSha) ||
-                typeof cp.result !== "string" || !cp.result || cp.result.length > 3000 ||
-                typeof cp.preparedAt !== "string" || !Number.isFinite(Date.parse(cp.preparedAt)) ||
-                cp.resultSha256 !== await digestHex(cp.result)) {
-              return error("Repository inspection checkpoint schema, identity, or digest is invalid.",422);
-            }
-            let report;
-            try { report = JSON.parse(cp.result); } catch { return error("Repository inspection report is not valid JSON.",422); }
-            const allowedPaths = new Set([
+            const allowedPaths = [
               "worker.js","scripts/intelligence-agent.mjs","scripts/intelligence-capabilities.mjs",
               "scripts/intelligence-capabilities.test.mjs",".github/workflows/mehran-intelligence-runner.yml",
               "docs/INTELLIGENCE_EXECUTION_PROTOCOL.md"
-            ]);
-            const files = Array.isArray(report?.files) ? report.files : [];
-            const seen = new Set();
-            let totalBytes = 0;
-            const filesValid = files.length >= 1 && files.length <= 6 && files.every(file => {
-              if (!file || typeof file.path !== "string" || !allowedPaths.has(file.path) || seen.has(file.path) ||
-                  typeof file.blobSha !== "string" || !/^[a-f0-9]{40}$/i.test(file.blobSha) ||
-                  !Number.isInteger(file.bytes) || file.bytes < 0 || file.bytes > 600000 ||
-                  !Number.isInteger(file.lineCount) || file.lineCount < 0 || file.lineCount > 20000 ||
-                  !Array.isArray(file.symbols) || file.symbols.length > 2 ||
-                  file.symbols.some(symbol => typeof symbol !== "string" || symbol.length > 60)) return false;
-              seen.add(file.path);
-              totalBytes += file.bytes;
-              return true;
-            });
-            const analysis = report?.analysis && typeof report.analysis === "object" ? report.analysis : {};
-            const analysisValid = typeof analysis.summary === "string" && analysis.summary.length <= 1600 &&
-              Array.isArray(analysis.findings) && analysis.findings.length <= 8 &&
-              analysis.findings.every(item => item && ["critical","high","medium","low","info"].includes(item.severity) &&
-                typeof item.title === "string" && item.title.length <= 180 &&
-                typeof item.rootCause === "string" && item.rootCause.length <= 1200 &&
-                typeof item.recommendation === "string" && item.recommendation.length <= 1200 &&
-                Array.isArray(item.evidence) && item.evidence.length <= 5 &&
-                item.evidence.every(ev => ev && seen.has(ev.path) && typeof ev.quote === "string" && ev.quote.length <= 500) &&
-                Array.isArray(item.regressionTests) && item.regressionTests.length <= 6 &&
-                item.regressionTests.every(test => typeof test === "string" && test.length <= 300)) &&
-              Array.isArray(analysis.limitations) && analysis.limitations.length <= 5 &&
-              analysis.limitations.every(item => typeof item === "string" && item.length <= 300);
-            if (report?.type !== "inspect_repository" || report?.mode !== "bounded_read_only_repository_inspection" ||
-                report?.repository !== "Mehranmsh/mehranmsh.github.io" || report?.commitSha !== cp.baseSha ||
-                !filesValid || totalBytes > 750000 || report?.summary?.filesInspected !== files.length ||
-                report?.summary?.totalBytes !== totalBytes || !analysisValid) {
-              return error("Repository inspection report does not match its bounded evidence schema or immutable source commit.",422);
+            ];
+            const requested = taskPayload.paths;
+            if (!Array.isArray(requested) || requested.length < 1 || requested.length > 6 ||
+                new Set(requested).size !== requested.length || requested.some(path=>!allowedPaths.includes(path))) {
+              return error("Inspection task path plan is invalid.",422);
             }
-            if (priorCheckpoint.phase === "result_ready" &&
-                (priorCheckpoint.taskId !== id || priorCheckpoint.actionType !== cp.actionType ||
-                 priorCheckpoint.baseSha !== cp.baseSha || priorCheckpoint.resultSha256 !== cp.resultSha256)) {
-              return error("Repository inspection result checkpoint is immutable once saved.",409);
-            }
-            if (priorCheckpoint.phase && priorCheckpoint.phase !== "result_ready") {
-              return error("Unsupported prior repository inspection checkpoint phase.",409);
+            if (cp.phase === "file_progress") {
+              const expectedKeys = ["actionType","baseSha","completedFiles","digestSha256","phase","schemaVersion","taskId"];
+              const keys = Object.keys(cp).sort();
+              const validEntry = (file,index) => file && file.path === requested[index] &&
+                typeof file.blobSha === "string" && /^[a-f0-9]{40}$/i.test(file.blobSha) &&
+                Number.isInteger(file.bytes) && file.bytes >= 0 && file.bytes <= 600000 &&
+                Number.isInteger(file.lineCount) && file.lineCount >= 0 && file.lineCount <= 20000 &&
+                Array.isArray(file.symbols) && file.symbols.length <= 2 &&
+                file.symbols.every(symbol=>typeof symbol === "string" && symbol.length <= 60);
+              if (keys.length !== expectedKeys.length || keys.some((key,index)=>key!==expectedKeys[index]) ||
+                  cp.schemaVersion !== 1 || cp.taskId !== id || cp.actionType !== "inspect_repository" ||
+                  typeof cp.baseSha !== "string" || !/^[a-f0-9]{40}$/i.test(cp.baseSha) ||
+                  !Array.isArray(cp.completedFiles) || cp.completedFiles.length < 1 ||
+                  cp.completedFiles.length > requested.length || cp.completedFiles.some((file,index)=>!validEntry(file,index))) {
+                return error("Repository inspection progress checkpoint schema or identity is invalid.",422);
+              }
+              const canonical = JSON.stringify({schemaVersion:1,phase:"file_progress",taskId:cp.taskId,actionType:cp.actionType,baseSha:cp.baseSha,completedFiles:cp.completedFiles});
+              if (cp.digestSha256 !== await digestHex(canonical)) return error("Repository inspection progress digest verification failed.",422);
+              if (priorCheckpoint.phase === "file_progress") {
+                if (priorCheckpoint.taskId !== id || priorCheckpoint.actionType !== cp.actionType ||
+                    priorCheckpoint.baseSha !== cp.baseSha || !Array.isArray(priorCheckpoint.completedFiles) ||
+                    priorCheckpoint.completedFiles.length > cp.completedFiles.length ||
+                    priorCheckpoint.completedFiles.some((file,index)=>JSON.stringify(file)!==JSON.stringify(cp.completedFiles[index]))) {
+                  return error("Repository inspection progress cannot be changed or rolled back.",409);
+                }
+              } else if (priorCheckpoint.phase === "result_ready") {
+                return error("A finalized repository inspection checkpoint cannot be replaced by progress.",409);
+              } else if (priorCheckpoint.phase) {
+                return error("Unsupported prior repository inspection checkpoint phase.",409);
+              }
+            } else if (cp.phase === "result_ready") {
+              const expectedKeys = ["actionType","baseSha","phase","preparedAt","result","resultSha256","status","taskId"];
+              const keys = Object.keys(cp).sort();
+              if (keys.length !== expectedKeys.length || keys.some((key,index)=>key!==expectedKeys[index]) ||
+                  cp.taskId !== id || cp.actionType !== "inspect_repository" || cp.status !== "completed" ||
+                  typeof cp.baseSha !== "string" || !/^[a-f0-9]{40}$/i.test(cp.baseSha) ||
+                  typeof cp.result !== "string" || !cp.result || cp.result.length > 3000 ||
+                  typeof cp.preparedAt !== "string" || !Number.isFinite(Date.parse(cp.preparedAt)) ||
+                  cp.resultSha256 !== await digestHex(cp.result)) {
+                return error("Repository inspection checkpoint schema, identity, or digest is invalid.",422);
+              }
+              let report;
+              try { report = JSON.parse(cp.result); } catch { return error("Repository inspection report is not valid JSON.",422); }
+              const files = Array.isArray(report?.files) ? report.files : [];
+              const seen = new Set();
+              let totalBytes = 0;
+              const filesValid = files.length >= 1 && files.length <= 6 && files.every(file => {
+                if (!file || typeof file.path !== "string" || !requested.includes(file.path) || seen.has(file.path) ||
+                    typeof file.blobSha !== "string" || !/^[a-f0-9]{40}$/i.test(file.blobSha) ||
+                    !Number.isInteger(file.bytes) || file.bytes < 0 || file.bytes > 600000 ||
+                    !Number.isInteger(file.lineCount) || file.lineCount < 0 || file.lineCount > 20000 ||
+                    !Array.isArray(file.symbols) || file.symbols.length > 2 ||
+                    file.symbols.some(symbol => typeof symbol !== "string" || symbol.length > 60)) return false;
+                seen.add(file.path); totalBytes += file.bytes; return true;
+              });
+              const analysis = report?.analysis && typeof report.analysis === "object" ? report.analysis : {};
+              const analysisValid = typeof analysis.summary === "string" && analysis.summary.length <= 1600 &&
+                Array.isArray(analysis.findings) && analysis.findings.length <= 8 &&
+                analysis.findings.every(item => item && ["critical","high","medium","low","info"].includes(item.severity) &&
+                  typeof item.title === "string" && item.title.length <= 180 &&
+                  typeof item.rootCause === "string" && item.rootCause.length <= 1200 &&
+                  typeof item.recommendation === "string" && item.recommendation.length <= 1200 &&
+                  Array.isArray(item.evidence) && item.evidence.length <= 5 &&
+                  item.evidence.every(ev => ev && seen.has(ev.path) && typeof ev.quote === "string" && ev.quote.length <= 500) &&
+                  Array.isArray(item.regressionTests) && item.regressionTests.length <= 6 &&
+                  item.regressionTests.every(test => typeof test === "string" && test.length <= 300)) &&
+                Array.isArray(analysis.limitations) && analysis.limitations.length <= 5 &&
+                analysis.limitations.every(item => typeof item === "string" && item.length <= 300);
+              if (report?.type !== "inspect_repository" || report?.mode !== "bounded_read_only_repository_inspection" ||
+                  report?.repository !== "Mehranmsh/mehranmsh.github.io" || report?.commitSha !== cp.baseSha ||
+                  !filesValid || files.some((file,index)=>file.path !== requested[index]) ||
+                  totalBytes > 750000 || report?.summary?.filesInspected !== files.length ||
+                  report?.summary?.totalBytes !== totalBytes || !analysisValid) {
+                return error("Repository inspection report does not match its bounded evidence schema or immutable source commit.",422);
+              }
+              if (priorCheckpoint.phase === "file_progress") {
+                const completed = priorCheckpoint.completedFiles || [];
+                if (priorCheckpoint.taskId !== id || priorCheckpoint.actionType !== cp.actionType ||
+                    priorCheckpoint.baseSha !== cp.baseSha || completed.length !== files.length ||
+                    completed.some((file,index)=>JSON.stringify(file)!==JSON.stringify(files[index]))) {
+                  return error("Final inspection report does not match all durably checkpointed source files.",409);
+                }
+              } else if (priorCheckpoint.phase === "result_ready" &&
+                  (priorCheckpoint.taskId !== id || priorCheckpoint.actionType !== cp.actionType ||
+                   priorCheckpoint.baseSha !== cp.baseSha || priorCheckpoint.resultSha256 !== cp.resultSha256)) {
+                return error("Repository inspection result checkpoint is immutable once saved.",409);
+              } else if (priorCheckpoint.phase) {
+                return error("Unsupported prior repository inspection checkpoint phase.",409);
+              }
+            } else {
+              return error("Unsupported repository inspection checkpoint phase.",422);
             }
           }
           if (before.action_type === "source_security_audit") {
