@@ -6633,6 +6633,16 @@ async function planIntelligenceMission(env, input) {
     }
     return normalized;
   });
+  const objectiveCriteria = normalizeIntelligenceAcceptanceCriteria(plan.acceptanceCriteria, normalizedTasks);
+  if (!objectiveCriteria.valid) {
+    console.warn("INTELLIGENCE_PLAN_ACCEPTANCE_CRITERIA_REJECTED", JSON.stringify({
+      traceId,
+      reason: objectiveCriteria.reason,
+      taskCount: normalizedTasks.length
+    }));
+    return fallback("ai_acceptance_criteria_invalid", objectiveCriteria.reason);
+  }
+  scope.acceptanceCriteria = objectiveCriteria.criteria;
   const created = await createIntelligenceWorkPackage(env, {
     idempotencyKey,
     title: cleanText(plan.title, 160) || "MEHRAN INTELLIGENCE owner mission",
