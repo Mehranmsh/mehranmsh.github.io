@@ -8623,7 +8623,7 @@ export default {
                   cp.schemaVersion !== 1 || cp.taskId !== id || cp.actionType !== "inspect_repository" ||
                   typeof cp.baseSha !== "string" || !/^[a-f0-9]{40}$/i.test(cp.baseSha) ||
                   !Array.isArray(cp.completedFiles) || cp.completedFiles.length < 1 ||
-                  cp.completedFiles.length > requested.length || cp.completedFiles.some((file,index)=>!validEntry(file,index))) {
+                  cp.completedFiles.length > requested.length || cp.completedFiles.some((file,index)=>!validEntry(file,index)) || cp.completedFiles.reduce((sum,file)=>sum+file.bytes,0) > 750000) {
                 return error("Repository inspection progress checkpoint schema or identity is invalid.",422);
               }
               const canonical = JSON.stringify({schemaVersion:1,phase:"file_progress",taskId:cp.taskId,actionType:cp.actionType,baseSha:cp.baseSha,completedFiles:cp.completedFiles});
