@@ -1270,6 +1270,7 @@ test("Worker validates immutable repository inspection result checkpoints before
   assert.match(workerSource, /report\?\.commitSha !== cp\.baseSha/);
   assert.match(workerSource, /Repository inspection report does not match its bounded evidence schema or immutable source commit/);
   assert.match(workerSource, /Repository inspection result checkpoint is immutable once saved/);
+  assert.match(workerSource, /Repository inspection result is not backed by its immutable, verified checkpoint/);
   assert.match(runnerSource, /task\.actionType === "inspect_repository".*resultReport\?\.commitSha/s);
 });
 
