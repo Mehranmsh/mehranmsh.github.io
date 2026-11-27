@@ -3,7 +3,9 @@ import { createHash } from "node:crypto";
 export const REPOSITORY_TEST_STEPS = Object.freeze([
   "worker_syntax",
   "capability_syntax",
-  "capability_tests"
+  "security_scanner_syntax",
+  "capability_tests",
+  "security_scanner_tests"
 ]);
 
 function canonicalPayload(value) {
