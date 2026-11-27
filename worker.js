@@ -8473,6 +8473,13 @@ export default {
             taskStatus: cleanText(row.task_status, 40) || "no_tasks",
             taskCount: Math.max(0, Number(row.task_count) || 0)
           }));
+          const blockedTaskCauses = await env.DB.prepare(
+            "SELECT CASE WHEN t.last_error_code IN ('dependency_terminal','dependency_missing','dependency_cross_package','attempt_limit_reached','unsupported_action','action_not_in_package_scope','approval_required') THEN t.last_error_code ELSE CASE WHEN t.last_error_code IS NULL OR t.last_error_code='' THEN 'no_error_code' ELSE 'other' END END AS cause, COUNT(*) AS task_count FROM intelligence_work_packages wp JOIN intelligence_tasks t ON t.work_package_id=wp.id WHERE wp.status IN ('queued','in_progress','waiting_retry') AND t.status IN ('blocked','failed','cancelled') GROUP BY cause ORDER BY cause LIMIT 20"
+          ).all();
+          const blockedTaskCauseSummary = (blockedTaskCauses.results || []).map(row => ({
+            cause: cleanText(row.cause, 48) || "unknown",
+            taskCount: Math.max(0, Number(row.task_count) || 0)
+          }));
           const taskEligibility = await env.DB.prepare(
             "SELECT CASE WHEN t.requires_approval!=0 THEN 'approval_required' WHEN t.assigned_to NOT IN ('mehran_intelligence','shared') THEN 'not_assigned_to_runner' WHEN t.action_type NOT IN ('repository_quality_check','service_health_report','source_security_audit','inspect_repository','run_repository_tests','propose_code_patch') THEN 'unsupported_action' WHEN COALESCE(t.attempts,0)>=COALESCE(t.max_attempts,3) THEN 'attempt_limit_reached' WHEN t.next_attempt_at IS NOT NULL AND datetime(t.next_attempt_at)>datetime('now') THEN 'retry_not_due' WHEN t.work_package_id IS NOT NULL AND NOT EXISTS (SELECT 1 FROM json_each(CASE WHEN json_valid(wp.scope_json) THEN wp.scope_json ELSE '{}' END,'$.allowedActions') a WHERE a.type='text' AND a.value=t.action_type) THEN 'action_not_in_package_scope' WHEN EXISTS (SELECT 1 FROM intelligence_task_dependencies d LEFT JOIN intelligence_tasks p ON p.id=d.depends_on_task_id WHERE d.task_id=t.id AND p.id IS NULL) THEN 'dependency_missing' WHEN EXISTS (SELECT 1 FROM intelligence_task_dependencies d JOIN intelligence_tasks p ON p.id=d.depends_on_task_id WHERE d.task_id=t.id AND p.work_package_id<>t.work_package_id) THEN 'dependency_cross_package' WHEN EXISTS (SELECT 1 FROM intelligence_task_dependencies d JOIN intelligence_tasks p ON p.id=d.depends_on_task_id WHERE d.task_id=t.id AND p.status IN ('blocked','failed','cancelled')) THEN 'dependency_terminal' WHEN EXISTS (SELECT 1 FROM intelligence_task_dependencies d JOIN intelligence_tasks p ON p.id=d.depends_on_task_id WHERE d.task_id=t.id AND p.status<>'completed') THEN 'dependency_pending' ELSE 'eligible' END AS eligibility,COUNT(*) AS task_count FROM intelligence_work_packages wp JOIN intelligence_tasks t ON t.work_package_id=wp.id WHERE wp.status IN ('queued','in_progress','waiting_retry') AND t.status IN ('queued','accepted','retry_wait') GROUP BY eligibility ORDER BY eligibility LIMIT 20"
           ).all();
@@ -8496,6 +8503,7 @@ export default {
               byStatus: rows
             },
             taskLedger: taskLedgerSummary,
+            blockedTaskCauses: blockedTaskCauseSummary,
             taskEligibility: taskEligibilitySummary,
             generatorLock: generatorLock ? {
               status: cleanText(generatorLock.status, 24) || "unknown",
