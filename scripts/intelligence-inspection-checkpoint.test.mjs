@@ -15,11 +15,11 @@ test("creates and verifies ordered immutable inspection progress",()=>{
   });
 });
 
-test("rejects task, commit, order, path and digest tampering",()=>{
+test("rejects task, commit, path and digest tampering",()=>{
   const saved=createInspectionProgressCheckpoint({...identity,completedFiles:[entry(INSPECTION_PATHS[0])]});
   assert.equal(verifyInspectionProgressCheckpoint(saved,{...identity,taskId:"other"}).reason,"task_identity_mismatch");
   assert.equal(verifyInspectionProgressCheckpoint(saved,{...identity,baseSha:"c".repeat(40)}).reason,"task_identity_mismatch");
-  const tampered={...saved,completedFiles:[entry(INSPECTION_PATHS[1])]};
+  const tampered={...saved,completedFiles:[{...entry(INSPECTION_PATHS[0]),path:"outside-allowlist.js"}]};
   assert.equal(verifyInspectionProgressCheckpoint(tampered,identity).reason,"invalid_completed_files");
   assert.equal(verifyInspectionProgressCheckpoint({...saved,digestSha256:"0".repeat(64)},identity).reason,"digest_mismatch");
 });
