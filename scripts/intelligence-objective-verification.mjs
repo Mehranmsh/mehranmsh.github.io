@@ -28,7 +28,15 @@ export function normalizeIntelligenceAcceptanceCriteria(criteria, tasks) {
   if (!Array.isArray(criteria) || criteria.length < 1 || criteria.length > MAX_CRITERIA || !Array.isArray(tasks)) {
     return { valid: false, reason: "acceptance_criteria_required" };
   }
-  const taskIds = new Set(tasks.map(task => String(task?.taskId || task?.id || "")).filter(Boolean));
+  const sourceTaskId = task => {
+    if (typeof task?.taskId === "string" && task.taskId) return task.taskId;
+    try {
+      const payload = typeof task?.action_payload === "string" ? JSON.parse(task.action_payload) : task?.action_payload;
+      if (typeof payload?.sourceTaskId === "string" && payload.sourceTaskId) return payload.sourceTaskId;
+    } catch {}
+    return String(task?.id || "");
+  };
+  const taskIds = new Set(tasks.map(sourceTaskId).filter(Boolean));
   const ids = new Set();
   const normalized = [];
   for (const item of criteria) {
@@ -64,7 +72,16 @@ export function verifyIntelligenceObjective(criteria, tasks) {
   if (!normalized.valid) {
     return { verified: false, status: "attention_required", criteria: [], passed: 0, total: 0, reason: normalized.reason };
   }
-  const taskById = new Map(tasks.map(task => [String(task?.taskId || task?.id || ""), task]));
+  const taskById = new Map(tasks.map(task => {
+    let sourceId = typeof task?.taskId === "string" ? task.taskId : "";
+    if (!sourceId) {
+      try {
+        const payload = typeof task?.action_payload === "string" ? JSON.parse(task.action_payload) : task?.action_payload;
+        sourceId = typeof payload?.sourceTaskId === "string" ? payload.sourceTaskId : "";
+      } catch {}
+    }
+    return [sourceId || String(task?.id || ""), task];
+  }));
   let passed = 0;
   const results = normalized.criteria.map(criterion => {
     const evidence = criterion.evidence.map(item => {
