@@ -46,13 +46,17 @@ test("Workers AI inference failures expose only bounded sanitized diagnostics to
 });
 
 test("semantic analysis validation diagnostics are allowlisted and persisted into private task results", () => {
-  assert.match(runnerSource, /payload\\.diagnostic\\.stage === "analysis_validation"/);
-  assert.match(runnerSource, /"quote_mismatch"/);
-  assert.match(runnerSource, /"unknown_evidence_path"/);
-  assert.match(runnerSource, /field: allowedFields\\.has\\(diagnostic\\.field\\) \\? diagnostic\\.field : null/);
-  assert.match(runnerSource, /Safe diagnostic: \\${JSON\\.stringify\\(error\\.safeDiagnostic\\)\\}/);
-  assert.match(runnerSource, /slice\\(0, 3000\\)/);
-  assert.doesNotMatch(runnerSource, /safeDiagnosticText[\\s\\S]{0,200}diagnostic\\.message/);
+  assert.ok(runnerSource.includes('payload.diagnostic.stage === "analysis_validation"'));
+  assert.ok(runnerSource.includes('"quote_mismatch"'));
+  assert.ok(runnerSource.includes('"unknown_evidence_path"'));
+  assert.ok(runnerSource.includes('field: allowedFields.has(diagnostic.field) ? diagnostic.field : null'));
+  assert.ok(runnerSource.includes('Safe diagnostic: ${JSON.stringify(error.safeDiagnostic)}'));
+  assert.ok(runnerSource.includes('.slice(0, 3000)'));
+  const diagnosticBranch = runnerSource.slice(
+    runnerSource.indexOf('payload.diagnostic.stage === "analysis_validation"'),
+    runnerSource.indexOf('payload.diagnostic.stage === "budget_reservation"')
+  );
+  assert.doesNotMatch(diagnosticBranch, /message|excerpt|quoteText|sourceCode/i);
 });
 
 test("persistent Workers AI inference 503 failures are not automatically retried", () => {
