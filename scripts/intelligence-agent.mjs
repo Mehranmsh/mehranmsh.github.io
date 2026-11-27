@@ -149,6 +149,8 @@ async function main() {
       outcome = await runServiceHealth();
     } else if (task.actionType === "inspect_repository") {
       outcome = await runRepositoryInspection(task);
+    } else if (task.actionType === "source_security_audit") {
+      outcome = await runSourceSecurityAudit();
     } else {
       outcome = {
         status: "blocked",
