@@ -6249,7 +6249,7 @@ export function validateIntelligenceWorkPackage(input) {
     return fail("A valid idempotencyKey, title, and 1-20 tasks are required.");
   }
   if (!["low", "normal", "high"].includes(priority)) return fail("Invalid work package priority.");
-  if (!scopeJson || scopeJson.length > 4000) return fail("Work package scope exceeds the 4 KB limit.");
+
   const globalAllowedActions = ["service_health_report", "repository_quality_check", "source_security_audit", "inspect_repository", "run_repository_tests", "propose_code_patch"];
   const scopedActionsDeclared = Object.hasOwn(scope, "allowedActions");
   const scopedActions = scope.allowedActions;
