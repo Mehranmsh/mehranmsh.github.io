@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 
 const workerSource = readFileSync(new URL("../worker.js", import.meta.url), "utf8");
+const runnerSource = readFileSync(new URL("../.github/workflows/mehran-intelligence-runner.yml", import.meta.url), "utf8");
 import {
   MISSION_GENERATOR_POLICY,
   getMissionGeneratorDecision,
@@ -40,7 +41,7 @@ test("queued, in-progress, and retrying packages still block generation", () => 
 });
 
 test("runner sends the explicit attention-required bypass for scheduled generation", () => {
-  assert.match(workerSource, /ignoreAttentionRequiredBlockers:\s*true/);
+  assert.match(runnerSource, /ignoreAttentionRequiredBlockers:\s*true/);
 });
 
 test("completed, failed, and cancelled packages do not block a new cycle", () => {
