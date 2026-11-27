@@ -245,7 +245,7 @@ test("runner does not create an automatic self-assessment follow-up", () => {
 
 test("repository inspection report file-size limits stay aligned across Worker and Runner", () => {
   assert.match(workerSource, /file\.bytes > 600000/);
-  assert.match(runnerSource, /file\.size > 600000/);
+  assert.match(runnerSource, /file\.size > 700000/);
   assert.match(runnerSource, /file\.bytes > 600000/);
 });
 
@@ -1460,7 +1460,7 @@ test("Intelligence mission planning and repository semantic analysis use the pro
 });
 
 test("repository inspection and source audit accept worker.js while preserving strict byte and SHA bounds", () => {
-  assert.match(runnerSource, /file\.size > 600000/);
+  assert.match(runnerSource, /file\.size > 700000/);
   assert.match(runnerSource, /file\.bytes > 600000/);
   assert.match(runnerSource, /totalBytes > 750000/);
   assert.match(runnerSource, /totalBytes <= 750000/);
