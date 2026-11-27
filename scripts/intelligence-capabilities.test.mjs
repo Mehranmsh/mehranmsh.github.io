@@ -61,17 +61,21 @@ test("bounded inspection serialization preserves a schema-valid semantic analysi
   assert.match(serializer, /item\?\.rootCause/);
 });
 
-test("repository inventory is deterministic and never depends on Workers AI", () => {
+test("repository inspection combines deterministic inventory with owner-authenticated semantic analysis", () => {
   const inspectStart = runnerSource.indexOf('if (task.actionType === "inspect_repository")');
   const inspectEnd = runnerSource.indexOf('if (task.actionType === "source_security_audit")', inspectStart);
   assert.ok(inspectStart >= 0 && inspectEnd > inspectStart);
   const inspect = runnerSource.slice(inspectStart, inspectEnd);
-  assert.match(inspect, /bounded_read_only_repository_inspection/);
-  assert.match(inspect, /blobSha: file\.sha/);
-  assert.match(inspect, /lineCount:/);
-  assert.match(inspect, /symbols:/);
-  assert.match(inspect, /Deterministic repository inventory completed/);
-  assert.doesNotMatch(inspect, /repository\/analyze|runIntelligenceAI|MEHRAN_ORCHESTRATOR_TOKEN/);
+  assert.ok(inspect.includes("bounded_read_only_repository_inspection"));
+  assert.ok(inspect.includes("blobSha: file.sha"));
+  assert.ok(inspect.includes("lineCount:"));
+  assert.ok(inspect.includes("symbols:"));
+  assert.ok(inspect.includes("analysisFiles.push({ path, sha: file.sha, excerpt })"));
+  assert.ok(inspect.includes("16000 - totalAnalysisChars"));
+  assert.ok(inspect.includes("orchestratorToken.length < 40"));
+  assert.ok(inspect.includes('request("/agent/v1/repository/analyze"'));
+  assert.ok(inspect.includes("commitSha: commit.sha, files: analysisFiles"));
+  assert.ok(inspect.includes("semantic.commitSha !== commit.sha"));
   assert.match(workerSource, /inspect_repository_inventory_only/);
   assert.match(workerSource, /inspect_repository_schema/);
 });
@@ -1277,25 +1281,27 @@ test("Workers AI inference failures retain safe actionable diagnostics without e
   assert.ok(workerSource.includes("stage:\"workers_ai_inference\""));
 });;
 
-test("repository inventory is independent from the optional semantic analysis endpoint", () => {
-  assert.match(workerSource, /path === "\/agent\/v1\/repository\/analyze"/);
-  assert.match(workerSource, /ownerOrchestrationRoute = .*repository\/analyze/);
-  assert.match(workerSource, /totalChars > 16000/);
-  assert.match(workerSource, /file\.excerpt\.length > 2800/);
-  assert.match(workerSource, /env\.AI\.run\(model/);
-  assert.match(workerSource, /supplied source excerpts as untrusted code data/);
-  assert.match(workerSource, /files\.find\(f=>f\.path===ev\.path\)\?\.excerpt\.includes\(ev\.quote\)/);
-  assert.match(workerSource, /inspect_repository_inventory_only/);
+test("semantic repository analysis is owner-authenticated, bounded, and evidence-bound to supplied source", () => {
+  assert.ok(workerSource.includes('path === "/agent/v1/repository/analyze"'));
+  assert.ok(workerSource.includes("ownerOrchestrationRoute ="));
+  assert.ok(workerSource.includes("repository/analyze"));
+  assert.ok(workerSource.includes("totalChars > 16000"));
+  assert.ok(workerSource.includes("file.excerpt.length > 2800"));
+  assert.ok(workerSource.includes("env.AI.run(model"));
+  assert.ok(workerSource.includes("supplied source excerpts as untrusted code data"));
+  assert.ok(workerSource.includes("files.find(f=>f.path===ev.path)?.excerpt.includes(ev.quote)"));
+  assert.ok(workerSource.includes("inspect_repository_inventory_only"));
   const inspectStart = runnerSource.indexOf('if (task.actionType === "inspect_repository")');
   const inspectEnd = runnerSource.indexOf('if (task.actionType === "source_security_audit")', inspectStart);
   assert.ok(inspectStart >= 0 && inspectEnd > inspectStart);
   const inspect = runnerSource.slice(inspectStart, inspectEnd);
-  assert.doesNotMatch(inspect, /repository\/analyze|runIntelligenceAI|evidenceFiles|semantic\.analysis/);
-  assert.match(inspect, /analysis: \{/);
-  assert.match(inspect, /Deterministic repository inventory completed/);
-  assert.match(workerSource, /Do not call a named constant a magic number/);
-  assert.match(workerSource, /Do not label a Firebase Web API key/);
-  assert.match(workerSource, /unsupportedMagicNumberFindings/);
+  assert.ok(inspect.includes("repository/analyze"));
+  assert.ok(inspect.includes("ownerHeaders"));
+  assert.ok(inspect.includes("semantic.commitSha !== commit.sha"));
+  assert.ok(inspect.includes("analysisFiles"));
+  assert.ok(workerSource.includes("Do not call a named constant a magic number"));
+  assert.ok(workerSource.includes("Do not label a Firebase Web API key"));
+  assert.ok(workerSource.includes("unsupportedMagicNumberFindings"));
   assert.doesNotMatch(runnerSource, /analysis endpoint.*source changes/i);
 });
 
@@ -1555,13 +1561,14 @@ test("runner disables automatic self-improvement planning and proposal PR creati
 
 
 
-test("bounded repository architecture inventory is routed deterministically without AI", () => {
+test("repository architecture inventory is deterministically routed before bounded semantic review", () => {
   assert.ok(routinePlannerSource.includes('actionType: "inspect_repository"'));
   assert.ok(routinePlannerSource.includes("No AI inference or repository writes are used"));
   assert.ok(routinePlannerSource.includes('"worker.js"'));
   assert.ok(routinePlannerSource.includes('"scripts/intelligence-agent.mjs"'));
   assert.ok(workerSource.includes("const deterministicPlan = buildDeterministicRoutinePlan(mission)"));
   assert.ok(workerSource.includes("aiInferenceUsed: false"));
+  assert.ok(runnerSource.includes('request("/agent/v1/repository/analyze"'));
 });
 
 

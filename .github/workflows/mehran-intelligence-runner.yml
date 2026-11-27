@@ -434,7 +434,9 @@ jobs:
               const commit = await readJsonResponse(commitResponse, 65536);
               if (typeof commit.sha !== "string" || !/^[a-f0-9]{40}$/i.test(commit.sha)) throw new Error("GitHub returned an invalid main commit SHA.");
               const files = [];
+              const analysisFiles = [];
               let totalBytes = 0;
+              let totalAnalysisChars = 0;
               for (const path of paths) {
                 const apiPath = path.split("/").map(encodeURIComponent).join("/");
                 const response = await fetch(`https://api.github.com/repos/${repository}/contents/${apiPath}?ref=${commit.sha}`, {
@@ -468,8 +470,25 @@ jobs:
                   lineCount: source.length ? source.split(/\r\n|\n|\r/).length : 0,
                   symbols: [...symbols].map(symbol => symbol.slice(0, 60))
                 });
-
+                const excerpt = source.slice(0, Math.min(2800, 16000 - totalAnalysisChars));
+                if (excerpt.trim()) {
+                  analysisFiles.push({ path, sha: file.sha, excerpt });
+                  totalAnalysisChars += excerpt.length;
+                }
               }
+              if (orchestratorToken.length < 40 || orchestratorToken.length > 200) {
+                throw new Error("Owner orchestration identity is unavailable; semantic inspection cannot be verified.");
+              }
+              const semantic = await request("/agent/v1/repository/analyze", {
+                method: "POST",
+                body: JSON.stringify({ commitSha: commit.sha, files: analysisFiles })
+              }, ownerHeaders, 90000);
+              if (semantic?.success !== true || semantic.commitSha !== commit.sha ||
+                  !semantic.analysis || !Array.isArray(semantic.analysis.findings) ||
+                  !Array.isArray(semantic.analysis.limitations)) {
+                throw new Error("Semantic analysis response did not match the inspected immutable commit.");
+              }
+              const analysis = semantic.analysis;
               return {
                 type: task.actionType,
                 generatedAt: new Date().toISOString(),
@@ -478,18 +497,11 @@ jobs:
                 commitSha: commit.sha,
                 summary: { filesInspected: files.length, totalBytes },
                 files,
-                analysis: {
-                  summary: "Deterministic repository inventory completed. No semantic AI analysis was requested or required.",
-                  findings: [],
-                  limitations: [
-                    "This task verifies bounded file metadata and declaration names only; it does not perform semantic code review.",
-                    "Source files were read from one immutable main commit and were not executed."
-                  ]
-                },
+                analysis,
                 limitations: [
-                  "This task inventories bounded file metadata and declaration names only; it is not a semantic code review.",
+                  "Semantic analysis is limited to bounded excerpts from the inspected immutable commit; it is not a full-repository review.",
                   "Repository content was treated as untrusted data and was never executed or followed as instructions.",
-                  "No tests or code changes are claimed by this inventory task."
+                  "No tests or code changes are claimed by this inspection task."
                 ]
               };
             }
