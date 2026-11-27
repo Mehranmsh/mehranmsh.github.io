@@ -277,7 +277,7 @@ jobs:
             try {
               runHost("git", ["worktree", "add", "--detach", workspace, baseSha]);
               for (const [stepId, command] of stepCommands) {
-                if (completedSteps.includes(stepId)) continue;
+                if (completedSteps.includes(stepId) && stepId !== "capability_tests") continue;
                 const args = [
                   "run", "--rm", "--network", "none", "--read-only", "--cap-drop", "ALL",
                   "--security-opt", "no-new-privileges", "--pids-limit", "64", "--memory", "768m",
@@ -295,9 +295,9 @@ jobs:
                 }
                 if (stepId === "capability_tests") {
                   tests = {
-                    total: Number(output.match(/^# tests (\\d+)$/m)?.[1] || 0),
-                    passed: Number(output.match(/^# pass (\\d+)$/m)?.[1] || 0),
-                    failed: Number(output.match(/^# fail (\\d+)$/m)?.[1] || 0)
+                    total: Number(output.match(/^# tests (\d+)$/m)?.[1] || 0),
+                    passed: Number(output.match(/^# pass (\d+)$/m)?.[1] || 0),
+                    failed: Number(output.match(/^# fail (\d+)$/m)?.[1] || 0)
                   };
                   if (tests.total < 1 || tests.failed !== 0 || tests.passed !== tests.total) {
                     throw new Error("Capability test suite did not report a complete passing test set.");
