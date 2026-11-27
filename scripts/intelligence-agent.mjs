@@ -112,7 +112,7 @@ async function runRepositoryInspection(task) {
     const content = Buffer.from(file.content.replace(/\n/g,""),"base64").toString("utf8");
     const bytes = Buffer.byteLength(content,"utf8");
     if (bytes !== file.size) throw new Error("Source size verification failed for " + path);
-    const computedBlobSha = createHash("sha1").update(Buffer.from("blob " + bytes + "\\0")).update(content).digest("hex");
+    const computedBlobSha = createHash("sha1").update(Buffer.from("blob " + bytes + "\0")).update(content).digest("hex");
     if (computedBlobSha !== file.sha) throw new Error("Source Git blob integrity verification failed for " + path);
     total += bytes; if (total > 750000) throw new Error("Inspection exceeded the 750 KB aggregate source limit.");
     files.push({path,blobSha:file.sha,content});
