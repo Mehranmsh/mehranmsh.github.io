@@ -59,6 +59,8 @@ const planLearningSource = (await readFile(new URL("./intelligence-plan-learning
   .replace("export function learnFromIntelligencePlanOutcomes", "function learnFromIntelligencePlanOutcomes");
 const analysisValidationSource = (await readFile(new URL("./intelligence-analysis-validation.mjs", import.meta.url), "utf8"))
   .replace("export function validateRepositoryAnalysis", "function validateRepositoryAnalysis");
+const acceptanceSource = await readFile(new URL("./intelligence-acceptance.mjs", import.meta.url), "utf8");
+const acceptanceUrl = moduleUrl(acceptanceSource);
 const feedbackReviewSource = (await readFile(new URL("./intelligence-feedback-review.mjs", import.meta.url), "utf8"))
   .replace('from "./intelligence-feedback-learning.mjs"', 'from "' + feedbackLearningUrl + '"')
   .replace("export function buildIntelligenceFeedbackReview", "function buildIntelligenceFeedbackReview")
@@ -122,7 +124,9 @@ const workerRest = workerSource.replace(capabilityImport, "")
   .replace(feedbackReviewImport, "")
    .replace(planHistoryImport, "")
   .replace(planLearningImport, "")
-  .replace(analysisValidationImport, "");
+  .replace(analysisValidationImport, "")
+  .replace('import { validateMissionAcceptanceCriteria, evaluateMissionAcceptance } from "./scripts/intelligence-acceptance.mjs";',
+    `import { validateMissionAcceptanceCriteria, evaluateMissionAcceptance } from "${acceptanceUrl}";`);
 const workerSourceForTest = knowledgeGraphSource + "\n" + memoryRankingSource + "\n" + feedbackReviewSource + "\n" + planHistorySource + "\n" + planLearningSource + "\n" + analysisValidationSource + "\n" + routinePlannerSource + "\n" + retryPolicySource + `\nimport { storePrivatePatchArtifact, verifyPrivatePatchArtifactAtPath, getPrivatePatchArtifactPath, getVerifiedPrivatePatchArtifactAtPath } from "${patchStoreTestUrl}";
 import { generatePatchArtifact } from "${patchGenerationTestUrl}";
 import { validatePrivateIntelligenceMission } from "${inboxSchemaUrl}";
