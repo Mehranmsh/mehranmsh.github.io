@@ -12,7 +12,6 @@ import { compareIntelligencePlanVersions } from "./scripts/intelligence-plan-his
 import { learnFromIntelligencePlanOutcomes } from "./scripts/intelligence-plan-learning.mjs";
 import { discardFindingsWithUnknownEvidencePaths, validateRepositoryAnalysis } from "./scripts/intelligence-analysis-validation.mjs";
 import { normalizeIntelligenceAcceptanceCriteria, verifyIntelligenceObjective } from "./scripts/intelligence-objective-verification.mjs";
-import { buildIntelligenceReportRevisionPath } from "./scripts/intelligence-report-finalization.mjs";
 
 function nextWorkersAIDailyResetAt(attemptedAt) {
   const timestamp = typeof attemptedAt === "number" ? attemptedAt : Date.parse(attemptedAt);
@@ -5853,6 +5852,16 @@ async function persistIntelligenceNotification(env, row) {
   }
   return {stored:true,alreadyExists:false,path,artifactSha256:expectedHash};
 }
+function buildIntelligenceReportRevisionPath(year, month, packageId, contentHash) {
+  if (typeof year !== "string" || !/^[0-9]{4}$/.test(year) ||
+      typeof month !== "string" || !/^(0[1-9]|1[0-2])$/.test(month) ||
+      typeof packageId !== "string" || !/^[A-Za-z0-9-]{1,100}$/.test(packageId) ||
+      typeof contentHash !== "string" || !/^[A-Za-z0-9_-]{16,}$/.test(contentHash)) {
+    throw new Error("Invalid Intelligence report revision identity.");
+  }
+  return "reports/" + year + "/" + month + "/" + packageId + "-" + contentHash.slice(0,16) + ".json";
+}
+
 export async function persistIntelligencePackageReport(env, packageId, snapshot) {
   const token = typeof env.MEHRAN_REPORTS_GITHUB_TOKEN === "string"
     ? env.MEHRAN_REPORTS_GITHUB_TOKEN.trim() : "";
