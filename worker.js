@@ -6267,6 +6267,16 @@ async function reserveIntelligenceMissionGeneratorSlot(env, cycleKey, packageId,
       typeof packageId !== "string" || !/^[0-9a-f-]{36}$/i.test(packageId)) {
     return { reserved: false, reason: "invalid_reservation_input" };
   }
+  // Reconcile package status from its task ledger before deciding whether it is
+  // an active blocker. A stale package-level status must not block generation
+  // forever after all tasks have become terminal. This refresh derives only the
+  // evidence-aware package snapshot; it does not claim, retry, or complete tasks.
+  const activePackages = await env.DB.prepare(
+    "SELECT id FROM intelligence_work_packages WHERE status IN ('queued','in_progress','waiting_retry')"
+  ).all();
+  for (const row of activePackages.results || []) {
+    if (row?.id) await refreshIntelligenceWorkPackageSnapshot(env, String(row.id));
+  }
   // Owner-triggered manual bootstrap may proceed past packages already awaiting
   // attention; genuinely active or retrying work continues to block generation.
   const ignoreAttentionRequired = options?.ignoreAttentionRequiredBlockers === true ? 1 : 0;
