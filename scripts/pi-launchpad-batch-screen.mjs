@@ -3,6 +3,7 @@
  * This is not a live discovery crawler and does not fetch or authenticate evidence.
  */
 import { rankPiLaunchpadPortfolio } from "./pi-launchpad-portfolio-ranker.mjs";
+import { comparePiLaunchpadBatch } from "./pi-launchpad-comparison.mjs";
 
 export const PI_LAUNCHPAD_BATCH_VERSION = "0.1.0";
 export const PI_LAUNCHPAD_BATCH_MAX_CANDIDATES = 500;
@@ -62,6 +63,7 @@ export function screenPiLaunchpadBatch(input, options = {}) {
       reportStatus: reportMatches ? "attached_precomputed_report" : "report_unavailable"
     });
   });
+  const comparison = comparePiLaunchpadBatch({ accepted: true, ranked: rankedWithReports });
   const classifications = {
     strong_candidate: 0,
     watchlist: 0,
@@ -107,6 +109,7 @@ export function screenPiLaunchpadBatch(input, options = {}) {
     averageRawScore: scoreCount ? Math.round(totalScore / scoreCount * 100) / 100 : null,
     classifications: Object.freeze(classifications),
     ranked: Object.freeze(rankedWithReports),
+    comparison,
     excluded: Object.freeze([
       ...portfolio.excluded,
       ...inputIssues.map((issue) => Object.freeze({
