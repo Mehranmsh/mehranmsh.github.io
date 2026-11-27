@@ -470,6 +470,8 @@ test("isolated test workflow runs one fixed suite without secrets or network acc
     "./intelligence-inspection-excerpts.mjs",
     "node:assert/strict",
     "node:fs",
+    "./intelligence-routine-planner.mjs",
+    "./intelligence-mission-generator-policy.mjs",
     "./intelligence-patch-policy.mjs",
     "./intelligence-patch-artifact.mjs",
     "./intelligence-private-patch-store.mjs",
