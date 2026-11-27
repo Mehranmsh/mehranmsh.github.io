@@ -15,9 +15,9 @@ export function buildRepositoryInventory(files, commitSha) {
     const bytes = new TextEncoder().encode(file.content).length;
     if (bytes > 600000 || (totalBytes += bytes) > 750000) throw new Error("Repository inventory size limit exceeded.");
     const symbols = new Set();
-    const patterns = [/^\\s*(?:export\\s+)?(?:async\\s+)?(?:function|class)\\s+([A-Za-z_$][\\w$]*)/gm, /^\\s*(?:export\\s+)?(?:const|let|var)\\s+([A-Za-z_$][\\w$]*)/gm];
+    const patterns = [/^\s*(?:export\s+)?(?:async\s+)?(?:function|class)\s+([A-Za-z_$][\w$]*)/gm, /^\s*(?:export\s+)?(?:const|let|var)\s+([A-Za-z_$][\w$]*)/gm];
     for (const pattern of patterns) { let match; while ((match = pattern.exec(file.content)) && symbols.size < 2) symbols.add(match[1]); }
-    return { path:file.path, blobSha:file.blobSha, bytes, lineCount:file.content ? file.content.split(/\\r\\n|\\n|\\r/).length : 0, symbols:[...symbols].map(x=>x.slice(0,60)) };
+    return { path:file.path, blobSha:file.blobSha, bytes, lineCount:file.content ? file.content.split(/\r\n|\n|\r/).length : 0, symbols:[...symbols].map(x=>x.slice(0,60)) };
   });
   return {
     type:"inspect_repository", mode:"bounded_read_only_repository_inspection", repository:"Mehranmsh/mehranmsh.github.io", commitSha,
