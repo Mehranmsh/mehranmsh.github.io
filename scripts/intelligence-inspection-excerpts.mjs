@@ -85,7 +85,7 @@ export function buildIntelligenceInspectionExcerpt(path, source, maxChars = DEFA
 
   for (const anchor of anchors) {
     if (windows.length >= MAX_WINDOWS) break;
-    const index = source.indexOf(anchor);
+    const index = source.lastIndexOf(anchor);
     if (index < 0) continue;
     const window = extractWindow(source, index, WINDOW_CHARS);
     if (seenStarts.has(window.start) || windows.some(item => window.start < item.end && item.start < window.end)) continue;
