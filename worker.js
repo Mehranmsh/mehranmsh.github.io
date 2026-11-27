@@ -8705,6 +8705,21 @@ export default {
                 return error("Test report is not backed by its immutable, fully verified final checkpoint.",422);
               }
             }
+            if (before.action_type === "inspect_repository") {
+              let checkpoint;
+              try { checkpoint = JSON.parse(before.checkpoint_json || "{}"); }
+              catch { return error("Stored repository inspection checkpoint is invalid.",422); }
+              const digest = await (async value => {
+                const bytes = new Uint8Array(await crypto.subtle.digest("SHA-256",new TextEncoder().encode(value)));
+                return Array.from(bytes,byte => byte.toString(16).padStart(2,"0")).join("");
+              })(resultText);
+              if (checkpoint.phase !== "result_ready" || checkpoint.taskId !== id ||
+                  checkpoint.actionType !== "inspect_repository" || checkpoint.status !== "completed" ||
+                  checkpoint.result !== resultText || checkpoint.resultSha256 !== digest ||
+                  checkpoint.baseSha !== parsedReport.commitSha) {
+                return error("Repository inspection result is not backed by its immutable, verified checkpoint.",422);
+              }
+            }
             if (before.action_type === "propose_code_patch") {
               let expectedPayload;
               let checkpoint;
