@@ -94,6 +94,7 @@ test("runner resumes a durable completed result checkpoint without repeating exe
   assert.match(workerSource, /Final repository test checkpoint schema is invalid/);
   assert.match(workerSource, /Final checkpoint cannot finalize incomplete or mismatched progress/);
   assert.match(workerSource, /Test report is not backed by its immutable, fully verified final checkpoint/);
+  assert.match(workerSource, /AND checkpoint_json=\?["\)]\.bind\(checkpointJson,id,claimTokenHash,expectedPriorCheckpoint\)/);
   assert.match(runnerSource, /taskId: task\.id,[\s\S]*?completedSteps: resultReport\.completedSteps/);
 });
 
