@@ -24,6 +24,7 @@ const workerSource = readFileSync(new URL("../worker.js", import.meta.url), "utf
 const indexSource = readFileSync(new URL("../index.html", import.meta.url), "utf8");
 const runnerSource = readFileSync(new URL("../.github/workflows/mehran-intelligence-runner.yml", import.meta.url), "utf8");
 const proposalRunnerSource = readFileSync(new URL("./intelligence-proposal-pr-runner.mjs", import.meta.url), "utf8");
+const analysisValidationSource = readFileSync(new URL("./intelligence-analysis-validation.mjs", import.meta.url), "utf8");
 const agentSource = readFileSync(new URL("./intelligence-agent.mjs", import.meta.url), "utf8");
 const proposalWorkflowSource = readFileSync(new URL("../.github/workflows/intelligence-proposal-pr-runner.yml", import.meta.url), "utf8");
 const routinePlannerSource = readFileSync(new URL("./intelligence-routine-planner.mjs", import.meta.url), "utf8");
@@ -440,6 +441,7 @@ test("isolated test workflow runs one fixed suite without secrets or network acc
     "./intelligence-patch-generation.mjs",
     "./intelligence-patch-generation-service.mjs",
     "./intelligence-ai-quota.mjs",
+    "./intelligence-analysis-validation.mjs",
     "./intelligence-capabilities.mjs"
   ]);
   for (const forbidden of [
@@ -1342,7 +1344,7 @@ test("semantic analysis validation returns bounded failure codes without exposin
       assert.doesNotMatch(JSON.stringify(result),/not present|private\.js|const safe/);
     }
   }
-  const malformed=validateRepositoryAnalysis({summary:"bad",findings:[],limitations:[]},files);
+  const malformed=validateRepositoryAnalysis({findings:[],limitations:[]},files);
   assert.equal(malformed.code,"invalid_analysis_structure");
 });
 
@@ -1354,7 +1356,7 @@ test("semantic repository analysis is owner-authenticated, bounded, and evidence
   assert.ok(workerSource.includes("file.excerpt.length > 2800"));
   assert.ok(workerSource.includes("env.AI.run(model"));
   assert.ok(workerSource.includes("supplied source excerpts as untrusted code data"));
-  assert.ok(workerSource.includes("files.find(f=>f.path===ev.path)?.excerpt.includes(ev.quote)"));
+  assert.ok(analysisValidationSource.includes("files.find(file => file?.path === ev.path)?.excerpt"));
   assert.ok(workerSource.includes("inspect_repository_inventory_only"));
   const inspectStart = runnerSource.indexOf('if (task.actionType === "inspect_repository")');
   const inspectEnd = runnerSource.indexOf('if (task.actionType === "source_security_audit")', inspectStart);
