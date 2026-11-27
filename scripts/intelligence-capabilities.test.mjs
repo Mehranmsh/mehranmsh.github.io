@@ -97,6 +97,9 @@ test("runner resumes a durable completed result checkpoint without repeating exe
   assert.match(workerSource, /Source security audit checkpoint schema, identity, or digest is invalid/);
   assert.match(workerSource, /Source security audit result is not backed by its immutable, verified checkpoint/);
   assert.ok(runnerSource.includes("resultReport.staticPatternAudit.commitSha"));
+  assert.ok(runnerSource.includes('value?.type === "source_security_audit" && value?.staticPatternAudit'));
+  assert.ok(runnerSource.includes("compactSecurity.staticPatternAudit"));
+
   assert.ok(runnerSource.includes("audit?.commitSha === savedCheckpoint.baseSha"));
   assert.ok(workerSource.includes("AND checkpoint_json=?"));
   assert.ok(workerSource.includes(".bind(checkpointJson,id,claimTokenHash,expectedPriorCheckpoint)"));
