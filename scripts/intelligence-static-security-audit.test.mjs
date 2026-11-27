@@ -42,3 +42,11 @@ test("agent dispatches source security audits to the deterministic scanner", () 
   assert.ok(source.includes('task.actionType === "source_security_audit"'));
   assert.ok(source.includes('import("./intelligence-static-security-audit.mjs")'));
 });
+
+test("scheduled runner applies static pattern audit to the same immutable commit", () => {
+  const source = readFileSync(new URL("../.github/workflows/mehran-intelligence-runner.yml", import.meta.url), "utf8");
+  assert.ok(source.includes('import { buildStaticSecurityAudit } from "./scripts/intelligence-static-security-audit.mjs"'));
+  assert.ok(source.includes("const staticPatternAudit = buildStaticSecurityAudit(["));
+  assert.ok(source.includes('contents/${path}?ref=${baseSha}'));
+  assert.ok(source.includes('id: "high_confidence_secret_pattern_scan"'));
+});
