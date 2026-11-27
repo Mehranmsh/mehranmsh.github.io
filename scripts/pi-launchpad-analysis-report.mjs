@@ -51,6 +51,18 @@ export function buildPiLaunchpadAnalysisReport(analysis, {
     throw new RangeError("maxEvidenceAgeDays must be between 0 and 365.");
   }
 
+  const availableWeight = Object.entries(LAUNCHPAD_SCORE_WEIGHTS).reduce((sum, [key, weight]) => {
+    const value = analysis.componentScores?.[key];
+    return sum + (finite(value) && value >= 0 && value <= 100 ? weight : 0);
+  }, 0);
+  const uncappedWeightedScore = availableWeight > 0
+    ? Math.round(Object.entries(LAUNCHPAD_SCORE_WEIGHTS).reduce((sum, [key, weight]) => {
+        const value = analysis.componentScores?.[key];
+        return sum + (finite(value) && value >= 0 && value <= 100 ? value * weight : 0);
+      }, 0) / availableWeight)
+    : null;
+  const scoreCapApplied = analysis.classification === "critical_risk" &&
+    finite(uncappedWeightedScore) && uncappedWeightedScore > 25;
   const components = Object.entries(LAUNCHPAD_SCORE_WEIGHTS).map(([key, weight]) => {
     const value = analysis.componentScores?.[key];
     const available = finite(value) && value >= 0 && value <= 100;
@@ -83,7 +95,7 @@ export function buildPiLaunchpadAnalysisReport(analysis, {
   const maxAgeMs = maxEvidenceAgeDays * 24 * 60 * 60 * 1000;
   const evidenceFreshness = accepted.map((record) => {
     const observed = isoTime(record.observedAt);
-    const ageMs = observed === null ? null : Math.max(0, timestamp - observed);
+    const ageMs = observed === null || observed > timestamp ? null : timestamp - observed;
     return Object.freeze({
       evidenceId: typeof record.evidenceId === "string" ? record.evidenceId : null,
       field: typeof record.field === "string" ? record.field : null,
@@ -91,12 +103,13 @@ export function buildPiLaunchpadAnalysisReport(analysis, {
       issuer: typeof record.issuer === "string" ? record.issuer : null,
       observedAt: observed === null ? null : new Date(observed).toISOString(),
       ageHours: ageMs === null ? null : Math.round(ageMs / 3600000 * 10) / 10,
-      freshness: ageMs === null ? "unknown_timestamp" : ageMs <= maxAgeMs ? "fresh_by_policy" : "stale_by_policy",
+      freshness: observed !== null && observed > timestamp ? "future_timestamp"
+        : ageMs === null ? "unknown_timestamp" : ageMs <= maxAgeMs ? "fresh_by_policy" : "stale_by_policy",
       cryptographicallyVerified: record.cryptographicallyVerified === true
     });
   });
   const staleEvidenceCount = evidenceFreshness.filter((item) =>
-    item.freshness === "stale_by_policy" || item.freshness === "unknown_timestamp"
+    item.freshness === "stale_by_policy" || item.freshness === "unknown_timestamp" || item.freshness === "future_timestamp"
   ).length;
   const missingComponents = components.filter((item) => item.status === "missing").map((item) => item.key);
   const liquidity = analysis.liquidity ?? {};
@@ -118,6 +131,9 @@ export function buildPiLaunchpadAnalysisReport(analysis, {
     }),
     verdict: Object.freeze({
       score: finite(analysis.score) ? analysis.score : null,
+      uncappedWeightedScore,
+      scoreCapApplied,
+      scoreCapExplanation: scoreCapApplied ? "A critical-risk rule capped the displayed score at 25." : null,
       classification: typeof analysis.classification === "string" ? analysis.classification : "unknown",
       confidence: typeof analysis.confidence === "string" ? analysis.confidence : "unknown",
       evidenceCoveragePercent: finite(analysis.coveragePercent) ? analysis.coveragePercent : null,
@@ -138,8 +154,8 @@ export function buildPiLaunchpadAnalysisReport(analysis, {
     }),
     risks: Object.freeze(Array.isArray(analysis.risks) ? analysis.risks.slice(0, 100) : []),
     provenance: Object.freeze({
-      acceptedAttestationCount: accepted.length,
-      rejectedAttestationCount: rejected.length,
+      acceptedEvidenceRecordCount: accepted.length,
+      rejectedEvidenceRecordCount: rejected.length,
       acceptedEvidence: Object.freeze(evidenceFreshness),
       staleOrUndatedEvidenceCount: staleEvidenceCount,
       rejectedReasons: Object.freeze(rejected.map((item) => Object.freeze({
