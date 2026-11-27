@@ -4115,3 +4115,24 @@ test("private inbox resolves and attaches an immutable base SHA before creating 
   assert.ok(inbox.includes("baseSha: repositoryBaseSha"));
   assert.ok(inbox.includes("private_inbox_package_creation_failed"));
 });
+
+
+test("scheduled package finalization requires verified objective evidence", () => {
+  const start = workerSource.indexOf("async function refreshIntelligenceWorkPackageSnapshot");
+  const end = workerSource.indexOf("async function ensureIntelligenceSchedulerRunsTable", start);
+  assert.ok(start >= 0 && end > start, "scheduled package snapshot finalizer must exist");
+  const finalizer = workerSource.slice(start, end);
+  assert.match(finalizer, /verifyIntelligenceObjective\(packageScope\.acceptanceCriteria, tasks\)/);
+  assert.match(finalizer, /objectiveComplete \? "completed"/);
+  assert.match(finalizer, /allCompleted \? "attention_required"/);
+  assert.match(finalizer, /objectiveVerification:/);
+});
+
+test("deterministic fallback missions define their own acceptance criteria", () => {
+  const start = workerSource.indexOf("async function createIntelligenceFallbackPackage");
+  const end = workerSource.indexOf("function extractIntelligenceJsonObject", start);
+  assert.ok(start >= 0 && end > start, "deterministic fallback planner must exist");
+  const fallback = workerSource.slice(start, end);
+  assert.match(fallback, /scope\.acceptanceCriteria = \[/);
+  assert.doesNotMatch(fallback, /plan\.acceptanceCriteria|normalizedTasks|return fallback\(/);
+});
