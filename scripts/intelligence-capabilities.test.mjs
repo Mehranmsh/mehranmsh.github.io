@@ -86,6 +86,11 @@ test("runner resumes a durable completed result checkpoint without repeating exe
   assert.ok(runnerSource.includes('resultSha256: createHash("sha256").update(result).digest("hex")'));
   assert.ok(runnerSource.includes('saved.checkpointSaved !== true'));
   assert.ok(workerSource.includes('checkpointBytes > 4096'));
+  assert.match(workerSource, /Repository test checkpoint schema or task identity is invalid/);
+  assert.match(workerSource, /Checkpoint progress cannot be changed or rolled back/);
+  assert.match(workerSource, /Checkpoint digest verification failed/);
+  assert.match(workerSource, /priorCheckpoint\.completedSteps\.length > cp\.completedSteps\.length/);
+  assert.match(workerSource, /expectedKeys = \["actionType","baseSha","completedSteps","digestSha256","phase","schemaVersion","taskId"\]/);
 });
 
 test("all eight active capabilities are registered with their permission tiers", () => {
