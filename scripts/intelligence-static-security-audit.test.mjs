@@ -34,3 +34,11 @@ test("static security audit rejects arbitrary paths, duplicate sources, invalid 
   assert.throws(()=>buildStaticSecurityAudit([file],"bad"));
   assert.throws(()=>buildStaticSecurityAudit([{...file,content:"x".repeat(600001)}],"b".repeat(40)));
 });
+
+import { readFileSync } from "node:fs";
+test("agent dispatches source security audits to the deterministic scanner", () => {
+  const source = readFileSync(new URL("./intelligence-agent.mjs", import.meta.url), "utf8");
+  assert.ok(source.includes("async function runSourceSecurityAudit()"));
+  assert.ok(source.includes('task.actionType === "source_security_audit"'));
+  assert.ok(source.includes('import("./intelligence-static-security-audit.mjs")'));
+});
