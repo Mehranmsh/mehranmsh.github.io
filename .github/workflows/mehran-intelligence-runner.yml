@@ -499,11 +499,6 @@ jobs:
                 files,
                 analysis,
                 limitations: [
-                    "This task verifies bounded file metadata and declaration names only; it does not perform semantic code review.",
-                    "Source files were read from one immutable main commit and were not executed."
-                  ]
-                },
-                limitations: [
                   "Semantic analysis is limited to bounded excerpts from the inspected immutable commit; it is not a full-repository review.",
                   "Repository content was treated as untrusted data and was never executed or followed as instructions.",
                   "No tests or code changes are claimed by this inspection task."
