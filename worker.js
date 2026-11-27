@@ -8465,6 +8465,14 @@ export default {
             explicitlyAuthorizedCount: Math.max(0, Number(row.explicitly_authorized_count) || 0),
             reviewRequiredCount: Math.max(0, (Number(row.package_count) || 0) - (Number(row.explicitly_authorized_count) || 0))
           }));
+          const taskLedger = await env.DB.prepare(
+            "SELECT wp.status AS package_status,t.status AS task_status,COUNT(*) AS task_count FROM intelligence_work_packages wp LEFT JOIN intelligence_tasks t ON t.work_package_id=wp.id WHERE wp.status IN ('queued','in_progress','waiting_retry') GROUP BY wp.status,t.status ORDER BY wp.status,t.status LIMIT 30"
+          ).all();
+          const taskLedgerSummary = (taskLedger.results || []).map(row => ({
+            packageStatus: cleanText(row.package_status, 40) || "unknown",
+            taskStatus: cleanText(row.task_status, 40) || "no_tasks",
+            taskCount: Math.max(0, Number(row.task_count) || 0)
+          }));
           const generatorLock = await env.DB.prepare(
             "SELECT status,expires_at,updated_at,CASE WHEN datetime(expires_at)>datetime('now') THEN 1 ELSE 0 END AS lease_active FROM intelligence_mission_generator_lock WHERE id=1"
           ).first();
@@ -8480,6 +8488,7 @@ export default {
               attentionRequiredCount: rows.filter(row => row.status === "attention_required").reduce((sum,row) => sum + row.packageCount, 0),
               byStatus: rows
             },
+            taskLedger: taskLedgerSummary,
             generatorLock: generatorLock ? {
               status: cleanText(generatorLock.status, 24) || "unknown",
               leaseActive: Number(generatorLock.lease_active) === 1,
