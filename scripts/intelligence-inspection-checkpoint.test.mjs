@@ -28,5 +28,5 @@ test("rejects unknown fields and oversized or malformed evidence",()=>{
   const saved=createInspectionProgressCheckpoint({...identity,completedFiles:[]});
   assert.equal(verifyInspectionProgressCheckpoint({...saved,extra:"x"},identity).reason,"unexpected_checkpoint_fields");
   assert.throws(()=>createInspectionProgressCheckpoint({...identity,completedFiles:[{...entry(INSPECTION_PATHS[0]),bytes:700000}]}));
-  assert.throws(()=>createInspectionProgressCheckpoint({...identity,completedFiles:[entry(INSPECTION_PATHS[1])]}));
+  assert.throws(()=>createInspectionProgressCheckpoint({...identity,completedFiles:[entry(INSPECTION_PATHS[0]),entry(INSPECTION_PATHS[0])]}));
 });
