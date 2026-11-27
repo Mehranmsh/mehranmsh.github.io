@@ -49,6 +49,25 @@ async function runQualityChecks() {
   return { status: "completed", result: output.join("\n\n") };
 }
 
+async function runRepositoryTests() {
+  const steps = [
+    ["Worker syntax", "node", ["--check", "worker.js"]],
+    ["Capability syntax", "node", ["--check", "scripts/intelligence-capabilities.mjs"]],
+    ["Fixed Intelligence policy suite", "node", ["--test", "scripts/intelligence-capabilities.test.mjs", "scripts/intelligence-repository-inventory.test.mjs", "scripts/intelligence-inbox-schema.test.mjs", "scripts/intelligence-report-finalization.test.mjs"]]
+  ];
+  const output = [];
+  for (const [label, executable, args] of steps) {
+    try {
+      const result = await run(executable, args, { timeout: 180000, maxBuffer: 1024 * 1024 });
+      output.push("PASS: " + label + "\\n" + bounded(result.stdout, 900));
+      if (result.stderr) output.push(bounded(result.stderr, 300));
+    } catch (error) {
+      output.push("FAIL: " + label + "\\n" + bounded(error.stdout, 700) + "\\n" + bounded(error.stderr, 900));
+      return { status: "blocked", result: output.join("\\n\\n") };
+    }
+  }
+  return { status: "completed", result: output.join("\\n\\n") };
+}
 async function runServiceHealth() {
   const response = await fetch(new URL("/health", WORKER), { signal: AbortSignal.timeout(15000) });
   const healthText = await readBoundedResponse(response, 8192);
@@ -122,6 +141,8 @@ async function main() {
   try {
     if (task.actionType === "repository_quality_check") {
       outcome = await runQualityChecks();
+    } else if (task.actionType === "run_repository_tests") {
+      outcome = await runRepositoryTests();
     } else if (task.actionType === "service_health_report") {
       outcome = await runServiceHealth();
     } else if (task.actionType === "inspect_repository") {
