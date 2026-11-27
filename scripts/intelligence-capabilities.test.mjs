@@ -136,6 +136,11 @@ test("fixed repository tests are active only through the isolated GitHub runner"
   assert.match(runnerSource, /if \(task\.actionType === "run_repository_tests"\)/);
   assert.match(runnerSource, /function runFixedRepositoryTests\(task\)/);
   assert.match(runnerSource, /\["node", "--check", "worker\.js"\]/);
+  assert.match(runnerSource, /verifyIntelligenceStepCheckpoint/);
+  assert.match(runnerSource, /createIntelligenceStepCheckpoint/);
+  assert.match(runnerSource, /checkpointSaved !== true/);
+  assert.match(runnerSource, /Resuming repository tests after/);
+  assert.match(runnerSource, /if \(completedSteps\.includes\(stepId\) && stepId !== "capability_tests"\)/);
   assert.match(runnerSource, /"--network", "none"/);
   assert.match(runnerSource, /"--read-only"/);
   assert.match(runnerSource, /"--cap-drop", "ALL"/);
