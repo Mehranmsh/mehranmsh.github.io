@@ -11,6 +11,7 @@ import { planIntelligenceRetry } from "./scripts/intelligence-retry-policy.mjs";
 import { compareIntelligencePlanVersions } from "./scripts/intelligence-plan-history.mjs";
 import { learnFromIntelligencePlanOutcomes } from "./scripts/intelligence-plan-learning.mjs";
 import { discardFindingsWithUnknownEvidencePaths, validateRepositoryAnalysis } from "./scripts/intelligence-analysis-validation.mjs";
+import { validateMissionAcceptanceCriteria, evaluateMissionAcceptance } from "./scripts/intelligence-acceptance.mjs";
 
 function nextWorkersAIDailyResetAt(attemptedAt) {
   const timestamp = typeof attemptedAt === "number" ? attemptedAt : Date.parse(attemptedAt);
@@ -5862,7 +5863,7 @@ export async function persistIntelligencePackageReport(env, packageId, snapshot)
   let pkg;
   try {
     pkg = await env.DB.prepare(
-      "SELECT id,created_at,report_stored_at FROM intelligence_work_packages WHERE id=?"
+      "SELECT id,created_at,report_stored_at,scope_json FROM intelligence_work_packages WHERE id=?"
     ).bind(packageId).first();
   } catch {
     throw new Error("report_package_lookup_failed");
@@ -5900,10 +5901,13 @@ export async function persistIntelligencePackageReport(env, packageId, snapshot)
     source: "mehran_intelligence",
     report_type: "work_package_summary",
     status: snapshot.status === "completed" ? "success" : "warning",
-    summary: "MEHRAN INTELLIGENCE work package reached a final status.",
+    summary: snapshot.missionExecution?.verified === false
+      ? "Readiness tasks finished, but the owner mission was not planned or independently verified."
+      : "MEHRAN INTELLIGENCE work package reached a final status.",
     data: {
       work_package_id: pkg.id,
       status: snapshot.status,
+      mission_execution: snapshot.missionExecution || { verified: null, reason: "not_recorded" },
       counts: snapshot.counts || {},
       tasks: (taskResult.results || []).map(task => {
         const rawResult = String(task.result_text || "");
@@ -5928,9 +5932,14 @@ export async function persistIntelligencePackageReport(env, packageId, snapshot)
         };
       })
     },
-    warnings: snapshot.status === "attention_required"
-      ? ["One or more tasks require attention; inspect the authenticated work-package record for details."]
-      : [],
+    warnings: [
+      ...(snapshot.status === "attention_required"
+        ? ["One or more tasks require attention; inspect the authenticated work-package record for details."]
+        : []),
+      ...(snapshot.missionExecution?.verified === false
+        ? ["Work-package tasks lack independent owner-mission acceptance evidence; mission completion is not verified."]
+        : [])
+    ],
     evidence: [{ kind: "work_package_id", reference: packageId }]
   };
 
@@ -6096,7 +6105,7 @@ async function blockIntelligenceTasksWithTerminalDependencies(env, packageId) {
 
 async function refreshIntelligenceWorkPackageSnapshot(env, packageId) {
   if (!packageId) return null;
-  const pkg = await env.DB.prepare("SELECT status FROM intelligence_work_packages WHERE id=?").bind(packageId).first();
+  const pkg = await env.DB.prepare("SELECT status,scope_json FROM intelligence_work_packages WHERE id=?").bind(packageId).first();
   await blockIntelligenceTasksWithTerminalDependencies(env, packageId);
   if (!pkg) return null;
   const result = await env.DB.prepare("SELECT status,COUNT(*) AS total FROM intelligence_tasks WHERE work_package_id=? GROUP BY status").bind(packageId).all();
@@ -6116,17 +6125,66 @@ async function refreshIntelligenceWorkPackageSnapshot(env, packageId) {
   const dependencyResult = await env.DB.prepare("SELECT COUNT(DISTINCT child.id) AS total FROM intelligence_task_dependencies d JOIN intelligence_tasks child ON child.id=d.task_id JOIN intelligence_tasks parent ON parent.id=d.depends_on_task_id WHERE child.work_package_id=? AND child.status IN ('queued','accepted','retry_wait') AND parent.status IN ('blocked','failed','cancelled')").bind(packageId).first();
   counts.blockedDependencies = Number(dependencyResult?.total || 0);
   const allCompleted = counts.total > 0 && counts.completed === counts.total;
+  let packageScope = {};
+  try {
+    const parsedScope = JSON.parse(String(pkg.scope_json || "{}"));
+    if (parsedScope && typeof parsedScope === "object" && !Array.isArray(parsedScope)) packageScope = parsedScope;
+  } catch {}
+  const isDeterministicFallback = packageScope.planner === "deterministic_fallback";
+  let acceptanceEvaluation = null;
+  if (allCompleted && Array.isArray(packageScope.acceptanceCriteria) && packageScope.acceptanceCriteria.length) {
+    const rows = await env.DB.prepare(
+      "SELECT id,status,action_type,action_payload,result_text FROM intelligence_tasks WHERE work_package_id=? ORDER BY created_at ASC,id ASC"
+    ).bind(packageId).all();
+    const taskResults = (rows.results || []).map(row => {
+      let payload = {};
+      let report = null;
+      try { payload = JSON.parse(String(row.action_payload || "{}")); } catch {}
+      try { report = JSON.parse(String(row.result_text || "")); } catch {}
+      return {
+        taskId: typeof payload.sourceTaskId === "string" ? payload.sourceTaskId : "",
+        status: row.status,
+        actionType: row.action_type,
+        report
+      };
+    });
+    acceptanceEvaluation = evaluateMissionAcceptance(
+      packageScope.acceptanceCriteria,
+      taskResults,
+      verifyIntelligenceReport
+    );
+  }
+  // Action-specific reports are checked against the exact task rows. This is
+  // stronger than task status alone, but is not semantic proof of the owner objective.
+  const missionExecution = {
+    verified: false,
+    taskEvidenceVerified: acceptanceEvaluation?.verified === true,
+    reason: isDeterministicFallback ? "deterministic_fallback_only"
+      : acceptanceEvaluation?.verified === true ? "task_reports_validated_semantic_review_required"
+      : acceptanceEvaluation ? "acceptance_criteria_failed" : "no_independent_acceptance_verifier",
+    planner: cleanText(packageScope.planner, 80) || "unknown",
+    ...(acceptanceEvaluation ? {
+      acceptance: {
+        verifier: "action_report_schema_v1",
+        evaluatedAt: new Date().toISOString(),
+        verified: acceptanceEvaluation.verified,
+        reason: acceptanceEvaluation.reason,
+        checks: acceptanceEvaluation.checks
+      }
+    } : {})
+  };
   const hasRunnableQueued = counts.queued > counts.blockedDependencies;
+  // Never finalize a work package as completed until independent objective-level
+  // acceptance checks pass and their evidence is durably attached to the package.
   // A blocked task must not finalize a package while sibling work is still running.
-  // Queued tasks whose dependencies are already blocked are terminal for this package.
-  const status = allCompleted ? "completed"
+  const status = allCompleted ? "attention_required"
     : counts.inProgress ? "in_progress"
     : counts.retryWaiting && !hasRunnableQueued ? "waiting_retry"
     : hasRunnableQueued ? "queued"
     : (counts.blocked || counts.failed || counts.cancelled || counts.awaitingApproval || counts.blockedDependencies) ? "attention_required"
     : "queued";
   const reportIsQuiescent = isIntelligenceReportQuiescent(counts);
-  const report = {status,counts,generatedAt:new Date().toISOString()};
+  const report = {status,counts,missionExecution,generatedAt:new Date().toISOString()};
   if ((pkg.status || "queued") !== status) {
     const details = JSON.stringify({fromStatus:pkg.status || "queued",toStatus:status,counts});
     const eventId = crypto.randomUUID();
@@ -6186,13 +6244,12 @@ export function validateIntelligenceWorkPackage(input) {
   const objective = cleanText(input.objective, 2000);
   const priority = input.priority === undefined ? "normal" : input.priority;
   const scope = input.scope && typeof input.scope === "object" && !Array.isArray(input.scope) ? input.scope : {};
-  const scopeJson = JSON.stringify(scope);
   const tasks = Array.isArray(input.tasks) ? input.tasks : [];
   if (!idempotencyKey || !/^[A-Za-z0-9._:-]{8,120}$/.test(idempotencyKey) || !title || !tasks.length || tasks.length > 20) {
     return fail("A valid idempotencyKey, title, and 1-20 tasks are required.");
   }
   if (!["low", "normal", "high"].includes(priority)) return fail("Invalid work package priority.");
-  if (!scopeJson || scopeJson.length > 4000) return fail("Work package scope exceeds the 4 KB limit.");
+
   const globalAllowedActions = ["service_health_report", "repository_quality_check", "source_security_audit", "inspect_repository", "run_repository_tests", "propose_code_patch"];
   const scopedActionsDeclared = Object.hasOwn(scope, "allowedActions");
   const scopedActions = scope.allowedActions;
@@ -6226,6 +6283,13 @@ export function validateIntelligenceWorkPackage(input) {
     known.add(taskId);
     normalized.push({ taskId, title: taskTitle, description, actionType, dependencies, ...(paths ? { paths } : {}), ...(baseSha ? { baseSha } : {}), ...(patchObjective ? { objective: patchObjective.trim() } : {}) });
   }
+  if (Object.hasOwn(scope, "acceptanceCriteria")) {
+    const acceptance = validateMissionAcceptanceCriteria(scope.acceptanceCriteria, normalized);
+    if (!acceptance.ok) return fail(acceptance.error);
+    scope.acceptanceCriteria = acceptance.criteria;
+  }
+  const scopeJson = JSON.stringify(scope);
+  if (!scopeJson || scopeJson.length > 4000) return fail("Work package scope exceeds the 4 KB limit.");
   return { ok: true, idempotencyKey, title, objective, priority, scope, scopeJson, tasks: normalized };
 }
 
@@ -7404,6 +7468,14 @@ async function ingestPrivateIntelligenceInbox(env) {
           source: "private_owner_inbox",
           missionId: mission.mission_id,
           allowedActions: ["inspect_repository","source_security_audit","repository_quality_check", ...(mission.scope.allowed_actions.includes("run_repository_tests") ? ["run_repository_tests"] : [])],
+          acceptanceCriteria: [
+            { id: "inspect-source-report", taskId: "inspect-source", actionType: "inspect_repository", type: "validated_task_report" },
+            { id: "security-review-report", taskId: "security-review", actionType: "source_security_audit", type: "validated_task_report" },
+            { id: "repository-check-report", taskId: "repository-check", actionType: "repository_quality_check", type: "validated_task_report" },
+            ...(mission.scope.allowed_actions.includes("run_repository_tests") ? [
+              { id: "repository-tests-report", taskId: "repository-tests", actionType: "run_repository_tests", type: "validated_task_report" }
+            ] : [])
+          ],
           forbidden: ["source_changes","patch_application","branch_creation","pull_request_creation","merge","deployment","secret_access","credential_output","wallet_operations","financial_operations","arbitrary_shell","production_state_changes"],
           deliverables: Array.isArray(mission.deliverables) ? mission.deliverables.slice(0, 6).map(item => cleanText(item, 300)) : [],
           evidence

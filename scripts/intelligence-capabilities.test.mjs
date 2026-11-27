@@ -1,3 +1,4 @@
+import { validateMissionAcceptanceCriteria, evaluateMissionAcceptance } from "./intelligence-acceptance.mjs";
 import test from "node:test";
 import "./intelligence-mission-generator-policy.test.mjs";
 import "./intelligence-mission-generator-d1.test.mjs";
@@ -444,6 +445,7 @@ test("isolated test workflow runs one fixed suite without secrets or network acc
   const importedModules = [...isolatedTestSource.matchAll(/from ["']([^"']+)["']/g)]
     .map((match) => match[1]);
   assert.deepEqual(importedModules, [
+    "./intelligence-acceptance.mjs",
     "node:test",
     "./intelligence-patch-apply.mjs",
     "./intelligence-inspection-excerpts.mjs",
@@ -1227,8 +1229,8 @@ test("private report storage preserves safe HTTP status diagnostics", () => {
   const diagnosticEnd = workerSource.indexOf('console.error("INTELLIGENCE_PRIVATE_REPORT_STORE_FAILURE"', diagnosticStart);
   assert.ok(diagnosticStart >= 0 && diagnosticEnd > diagnosticStart, "private report storage diagnostic must be locatable");
   const diagnostic = workerSource.slice(diagnosticStart, diagnosticEnd);
-  assert.ok(diagnostic.includes("status \\d{3}\\."), "HTTP status regex must match a three-digit status code");
-  assert.equal(diagnostic.includes("status \\\\d{3}\\."), false, "regex must not search for a literal backslash-d sequence");
+  assert.ok(diagnostic.includes(String.raw`status \d{3}\.`), "HTTP status regex must match a three-digit status code");
+  assert.equal(diagnostic.includes(String.raw`status \\d{3}\\.`), false, "regex must not search for a literal backslash-d sequence");
 });
 
 
@@ -1745,4 +1747,72 @@ test("agent validates claimed task envelopes and returns the claim token", () =>
   assert.match(agentSource, /JSON\.stringify\(\{ claimToken, status: outcome\.status, result: bounded\(outcome\.result, 2900\) \}\)/);
   assert.match(agentSource, /encodeURIComponent\(taskId\)/);
   assert.doesNotMatch(agentSource, /encodeURIComponent\(task\.id\)/);
+});
+
+
+test("work packages cannot claim mission completion without independent objective acceptance evidence", () => {
+  const refreshStart = workerSource.indexOf("async function refreshIntelligenceWorkPackageSnapshot");
+  const refreshEnd = workerSource.indexOf("async function ensureIntelligenceSchedulerRunsTable", refreshStart);
+  assert.ok(refreshStart >= 0 && refreshEnd > refreshStart);
+  const refresh = workerSource.slice(refreshStart, refreshEnd);
+  assert.ok(refresh.includes("scope_json FROM intelligence_work_packages"));
+  assert.ok(refresh.includes('packageScope.planner === "deterministic_fallback"'));
+  assert.ok(refresh.includes("verified: false"));
+  assert.ok(refresh.includes('acceptanceEvaluation?.verified === true'));
+  assert.ok(refresh.includes('task_reports_validated_semantic_review_required'));
+  assert.ok(refresh.includes('verified: false'));
+  assert.ok(refresh.includes('evaluateMissionAcceptance('));
+  assert.ok(refresh.includes('verifyIntelligenceReport'));
+  assert.ok(refresh.includes('allCompleted ? "attention_required"'));
+  assert.ok(refresh.includes("Never finalize a work package as completed until independent objective-level"));
+
+  const persistStart = workerSource.indexOf("export async function persistIntelligencePackageReport");
+  const persistEnd = workerSource.indexOf("async function blockIntelligenceTasksWithTerminalDependencies", persistStart);
+  assert.ok(persistStart >= 0 && persistEnd > persistStart);
+  const persist = workerSource.slice(persistStart, persistEnd);
+  assert.ok(persist.includes("mission_execution: snapshot.missionExecution"));
+  assert.ok(persist.includes("mission completion is not verified"));
+});;;
+
+
+test("mission acceptance v1 requires explicit criteria bound to unique allowlisted tasks", () => {
+  const tasks = [
+    { taskId: "inspect-1", actionType: "inspect_repository" },
+    { taskId: "tests-1", actionType: "run_repository_tests" }
+  ];
+  const valid = validateMissionAcceptanceCriteria([
+    { id: "criterion-inspect", taskId: "inspect-1", actionType: "inspect_repository", type: "validated_task_report" },
+    { id: "criterion-tests", taskId: "tests-1", actionType: "run_repository_tests", type: "validated_task_report" }
+  ], tasks);
+  assert.equal(valid.ok, true);
+  assert.equal(valid.criteria.length, 2);
+  assert.equal(validateMissionAcceptanceCriteria([], tasks).ok, false);
+  assert.equal(validateMissionAcceptanceCriteria([
+    { id: "bad", taskId: "missing", actionType: "inspect_repository", type: "validated_task_report" }
+  ], tasks).ok, false);
+  assert.equal(validateMissionAcceptanceCriteria([
+    { id: "bad", taskId: "inspect-1", actionType: "run_repository_tests", type: "validated_task_report" }
+  ], tasks).ok, false);
+  assert.equal(validateMissionAcceptanceCriteria([
+    { id: "same", taskId: "inspect-1", actionType: "inspect_repository", type: "validated_task_report" },
+    { id: "same", taskId: "tests-1", actionType: "run_repository_tests", type: "validated_task_report" }
+  ], tasks).ok, false);
+});
+
+test("mission acceptance v1 fails closed on missing, failed, mismatched, or invalid reports", () => {
+  const criteria = [
+    { id: "c1", taskId: "task-1", actionType: "source_security_audit", type: "validated_task_report" }
+  ];
+  const verify = (action, report) => ({ passed: report?.type === action, checks: ["report_identity"] });
+  const passed = evaluateMissionAcceptance(criteria, [
+    { taskId: "task-1", actionType: "source_security_audit", status: "completed", report: { type: "source_security_audit" } }
+  ], verify);
+  assert.equal(passed.verified, true);
+  assert.equal(evaluateMissionAcceptance(criteria, [], verify).verified, false);
+  assert.equal(evaluateMissionAcceptance(criteria, [
+    { taskId: "task-1", actionType: "source_security_audit", status: "failed", report: { type: "source_security_audit" } }
+  ], verify).verified, false);
+  assert.equal(evaluateMissionAcceptance(criteria, [
+    { taskId: "task-1", actionType: "source_security_audit", status: "completed", report: "{invalid" }
+  ], verify).verified, false);
 });

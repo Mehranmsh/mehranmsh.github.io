@@ -59,6 +59,8 @@ const planLearningSource = (await readFile(new URL("./intelligence-plan-learning
   .replace("export function learnFromIntelligencePlanOutcomes", "function learnFromIntelligencePlanOutcomes");
 const analysisValidationSource = (await readFile(new URL("./intelligence-analysis-validation.mjs", import.meta.url), "utf8"))
   .replace("export function validateRepositoryAnalysis", "function validateRepositoryAnalysis");
+const acceptanceSource = await readFile(new URL("./intelligence-acceptance.mjs", import.meta.url), "utf8");
+const acceptanceUrl = moduleUrl(acceptanceSource);
 const feedbackReviewSource = (await readFile(new URL("./intelligence-feedback-review.mjs", import.meta.url), "utf8"))
   .replace('from "./intelligence-feedback-learning.mjs"', 'from "' + feedbackLearningUrl + '"')
   .replace("export function buildIntelligenceFeedbackReview", "function buildIntelligenceFeedbackReview")
@@ -122,7 +124,9 @@ const workerRest = workerSource.replace(capabilityImport, "")
   .replace(feedbackReviewImport, "")
    .replace(planHistoryImport, "")
   .replace(planLearningImport, "")
-  .replace(analysisValidationImport, "");
+  .replace(analysisValidationImport, "")
+  .replace('import { validateMissionAcceptanceCriteria, evaluateMissionAcceptance } from "./scripts/intelligence-acceptance.mjs";',
+    `import { validateMissionAcceptanceCriteria, evaluateMissionAcceptance } from "${acceptanceUrl}";`);
 const workerSourceForTest = knowledgeGraphSource + "\n" + memoryRankingSource + "\n" + feedbackReviewSource + "\n" + planHistorySource + "\n" + planLearningSource + "\n" + analysisValidationSource + "\n" + routinePlannerSource + "\n" + retryPolicySource + `\nimport { storePrivatePatchArtifact, verifyPrivatePatchArtifactAtPath, getPrivatePatchArtifactPath, getVerifiedPrivatePatchArtifactAtPath } from "${patchStoreTestUrl}";
 import { generatePatchArtifact } from "${patchGenerationTestUrl}";
 import { validatePrivateIntelligenceMission } from "${inboxSchemaUrl}";
@@ -533,6 +537,38 @@ test("work-package action types must stay within the declared per-package scope"
   const creationRoute = workerSource.slice(routeStart, routeEnd);
   assert.match(creationRoute, /const validDependencies = !Object\.hasOwn\(item \|\| \{\}, "dependsOn"\) \|\| Array\.isArray\(item\.dependsOn\)/);
   assert.match(creationRoute, /!validDependencies/);
+});
+
+test("work-package acceptance criteria are explicitly bound to unique in-scope task identities", () => {
+  const base = {
+    idempotencyKey: "acceptance-scope-2026-11-27",
+    title: "Acceptance-bound work package",
+    objective: "Verify declared task evidence without overstating mission completion.",
+    scope: {
+      mode: "read_only",
+      allowedActions: ["service_health_report"],
+      acceptanceCriteria: [
+        { id: "health-evidence", taskId: "health", actionType: "service_health_report", type: "validated_task_report" }
+      ]
+    },
+    tasks: [{ taskId: "health", title: "Check health", actionType: "service_health_report" }]
+  };
+  const valid = validateIntelligenceWorkPackage(base);
+  assert.equal(valid.ok, true);
+  assert.equal(valid.scope.acceptanceCriteria.length, 1);
+  assert.equal(validateIntelligenceWorkPackage({
+    ...base, scope: { ...base.scope, acceptanceCriteria: [] }
+  }).ok, false);
+  assert.equal(validateIntelligenceWorkPackage({
+    ...base, scope: { ...base.scope, acceptanceCriteria: [
+      { id: "bad", taskId: "missing", actionType: "service_health_report", type: "validated_task_report" }
+    ] }
+  }).ok, false);
+  assert.equal(validateIntelligenceWorkPackage({
+    ...base, scope: { ...base.scope, acceptanceCriteria: [
+      { id: "bad", taskId: "health", actionType: "repository_quality_check", type: "validated_task_report" }
+    ] }
+  }).ok, false);
 });
 
 test("proposal-only work-package tasks require a bounded objective", () => {
@@ -3203,7 +3239,7 @@ test("private report persistence writes a minimized JSON report to the dedicated
       return {
         bind(...args) { this.args = args; return this; },
         async first() {
-          if (sql.includes("SELECT id,created_at,report_stored_at FROM intelligence_work_packages")) return { id: "package-1", created_at: "2026-11-22T20:00:00.000Z", report_stored_at: null };
+          if (sql.includes("SELECT id,created_at,report_stored_at,scope_json FROM intelligence_work_packages")) return { id: "package-1", created_at: "2026-11-22T20:00:00.000Z", report_stored_at: null };
           throw new Error("Unexpected first query: " + sql);
         },
         async all() {
@@ -3261,7 +3297,7 @@ test("private report finalization verifies existing artifact bytes before markin
       return {
         bind() { return this; },
         async first() {
-          if (sql.includes("SELECT id,created_at,report_stored_at FROM intelligence_work_packages")) {
+          if (sql.includes("SELECT id,created_at,report_stored_at,scope_json FROM intelligence_work_packages")) {
             return { id: "package-verify", created_at: "2026-11-22T20:00:00.000Z", report_stored_at: reportStoredAt };
           }
           throw new Error("Unexpected first query: " + sql);
@@ -3322,7 +3358,7 @@ test("private report retries accept only legacy generated_at drift and keep repo
       return {
         bind() { return this; },
         async first() {
-          if (sql.includes("SELECT id,created_at,report_stored_at FROM intelligence_work_packages")) {
+          if (sql.includes("SELECT id,created_at,report_stored_at,scope_json FROM intelligence_work_packages")) {
             return { id: "package-stable", created_at: "2026-11-22T20:00:00.000Z", report_stored_at: reportStoredAt };
           }
           throw new Error("Unexpected first query: " + sql);
@@ -4086,5 +4122,9 @@ test("private inbox resolves and attaches an immutable base SHA before creating 
   assert.ok(inbox.includes('const repositoryBaseSha = mission.scope.allowed_actions.includes("run_repository_tests")'));
   assert.ok(inbox.includes('actionType: "run_repository_tests"'));
   assert.ok(inbox.includes("baseSha: repositoryBaseSha"));
+  assert.ok(inbox.includes('id: "inspect-source-report", taskId: "inspect-source", actionType: "inspect_repository"'));
+  assert.ok(inbox.includes('id: "security-review-report", taskId: "security-review", actionType: "source_security_audit"'));
+  assert.ok(inbox.includes('id: "repository-check-report", taskId: "repository-check", actionType: "repository_quality_check"'));
+  assert.ok(inbox.includes('id: "repository-tests-report", taskId: "repository-tests", actionType: "run_repository_tests"'));
   assert.ok(inbox.includes("private_inbox_package_creation_failed"));
 });
