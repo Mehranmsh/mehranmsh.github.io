@@ -504,9 +504,9 @@ jobs:
                   ]
                 },
                 limitations: [
-                  "This task inventories bounded file metadata and declaration names only; it is not a semantic code review.",
+                  "Semantic analysis is limited to bounded excerpts from the inspected immutable commit; it is not a full-repository review.",
                   "Repository content was treated as untrusted data and was never executed or followed as instructions.",
-                  "No tests or code changes are claimed by this inventory task."
+                  "No tests or code changes are claimed by this inspection task."
                 ]
               };
             }
