@@ -1,0 +1,64 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import { analyzeLaunchpadOpportunity } from "./pi-launchpad-analyzer.mjs";
+import { buildPiLaunchpadAnalysisReport } from "./pi-launchpad-analysis-report.mjs";
+
+const NOW = Date.parse("2026-11-27T12:00:00.000Z");
+
+test("builds weighted component explanations and preserves missing values", () => {
+  const analysis = analyzeLaunchpadOpportunity({
+    tokenId: "pi-token-report",
+    evidence: { utility: 90, tokenomics: 70 },
+    liquidity: { tvlPi: 10000, volume24hPi: 1000 }
+  });
+  const report = buildPiLaunchpadAnalysisReport(analysis, { now: NOW });
+  assert.equal(report.verdict.score, analysis.score);
+  assert.equal(report.scoreBreakdown.components.find((item) => item.key === "utility").weightPercent, 20);
+  assert.equal(report.scoreBreakdown.components.find((item) => item.key === "teamTransparency").score, null);
+  assert.ok(report.scoreBreakdown.missingComponents.includes("contractSecurity"));
+  assert.equal(report.liquidityAssessment.turnover24h, 0.1);
+  assert.ok(Object.isFrozen(report));
+  assert.ok(Object.isFrozen(report.scoreBreakdown.components));
+});
+
+test("reports provenance freshness and rejected evidence without claiming factual truth", () => {
+  const analysis = analyzeLaunchpadOpportunity({
+    tokenId: "pi-token-provenance",
+    evidence: { utility: 80 }
+  });
+  const report = buildPiLaunchpadAnalysisReport(analysis, {
+    now: NOW,
+    verifiedEvidence: {
+      acceptedRecords: [{
+        evidenceId: "ev-fresh", field: "utility", sourceUrl: "https://auditor.example/report",
+        issuer: "auditor", observedAt: "2026-11-26T12:00:00.000Z",
+        cryptographicallyVerified: true
+      }, {
+        evidenceId: "ev-old", field: "tokenomics", observedAt: "2026-11-01T12:00:00.000Z",
+        cryptographicallyVerified: true
+      }],
+      rejectedRecords: [{ evidenceId: "ev-bad", code: "attestation_expired" }]
+    },
+    verifiedMetrics: { acceptedRecords: [], rejectedRecords: [] }
+  });
+  assert.equal(report.provenance.acceptedAttestationCount, 2);
+  assert.equal(report.provenance.rejectedAttestationCount, 1);
+  assert.equal(report.provenance.staleOrUndatedEvidenceCount, 1);
+  assert.equal(report.provenance.acceptedEvidence[0].freshness, "fresh_by_policy");
+  assert.equal(report.provenance.acceptedEvidence[1].freshness, "stale_by_policy");
+  assert.match(report.provenance.cryptographicNotice, /does not independently prove/);
+});
+
+test("does not invent liquidity metrics or a score for insufficient evidence", () => {
+  const analysis = analyzeLaunchpadOpportunity({ tokenId: "empty" });
+  const report = buildPiLaunchpadAnalysisReport(analysis, { now: NOW });
+  assert.equal(report.verdict.score, null);
+  assert.equal(report.liquidityAssessment.tvlPi, null);
+  assert.ok(report.liquidityAssessment.notes.some((note) => note.includes("TVL is unavailable")));
+});
+
+test("requires explicit report time and bounds freshness policy", () => {
+  const analysis = analyzeLaunchpadOpportunity({ tokenId: "validation" });
+  assert.throws(() => buildPiLaunchpadAnalysisReport(analysis), /timestamp/);
+  assert.throws(() => buildPiLaunchpadAnalysisReport(analysis, { now: NOW, maxEvidenceAgeDays: 500 }), /between 0 and 365/);
+});
