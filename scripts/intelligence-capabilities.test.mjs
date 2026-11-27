@@ -11,6 +11,7 @@ import { storePrivatePatchArtifact, verifyPrivatePatchArtifactAtPath, getVerifie
 import { buildPatchGenerationPrompt, validateGeneratedPatch, PATCH_GENERATION_POLICY } from "./intelligence-patch-generation.mjs";
 import { generatePatchArtifact, PATCH_GENERATION_SERVICE_POLICY, canonicalizeAppendOnlyHunkHeader } from "./intelligence-patch-generation-service.mjs";
 import { nextWorkersAIDailyResetAt, isWorkersAIDailyQuotaCircuitOpen } from "./intelligence-ai-quota.mjs";
+import { validateRepositoryAnalysis } from "./intelligence-analysis-validation.mjs";
 import {
   INTELLIGENCE_CAPABILITIES,
   INTELLIGENCE_ACTION_TYPES,
@@ -1304,6 +1305,46 @@ test("Workers AI inference failures retain safe actionable diagnostics without e
   assert.ok(workerSource.includes("JSON.stringify({traceId,elapsedMs,providerAttempts:safeAttempts,...diagnostic})"));
   assert.ok(workerSource.includes("stage:\"workers_ai_inference\""));
 });;
+
+
+test("semantic analysis validation returns bounded failure codes without exposing model or source text", () => {
+  const files = [{path:"worker.js",excerpt:"const safe = true;"}];
+  const base = {
+    summary:"bounded summary",
+    findings:[{
+      severity:"low",title:"Finding",rootCause:"Cause",recommendation:"Fix",
+      evidence:[{path:"worker.js",quote:"const safe = true;"}],
+      regressionTests:["test the behavior"]
+    }],
+    limitations:[]
+  };
+  assert.deepEqual(validateRepositoryAnalysis(base, files), {
+    valid:true,code:"ok",findingIndex:null,evidenceIndex:null,field:null
+  });
+  const cases = [
+    [a=>{a.findings[0].severity="urgent";},"invalid_severity","severity",0,null],
+    [a=>{a.findings[0].evidence[0].path="private.js";},"unknown_evidence_path","path",0,0],
+    [a=>{a.findings[0].evidence[0].quote="not present in source";},"quote_mismatch","quote",0,0],
+    [a=>{a.findings[0].title="x".repeat(181);},"field_limit_exceeded","title",0,null],
+    [a=>{a.findings[0].evidence=[];},"ok",null,null,null]
+  ];
+  for (const [mutate,code,field,findingIndex,evidenceIndex] of cases) {
+    const analysis=structuredClone(base);
+    mutate(analysis);
+    const result=validateRepositoryAnalysis(analysis,files);
+    if (code==="ok") assert.equal(result.valid,true);
+    else {
+      assert.equal(result.valid,false);
+      assert.equal(result.code,code);
+      assert.equal(result.field,field);
+      assert.equal(result.findingIndex,findingIndex);
+      assert.equal(result.evidenceIndex,evidenceIndex);
+      assert.doesNotMatch(JSON.stringify(result),/not present|private\.js|const safe/);
+    }
+  }
+  const malformed=validateRepositoryAnalysis({summary:"bad",findings:[],limitations:[]},files);
+  assert.equal(malformed.code,"invalid_analysis_structure");
+});
 
 test("semantic repository analysis is owner-authenticated, bounded, and evidence-bound to supplied source", () => {
   assert.ok(workerSource.includes('path === "/agent/v1/repository/analyze"'));
