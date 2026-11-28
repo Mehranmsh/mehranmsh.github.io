@@ -155,7 +155,7 @@ test("all eight active capabilities are registered with their permission tiers",
     const input = id === "inspect_repository"
       ? { paths: ["worker.js"] }
       : isolated ? { baseSha: "a".repeat(40) }
-      : proposal ? { objective: "Add a regression test for a safe parser boundary" } : {};
+      : proposal ? { baseSha: "c".repeat(40), objective: "Add a regression test for a safe parser boundary" } : {};
     assert.equal(validateIntelligenceCapabilityRequest(id, input).ok, true);
   }
 });
@@ -170,6 +170,10 @@ test("fixed repository tests are active only through the isolated GitHub runner"
   assert.equal(validateIntelligenceCapabilityRequest("run_repository_tests", { baseSha: "b".repeat(40) }).ok, true);
   assert.equal(validateIntelligenceCapabilityRequest("run_repository_tests", { baseSha: "not-a-commit" }).ok, false);
   assert.equal(validateIntelligenceCapabilityRequest("run_repository_tests", { baseSha: "b".repeat(40), command: "echo unsafe" }).code, "unknown_input_field");
+  assert.equal(validateIntelligenceCapabilityRequest("propose_code_patch", { baseSha: "c".repeat(40), objective: "Add a regression test for a safe parser boundary" }).ok, true);
+  assert.equal(validateIntelligenceCapabilityRequest("propose_code_patch", { objective: "Add a regression test for a safe parser boundary" }).code, "missing_required_field");
+  assert.equal(validateIntelligenceCapabilityRequest("propose_code_patch", { baseSha: "invalid", objective: "Add a regression test for a safe parser boundary" }).code, "invalid_input_value");
+  assert.match(workerSource, /validPatchBaseSha/);
   assert.match(workerSource, /actionType === "run_repository_tests"/);
   assert.match(workerSource, /report\.mode !== "isolated_fixed_repository_test"/);
   assert.match(workerSource, /before\.action_payload/);
@@ -258,6 +262,10 @@ test("AI mission planner uses JSON mode and extracts one complete balanced objec
   assert.match(planner, /jsonMode: true, temperature: 0, maxTokens: 1000/);
   assert.match(planner, /runIntelligenceAI\(env/);
   assert.match(planner, /extractIntelligenceJsonObject\(modelResponse\)/);
+  assert.match(planner, /repositoryBaseSha/);
+  assert.match(planner, /commits\/main/);
+  assert.match(planner, /baseSha copied exactly from the immutable repository SHA above/);
+  assert.match(workerSource, /actionType !== "run_repository_tests" && normalized\.actionType !== "propose_code_patch/);
   assert.match(workerSource.slice(start, plannerStart), /if \(depth === 0 && start >= 0\) return text\.slice\(start, index \+ 1\)/);
   assert.match(workerSource.slice(start, plannerStart), /if \(escaped\) escaped = false/);
   assert.match(workerSource.slice(start, plannerStart), /raw.length > 12000/);
@@ -266,7 +274,7 @@ test("AI mission planner uses JSON mode and extracts one complete balanced objec
 test("AI planner strips schema-optional fields that are invalid for another action", () => {
   assert.match(workerSource, /const normalizedTasks = plan\.tasks\.map\(item =>/);
   assert.match(workerSource, /if \(normalized\.actionType !== "inspect_repository"\) delete normalized\.paths/);
-  assert.match(workerSource, /if \(normalized\.actionType !== "run_repository_tests"\) delete normalized\.baseSha/);
+  assert.match(workerSource, /if \(normalized\.actionType !== "run_repository_tests" && normalized\.actionType !== "propose_code_patch"\) delete normalized\.baseSha/);
   assert.match(workerSource, /if \(normalized\.actionType !== "propose_code_patch"\) delete normalized\.objective/);
   assert.match(workerSource, /const acceptedTaskIds = new Set\(\)/);
   assert.match(workerSource, /acceptedTaskIds\.has\(dep\)/);
@@ -1748,4 +1756,29 @@ test("agent validates claimed task envelopes and returns the claim token", () =>
   assert.match(agentSource, /JSON\.stringify\(\{ claimToken, status: outcome\.status, result: bounded\(outcome\.result, 2900\) \}\)/);
   assert.match(agentSource, /encodeURIComponent\(taskId\)/);
   assert.doesNotMatch(agentSource, /encodeURIComponent\(task\.id\)/);
+});
+
+test("agent dispatches bounded patch proposals through the authenticated Worker endpoint only on the exact runner SHA", () => {
+  assert.match(agentSource, /async function generatePatchProposal\(taskId, payload\)/);
+  assert.match(agentSource, /task\.actionType === "propose_code_patch"/);
+  assert.match(agentSource, /\/agent\/v1\/patch-proposals\/generate/);
+  assert.match(agentSource, /requestedSha !== checkedOutSha/);
+  assert.match(agentSource, /objective\.length < 12 \|\| objective\.length > 800/);
+  assert.match(agentSource, /requestId = "intelligence-" \+ taskId/);
+  assert.match(agentSource, /proposal\.status !== "stored"/);
+  assert.match(agentSource, /No source code was applied/);
+  assert.doesNotMatch(agentSource, /env\.AI\.run|process\.env\.[A-Z0-9_]*SECRET/);
+});
+
+test("agent executes repository inspection and fixed tests only within immutable allowlisted scope", () => {
+  assert.match(agentSource, /function readTaskPayload\(task\)/);
+  assert.match(agentSource, /function inspectRepository\(payload\)/);
+  assert.match(agentSource, /function runRepositoryTests\(payload\)/);
+  assert.match(agentSource, /INSPECTION_PATHS = Object\.freeze\(/);
+  assert.match(agentSource, /paths\.some\(path => typeof path !== "string" \|\| !INSPECTION_PATHS\.includes\(path\)\)/);
+  assert.match(agentSource, /requestedSha !== checkedOutSha/);
+  assert.match(agentSource, /task\.actionType === "inspect_repository"/);
+  assert.match(agentSource, /task\.actionType === "run_repository_tests"/);
+  assert.match(agentSource, /createHash\("sha256"\)/);
+  assert.doesNotMatch(agentSource, /execSync\(|spawn\(|shell:\s*true|process\.env\.[A-Z0-9_]*SECRET/);
 });

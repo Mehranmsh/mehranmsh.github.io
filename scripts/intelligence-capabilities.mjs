@@ -125,8 +125,9 @@ export const INTELLIGENCE_CAPABILITIES = Object.freeze({
     autonomous: true,
     description: "Generate and store one bounded append-only regression-test proposal in private storage; never apply it or create a branch or pull request.",
     inputSchema: {
-      required: ["objective"],
+      required: ["baseSha", "objective"],
       properties: {
+        baseSha: { type: "string", minLength: 40, maxLength: 40, pattern: "^[a-f0-9]{40}$" },
         objective: { type: "string", minLength: 12, maxLength: 800 }
       }
     }
