@@ -82,6 +82,33 @@ async function runRepositoryTests(payload) {
   return runQualityChecks();
 }
 
+async function generatePatchProposal(taskId, payload) {
+  const objective = typeof payload.objective === "string" ? payload.objective.trim() : "";
+  const requestedSha = typeof payload.baseSha === "string" ? payload.baseSha.toLowerCase() : "";
+  const checkedOutSha = String(process.env.GITHUB_SHA || "").toLowerCase();
+  if (objective.length < 12 || objective.length > 800 ||
+      !/^[a-f0-9]{40}$/.test(requestedSha) ||
+      !/^[a-f0-9]{40}$/.test(checkedOutSha) || requestedSha !== checkedOutSha) {
+    return { status: "blocked", result: "Patch generation requires a bounded objective and an exact immutable baseSha matching this runner checkout. No AI request was made." };
+  }
+  const requestId = "intelligence-" + taskId;
+  const proposal = await request("/agent/v1/patch-proposals/generate", {
+    method: "POST",
+    body: JSON.stringify({ baseSha: requestedSha, objective, requestId })
+  });
+  const safe = {
+    requestId: bounded(proposal.requestId, 160),
+    proposalId: bounded(proposal.proposalId, 80),
+    status: bounded(proposal.status, 40),
+    targetPath: bounded(proposal.targetPath, 160),
+    validationMode: bounded(proposal.validationMode, 80)
+  };
+  if (proposal.success !== true || proposal.status !== "stored" ||
+      !safe.proposalId || safe.targetPath !== "scripts/intelligence-capabilities.test.mjs") {
+    return { status: "blocked", result: "Patch generation did not produce a verified stored proposal: " + JSON.stringify(safe) };
+  }
+  return { status: "completed", result: "Verified append-only regression-test proposal stored. No source code was applied and no branch or pull request was created by this action. " + JSON.stringify(safe) };
+}
 function inspectRepository(payload) {
   const paths = payload.paths;
   if (!Array.isArray(paths) || paths.length < 1 || paths.length > INSPECTION_PATHS.length ||
@@ -161,6 +188,8 @@ async function main() {
       outcome = inspectRepository(payload);
     } else if (task.actionType === "run_repository_tests") {
       outcome = await runRepositoryTests(payload);
+    } else if (task.actionType === "propose_code_patch") {
+      outcome = await generatePatchProposal(taskId, payload);
     } else {
       outcome = {
         status: "blocked",
