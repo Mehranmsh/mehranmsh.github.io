@@ -136,6 +136,7 @@ jobs:
           import { join } from "node:path";
           import { createHash } from "node:crypto";
           import { verifyIntelligenceResultCheckpoint } from "./scripts/intelligence-checkpoint.mjs";
+          import { isAllowedPatchPath } from "./scripts/intelligence-patch-policy.mjs";
           import { readBoundedResponse } from "./scripts/intelligence-bounded-response.mjs";
           import { buildIntelligenceInspectionExcerpt } from "./scripts/intelligence-inspection-excerpts.mjs";
           const base = process.env.MEHRAN_AGENT_URL;
