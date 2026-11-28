@@ -8243,7 +8243,9 @@ export default {
             "Do not label a Firebase Web API key or other client-side identifier a secret solely because it appears in source. Establish whether it grants privileged access and inspect applicable restrictions or server-side use; if that context is absent, report uncertainty rather than a confirmed vulnerability.",
             "For security findings, state the attacker capability, required preconditions, reachable path, and impact. Do not infer exploitability from a suspicious-looking line alone.",
             "Consider plausible alternative explanations and false positives before assigning severity. Prefer zero findings over unsupported findings.",
-            "Return one JSON object with summary (string), findings (array up to 8), limitations (array up to 5).",
+            "Return one JSON object with summary (string, maximum 1600 characters), findings (array up to 8), limitations (array up to 5, each maximum 300 characters).",
+            "Strict output limits: each finding title maximum 180 characters; rootCause maximum 1200; recommendation maximum 1200; evidence array maximum 5; each evidence quote maximum 500 characters; regressionTests array maximum 6 with each test maximum 300 characters.",
+            "Keep every field comfortably below its maximum. Use concise complete sentences. Never exceed a field limit, never add extra keys, and do not compensate for a long explanation by exceeding the schema. If a finding cannot be expressed within the limits, omit it and explain the uncertainty briefly in limitations.",
             "Each finding must have severity (critical|high|medium|low|info), title, rootCause, recommendation, evidence (array of objects with path and quote), and regressionTests (array of strings).",
             "Every evidence path must exactly match one supplied path and each quote must be an exact short excerpt from supplied source. Evidence must support the stated causal claim, not merely mention the relevant symbol. If evidence is insufficient, omit the finding and explain the missing context in limitations."
           ].join(" ");
