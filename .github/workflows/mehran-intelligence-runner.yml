@@ -224,7 +224,7 @@ jobs:
           // Scheduled generation remains opt-in. Once enabled, owner-authorized generation may
           // pass attention_required packages, but active queued/running/retrying work still blocks it.
           const missionGenerationRequested =
-            (["schedule", "push"].includes(process.env.GITHUB_EVENT_NAME) &&
+            ((process.env.GITHUB_EVENT_NAME === "schedule" || process.env.GITHUB_EVENT_NAME === "push") &&
              process.env.MEHRAN_MISSION_GENERATOR_ENABLED === "true") ||
             process.env.GITHUB_EVENT_NAME === "workflow_dispatch";
           if (missionGenerationRequested) {
