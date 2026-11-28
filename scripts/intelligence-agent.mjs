@@ -99,7 +99,15 @@ async function generatePatchProposal(taskId, payload) {
     body: JSON.stringify({ baseSha: requestedSha, objective, targetPath, requestId })
   });
   const safe = {
+    type: "propose_code_patch",
     requestId: bounded(proposal.requestId, 160),
+    requestHash: bounded(proposal.requestHash, 64),
+    path: bounded(proposal.path, 240),
+    artifactSha256: bounded(proposal.artifactSha256, 64),
+    diffSha256: bounded(proposal.diffSha256, 64),
+    baseSha: bounded(proposal.baseSha, 40),
+    summary: bounded(proposal.summary, 500),
+    generatedAt: bounded(proposal.generatedAt, 40),
     proposalId: bounded(proposal.proposalId, 80),
     status: bounded(proposal.status, 40),
     targetPath: bounded(proposal.targetPath, 160),
@@ -109,7 +117,7 @@ async function generatePatchProposal(taskId, payload) {
       !safe.proposalId || safe.targetPath !== targetPath) {
     return { status: "blocked", result: "Patch generation did not produce a verified stored proposal: " + JSON.stringify(safe) };
   }
-  return { status: "completed", result: "Verified bounded single-file application proposal stored privately. No source code was applied by this action. " + JSON.stringify(safe) };
+  return { status: "completed", result: JSON.stringify(safe) };
 }
 function inspectRepository(payload) {
   const paths = payload.paths;
