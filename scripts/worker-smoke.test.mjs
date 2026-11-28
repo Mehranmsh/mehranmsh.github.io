@@ -4269,3 +4269,13 @@ test("repository analysis drops a whole finding when one of multiple evidence qu
   assert.equal(sanitized.findings.length, 0);
   assert.equal(validateRepositoryAnalysis(sanitized, files).valid, true);
 });
+
+test("bounded patch targets cover safe application modules but reject private and deployment paths", async () => {
+  const { isAllowedPatchPath } = await import("./intelligence-patch-policy.mjs");
+  for (const path of ["social/feed.js", "nexus/catalog.tsx", "music-studio/mixer.py", "engine/render.py", "src/core/auth.mjs"]) {
+    assert.equal(isAllowedPatchPath(path), true, path);
+  }
+  for (const path of [".github/workflows/runner.yml", "wallet/transfer.js", "private-key.js", "data/user-data.json", "dist/app.js", "scripts/deploy-worker.mjs"]) {
+    assert.equal(isAllowedPatchPath(path), false, path);
+  }
+});
