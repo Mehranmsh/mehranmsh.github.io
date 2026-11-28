@@ -65,6 +65,9 @@ export function validatePrivateIntelligenceMission(mission) {
     reasons.push("repair_action_in_read_only_scope");
   }
   if (mode === "bounded_app_repair") {
+    if (typeof mission.objective === "string" && mission.objective.trim().length > 800) {
+      reasons.push("repair_objective_too_long");
+    }
     if (typeof mission.scope.patch_target_path !== "string" || !isAllowedPatchPath(mission.scope.patch_target_path)) {
       reasons.push("repair_target_path_invalid");
     }
