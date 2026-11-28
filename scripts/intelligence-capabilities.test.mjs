@@ -131,7 +131,8 @@ test("optional AI tasks are deferred without blocking required deterministic wor
   const packageRouteStart = workerSource.indexOf('if (packageMatch && method === "GET")');
   const packageRouteEnd = workerSource.indexOf('if (path === "/agent/v1/tasks/next"', packageRouteStart);
   const packageRoute = workerSource.slice(packageRouteStart, packageRouteEnd);
-  assert.match(packageRoute, /counts\.optionalQueued = rows\.filter/);
+  assert.match(packageRoute, /const optionalPendingTasks = rows\.filter/);
+  assert.match(packageRoute, /counts\.optionalQueued = optionalPendingTasks\.filter/);
   assert.match(packageRoute, /allRequiredCompleted && counts\.optionalQueued === 0 && objectiveVerification\.verified/);
 });
 
