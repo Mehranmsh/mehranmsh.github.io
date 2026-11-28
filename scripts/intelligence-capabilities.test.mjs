@@ -1750,6 +1750,18 @@ test("agent validates claimed task envelopes and returns the claim token", () =>
   assert.doesNotMatch(agentSource, /encodeURIComponent\(task\.id\)/);
 });
 
+test("agent dispatches bounded patch proposals through the authenticated Worker endpoint only on the exact runner SHA", () => {
+  assert.match(agentSource, /async function generatePatchProposal\(taskId, payload\)/);
+  assert.match(agentSource, /task\.actionType === "propose_code_patch"/);
+  assert.match(agentSource, /\/agent\/v1\/patch-proposals\/generate/);
+  assert.match(agentSource, /requestedSha !== checkedOutSha/);
+  assert.match(agentSource, /objective\.length < 12 \|\| objective\.length > 800/);
+  assert.match(agentSource, /requestId = "intelligence-" \+ taskId/);
+  assert.match(agentSource, /proposal\.status !== "stored"/);
+  assert.match(agentSource, /No source code was applied/);
+  assert.doesNotMatch(agentSource, /env\.AI\.run|process\.env\.[A-Z0-9_]*SECRET/);
+});
+
 test("agent executes repository inspection and fixed tests only within immutable allowlisted scope", () => {
   assert.match(agentSource, /function readTaskPayload\(task\)/);
   assert.match(agentSource, /function inspectRepository\(payload\)/);
