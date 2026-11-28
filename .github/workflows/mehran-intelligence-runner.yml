@@ -713,6 +713,11 @@ jobs:
             throw new Error("Runner refused an action outside its read-only allowlist.");
           }
 
+          // AI-capable tasks stay queued unless the owner explicitly enables the repository variable.
+          const allowAiTasks = process.env.MEHRAN_INTELLIGENCE_AI_TASKS_ENABLED === "true";
+          const taskClaimPath = allowAiTasks ? "/agent/v1/tasks/next" : "/agent/v1/tasks/next?mode=deterministic";
+          console.log("[runner-policy] AI-capable tasks " + (allowAiTasks ? "explicitly enabled" : "held in queue; deterministic-only mode"));
+
           function serializeBoundedResult(value, maxChars = 3000) {
             if (!Number.isInteger(maxChars) || maxChars < 256) {
               throw new Error("Invalid bounded-result character limit.");
@@ -797,10 +802,6 @@ jobs:
             }
             return bounded;
           }
-          // AI-capable tasks stay queued unless the owner explicitly enables the repository variable.
-          const allowAiTasks = process.env.MEHRAN_INTELLIGENCE_AI_TASKS_ENABLED === "true";
-          const taskClaimPath = allowAiTasks ? "/agent/v1/tasks/next" : "/agent/v1/tasks/next?mode=deterministic";
-          console.log("[runner-policy] AI-capable tasks " + (allowAiTasks ? "explicitly enabled" : "held in queue; deterministic-only mode"));
           for (let count = 0; count < 5 && Date.now() < taskExecutionDeadline; count++) {
             const claim = await request(taskClaimPath);
             const task = claim.task;
