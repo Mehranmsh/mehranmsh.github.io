@@ -98,7 +98,7 @@ test("semantic inspection falls back to a bounded prefix only when no path ancho
   assert.equal(buildIntelligenceInspectionExcerpt("unknown-path", ""), "");
 });
 
-test("repository inspection combines deterministic inventory with owner-authenticated semantic analysis", () => {
+test("repository inspection is fully deterministic and does not call the semantic AI endpoint", () => {
   const inspectStart = runnerSource.indexOf('if (task.actionType === "inspect_repository")');
   const inspectEnd = runnerSource.indexOf('if (task.actionType === "source_security_audit")', inspectStart);
   assert.ok(inspectStart >= 0 && inspectEnd > inspectStart);
@@ -107,14 +107,9 @@ test("repository inspection combines deterministic inventory with owner-authenti
   assert.ok(inspect.includes("blobSha: file.sha"));
   assert.ok(inspect.includes("lineCount:"));
   assert.ok(inspect.includes("symbols:"));
-  assert.ok(inspect.includes("analysisFiles.push({ path, sha: file.sha, excerpt })"));
-  assert.ok(inspect.includes("buildIntelligenceInspectionExcerpt(path, source, Math.min(2800, 16000 - totalAnalysisChars))"));
-  assert.ok(inspect.includes("16000 - totalAnalysisChars"));
-  assert.ok(runnerSource.includes("intelligence-inspection-excerpts.mjs"));
-  assert.ok(inspect.includes("orchestratorToken.length < 40"));
-  assert.ok(inspect.includes('request("/agent/v1/repository/analyze"'));
-  assert.ok(inspect.includes("commitSha: commit.sha, files: analysisFiles"));
-  assert.ok(inspect.includes("semantic.commitSha !== commit.sha"));
+  assert.ok(inspect.includes("Deterministic repository inventory completed"));
+  assert.ok(inspect.includes("No model inference or semantic review was used."));
+  assert.doesNotMatch(inspect, /orchestratorToken|repository\/analyze|ownerHeaders|request\(/);
   assert.match(workerSource, /inspect_repository_inventory_only/);
   assert.match(workerSource, /inspect_repository_schema/);
 });
@@ -1698,14 +1693,17 @@ test("runner disables automatic self-improvement planning and proposal PR creati
 
 
 
-test("repository architecture inventory is deterministically routed before bounded semantic review", () => {
+test("repository architecture inventory remains deterministic through runner execution with AI disabled", () => {
   assert.ok(routinePlannerSource.includes('actionType: "inspect_repository"'));
   assert.ok(routinePlannerSource.includes("No AI inference or repository writes are used."));
   assert.ok(routinePlannerSource.includes('paths: ["@app-inventory"]'));
   assert.ok(routinePlannerSource.includes("complete safe application source tree"));
   assert.ok(workerSource.includes("const deterministicPlan = buildDeterministicRoutinePlan(mission)"));
   assert.ok(workerSource.includes("aiInferenceUsed: false"));
-  assert.ok(runnerSource.includes('request("/agent/v1/repository/analyze"'));
+  assert.ok(runnerSource.includes("No model inference or semantic review was used."));
+  assert.doesNotMatch(runnerSource.slice(runnerSource.indexOf('if (task.actionType === "inspect_repository")'), runnerSource.indexOf('if (task.actionType === "source_security_audit")')), /repository\/analyze/);
+  assert.match(workerSource, /const deterministicOnly = url\.searchParams\.get\("mode"\) === "deterministic"/);
+  assert.match(workerSource, /'source_security_audit','inspect_repository','run_repository_tests'/);
 });
 
 
