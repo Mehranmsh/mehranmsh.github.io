@@ -18,14 +18,15 @@ function validMission() {
         "run_repository_tests"
       ],
       forbidden: [
-        "source_changes",
-        "patch_application",
-        "branch_creation",
-        "pull_request_creation",
+        "direct_source_writes",
+        "production_patch_application",
+        "unisolated_branch_creation",
+        "non_draft_pull_request_creation",
         "merge",
         "deployment",
         "secret_access",
         "credential_or_token_output",
+        "wallet_data_access",
         "wallet_operations",
         "financial_operations",
         "arbitrary_shell",
@@ -49,7 +50,7 @@ test("reports the exact status and scope mismatches that previously failed silen
   ]);
 });
 
-test("rejects missing required safety restrictions", () => {
+test("accepts a bounded repair mission with proposal and isolated test actions", () => {\n  const mission = validMission();\n  mission.scope.mode = "bounded_app_repair";\n  mission.scope.allowed_actions.push("propose_code_patch");\n  assert.deepEqual(validatePrivateIntelligenceMission(mission), []);\n});\n\ntest("rejects incomplete repair actions and repair actions in a read-only mission", () => {\n  const missingProposal = validMission();\n  missingProposal.scope.mode = "bounded_app_repair";\n  assert.deepEqual(validatePrivateIntelligenceMission(missingProposal), ["repair_actions_incomplete"]);\n  const readOnly = validMission();\n  readOnly.scope.allowed_actions.push("propose_code_patch");\n  assert.deepEqual(validatePrivateIntelligenceMission(readOnly), ["repair_action_in_read_only_scope"]);\n});\n\ntest("rejects missing required safety restrictions", () => {
   const mission = validMission();
   mission.scope.forbidden = ["deployment"];
   assert.deepEqual(validatePrivateIntelligenceMission(mission), ["forbidden_actions_incomplete"]);
