@@ -2,7 +2,7 @@ import { buildDeterministicRoutinePlan } from "./scripts/intelligence-routine-pl
 import { INTELLIGENCE_ACTION_TYPES, PREAPPROVED_INTELLIGENCE_ACTION_TYPES } from "./scripts/intelligence-capabilities.mjs";
 import { storePrivatePatchArtifact, verifyPrivatePatchArtifactAtPath, getPrivatePatchArtifactPath, getVerifiedPrivatePatchArtifactAtPath } from "./scripts/intelligence-private-patch-store.mjs";
 import { extractPatchModelText, generatePatchArtifact } from "./scripts/intelligence-patch-generation-service.mjs";
-import { isAllowedPatchPath } from "./scripts/intelligence-patch-policy.mjs";
+import { isAllowedPatchPath, isAllowedInspectionPath } from "./scripts/intelligence-patch-policy.mjs";
 import { validatePrivateIntelligenceMission, resolvePrivateIntelligenceInspectionPaths } from "./scripts/intelligence-inbox-schema.mjs";
 import { selectMemoryContext } from "./scripts/intelligence-memory-ranking.mjs";
 // Shared owner-scoped feedback analysis; Worker persists proposals but never applies them.
@@ -6248,7 +6248,7 @@ export function validateIntelligenceWorkPackage(input) {
     const validDependencies = !Object.hasOwn(item || {}, "dependsOn") || Array.isArray(item.dependsOn);
     const dependencies = Array.isArray(item?.dependsOn) ? item.dependsOn : [];
     const paths = actionType === "inspect_repository" ? item?.paths : undefined;
-    const validInspectPaths = actionType !== "inspect_repository" || (Array.isArray(paths) && paths.length >= 1 && paths.length <= 6 && new Set(paths).size === paths.length && paths.every(path => isAllowedPatchPath(path)));
+    const validInspectPaths = actionType !== "inspect_repository" || (Array.isArray(paths) && paths.length >= 1 && paths.length <= 6 && new Set(paths).size === paths.length && paths.every(path => isAllowedInspectionPath(path)));
     const baseSha = actionType === "run_repository_tests" ? item?.baseSha : undefined;
     const validTestBaseSha = actionType !== "run_repository_tests" || (typeof baseSha === "string" && /^[a-f0-9]{40}$/.test(baseSha));
     const patchObjective = actionType === "propose_code_patch" ? item?.objective : undefined;
@@ -6768,7 +6768,7 @@ export function verifyIntelligenceReport(actionType, report) {
     const seen = new Set();
     let totalBytes = 0;
     const validFiles = files.length >= 1 && files.length <= 6 && files.every(file => {
-      if (!file || typeof file.path !== "string" || !isAllowedPatchPath(file.path) || seen.has(file.path) ||
+      if (!file || typeof file.path !== "string" || !isAllowedInspectionPath(file.path) || seen.has(file.path) ||
           typeof file.blobSha !== "string" || !/^[a-f0-9]{40}$/i.test(file.blobSha) ||
           !integer(file.bytes) || file.bytes > 600000 || !integer(file.lineCount) || file.lineCount > 20000 ||
           !Array.isArray(file.symbols) || file.symbols.length > 2 || file.symbols.some(symbol => typeof symbol !== "string" || symbol.length > 60)) return false;
@@ -8208,7 +8208,7 @@ export default {
         }
         if (path === "/agent/v1/repository/analyze" && method === "POST") {
           const body = await readBody(request);
-          const allowed = { has: isAllowedPatchPath };
+          const allowed = { has: isAllowedInspectionPath };
           if (!body || Object.keys(body).sort().join(",") !== "commitSha,files" ||
               typeof body.commitSha !== "string" || !/^[a-f0-9]{40}$/i.test(body.commitSha) ||
               !Array.isArray(body.files) || body.files.length < 1 || body.files.length > 6) {
