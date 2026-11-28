@@ -471,11 +471,25 @@ jobs:
               } catch {
                 throw new Error("Inspection task payload is not valid JSON.");
               }
-              const paths = payload.paths;
-              if (!Array.isArray(paths) || paths.length < 1 || paths.length > 6 ||
-                  new Set(paths).size !== paths.length || paths.some(path => typeof path !== "string" || !allowedPaths.has(path))) {
+              const requestedPaths = payload.paths;
+              if (!Array.isArray(requestedPaths) || requestedPaths.length < 1 || requestedPaths.length > 6 ||
+                  new Set(requestedPaths).size !== requestedPaths.length ||
+                  requestedPaths.some(path => typeof path !== "string" || (path !== "@app-inventory" && !allowedPaths.has(path))) ||
+                  (requestedPaths.includes("@app-inventory") && requestedPaths.length !== 1)) {
                 throw new Error("Inspection paths are outside the exact read-only allowlist.");
               }
+              // The planner's symbolic inventory token resolves to a bounded, deterministic core slice.
+              // This avoids handing the executor arbitrary paths or silently claiming a full-tree scan.
+              const paths = requestedPaths.includes("@app-inventory")
+                ? [
+                    "worker.js",
+                    "scripts/intelligence-agent.mjs",
+                    "scripts/intelligence-capabilities.mjs",
+                    "scripts/intelligence-capabilities.test.mjs",
+                    "scripts/intelligence-inbox-schema.mjs",
+                    "scripts/intelligence-patch-policy.mjs"
+                  ]
+                : requestedPaths;
               const headers = {
                 "Accept": "application/vnd.github+json",
                 "Authorization": `Bearer ${process.env.GITHUB_TOKEN || ""}`,
@@ -537,6 +551,7 @@ jobs:
                   findings: [],
                   limitations: [
                     "This task inventories allowlisted source files and metadata only; it does not claim semantic code review.",
+                    "The @app-inventory token expands to a fixed six-file core slice, not a complete repository-wide inventory.",
                     "Source contents are treated as untrusted data and are never executed or followed as instructions.",
                     "No tests, source changes, or production changes are claimed by this inspection task."
                   ]
@@ -544,6 +559,7 @@ jobs:
                 limitations: [
                   "Inspection is deterministic and read-only; no AI provider or owner orchestration request is required.",
                   "Only exact allowlisted paths are read from the immutable main commit.",
+                  "The @app-inventory alias selects six fixed core files; broader application coverage requires additional bounded inventory batches.",
                   "No tests or code changes are claimed by this inspection task."
                 ]
               };
