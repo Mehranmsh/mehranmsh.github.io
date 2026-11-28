@@ -80,7 +80,7 @@ export const INTELLIGENCE_CAPABILITIES = Object.freeze({
     executors: ["github_actions_runner"],
     requiresApproval: false,
     autonomous: true,
-    description: "Inventory exact allowlisted source files from one immutable commit without executing repository content or writing files.",
+    description: "Inventory all tracked application source files from one immutable commit, excluding sensitive, generated, vendor, dependency, and workflow paths without executing repository content or writing files.",
     inputSchema: {
       required: ["paths"],
       properties: {
@@ -91,14 +91,7 @@ export const INTELLIGENCE_CAPABILITIES = Object.freeze({
           itemType: "string",
           maxItemLength: 240,
           uniqueItems: true,
-          itemEnum: [
-            "worker.js",
-            "scripts/intelligence-agent.mjs",
-            "scripts/intelligence-capabilities.mjs",
-            "scripts/intelligence-capabilities.test.mjs",
-            ".github/workflows/mehran-intelligence-runner.yml",
-            "docs/INTELLIGENCE_EXECUTION_PROTOCOL.md"
-          ]
+          itemEnum: ["@app-inventory"]
         }
       }
     }
