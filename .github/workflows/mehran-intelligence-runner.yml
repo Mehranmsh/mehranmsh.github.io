@@ -39,6 +39,7 @@ jobs:
           MEHRAN_AGENT_TOKEN: ${{ secrets.MEHRAN_AGENT_TOKEN }}
           MEHRAN_ORCHESTRATOR_TOKEN: ${{ secrets.MEHRAN_ORCHESTRATOR_TOKEN }}
           MEHRAN_MISSION_GENERATOR_ENABLED: ${{ vars.MEHRAN_MISSION_GENERATOR_ENABLED }}
+          MEHRAN_INTELLIGENCE_AI_TASKS_ENABLED: ${{ vars.MEHRAN_INTELLIGENCE_AI_TASKS_ENABLED }}
           MEHRAN_AGENT_URL: https://mehran-msh-auth.mehran79mehran.workers.dev
           GITHUB_TOKEN: ${{ github.token }}
         run: |
@@ -796,8 +797,12 @@ jobs:
             }
             return bounded;
           }
+          // AI-capable tasks stay queued unless the owner explicitly enables the repository variable.
+          const allowAiTasks = process.env.MEHRAN_INTELLIGENCE_AI_TASKS_ENABLED === "true";
+          const taskClaimPath = allowAiTasks ? "/agent/v1/tasks/next" : "/agent/v1/tasks/next?mode=deterministic";
+          console.log("[runner-policy] AI-capable tasks " + (allowAiTasks ? "explicitly enabled" : "held in queue; deterministic-only mode"));
           for (let count = 0; count < 5 && Date.now() < taskExecutionDeadline; count++) {
-            const claim = await request("/agent/v1/tasks/next");
+            const claim = await request(taskClaimPath);
             const task = claim.task;
             if (task?.workPackageId) packageIds.add(task.workPackageId);
             if (!task) {
