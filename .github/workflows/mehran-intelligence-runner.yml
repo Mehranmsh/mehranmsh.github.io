@@ -239,6 +239,9 @@ jobs:
                   const diagnostics = await request("/agent/v1/work-packages/scope-diagnostics", {}, ownerHeaders, 12000);
                   console.log("[mission-generator] preflight diagnostics " + JSON.stringify({
                     packages: diagnostics.packages || null,
+                    taskLedger: diagnostics.taskLedger || null,
+                    taskEligibility: diagnostics.taskEligibility || null,
+                    blockedTaskCauses: diagnostics.blockedTaskCauses || null,
                     generatorLock: diagnostics.generatorLock || null
                   }));
                 } catch (diagnosticError) {
