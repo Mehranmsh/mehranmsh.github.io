@@ -1587,7 +1587,6 @@ test("scheduled Intelligence runner is single-flight, secret-backed and restrict
   assert.match(workerSource, /active\.status IN \('accepted','retry_wait','in_progress'\)/);
   assert.match(workerSource, /\.bind\(cycleKey, packageId, ignoreDeferredAiOnly, ignoreAttentionRequired, ignoreDeferredAiOnly, ignoreAttentionRequired\)/,
     "only owner-authorized bootstrap may bypass packages whose sole outstanding work is deferred AI; active and retrying tasks still block");
-    "manual bootstrap may bypass only attention-required packages, not active or retrying work");
 
   assert.match(runner, /service_health_report/);
   assert.match(runner, /repository_quality_check/);
