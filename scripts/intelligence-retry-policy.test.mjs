@@ -11,6 +11,39 @@ test("transient network failures receive bounded exponential backoff", () => {
   assert.equal(first.nextAttemptAt, new Date(31000).toISOString());
 });
 
+test("GitHub API 403 rate-limit responses receive bounded retries", () => {
+  const result = planIntelligenceRetry({
+    attempts: 1,
+    maxAttempts: 3,
+    error: "GitHub repository metadata returned HTTP 403 (GitHub API rate limit or temporary access restriction)",
+    now: 1000
+  });
+  assert.equal(result.retryable, true);
+  assert.equal(result.delaySeconds, 30);
+  assert.equal(result.errorCode, "transient_execution_error");
+});
+
+test("GitHub API 403 retry stops at the configured attempt limit", () => {
+  const result = planIntelligenceRetry({
+    attempts: 3,
+    maxAttempts: 3,
+    error: "GitHub latest commit lookup returned HTTP 403 (GitHub API rate limit or temporary access restriction)"
+  });
+  assert.equal(result.retryable, false);
+  assert.equal(result.exhausted, true);
+  assert.equal(result.errorCode, "retry_limit_reached");
+});
+
+test("GitHub API 403 without rate-limit evidence is treated as permanent", () => {
+  const result = planIntelligenceRetry({
+    attempts: 1,
+    maxAttempts: 3,
+    error: "GitHub repository metadata returned HTTP 403"
+  });
+  assert.equal(result.retryable, false);
+  assert.equal(result.errorCode, "execution_blocked");
+});
+
 test("permanent errors are blocked without retry", () => {
   const result = planIntelligenceRetry({ attempts: 0, error: "invalid task payload" });
   assert.equal(result.retryable, false);
