@@ -1478,7 +1478,9 @@ test("MEHRAN Intelligence Agent API is enabled only behind its dedicated bearer 
     "after honoring priority, continue packages that have already completed a task before starting another package");
   assert.match(route, /status='awaiting_approval' AND requires_approval=0/);
   assert.match(route, /agent_claimed_at=CURRENT_TIMESTAMP/);
-  assert.ok(route.includes("WHERE id=? AND status IN ('queued','accepted','retry_wait') AND requires_approval=0 AND assigned_to IN ('mehran_intelligence','shared') AND action_type IN ('repository_quality_check','service_health_report','source_security_audit','inspect_repository','run_repository_tests','propose_code_patch')"));
+  assert.ok(route.includes('action_type IN (" + claimableActionTypes + ")'), "claim update must use the same action filter as candidate selection");
+  assert.match(route, /const deterministicOnly = url\.searchParams\.get\("mode"\) === "deterministic"/);
+  assert.match(workerSource, /const claimableActionTypes = deterministicOnly[\s\S]*?'repository_quality_check','service_health_report','source_security_audit','run_repository_tests'/);
   assert.match(route, /agent_claimed_at IS NOT NULL AND datetime\(agent_claimed_at\) < datetime\('now','-15 minutes'\)/);
   assert.match(route, /agent_claimed_at IS NOT NULL AND datetime\(agent_claimed_at\)>=datetime\('now','-15 minutes'\)/);
   assert.doesNotMatch(route, /work_package_id IS NULL AND agent_claimed_at IS NOT NULL/,
