@@ -1480,7 +1480,7 @@ test("MEHRAN Intelligence Agent API is enabled only behind its dedicated bearer 
   assert.match(route, /agent_claimed_at=CURRENT_TIMESTAMP/);
   assert.ok(route.includes('action_type IN (" + claimableActionTypes + ")'), "claim update must use the same action filter as candidate selection");
   assert.match(route, /const deterministicOnly = url\.searchParams\.get\("mode"\) === "deterministic"/);
-  assert.match(workerSource, /const claimableActionTypes = deterministicOnly[\\s\\S]*?'repository_quality_check','service_health_report','source_security_audit','inspect_repository','run_repository_tests'/);
+  assert.match(workerSource, /const claimableActionTypes = deterministicOnly[\s\S]*?'repository_quality_check','service_health_report','source_security_audit','inspect_repository','run_repository_tests'/);
   assert.match(route, /agent_claimed_at IS NOT NULL AND datetime\(agent_claimed_at\) < datetime\('now','-15 minutes'\)/);
   assert.match(route, /agent_claimed_at IS NOT NULL AND datetime\(agent_claimed_at\)>=datetime\('now','-15 minutes'\)/);
   assert.doesNotMatch(route, /work_package_id IS NULL AND agent_claimed_at IS NOT NULL/,
