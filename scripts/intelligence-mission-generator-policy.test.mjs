@@ -4,6 +4,7 @@ import { readFileSync } from "node:fs";
 
 const workerSource = readFileSync(new URL("../worker.js", import.meta.url), "utf8");
 const runnerSource = readFileSync(new URL("../.github/workflows/mehran-intelligence-runner.yml", import.meta.url), "utf8");
+import { buildDeterministicRoutinePlan } from "./intelligence-routine-planner.mjs";
 import {
   MISSION_GENERATOR_POLICY,
   getMissionGeneratorDecision,
@@ -109,4 +110,25 @@ test("D1 reservation is serialized, leased, and prevents competing package inser
   assert.ok(workerSource.includes("active_work_or_generator_reservation_exists"));
   assert.ok(workerSource.includes("finally {\n    if (generatorSlotReserved)"));
   assert.ok(workerSource.includes("releaseIntelligenceMissionGeneratorSlot(env, packageId)"));
+});
+
+
+test("scheduled routine mission creates exactly three deterministic checks without AI-only inventory", () => {
+  const plan = buildDeterministicRoutinePlan(
+    "service health check, repository quality check, and source security audit"
+  );
+  assert.ok(plan);
+  assert.deepEqual(plan.tasks.map(task => task.actionType), [
+    "service_health_report",
+    "repository_quality_check",
+    "source_security_audit"
+  ]);
+  assert.ok(!plan.tasks.some(task => task.actionType === "inspect_repository"));
+  assert.equal(plan.acceptanceCriteria.length, 5);
+});
+
+test("explicit repository inventory requests still create an inventory task", () => {
+  const plan = buildDeterministicRoutinePlan("inspect repository architecture and API routes");
+  assert.ok(plan);
+  assert.ok(plan.tasks.some(task => task.actionType === "inspect_repository"));
 });
