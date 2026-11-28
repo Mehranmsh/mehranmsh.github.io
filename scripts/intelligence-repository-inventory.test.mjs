@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { filterRepositoryInventoryPaths, getRepositoryModuleKey } from "./intelligence-repository-inventory.mjs";
+import { isAllowedInspectionPath } from "./intelligence-patch-policy.mjs";
 
 test("dynamic inventory includes application modules and root entry points", () => {
   const paths = filterRepositoryInventoryPaths([
@@ -25,4 +26,11 @@ test("dynamic inventory excludes secrets, private data, workflows, dependencies 
 test("inventory module keys group root files and module directories deterministically", () => {
   assert.equal(getRepositoryModuleKey("index.html"), "root");
   assert.equal(getRepositoryModuleKey("music-studio/mixer.ts"), "music-studio");
+});
+
+test("inventory marker is accepted while private and sensitive paths remain blocked", () => {
+  assert.equal(isAllowedInspectionPath("@app-inventory"), true);
+  assert.equal(isAllowedInspectionPath("private-key.js"), false);
+  assert.equal(isAllowedInspectionPath("config/api-secret.json"), false);
+  assert.equal(isAllowedInspectionPath(".github/workflows/runner.yml"), false);
 });
