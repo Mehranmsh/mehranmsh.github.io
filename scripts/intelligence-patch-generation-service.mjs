@@ -207,7 +207,7 @@ export async function generatePatchArtifact({
   env,
   baseSha,
   objective,
-  targetPath,
+  targetPath = "scripts/intelligence-capabilities.test.mjs",
   reserveBudget,
   runAI,
   fetchImpl = fetch,
