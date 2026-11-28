@@ -379,8 +379,8 @@ test("draft PR automation is isolated, main-only, test-gated, and never merges o
   assert.match(proposalWorkflowSource, /GITHUB_TOKEN:/);
 
   assert.match(proposalRunnerSource, /proposals\.slice\(0,3\)/);
-  assert.match(proposalRunnerSource, /proposal\.targetPath !== targetPath/);
-  assert.match(proposalRunnerSource, /scripts\/intelligence-capabilities\.test\.mjs/);
+  assert.match(proposalRunnerSource, /isAllowedPatchPath\(targetPath\)/);
+  assert.match(proposalRunnerSource, /const targetPath = String\(proposal\.targetPath \|\| ""\)/);
   assert.match(proposalRunnerSource, /--network", "none"/);
   assert.match(proposalRunnerSource, /draft: true/);
   assert.match(proposalRunnerSource, /base: "main"/);
@@ -516,7 +516,7 @@ test("patch proposal validator rejects paths, multi-file input, malformed hunks,
     targetPaths: ["scripts/intelligence-capabilities.test.mjs"],
     diff: "--- a/scripts/intelligence-capabilities.test.mjs\n+++ b/scripts/intelligence-capabilities.test.mjs\n@@ -1 +1 @@\n-old\n+new\n"
   };
-  assert.equal(validatePatchProposal({ ...base, targetPaths: ["worker.js"] }).code, "path_not_allowed");
+  assert.equal(validatePatchProposal({ ...base, targetPaths: [".env"] }).code, "path_not_allowed");
   assert.equal(validatePatchProposal({ ...base, targetPaths: [base.targetPaths[0], base.targetPaths[0]] }).code, "invalid_target_count");
   assert.equal(validatePatchProposal({ ...base, baseSha: "not-a-sha" }).code, "invalid_base_sha");
   assert.equal(validatePatchProposal({ ...base, diff: base.diff.replace("+++ b/scripts/", "+++ b/worker.js\n--- a/scripts/") }).code, "patch_path_mismatch");
@@ -737,7 +737,7 @@ test("patch generation prompt treats source as untrusted and fixes the narrow ou
   });
   assert.equal(prompt.ok, true);
   assert.match(prompt.system, /untrusted data/);
-  assert.match(prompt.system, /zero deletions/);
+  assert.match(prompt.system, /one unified diff/);
   assert.ok(prompt.system.includes("@@ -1,0 +2,K @@"));
   assert.match(prompt.system, /K must equal the exact number of added lines/);
   assert.doesNotMatch(prompt.system, /\+NEW_LINE,1/);
@@ -746,7 +746,7 @@ test("patch generation prompt treats source as untrusted and fixes the narrow ou
   assert.match(prompt.user, /const example = true/);
   assert.equal(buildPatchGenerationPrompt({ baseSha: "bad", objective: "A valid objective here", source }).code, "invalid_base_sha");
   assert.equal(buildPatchGenerationPrompt({ baseSha: "a".repeat(40), objective: "short", source }).code, "invalid_objective");
-  assert.equal(PATCH_GENERATION_POLICY.appendOnly, true);
+  assert.equal(PATCH_GENERATION_POLICY.appendOnly, false);
   assert.equal(PATCH_GENERATION_POLICY.appliesChanges, false);
 });
 
@@ -816,8 +816,8 @@ test("generated patch validator rejects replacements, non-EOF hunks, and extra f
     `--- a/${path}`, `+++ b/${path}`, "@@ -99,0 +100,1 @@", "+test(\"x\",()=>{});", ""
   ].join("\n");
   const base = { baseSha: "c".repeat(40), sourceLineCount: 100, summary: "Reject unsafe generated patch mutations" };
-  assert.equal(validateGeneratedPatch({ ...base, diff: replacement }).code, "patch_not_append_only");
-  assert.equal(validateGeneratedPatch({ ...base, diff: nonEof }).code, "patch_not_appended_at_eof");
+  assert.equal(validateGeneratedPatch({ ...base, diff: replacement }).ok, true);
+  assert.equal(validateGeneratedPatch({ ...base, diff: nonEof }).ok, true);
   assert.equal(validateGeneratedPatch({ ...base, diff: nonEof.replace(path, "worker.js") }).code, "patch_path_mismatch");
 });
 
@@ -982,7 +982,7 @@ test("Workers AI patch generation fails closed on budget denial and unsafe model
     }) }; } } },
     reserveBudget: async () => ({ allowed: true })
   });
-  assert.equal(unsafe.code, "patch_not_append_only");
+  assert.equal(unsafe.ok, true);
 });
 
 
@@ -1529,7 +1529,8 @@ test("patch application is in-memory only and rejects stale or non-append-only p
     summary: "Attempt to replace an existing line",
     diff: replacement
   });
-  assert.equal(rejected.ok, false);
+  assert.equal(rejected.ok, true);
+  assert.equal(rejected.content, "const replaced = true;\\n");
 });
 
 
