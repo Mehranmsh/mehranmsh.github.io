@@ -8,6 +8,7 @@ import {
 } from "./intelligence-capabilities.mjs";
 import { createPatchArtifactRecord } from "./intelligence-patch-artifact.mjs";
 import { normalizeIntelligenceAcceptanceCriteria, verifyIntelligenceObjective } from "./intelligence-objective-verification.mjs";
+import { validateRepositoryAnalysis } from "./intelligence-analysis-validation.mjs";
 
 const workerSource = await readFile(new URL("../worker.js", import.meta.url), "utf8");
 const indexSource = await readFile(new URL("../index.html", import.meta.url), "utf8");
@@ -4176,4 +4177,55 @@ test("deterministic fallback missions define their own acceptance criteria", () 
   const fallback = workerSource.slice(start, end);
   assert.match(fallback, /scope\.acceptanceCriteria = \[/);
   assert.doesNotMatch(fallback, /plan\.acceptanceCriteria|normalizedTasks|return fallback\(/);
+});
+
+
+test("repository analysis prompt states every enforced response field limit", () => {
+  const routeStart = workerSource.indexOf('if (path === "/agent/v1/repository/analyze" && method === "POST")');
+  const promptStart = workerSource.indexOf("const system = [", routeStart);
+  const promptEnd = workerSource.indexOf('].join(" ");', promptStart);
+  assert.ok(routeStart >= 0 && promptStart > routeStart && promptEnd > promptStart);
+  const prompt = workerSource.slice(promptStart, promptEnd);
+  for (const rule of [
+    "summary (string, maximum 1600 characters)",
+    "title maximum 180 characters",
+    "rootCause maximum 1200",
+    "recommendation maximum 1200",
+    "evidence array maximum 5",
+    "evidence quote maximum 500 characters",
+    "regressionTests array maximum 6",
+    "each test maximum 300 characters",
+    "never exceed a field limit"
+  ]) assert.ok(prompt.includes(rule), "analysis prompt must include: " + rule);
+});
+
+test("repository analysis validator rejects oversized model fields with a precise field code", () => {
+  const files = [{ path: "worker.js", excerpt: "const SAFE = true;" }];
+  const valid = {
+    summary: "Bounded summary",
+    findings: [{
+      severity: "low",
+      title: "Short title",
+      rootCause: "A concise root cause.",
+      recommendation: "A concise recommendation.",
+      evidence: [{ path: "worker.js", quote: "const SAFE = true;" }],
+      regressionTests: ["Assert the safe guard remains active."]
+    }],
+    limitations: ["Static evidence only."]
+  };
+  assert.equal(validateRepositoryAnalysis(valid, files).valid, true);
+  for (const [field, value] of [
+    ["title", "x".repeat(181)],
+    ["rootCause", "x".repeat(1201)],
+    ["recommendation", "x".repeat(1201)],
+    ["quote", "x".repeat(501)]
+  ]) {
+    const candidate = structuredClone(valid);
+    if (field === "quote") candidate.findings[0].evidence[0].quote = value;
+    else candidate.findings[0][field] = value;
+    const result = validateRepositoryAnalysis(candidate, files);
+    assert.equal(result.valid, false);
+    assert.equal(result.code, "field_limit_exceeded");
+    assert.equal(result.field, field);
+  }
 });
