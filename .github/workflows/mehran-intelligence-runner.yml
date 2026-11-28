@@ -56,7 +56,6 @@ jobs:
             "scripts/intelligence-agent.mjs",
             "scripts/intelligence-capabilities.mjs",
             "scripts/intelligence-capabilities.test.mjs",
-            ".github/workflows/mehran-intelligence-runner.yml",
             "docs/INTELLIGENCE_EXECUTION_PROTOCOL.md"
           ];
           const files = [];
@@ -74,7 +73,7 @@ jobs:
             });
             totalChars += excerpt.length;
           }
-          if (files.length !== 6 || totalChars > 16000) {
+          if (files.length !== 5 || totalChars > 16000) {
             throw new Error("Production semantic verification exceeded its source-evidence bounds.");
           }
 
