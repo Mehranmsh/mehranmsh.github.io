@@ -7728,11 +7728,11 @@ export default {
               try {
                 const headers = { "Accept":"application/vnd.github+json", "User-Agent":"MEHRAN-MSH-INTELLIGENCE" };
                 const response = await fetch("https://api.github.com/repos/Mehranmsh/mehranmsh.github.io", { headers, signal:controller.signal });
-                if (!response.ok) throw new Error("GitHub repository metadata returned HTTP " + response.status);
+                if (!response.ok) throw new Error("GitHub repository metadata returned HTTP " + response.status + (response.status === 403 ? " (GitHub API rate limit or temporary access restriction)" : response.status === 429 ? " (GitHub API rate limit)" : ""));
                 const metadata = await response.json();
                 if (metadata.full_name !== "Mehranmsh/mehranmsh.github.io") throw new Error("Unexpected repository identity.");
                 const commitsResponse = await fetch("https://api.github.com/repos/Mehranmsh/mehranmsh.github.io/commits?per_page=1", { headers, signal:controller.signal });
-                if (!commitsResponse.ok) throw new Error("GitHub latest commit lookup returned HTTP " + commitsResponse.status);
+                if (!commitsResponse.ok) throw new Error("GitHub latest commit lookup returned HTTP " + commitsResponse.status + (commitsResponse.status === 403 ? " (GitHub API rate limit or temporary access restriction)" : commitsResponse.status === 429 ? " (GitHub API rate limit)" : ""));
                 const commits = await commitsResponse.json();
                 const latest = Array.isArray(commits) ? commits[0] : null;
                 report = {
