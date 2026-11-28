@@ -15,6 +15,7 @@ const runnerSource = await readFile(new URL("../.github/workflows/mehran-intelli
 const musicStudioSource = await readFile(new URL("../music-studio.html", import.meta.url), "utf8");
 const capabilityImport = 'import { INTELLIGENCE_ACTION_TYPES, PREAPPROVED_INTELLIGENCE_ACTION_TYPES } from "./scripts/intelligence-capabilities.mjs";';
 const patchStoreImport = 'import { storePrivatePatchArtifact, verifyPrivatePatchArtifactAtPath, getPrivatePatchArtifactPath, getVerifiedPrivatePatchArtifactAtPath } from "./scripts/intelligence-private-patch-store.mjs";';
+const patchPolicyImport = 'import { isAllowedPatchPath } from "./scripts/intelligence-patch-policy.mjs";';
 const patchGenerationImport = 'import { extractPatchModelText, generatePatchArtifact } from "./scripts/intelligence-patch-generation-service.mjs";';
 const inboxSchemaImport = 'import { validatePrivateIntelligenceMission, resolvePrivateIntelligenceInspectionPaths } from "./scripts/intelligence-inbox-schema.mjs";';
 const routinePlannerImport = 'import { buildDeterministicRoutinePlan } from "./scripts/intelligence-routine-planner.mjs";';
@@ -26,7 +27,7 @@ const planHistoryImport = 'import { compareIntelligencePlanVersions } from "./sc
 const planLearningImport = 'import { learnFromIntelligencePlanOutcomes } from "./scripts/intelligence-plan-learning.mjs";';
 const analysisValidationImport = 'import { discardFindingsWithUnknownEvidencePaths, validateRepositoryAnalysis } from "./scripts/intelligence-analysis-validation.mjs";';
 const objectiveVerificationImport = 'import { normalizeIntelligenceAcceptanceCriteria, verifyIntelligenceObjective } from "./scripts/intelligence-objective-verification.mjs";';
-if (!workerSource.includes(capabilityImport) || !workerSource.includes(patchStoreImport) ||
+if (!workerSource.includes(capabilityImport) || !workerSource.includes(patchStoreImport) || !workerSource.includes(patchPolicyImport) ||
     !workerSource.includes(patchGenerationImport) || !workerSource.includes(inboxSchemaImport) ||
     !workerSource.includes(routinePlannerImport) || !workerSource.includes(memoryRankingImport) || !workerSource.includes(answerQualityImport) || !workerSource.includes(retryPolicyImport) || !workerSource.includes(feedbackReviewImport) || !workerSource.includes(planHistoryImport) || !workerSource.includes(planLearningImport) || !workerSource.includes(analysisValidationImport) || !workerSource.includes(objectiveVerificationImport)) {
   throw new Error("Worker capability, patch storage, or private inbox schema imports were not found");
@@ -87,6 +88,7 @@ const patchGenerationPromptUrl = moduleUrl(patchGenerationPromptSource.replace(
 const patchGenerationServiceUrl = moduleUrl(patchGenerationServiceSource
   .replace('from "./intelligence-patch-generation.mjs"', `from "${patchGenerationPromptUrl}"`)
   .replace('from "./intelligence-patch-artifact.mjs"', `from "${artifactUrl}"`)
+  .replace('from "./intelligence-patch-policy.mjs"', `from "${policyUrl}"`)
 );
 const patchStoreTestUrl = moduleUrl(`
 import { getPrivatePatchArtifactPath } from "${patchStoreUrl}";
@@ -116,6 +118,7 @@ export async function generatePatchArtifact(args) {
 `);
 const workerRest = workerSource.replace(capabilityImport, "")
   .replace(patchStoreImport, "")
+  .replace(patchPolicyImport, "")
   .replace(patchGenerationImport, "")
   .replace(inboxSchemaImport, "")
   .replace(routinePlannerImport, "")
