@@ -71,8 +71,8 @@ const feedbackReviewSource = (await readFile(new URL("./intelligence-feedback-re
   .replace("const clean=", "const cleanFeedbackReview=")
   .replaceAll("clean(", "cleanFeedbackReview(");
 function moduleUrl(source) { return "data:text/javascript;base64," + Buffer.from(source).toString("base64"); }
-const inboxSchemaUrl = moduleUrl(inboxSchemaSource);
 const policyUrl = moduleUrl(policySource);
+const inboxSchemaUrl = moduleUrl(inboxSchemaSource.replace('from "./intelligence-patch-policy.mjs"', "from \"" + policyUrl + "\""));
 const artifactUrl = moduleUrl(artifactSource.replace(
   'from "./intelligence-patch-policy.mjs"',
   `from "${policyUrl}"`
