@@ -232,8 +232,8 @@ test("Workers AI quota circuit fails open for invalid diagnostic timestamps", ()
 });
 
 test("private notification archive accepts the cancelled work-package count", () => {
-  assert.match(workerSource, /const counts = \{total:0,completed:0,blocked:0,failed:0,cancelled:0,awaitingApproval:0,inProgress:0,queued:0,retryWaiting:0,blockedDependencies:0\}/);
-  assert.match(workerSource, /const countKeys = \["total","completed","blocked","failed","cancelled","awaitingApproval","inProgress","queued","retryWaiting","blockedDependencies"\]/);
+  assert.match(workerSource, /const counts = \{total:0,completed:0,blocked:0,failed:0,cancelled:0,awaitingApproval:0,inProgress:0,queued:0,retryWaiting:0,blockedDependencies:0,optionalQueued:0\}/);
+  assert.match(workerSource, /const countKeys = \["total","completed","blocked","failed","cancelled","awaitingApproval","inProgress","queued","retryWaiting","blockedDependencies","optionalQueued"\]/);
 });
 
 test("health endpoint reports online and confirms the database binding", async () => {
