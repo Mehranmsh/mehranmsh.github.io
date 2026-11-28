@@ -50,6 +50,7 @@ test("accepts a bounded repair mission with proposal and isolated test actions",
   const mission = validMission();
   mission.scope.mode = "bounded_app_repair";
   mission.scope.allowed_actions.push("propose_code_patch");
+  mission.scope.patch_target_path = "worker.js";
   mission.scope.forbidden = ["direct_source_writes","production_patch_application","unisolated_branch_creation","non_draft_pull_request_creation","merge","deployment","secret_access","credential_or_token_output","wallet_data_access","wallet_operations","financial_operations","arbitrary_shell","changes_to_production_state"];
   assert.deepEqual(validatePrivateIntelligenceMission(mission), []);
 });
@@ -58,7 +59,7 @@ test("rejects incomplete repair actions and repair actions in a read-only missio
   const missingProposal = validMission();
   missingProposal.scope.mode = "bounded_app_repair";
   missingProposal.scope.forbidden = ["direct_source_writes","production_patch_application","unisolated_branch_creation","non_draft_pull_request_creation","merge","deployment","secret_access","credential_or_token_output","wallet_data_access","wallet_operations","financial_operations","arbitrary_shell","changes_to_production_state"];
-  assert.deepEqual(validatePrivateIntelligenceMission(missingProposal), ["repair_actions_incomplete"]);
+  assert.deepEqual(validatePrivateIntelligenceMission(missingProposal), ["repair_actions_incomplete", "repair_target_path_invalid"]);
   const readOnly = validMission();
   readOnly.scope.allowed_actions.push("propose_code_patch");
   assert.deepEqual(validatePrivateIntelligenceMission(readOnly), ["repair_action_in_read_only_scope"]);
