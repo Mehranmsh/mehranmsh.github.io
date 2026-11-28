@@ -508,7 +508,8 @@ test("patch proposal validator accepts only a bounded single-file test diff and 
   assert.equal(PATCH_PROPOSAL_POLICY.appliesChanges, false);
   assert.equal(PATCH_PROPOSAL_POLICY.createsBranches, false);
   assert.equal(PATCH_PROPOSAL_POLICY.createsPullRequests, false);
-  assert.deepEqual(PATCH_PROPOSAL_POLICY.allowedPaths, [targetPath]);
+  assert.ok(PATCH_PROPOSAL_POLICY.allowedPaths.includes("worker.js"));
+  assert.ok(PATCH_PROPOSAL_POLICY.allowedPaths.includes("social/"));
 });
 
 test("bounded patch allowlist spans app modules while excluding secrets and privileged paths", () => {
