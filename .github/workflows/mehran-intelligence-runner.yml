@@ -387,7 +387,7 @@ jobs:
                 "--cpus", "1", "--tmpfs", "/tmp:rw,noexec,nosuid,nodev,size=64m",
                 "--mount", `type=bind,src=${workspace},dst=/workspace,readonly`,
                 "--workdir", "/workspace", image, "sh", "-c",
-                "node --check worker.js && node --check scripts/intelligence-capabilities.mjs && node --test --test-reporter=tap scripts/intelligence-capabilities.test.mjs"
+                "node --check worker.js && node --check scripts/intelligence-capabilities.mjs && node --check scripts/intelligence-patch-policy.mjs && node --check scripts/intelligence-inbox-schema.mjs && node --test --test-reporter=tap scripts/intelligence-capabilities.test.mjs scripts/intelligence-inbox-schema.test.mjs"
               ];
               const result = spawnSync("docker", args, { encoding: "utf8", timeout: 240000, maxBuffer: 1024 * 1024 });
               const output = [result.stdout || "", result.stderr || ""].join("\n").slice(-24000);
@@ -403,7 +403,7 @@ jobs:
                 baseSha,
                 workflowRunId: String(process.env.GITHUB_RUN_ID || ""),
                 workflowAttempt: Number(process.env.GITHUB_RUN_ATTEMPT || 0),
-                testSuite: "scripts/intelligence-capabilities.test.mjs",
+                testSuite: "scripts/intelligence-capabilities.test.mjs + scripts/intelligence-inbox-schema.test.mjs",
                 tests: { total, passed, failed },
                 exitCode,
                 outputSha256: createHash("sha256").update(output).digest("hex"),
@@ -539,6 +539,9 @@ jobs:
                 "scripts/intelligence-agent.mjs",
                 "scripts/intelligence-capabilities.mjs",
                 "scripts/intelligence-capabilities.test.mjs",
+                "scripts/intelligence-inbox-schema.mjs",
+                "scripts/intelligence-inbox-schema.test.mjs",
+                "scripts/intelligence-patch-policy.mjs",
                 ".github/workflows/mehran-intelligence-runner.yml",
                 "docs/INTELLIGENCE_EXECUTION_PROTOCOL.md"
               ]);

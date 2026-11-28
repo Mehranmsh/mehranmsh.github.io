@@ -1793,3 +1793,15 @@ test("agent executes repository inspection and fixed tests only within immutable
   assert.match(agentSource, /createHash\("sha256"\)/);
   assert.doesNotMatch(agentSource, /execSync\(|spawn\(|shell:\s*true|process\.env\.[A-Z0-9_]*SECRET/);
 });
+
+test("private inbox bridge runner allowlists only the exact mission contract files and executes its regression suite", () => {
+  for (const path of [
+    "scripts/intelligence-inbox-schema.mjs",
+    "scripts/intelligence-inbox-schema.test.mjs",
+    "scripts/intelligence-patch-policy.mjs"
+  ]) {
+    assert.ok(runnerSource.includes('"'+path+'"'), `runner must explicitly allowlist ${path}`);
+  }
+  assert.ok(runnerSource.includes("scripts/intelligence-inbox-schema.test.mjs"));
+  assert.ok(runnerSource.includes("scripts/intelligence-patch-policy.mjs"));
+});
