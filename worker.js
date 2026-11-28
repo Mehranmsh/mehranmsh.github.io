@@ -6820,7 +6820,7 @@ export function verifyIntelligenceReport(actionType, report) {
   } else if (actionType === "propose_code_patch") {
     const validProposalPath = typeof report.path === "string" && /^patch-proposals\/\d{4}\/\d{2}\/[a-f0-9-]{36}\.json$/.test(report.path);
     const proposalPathMatchesId = validProposalPath && report.path.endsWith("/" + report.proposalId + ".json");
-    if (typeof report.requestId !== "string" || report.requestId.length < 8 || report.requestId.length > 160 ||
+    if (report.applied !== false || typeof report.requestId !== "string" || report.requestId.length < 8 || report.requestId.length > 160 ||
         typeof report.requestHash !== "string" || !/^[A-Za-z0-9_-]{43}$/.test(report.requestHash) ||
         typeof report.proposalId !== "string" || !/^[a-f0-9-]{36}$/.test(report.proposalId) ||
         !proposalPathMatchesId || typeof report.artifactSha256 !== "string" || !/^[a-f0-9]{64}$/.test(report.artifactSha256) ||
