@@ -6269,6 +6269,10 @@ export function validateIntelligenceWorkPackage(input) {
         dependencies.some(dep => typeof dep !== "string" || !known.has(dep))) {
       return fail("Dependencies must be unique and reference earlier tasks in this package; cycles and forward references are rejected.");
     }
+    if (!optionalActions.includes(actionType) &&
+        dependencies.some(dep => normalized.some(parent => parent.taskId === dep && optionalActions.includes(parent.actionType)))) {
+      return fail("Required tasks cannot depend on deferred optional AI tasks.");
+    }
     known.add(taskId);
     normalized.push({ taskId, title: taskTitle, description, actionType, dependencies, ...(paths ? { paths } : {}), ...(baseSha ? { baseSha } : {}), ...(patchBaseSha ? { baseSha: patchBaseSha } : {}), ...(patchObjective ? { objective: patchObjective.trim() } : {}), ...(patchTargetPath ? { targetPath: patchTargetPath } : {}) });
   }
