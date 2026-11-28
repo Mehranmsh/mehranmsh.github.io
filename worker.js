@@ -6143,7 +6143,9 @@ async function refreshIntelligenceWorkPackageSnapshot(env, packageId) {
   let packageScope = {};
   try { packageScope = JSON.parse(pkg.scope_json || "{}"); } catch { packageScope = {}; }
   const optionalActions = Array.isArray(packageScope.optionalActions) ? packageScope.optionalActions : [];
-  counts.optionalQueued = tasks.filter(task => optionalActions.includes(task.action_type) && ["queued","accepted"].includes(task.status)).length;
+  const optionalPendingTasks = tasks.filter(task => optionalActions.includes(task.action_type) && ["queued","accepted","retry_wait"].includes(task.status));
+  counts.optionalQueued = optionalPendingTasks.filter(task => ["queued","accepted"].includes(task.status)).length;
+  counts.retryWaiting -= optionalPendingTasks.filter(task => task.status === "retry_wait").length;
   const objectiveVerification = verifyIntelligenceObjective(packageScope.acceptanceCriteria, tasks);
   const allRequiredCompleted = counts.total > 0 && counts.completed + counts.optionalQueued === counts.total;
   const objectiveComplete = allRequiredCompleted && counts.optionalQueued === 0 && objectiveVerification.verified;
@@ -6159,7 +6161,7 @@ async function refreshIntelligenceWorkPackageSnapshot(env, packageId) {
   const reportIsQuiescent = isIntelligenceReportQuiescent(counts);
   const report = {
     status, counts,
-    deferredOptionalActions: counts.optionalQueued ? optionalActions.filter(action => tasks.some(task => task.action_type === action && ["queued","accepted"].includes(task.status))) : [],
+    deferredOptionalActions: optionalPendingTasks.length ? optionalActions.filter(action => optionalPendingTasks.some(task => task.action_type === action)) : [],
     objectiveVerification: {
       verified: objectiveVerification.verified,
       passed: objectiveVerification.passed,
@@ -7719,12 +7721,14 @@ async function ingestGitHubIntelligenceInbox(env) {
 
 function isIntelligenceReportQuiescent(counts) {
   if (!counts || typeof counts !== "object" || Array.isArray(counts)) return false;
-  const fields = ["inProgress", "retryWaiting", "awaitingApproval", "queued", "blockedDependencies", "optionalQueued"];
-  if (fields.some(key => !Number.isSafeInteger(counts[key]) || counts[key] < 0)) return false;
+  const optionalQueued = counts.optionalQueued === undefined ? 0 : counts.optionalQueued;
+  const fields = ["inProgress", "retryWaiting", "awaitingApproval", "queued", "blockedDependencies"];
+  if (fields.some(key => !Number.isSafeInteger(counts[key]) || counts[key] < 0) ||
+      !Number.isSafeInteger(optionalQueued) || optionalQueued < 0) return false;
   return counts.inProgress === 0 &&
     counts.retryWaiting === 0 &&
     counts.awaitingApproval === 0 &&
-    counts.queued <= counts.blockedDependencies + counts.optionalQueued;
+    counts.queued <= counts.blockedDependencies + optionalQueued;
 }
 
 export default {
@@ -8647,18 +8651,21 @@ export default {
           let packageScope = {};
           try { packageScope = JSON.parse(pkg.scope_json || "{}"); } catch { packageScope = {}; }
           const optionalActions = Array.isArray(packageScope.optionalActions) ? packageScope.optionalActions : [];
-          counts.optionalQueued = rows.filter(task => optionalActions.includes(task.action_type) && ["queued","accepted"].includes(task.status)).length;
+          const optionalPendingTasks = rows.filter(task => optionalActions.includes(task.action_type) && ["queued","accepted","retry_wait"].includes(task.status));
+          counts.optionalQueued = optionalPendingTasks.filter(task => ["queued","accepted"].includes(task.status)).length;
+          counts.retryWaiting -= optionalPendingTasks.filter(task => task.status === "retry_wait").length;
           const reportIsQuiescent = isIntelligenceReportQuiescent(counts);
           const objectiveVerification = verifyIntelligenceObjective(packageScope.acceptanceCriteria, rows);
           const allRequiredCompleted = counts.completed + counts.optionalQueued === counts.total;
           const hasRunnableQueued = counts.queued - counts.optionalQueued > counts.blockedDependencies;
           const status = allRequiredCompleted && counts.optionalQueued === 0 && objectiveVerification.verified ? "completed"
             : allRequiredCompleted ? "attention_required"
-            : counts.blocked || counts.failed || counts.cancelled || counts.awaitingApproval || counts.blockedDependencies ? "attention_required"
             : counts.inProgress ? "in_progress"
             : counts.retryWaiting && !hasRunnableQueued ? "waiting_retry"
-            : hasRunnableQueued ? "queued" : "queued";
-          const report = {status,counts,deferredOptionalActions:counts.optionalQueued ? optionalActions.filter(action => rows.some(task => task.action_type === action && ["queued","accepted"].includes(task.status))) : [],objectiveVerification:{verified:objectiveVerification.verified,passed:objectiveVerification.passed,total:objectiveVerification.total,reason:objectiveVerification.reason,criteria:objectiveVerification.criteria},generatedAt:new Date().toISOString()};
+            : hasRunnableQueued ? "queued"
+            : (counts.blocked || counts.failed || counts.cancelled || counts.awaitingApproval || counts.blockedDependencies) ? "attention_required"
+            : "queued";
+          const report = {status,counts,deferredOptionalActions:optionalPendingTasks.length ? optionalActions.filter(action => optionalPendingTasks.some(task => task.action_type === action)) : [],objectiveVerification:{verified:objectiveVerification.verified,passed:objectiveVerification.passed,total:objectiveVerification.total,reason:objectiveVerification.reason,criteria:objectiveVerification.criteria},generatedAt:new Date().toISOString()};
           const eventRows = events.results || [];
           if (pkg.status !== status) {
             const eventId = crypto.randomUUID();
