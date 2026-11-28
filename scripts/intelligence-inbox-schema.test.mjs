@@ -50,7 +50,23 @@ test("reports the exact status and scope mismatches that previously failed silen
   ]);
 });
 
-test("accepts a bounded repair mission with proposal and isolated test actions", () => {\n  const mission = validMission();\n  mission.scope.mode = "bounded_app_repair";\n  mission.scope.allowed_actions.push("propose_code_patch");\n  assert.deepEqual(validatePrivateIntelligenceMission(mission), []);\n});\n\ntest("rejects incomplete repair actions and repair actions in a read-only mission", () => {\n  const missingProposal = validMission();\n  missingProposal.scope.mode = "bounded_app_repair";\n  assert.deepEqual(validatePrivateIntelligenceMission(missingProposal), ["repair_actions_incomplete"]);\n  const readOnly = validMission();\n  readOnly.scope.allowed_actions.push("propose_code_patch");\n  assert.deepEqual(validatePrivateIntelligenceMission(readOnly), ["repair_action_in_read_only_scope"]);\n});\n\ntest("rejects missing required safety restrictions", () => {
+test("accepts a bounded repair mission with proposal and isolated test actions", () => {
+  const mission = validMission();
+  mission.scope.mode = "bounded_app_repair";
+  mission.scope.allowed_actions.push("propose_code_patch");
+  assert.deepEqual(validatePrivateIntelligenceMission(mission), []);
+});
+
+test("rejects incomplete repair actions and repair actions in a read-only mission", () => {
+  const missingProposal = validMission();
+  missingProposal.scope.mode = "bounded_app_repair";
+  assert.deepEqual(validatePrivateIntelligenceMission(missingProposal), ["repair_actions_incomplete"]);
+  const readOnly = validMission();
+  readOnly.scope.allowed_actions.push("propose_code_patch");
+  assert.deepEqual(validatePrivateIntelligenceMission(readOnly), ["repair_action_in_read_only_scope"]);
+});
+
+test("rejects missing required safety restrictions", () => {
   const mission = validMission();
   mission.scope.forbidden = ["deployment"];
   assert.deepEqual(validatePrivateIntelligenceMission(mission), ["forbidden_actions_incomplete"]);
