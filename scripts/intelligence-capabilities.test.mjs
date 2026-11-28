@@ -100,7 +100,7 @@ test("semantic inspection falls back to a bounded prefix only when no path ancho
 
 test("deterministic task claims include inspection and fixed tests but exclude AI patch generation", () => {
   const claimStart = workerSource.indexOf('if (path === "/agent/v1/tasks/next" && method === "GET")');
-  const claimEnd = workerSource.indexOf('if (path === "/agent/v1/tasks/', claimStart + 20);
+  const claimEnd = workerSource.indexOf("const checkpointMatch", claimStart);
   assert.ok(claimStart >= 0 && claimEnd > claimStart);
   const claim = workerSource.slice(claimStart, claimEnd);
   assert.match(claim, /deterministicOnly \?\s*"\x27repository_quality_check\x27,\x27service_health_report\x27,\x27source_security_audit\x27,\x27inspect_repository\x27,\x27run_repository_tests\x27"/);
@@ -117,7 +117,7 @@ test("optional AI tasks are deferred without blocking required deterministic wor
   const snapshotStart = workerSource.indexOf("async function refreshIntelligenceWorkPackageSnapshot");
   const snapshotEnd = workerSource.indexOf("async function ensureIntelligenceSchedulerRunsTable", snapshotStart);
   const snapshot = workerSource.slice(snapshotStart, snapshotEnd);
-  assert.match(snapshot, /scope\.optionalActions/);
+  assert.match(snapshot, /packageScope\.optionalActions/);
   assert.match(snapshot, /optionalActions\.includes\(task\.action_type\)/);
   assert.match(snapshot, /counts\.completed \+ counts\.optionalQueued === counts\.total/);
   assert.match(snapshot, /counts\.queued - counts\.optionalQueued > counts\.blockedDependencies/);
@@ -126,7 +126,7 @@ test("optional AI tasks are deferred without blocking required deterministic wor
 
   const planner = workerSource.slice(workerSource.indexOf("scope.acceptanceCriteria = objectiveCriteria.criteria"));
   assert.match(planner, /scope\.optionalActions = normalizedTasks\.some\(task => task\.actionType === "propose_code_patch"\)/);
-  assert.match(workerSource, /scope\.optionalActions must be a unique subset of explicitly authorized actions/);
+  assert.match(workerSource, /scope\.optionalActions may contain only the explicitly authorized optional AI patch capability/);
 
   const packageRouteStart = workerSource.indexOf('if (packageMatch && method === "GET")');
   const packageRouteEnd = workerSource.indexOf('if (path === "/agent/v1/tasks/next"', packageRouteStart);
@@ -1374,7 +1374,7 @@ test("package report snapshots wait until runnable sibling tasks are quiescent",
   const snapshot = workerSource.slice(start, end);
   assert.match(snapshot, /else if \(row\.status === "cancelled"\) counts\.cancelled \+= n/);
   assert.match(snapshot, /counts\.inProgress \? "in_progress"/);
-  assert.match(snapshot, /counts\.queued > counts\.blockedDependencies/);
+  assert.match(snapshot, /counts\.queued - counts\.optionalQueued > counts\.blockedDependencies/);
   assert.match(snapshot, /reportIsQuiescent = isIntelligenceReportQuiescent\(counts\)/);
   assert.match(snapshot, /includes\(status\) && reportIsQuiescent/);
 });
