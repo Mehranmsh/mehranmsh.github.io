@@ -136,6 +136,19 @@ test("optional AI tasks are deferred without blocking required deterministic wor
   assert.match(packageRoute, /allRequiredCompleted && counts\.optionalQueued === 0 && objectiveVerification\.verified/);
 });
 
+test("symbolic app inventory requests resolve to a fixed six-file allowlisted slice", () => {
+  const inspectStart = runnerSource.indexOf('if (task.actionType === "inspect_repository")');
+  const inspectEnd = runnerSource.indexOf('if (task.actionType === "source_security_audit")', inspectStart);
+  assert.ok(inspectStart >= 0 && inspectEnd > inspectStart);
+  const inspect = runnerSource.slice(inspectStart, inspectEnd);
+  assert.match(inspect, /requestedPaths\.includes\("@app-inventory"\)/);
+  assert.match(inspect, /requestedPaths\.length !== 1/);
+  assert.match(inspect, /"scripts\/intelligence-agent\.mjs"/);
+  assert.match(inspect, /"scripts\/intelligence-patch-policy\.mjs"/);
+  assert.match(inspect, /fixed six-file core slice/);
+  assert.match(routinePlannerSource, /paths: \["@app-inventory"\]/);
+});
+
 test("repository inspection is fully deterministic and does not call the semantic AI endpoint", () => {
   const inspectStart = runnerSource.indexOf('if (task.actionType === "inspect_repository")');
   const inspectEnd = runnerSource.indexOf('if (task.actionType === "source_security_audit")', inspectStart);
