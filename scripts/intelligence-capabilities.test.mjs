@@ -103,8 +103,8 @@ test("deterministic task claims include inspection and fixed tests but exclude A
   const claimEnd = workerSource.indexOf("const checkpointMatch", claimStart);
   assert.ok(claimStart >= 0 && claimEnd > claimStart);
   const claim = workerSource.slice(claimStart, claimEnd);
-  assert.match(claim, /deterministicOnly \?\s*"\x27repository_quality_check\x27,\x27service_health_report\x27,\x27source_security_audit\x27,\x27inspect_repository\x27,\x27run_repository_tests\x27"/);
-  assert.match(claim, /: "\x27repository_quality_check\x27,\x27service_health_report\x27,\x27source_security_audit\x27,\x27inspect_repository\x27,\x27run_repository_tests\x27,\x27propose_code_patch\x27"/);
+  assert.ok(claim.includes(`? "'repository_quality_check','service_health_report','source_security_audit','inspect_repository','run_repository_tests'"`));
+  assert.ok(claim.includes(`: "'repository_quality_check','service_health_report','source_security_audit','inspect_repository','run_repository_tests','propose_code_patch'"`));
 });
 
 test("optional AI tasks are deferred without blocking required deterministic work or claiming success", () => {
