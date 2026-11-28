@@ -410,7 +410,11 @@ test("private runner processes queued work without automatically seeding baselin
   assert.doesNotMatch(runnerSource, /mehran-intelligence-repo-inspection-v2-/);
   assert.doesNotMatch(runnerSource, /mehran-intelligence-self-improvement-v3-/);
   assert.doesNotMatch(runnerSource, /mehran-intelligence-fixed-tests-v2-/);
-  assert.match(runnerSource, /request\("\/agent\/v1\/tasks\/next"\)/);
+  assert.match(runnerSource, /const allowAiTasks = process\.env\.MEHRAN_INTELLIGENCE_AI_TASKS_ENABLED === "true"/);
+  assert.match(runnerSource, /request\(taskClaimPath\)/);
+  assert.match(runnerSource, /mode=deterministic/);
+  assert.match(workerSource, /const deterministicOnly = url\.searchParams\.get\("mode"\) === "deterministic"/);
+  assert.match(workerSource, /claimableActionTypes/);
   assert.match(runnerSource, /Automatic baseline, AI self-improvement, and fixed-test package seeding is intentionally disabled/);
   assert.ok(runnerSource.includes('cron: "*/15 * * * *"'));
   assert.doesNotMatch(runnerSource, /create-review-pr-from-verified-patch/);
