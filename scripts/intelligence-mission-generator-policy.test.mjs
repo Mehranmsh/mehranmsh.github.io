@@ -42,6 +42,8 @@ test("queued, in-progress, and retrying packages still block generation", () => 
 
 test("runner sends the explicit attention-required bypass for scheduled generation", () => {
   assert.match(runnerSource, /ignoreAttentionRequiredBlockers:\s*true/);
+  assert.match(runnerSource, /\["schedule", "push"\]\.includes\(process\.env\.GITHUB_EVENT_NAME\)/,
+    "an explicitly enabled deterministic bootstrap must also run after runner workflow updates");
 });
 
 test("completed, failed, and cancelled packages do not block a new cycle", () => {
