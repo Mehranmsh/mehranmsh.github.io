@@ -1877,4 +1877,5 @@ test("deferred optional AI retries do not block deterministic package finalizati
   assert.match(workerSource, /const optionalQueued = counts\.optionalQueued === undefined \? 0 : counts\.optionalQueued/);
   assert.match(workerSource, /optionalPendingTasks = rows\.filter/);
   assert.match(workerSource, /: counts\.inProgress \? "in_progress"[\s\S]*?: counts\.retryWaiting && !hasRunnableQueued \? "waiting_retry"/);
+  assert.match(workerSource, /Required tasks cannot depend on deferred optional AI tasks/);
 });
