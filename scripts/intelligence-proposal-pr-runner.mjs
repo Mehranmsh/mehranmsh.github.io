@@ -1,8 +1,9 @@
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, readFileSync, writeFileSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, writeFileSync, rmSync, lstatSync, realpathSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, sep } from "node:path";
 import { applyValidatedPatchInMemory } from "./intelligence-patch-apply.mjs";
+import { isAllowedPatchPath } from "./intelligence-patch-policy.mjs";
 import { readBoundedResponse } from "./intelligence-bounded-response.mjs";
 
 const baseUrl = process.env.MEHRAN_AGENT_URL;
@@ -12,7 +13,6 @@ const githubToken = process.env.GITHUB_TOKEN || "";
 const runId = String(process.env.GITHUB_RUN_ID || "");
 const currentMainSha = String(process.env.GITHUB_SHA || "").toLowerCase();
 const repository = "Mehranmsh/mehranmsh.github.io";
-const targetPath = "scripts/intelligence-capabilities.test.mjs";
 const UUID_V4 = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 const apiRoot = "https://api.github.com";
 if (!baseUrl || agentToken.length < 40 || ownerToken.length < 40 || githubToken.length < 40 ||
@@ -70,12 +70,13 @@ for (const proposal of proposals) {
   const proposalId = String(proposal.proposalId || "");
   const baseSha = String(proposal.baseSha || "").toLowerCase();
   const artifactPath = String(proposal.path || "");
+  const targetPath = String(proposal.targetPath || "");
   const artifactSha256 = String(proposal.artifactSha256 || "");
   const createdAt = typeof proposal.createdAt === "string" ? proposal.createdAt : "";
   const proposalDate = new Date(createdAt);
   if (!UUID_V4.test(proposalId) || !/^[a-f0-9]{40}$/.test(baseSha) ||
       !Number.isFinite(proposalDate.getTime()) || proposalDate.toISOString() !== createdAt ||
-      proposal.targetPath !== targetPath ||
+      !isAllowedPatchPath(targetPath) ||
       artifactPath !== "patch-proposals/" + String(proposal.createdAt || "").slice(0,4) + "/" + String(proposal.createdAt || "").slice(5,7) + "/" + proposalId + ".json" ||
       !/^[a-f0-9]{64}$/.test(artifactSha256)) {
     console.log("Skipping malformed proposal metadata.");
@@ -113,7 +114,7 @@ for (const proposal of proposals) {
     if (artifact.success !== true || artifact.proposalId !== proposalId ||
         artifact.baseSha !== baseSha || artifact.targetPath !== targetPath ||
         artifact.artifactSha256 !== artifactSha256 || artifact.diffSha256 !== proposal.diffSha256 ||
-        typeof artifact.diff !== "string" || artifact.diff.length > 8192) {
+        typeof artifact.diff !== "string" || artifact.diff.length > 16384) {
       throw new Error("Verified artifact metadata does not match the queued proposal.");
     }
 
@@ -121,15 +122,21 @@ for (const proposal of proposals) {
     const workspace = join(tempRoot, "repo");
     try {
       run("git", ["worktree", "add", "--detach", workspace, baseSha]);
-      const source = readFileSync(join(workspace, targetPath), "utf8");
+      const workspaceRealPath = realpathSync(workspace);
+      const targetFilePath = realpathSync(join(workspace, targetPath));
+      const targetStat = lstatSync(join(workspace, targetPath));
+      if (!targetFilePath.startsWith(workspaceRealPath + sep) || !targetStat.isFile() || targetStat.isSymbolicLink()) {
+        throw new Error("Target path must resolve to a regular file inside the isolated worktree.");
+      }
+      const source = readFileSync(targetFilePath, "utf8");
       const applied = applyValidatedPatchInMemory({
         baseSha, expectedBaseSha: baseSha, source, targetPath,
         summary: String(artifact.summary || ""), diff: artifact.diff
       });
       if (!applied.ok || typeof applied.content !== "string") {
-        throw new Error("Patch application rejected by the fixed append-only policy: " + String(applied.code || "unknown"));
+        throw new Error("Patch application rejected by the bounded single-file policy: " + String(applied.code || "unknown"));
       }
-      writeFileSync(join(workspace, targetPath), applied.content, { encoding: "utf8", flag: "w" });
+      writeFileSync(targetFilePath, applied.content, { encoding: "utf8", flag: "w" });
 
       const image = "node:22-alpine@sha256:1314fb30ec37592d5845e5a160d522c0e680972aa534549940b8d73bde88481a";
       const dockerArgs = [
@@ -138,11 +145,11 @@ for (const proposal of proposals) {
         "--cpus", "1", "--tmpfs", "/tmp:rw,noexec,nosuid,nodev,size=64m",
         "--mount", "type=bind,src=" + workspace + ",dst=/workspace,readonly",
         "--workdir", "/workspace", image, "sh", "-c",
-        "node --check worker.js && node --test --test-reporter=tap scripts/intelligence-capabilities.test.mjs"
+        "node --check worker.js && node --test --test-reporter=tap"
       ];
       const test = spawnSync("docker", dockerArgs, { encoding: "utf8", timeout: 180000, maxBuffer: 2 * 1024 * 1024 });
       if (test.error || test.status !== 0) {
-        throw new Error("Isolated fixed test suite rejected the proposal: " +
+        throw new Error("Isolated repository test suite rejected the proposal: " +
           String(test.error?.message || test.stderr || test.stdout || "unknown").slice(-700));
       }
       const output = String(test.stdout || "");
@@ -179,7 +186,7 @@ for (const proposal of proposals) {
           "- Source base: `" + baseSha + "`",
           "- Proposal: `" + proposalId + "`",
           "- Changed path: `" + targetPath + "`",
-          "- Patch policy: append-only test additions; no deletions or replacements",
+          "- Patch policy: one allowlisted application source file; one bounded hunk; no secrets, workflows, wallet data, or deployment changes",
           "- Validation: isolated, network-disabled Node test container",
           "- Test result: " + Number(passMatch[1]) + " passed, 0 failed",
           "",

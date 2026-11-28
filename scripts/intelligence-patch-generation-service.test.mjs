@@ -147,17 +147,18 @@ test("patch generation fails closed when independent GitHub refs disagree", asyn
 });
 
 
-test("patch prompt supplies the exact append-only hunk header for the source line count", () => {
+test("patch prompt binds a selected app source path to one bounded unified diff hunk", () => {
   const source = "const first = 1;\nconst second = 2;\n";
   const prompt = buildPatchGenerationPrompt({
     baseSha,
     objective: "Add a focused regression test for a verified edge case",
-    source
+    source,
+    targetPath: "src/app.js"
   });
   assert.equal(prompt.ok, true);
-  assert.ok(prompt.system.includes("@@ -2,0 +3,K @@"));
-  assert.match(prompt.system, /no blank line or commentary/);
-  assert.match(prompt.system, /Do not omit ,0 or ,K/);
+  assert.match(prompt.user, /Target path: src\/app\.js/);
+  assert.match(prompt.system, /exactly one @@ hunk/);
+  assert.match(prompt.system, /160 changed lines/);
 });
 
 test("generated patch normalization converts CRLF and adds the required final newline", () => {

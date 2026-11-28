@@ -15,6 +15,7 @@ const runnerSource = await readFile(new URL("../.github/workflows/mehran-intelli
 const musicStudioSource = await readFile(new URL("../music-studio.html", import.meta.url), "utf8");
 const capabilityImport = 'import { INTELLIGENCE_ACTION_TYPES, PREAPPROVED_INTELLIGENCE_ACTION_TYPES } from "./scripts/intelligence-capabilities.mjs";';
 const patchStoreImport = 'import { storePrivatePatchArtifact, verifyPrivatePatchArtifactAtPath, getPrivatePatchArtifactPath, getVerifiedPrivatePatchArtifactAtPath } from "./scripts/intelligence-private-patch-store.mjs";';
+const patchPolicyImport = 'import { isAllowedPatchPath, isAllowedInspectionPath } from "./scripts/intelligence-patch-policy.mjs";';
 const patchGenerationImport = 'import { extractPatchModelText, generatePatchArtifact } from "./scripts/intelligence-patch-generation-service.mjs";';
 const inboxSchemaImport = 'import { validatePrivateIntelligenceMission, resolvePrivateIntelligenceInspectionPaths } from "./scripts/intelligence-inbox-schema.mjs";';
 const routinePlannerImport = 'import { buildDeterministicRoutinePlan } from "./scripts/intelligence-routine-planner.mjs";';
@@ -26,7 +27,7 @@ const planHistoryImport = 'import { compareIntelligencePlanVersions } from "./sc
 const planLearningImport = 'import { learnFromIntelligencePlanOutcomes } from "./scripts/intelligence-plan-learning.mjs";';
 const analysisValidationImport = 'import { discardFindingsWithUnknownEvidencePaths, validateRepositoryAnalysis } from "./scripts/intelligence-analysis-validation.mjs";';
 const objectiveVerificationImport = 'import { normalizeIntelligenceAcceptanceCriteria, verifyIntelligenceObjective } from "./scripts/intelligence-objective-verification.mjs";';
-if (!workerSource.includes(capabilityImport) || !workerSource.includes(patchStoreImport) ||
+if (!workerSource.includes(capabilityImport) || !workerSource.includes(patchStoreImport) || !workerSource.includes(patchPolicyImport) ||
     !workerSource.includes(patchGenerationImport) || !workerSource.includes(inboxSchemaImport) ||
     !workerSource.includes(routinePlannerImport) || !workerSource.includes(memoryRankingImport) || !workerSource.includes(answerQualityImport) || !workerSource.includes(retryPolicyImport) || !workerSource.includes(feedbackReviewImport) || !workerSource.includes(planHistoryImport) || !workerSource.includes(planLearningImport) || !workerSource.includes(analysisValidationImport) || !workerSource.includes(objectiveVerificationImport)) {
   throw new Error("Worker capability, patch storage, or private inbox schema imports were not found");
@@ -70,8 +71,8 @@ const feedbackReviewSource = (await readFile(new URL("./intelligence-feedback-re
   .replace("const clean=", "const cleanFeedbackReview=")
   .replaceAll("clean(", "cleanFeedbackReview(");
 function moduleUrl(source) { return "data:text/javascript;base64," + Buffer.from(source).toString("base64"); }
-const inboxSchemaUrl = moduleUrl(inboxSchemaSource);
 const policyUrl = moduleUrl(policySource);
+const inboxSchemaUrl = moduleUrl(inboxSchemaSource.replace('from "./intelligence-patch-policy.mjs"', "from \"" + policyUrl + "\""));
 const artifactUrl = moduleUrl(artifactSource.replace(
   'from "./intelligence-patch-policy.mjs"',
   `from "${policyUrl}"`
@@ -87,6 +88,7 @@ const patchGenerationPromptUrl = moduleUrl(patchGenerationPromptSource.replace(
 const patchGenerationServiceUrl = moduleUrl(patchGenerationServiceSource
   .replace('from "./intelligence-patch-generation.mjs"', `from "${patchGenerationPromptUrl}"`)
   .replace('from "./intelligence-patch-artifact.mjs"', `from "${artifactUrl}"`)
+  .replace('from "./intelligence-patch-policy.mjs"', `from "${policyUrl}"`)
 );
 const patchStoreTestUrl = moduleUrl(`
 import { getPrivatePatchArtifactPath } from "${patchStoreUrl}";
@@ -116,6 +118,7 @@ export async function generatePatchArtifact(args) {
 `);
 const workerRest = workerSource.replace(capabilityImport, "")
   .replace(patchStoreImport, "")
+  .replace(patchPolicyImport, "")
   .replace(patchGenerationImport, "")
   .replace(inboxSchemaImport, "")
   .replace(routinePlannerImport, "")
@@ -128,7 +131,7 @@ const workerRest = workerSource.replace(capabilityImport, "")
   .replace(analysisValidationImport, "")
   .replace(objectiveVerificationImport, "");
 const objectiveVerificationUrl = moduleUrl(objectiveVerificationSource);
-const workerSourceForTest = knowledgeGraphSource + "\n" + memoryRankingSource + "\n" + feedbackReviewSource + "\n" + planHistorySource + "\n" + planLearningSource + "\n" + analysisValidationSource + "\n" + `import { normalizeIntelligenceAcceptanceCriteria, verifyIntelligenceObjective } from "${objectiveVerificationUrl}";\n` + routinePlannerSource + "\n" + retryPolicySource + `\nimport { storePrivatePatchArtifact, verifyPrivatePatchArtifactAtPath, getPrivatePatchArtifactPath, getVerifiedPrivatePatchArtifactAtPath } from "${patchStoreTestUrl}";
+const workerSourceForTest = knowledgeGraphSource + "\n" + memoryRankingSource + "\n" + feedbackReviewSource + "\n" + planHistorySource + "\n" + planLearningSource + "\n" + analysisValidationSource + "\n" + `import { normalizeIntelligenceAcceptanceCriteria, verifyIntelligenceObjective } from "${objectiveVerificationUrl}";\n` + routinePlannerSource + "\n" + retryPolicySource + `\nimport { isAllowedPatchPath, isAllowedInspectionPath } from "${policyUrl}";\nimport { storePrivatePatchArtifact, verifyPrivatePatchArtifactAtPath, getPrivatePatchArtifactPath, getVerifiedPrivatePatchArtifactAtPath } from "${patchStoreTestUrl}";
 import { generatePatchArtifact } from "${patchGenerationTestUrl}";
 import { validatePrivateIntelligenceMission } from "${inboxSchemaUrl}";
 const INTELLIGENCE_ACTION_TYPES = ${JSON.stringify(INTELLIGENCE_ACTION_TYPES)};
@@ -582,7 +585,7 @@ test("proposal-only work-package tasks require a bounded objective", () => {
     scope: { modules: ["intelligence"], private: true, allowedActions: ["propose_code_patch"] },
     tasks: [{
       taskId: "patch", title: "Propose a regression test", description: "Create a narrow test-only proposal",
-      actionType: "propose_code_patch", dependsOn: [], objective: "Add regression coverage for an identified validation edge case"
+      actionType: "propose_code_patch", dependsOn: [], objective: "Add regression coverage for an identified validation edge case", baseSha: "c".repeat(40), targetPath: "scripts/intelligence-capabilities.test.mjs"
     }]
   };
   const valid = validateIntelligenceWorkPackage(base);
@@ -623,7 +626,7 @@ test("private patch retrieval is authenticated, rate-limited, digest-verified, a
   assert.match(route, /stored\.diff_sha256 !== artifact\.diffSha256/);
   assert.match(route, /stored\.status !== "claimed"/);
   assert.match(route, /stored\.runner_run_id !== runId/);
-  assert.match(route, /artifact\.targetPath !== "scripts\/intelligence-capabilities\.test\.mjs"/);
+  assert.ok(route.includes("!isAllowedPatchPath(artifact.targetPath)"));
   assert.match(route, /mode:"verified_proposal_data_only"/);
   assert.match(route, /diff:artifact\.diff/);
 });
@@ -631,12 +634,12 @@ test("private patch retrieval is authenticated, rate-limited, digest-verified, a
 test("patch proposal task reports are independently verified and bound to private artifact metadata", () => {
   const proposalId = "123e4567-e89b-42d3-a456-426614174000";
   const report = {
-    type: "propose_code_patch", generatedAt: "2026-11-23T12:00:00.000Z",
+    type: "propose_code_patch", applied: false, generatedAt: "2026-11-23T12:00:00.000Z",
     requestId: "package-id:patch", requestHash: "A".repeat(43), proposalId,
     path: `patch-proposals/2026/11/${proposalId}.json`,
     artifactSha256: "a".repeat(64), diffSha256: "b".repeat(64), status: "stored",
     baseSha: "c".repeat(40), targetPath: "scripts/intelligence-capabilities.test.mjs",
-    validationMode: "append_only_validate_only", summary: "Add a bounded regression test for a validation edge case"
+    validationMode: "bounded_single_file_validate_only", summary: "Add a bounded regression test for a validation edge case"
   };
   assert.equal(verifyIntelligenceReport("propose_code_patch", report).passed, true);
   assert.equal(verifyIntelligenceReport("propose_code_patch", { ...report, path: "patch-proposals/2026/11/other.json" }).passed, false);
@@ -721,7 +724,7 @@ test("AI patch generation endpoint requires the dedicated agent bearer token", a
   const response = await request("/agent/v1/patch-proposals/generate", {
     method: "POST",
     headers: { Authorization: "Bearer " + "x".repeat(48) },
-    body: { baseSha: "a".repeat(40), objective: "Add a bounded regression test", requestId: "task-12345678" }
+    body: { baseSha: "a".repeat(40), objective: "Add a bounded regression test", requestId: "task-12345678", targetPath: "scripts/intelligence-capabilities.test.mjs" }
   }, { DB: mockDb(), MEHRAN_AGENT_TOKEN: "s".repeat(48) });
   assert.equal(response.status, 401);
   const payload = await response.json();
@@ -733,7 +736,7 @@ test("AI patch generation endpoint has a strict bounded request and storage-only
   const end = workerSource.indexOf('if (path === "/agent/v1/patch-proposals" && method === "POST")', start);
   assert.ok(start >= 0 && end > start);
   const route = workerSource.slice(start, end);
-  assert.match(route, /Object\.keys\(body\)\.sort\(\)\.join\(","\) !== "baseSha,objective,requestId"/);
+  assert.match(route, /Object\.keys\(body\)\.sort\(\)\.join\(","\) !== "baseSha,objective,requestId,targetPath"/);
   assert.match(route, /checkRateLimit\(env,request,"intelligence-patch-generation",3,86400,86400\)/);
   assert.match(route, /reserveSocialWorkersAIBudget\(env,credits,"intelligence"\)/);
   assert.match(route, /runIntelligenceAI\(env,\s*\{\s*messages,\s*jsonMode: true,/,
@@ -893,7 +896,7 @@ test("simultaneous first delivery uses the atomic request reservation as the sin
   };
   try {
     const env = { DB: db, MEHRAN_AGENT_TOKEN: "s".repeat(48), MEHRAN_REPORTS_GITHUB_TOKEN: "r".repeat(48) };
-    const payload = { baseSha, objective, requestId };
+    const payload = { baseSha, objective, requestId, targetPath: "scripts/intelligence-capabilities.test.mjs" };
     const headers = { Authorization: "Bearer " + "s".repeat(48) };
     const responses = await Promise.all([
       request("/agent/v1/patch-proposals/generate", { method: "POST", headers, body: payload }, env),
@@ -1017,7 +1020,7 @@ test("concurrent duplicate delivery cannot regenerate or reserve AI budget twice
   };
   try {
     const env = { DB: db, MEHRAN_AGENT_TOKEN: "s".repeat(48), MEHRAN_REPORTS_GITHUB_TOKEN: "r".repeat(48) };
-    const payload = { baseSha, objective, requestId };
+    const payload = { baseSha, objective, requestId, targetPath: "scripts/intelligence-capabilities.test.mjs" };
     const headers = { Authorization: "Bearer " + "s".repeat(48) };
     const firstPromise = request("/agent/v1/patch-proposals/generate", {
       method: "POST", headers, body: payload
@@ -1166,7 +1169,7 @@ test("prepared request recovers across storage response loss and partial D1 fina
   };
   try {
     const env = { DB: db, MEHRAN_AGENT_TOKEN: "s".repeat(48), MEHRAN_REPORTS_GITHUB_TOKEN: "r".repeat(48) };
-    const payload = { baseSha, objective, requestId };
+    const payload = { baseSha, objective, requestId, targetPath: "scripts/intelligence-capabilities.test.mjs" };
     const first = await request("/agent/v1/patch-proposals/generate", {
       method: "POST", headers: { Authorization: "Bearer " + "s".repeat(48) }, body: payload
     }, env);

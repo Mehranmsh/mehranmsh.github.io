@@ -1,11 +1,24 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
+import { readFileSync, lstatSync, realpathSync } from "node:fs";
+import { sep } from "node:path";
+import { createHash } from "node:crypto";
+import { isAllowedPatchPath, isAllowedInspectionPath } from "./intelligence-patch-policy.mjs";
 import { readBoundedResponse } from "./intelligence-bounded-response.mjs";
 
 const run = promisify(execFile);
 const WORKER = "https://mehran-msh-auth.mehran79mehran.workers.dev";
 const APP = "https://mehranmsh.github.io";
 const token = process.env.MEHRAN_AGENT_TOKEN;
+const REPOSITORY = "Mehranmsh/mehranmsh.github.io";
+const INSPECTION_PATHS = Object.freeze([
+  "worker.js",
+  "scripts/intelligence-agent.mjs",
+  "scripts/intelligence-capabilities.mjs",
+  "scripts/intelligence-capabilities.test.mjs",
+  ".github/workflows/mehran-intelligence-runner.yml",
+  "docs/INTELLIGENCE_EXECUTION_PROTOCOL.md"
+]);
 
 function bounded(value, max = 2500) {
   return String(value ?? "").replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, "").slice(0, max);
@@ -29,6 +42,18 @@ async function request(path, options = {}) {
   return data;
 }
 
+function readTaskPayload(task) {
+  const value = task?.action_payload ?? task?.actionPayload ?? task?.payload;
+  if (value && typeof value === "object" && !Array.isArray(value)) return value;
+  if (typeof value === "string" && value.length <= 12000) {
+    try {
+      const parsed = JSON.parse(value);
+      return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : {};
+    } catch {}
+  }
+  return {};
+}
+
 async function runQualityChecks() {
   const steps = [
     ["Python and HTML/JavaScript quality checks", "python", ["scripts/quality-check.py"]],
@@ -47,6 +72,91 @@ async function runQualityChecks() {
     }
   }
   return { status: "completed", result: output.join("\n\n") };
+}
+
+async function runRepositoryTests(payload) {
+  const requestedSha = typeof payload.baseSha === "string" ? payload.baseSha.toLowerCase() : "";
+  const checkedOutSha = String(process.env.GITHUB_SHA || "").toLowerCase();
+  if (!/^[a-f0-9]{40}$/.test(requestedSha) || !/^[a-f0-9]{40}$/.test(checkedOutSha) ||
+      requestedSha !== checkedOutSha) {
+    return { status: "blocked", result: "Repository tests require an exact baseSha matching this immutable runner checkout. No tests were started." };
+  }
+  return runQualityChecks();
+}
+
+async function generatePatchProposal(taskId, payload) {
+  const objective = typeof payload.objective === "string" ? payload.objective.trim() : "";
+  const targetPath = typeof payload.targetPath === "string" ? payload.targetPath : "";
+  const requestedSha = typeof payload.baseSha === "string" ? payload.baseSha.toLowerCase() : "";
+  const checkedOutSha = String(process.env.GITHUB_SHA || "").toLowerCase();
+  if (objective.length < 12 || objective.length > 800 || !isAllowedPatchPath(targetPath) ||
+      !/^[a-f0-9]{40}$/.test(requestedSha) ||
+      !/^[a-f0-9]{40}$/.test(checkedOutSha) || requestedSha !== checkedOutSha) {
+    return { status: "blocked", result: "Patch generation requires a bounded objective and an exact immutable baseSha matching this runner checkout. No AI request was made." };
+  }
+  const requestId = taskId;
+  const proposal = await request("/agent/v1/patch-proposals/generate", {
+    method: "POST",
+    body: JSON.stringify({ baseSha: requestedSha, objective, targetPath, requestId })
+  });
+  const safe = {
+    type: "propose_code_patch",
+    applied: false,
+    requestId: bounded(proposal.requestId, 160),
+    requestHash: bounded(proposal.requestHash, 64),
+    path: bounded(proposal.path, 240),
+    artifactSha256: bounded(proposal.artifactSha256, 64),
+    diffSha256: bounded(proposal.diffSha256, 64),
+    baseSha: bounded(proposal.baseSha, 40),
+    summary: bounded(proposal.summary, 500),
+    generatedAt: bounded(proposal.generatedAt, 40),
+    proposalId: bounded(proposal.proposalId, 80),
+    status: bounded(proposal.status, 40),
+    targetPath: bounded(proposal.targetPath, 160),
+    validationMode: bounded(proposal.validationMode, 80)
+  };
+  if (proposal.success !== true || proposal.status !== "stored" ||
+      !safe.proposalId || safe.targetPath !== targetPath) {
+    return { status: "blocked", result: "Patch generation did not produce a verified stored proposal: " + JSON.stringify(safe) };
+  }
+  return { status: "completed", result: JSON.stringify(safe) };
+}
+function inspectRepository(payload) {
+  const paths = payload.paths;
+  if (!Array.isArray(paths) || paths.length < 1 || paths.length > 6 ||
+      new Set(paths).size !== paths.length ||
+      paths.some(path => !isAllowedInspectionPath(path))) {
+    return { status: "blocked", result: "Repository inspection paths must be unique allowlisted application source files. No file was read." };
+  }
+  const files = [];
+  for (const path of paths) {
+    try {
+      const workspaceRoot = realpathSync(".");
+      const targetPath = realpathSync(path);
+      const targetStat = lstatSync(path);
+      if (!targetPath.startsWith(workspaceRoot + sep) || !targetStat.isFile() || targetStat.isSymbolicLink()) {
+        throw new Error("Inspection target must be a regular file inside the repository checkout.");
+      }
+      const source = readFileSync(targetPath, "utf8");
+      files.push({
+        path,
+        bytes: Buffer.byteLength(source, "utf8"),
+        lines: source.split("\n").length - (source.endsWith("\n") ? 1 : 0),
+        sha256: createHash("sha256").update(source, "utf8").digest("hex")
+      });
+    } catch {
+      return { status: "blocked", result: "A requested allowlisted source file could not be read. No additional paths were inspected." };
+    }
+  }
+  return {
+    status: "completed",
+    result: JSON.stringify({
+      repository: REPOSITORY,
+      commitSha: String(process.env.GITHUB_SHA || "").toLowerCase(),
+      summary: { filesInspected: files.length, totalBytes: files.reduce((sum, file) => sum + file.bytes, 0) },
+      files
+    })
+  };
 }
 
 async function runServiceHealth() {
@@ -85,12 +195,19 @@ async function main() {
   }
 
   console.log(`Claimed task ${bounded(taskId, 80)}: ${bounded(task.title, 160)}`);
+  const payload = readTaskPayload(task);
   let outcome;
   try {
     if (task.actionType === "repository_quality_check") {
       outcome = await runQualityChecks();
     } else if (task.actionType === "service_health_report") {
       outcome = await runServiceHealth();
+    } else if (task.actionType === "inspect_repository") {
+      outcome = inspectRepository(payload);
+    } else if (task.actionType === "run_repository_tests") {
+      outcome = await runRepositoryTests(payload);
+    } else if (task.actionType === "propose_code_patch") {
+      outcome = await generatePatchProposal(taskId, payload);
     } else {
       outcome = {
         status: "blocked",

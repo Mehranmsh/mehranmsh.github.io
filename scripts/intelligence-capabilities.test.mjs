@@ -5,7 +5,7 @@ import { applyValidatedPatchInMemory, readBoundedResponse } from "./intelligence
 import { buildIntelligenceInspectionExcerpt, INTELLIGENCE_INSPECTION_EXCERPT_POLICY } from "./intelligence-inspection-excerpts.mjs";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { validatePatchProposal, PATCH_PROPOSAL_POLICY } from "./intelligence-patch-policy.mjs";
+import { validatePatchProposal, PATCH_PROPOSAL_POLICY, isAllowedPatchPath, isAllowedInspectionPath } from "./intelligence-patch-policy.mjs";
 import { createPatchArtifactRecord, verifyPatchArtifactRecord } from "./intelligence-patch-artifact.mjs";
 import { storePrivatePatchArtifact, verifyPrivatePatchArtifactAtPath, getVerifiedPrivatePatchArtifactAtPath, getPrivatePatchArtifactPath, PRIVATE_PATCH_ARTIFACT_STORE_POLICY } from "./intelligence-private-patch-store.mjs";
 import { buildPatchGenerationPrompt, validateGeneratedPatch, PATCH_GENERATION_POLICY } from "./intelligence-patch-generation.mjs";
@@ -155,7 +155,7 @@ test("all eight active capabilities are registered with their permission tiers",
     const input = id === "inspect_repository"
       ? { paths: ["worker.js"] }
       : isolated ? { baseSha: "a".repeat(40) }
-      : proposal ? { objective: "Add a regression test for a safe parser boundary" } : {};
+      : proposal ? { baseSha: "c".repeat(40), objective: "Add a regression test for a safe parser boundary", targetPath: "scripts/intelligence-capabilities.test.mjs" } : {};
     assert.equal(validateIntelligenceCapabilityRequest(id, input).ok, true);
   }
 });
@@ -170,6 +170,10 @@ test("fixed repository tests are active only through the isolated GitHub runner"
   assert.equal(validateIntelligenceCapabilityRequest("run_repository_tests", { baseSha: "b".repeat(40) }).ok, true);
   assert.equal(validateIntelligenceCapabilityRequest("run_repository_tests", { baseSha: "not-a-commit" }).ok, false);
   assert.equal(validateIntelligenceCapabilityRequest("run_repository_tests", { baseSha: "b".repeat(40), command: "echo unsafe" }).code, "unknown_input_field");
+  assert.equal(validateIntelligenceCapabilityRequest("propose_code_patch", { baseSha: "c".repeat(40), objective: "Add a regression test for a safe parser boundary", targetPath: "scripts/intelligence-capabilities.test.mjs" }).ok, true);
+  assert.equal(validateIntelligenceCapabilityRequest("propose_code_patch", { objective: "Add a regression test for a safe parser boundary" }).code, "missing_required_field");
+  assert.equal(validateIntelligenceCapabilityRequest("propose_code_patch", { baseSha: "invalid", objective: "Add a regression test for a safe parser boundary", targetPath: "scripts/intelligence-capabilities.test.mjs" }).code, "invalid_input_value");
+  assert.match(workerSource, /validPatchBaseSha/);
   assert.match(workerSource, /actionType === "run_repository_tests"/);
   assert.match(workerSource, /report\.mode !== "isolated_fixed_repository_test"/);
   assert.match(workerSource, /before\.action_payload/);
@@ -258,6 +262,10 @@ test("AI mission planner uses JSON mode and extracts one complete balanced objec
   assert.match(planner, /jsonMode: true, temperature: 0, maxTokens: 1000/);
   assert.match(planner, /runIntelligenceAI\(env/);
   assert.match(planner, /extractIntelligenceJsonObject\(modelResponse\)/);
+  assert.match(planner, /repositoryBaseSha/);
+  assert.match(planner, /commits\/main/);
+  assert.match(planner, /baseSha copied exactly from the immutable repository SHA above/);
+  assert.match(workerSource, /actionType !== "run_repository_tests" && normalized\.actionType !== "propose_code_patch/);
   assert.match(workerSource.slice(start, plannerStart), /if \(depth === 0 && start >= 0\) return text\.slice\(start, index \+ 1\)/);
   assert.match(workerSource.slice(start, plannerStart), /if \(escaped\) escaped = false/);
   assert.match(workerSource.slice(start, plannerStart), /raw.length > 12000/);
@@ -266,8 +274,8 @@ test("AI mission planner uses JSON mode and extracts one complete balanced objec
 test("AI planner strips schema-optional fields that are invalid for another action", () => {
   assert.match(workerSource, /const normalizedTasks = plan\.tasks\.map\(item =>/);
   assert.match(workerSource, /if \(normalized\.actionType !== "inspect_repository"\) delete normalized\.paths/);
-  assert.match(workerSource, /if \(normalized\.actionType !== "run_repository_tests"\) delete normalized\.baseSha/);
-  assert.match(workerSource, /if \(normalized\.actionType !== "propose_code_patch"\) delete normalized\.objective/);
+  assert.match(workerSource, /if \(normalized\.actionType !== "run_repository_tests" && normalized\.actionType !== "propose_code_patch"\) delete normalized\.baseSha/);
+  assert.match(workerSource, /if \(normalized\.actionType !== "propose_code_patch"\) \{ delete normalized\.objective; delete normalized\.targetPath; \}/);
   assert.match(workerSource, /const acceptedTaskIds = new Set\(\)/);
   assert.match(workerSource, /acceptedTaskIds\.has\(dep\)/);
   assert.match(workerSource, /seenDependencies\.has\(dep\)/);
@@ -304,7 +312,7 @@ test("unknown capabilities and malformed inputs fail closed", () => {
 });
 
 test("patch proposal capability is active only for bounded private proposal generation", () => {
-  const good = { objective: "Add a regression test for a safe parser boundary" };
+  const good = { objective: "Add a regression test for a safe parser boundary", baseSha: "c".repeat(40), targetPath: "scripts/intelligence-capabilities.test.mjs" };
   const capability = getIntelligenceCapability("propose_code_patch");
   assert.equal(capability.status, "active");
   assert.equal(capability.permissionTier, "proposal_only");
@@ -341,7 +349,9 @@ test("bounded patch proposals and verified draft PR creation are pre-authorized 
   assert.equal(proposal.status, "active");
   assert.equal(proposal.permissionTier, "proposal_only");
   assert.equal(validateIntelligenceCapabilityRequest("propose_code_patch", {
-    objective: "Add a regression test for a safe parser boundary"
+    objective: "Add a regression test for a safe parser boundary",
+    baseSha: "c".repeat(40),
+    targetPath: "scripts/intelligence-capabilities.test.mjs"
   }).ok, true);
   const pullRequest = getIntelligenceCapability("create_pull_request");
   assert.equal(pullRequest.status, "active");
@@ -371,8 +381,8 @@ test("draft PR automation is isolated, main-only, test-gated, and never merges o
   assert.match(proposalWorkflowSource, /GITHUB_TOKEN:/);
 
   assert.match(proposalRunnerSource, /proposals\.slice\(0,3\)/);
-  assert.match(proposalRunnerSource, /proposal\.targetPath !== targetPath/);
-  assert.match(proposalRunnerSource, /scripts\/intelligence-capabilities\.test\.mjs/);
+  assert.match(proposalRunnerSource, /isAllowedPatchPath\(targetPath\)/);
+  assert.match(proposalRunnerSource, /const targetPath = String\(proposal\.targetPath \|\| ""\)/);
   assert.match(proposalRunnerSource, /--network", "none"/);
   assert.match(proposalRunnerSource, /draft: true/);
   assert.match(proposalRunnerSource, /base: "main"/);
@@ -498,7 +508,22 @@ test("patch proposal validator accepts only a bounded single-file test diff and 
   assert.equal(PATCH_PROPOSAL_POLICY.appliesChanges, false);
   assert.equal(PATCH_PROPOSAL_POLICY.createsBranches, false);
   assert.equal(PATCH_PROPOSAL_POLICY.createsPullRequests, false);
-  assert.deepEqual(PATCH_PROPOSAL_POLICY.allowedPaths, [targetPath]);
+  assert.ok(PATCH_PROPOSAL_POLICY.allowedPaths.includes("worker.js"));
+  assert.ok(PATCH_PROPOSAL_POLICY.allowedPaths.includes("social/"));
+});
+
+test("bounded patch allowlist spans app modules while excluding secrets and privileged paths", () => {
+  const summary = "A valid bounded application source proposal";
+  const baseSha = "a".repeat(40);
+  const validPath = "social/index.js";
+  const validDiff = "--- a/social/index.js\n+++ b/social/index.js\n@@ -1 +1 @@\n-old\n+new\n";
+  assert.equal(validatePatchProposal({ baseSha, summary, targetPaths: [validPath], diff: validDiff }).ok, true);
+  const rootDiff = "--- a/login.html\n+++ b/login.html\n@@ -1 +1 @@\n-old\n+new\n";
+  assert.equal(validatePatchProposal({ baseSha, summary, targetPaths: ["login.html"], diff: rootDiff }).ok, true);
+  for (const path of [".env", "scripts/secrets.json", "wallet/private.js", ".github/workflows/release.yml", ".github/actions/check.js", "src/wallet-balance.js", "src/user-data.json", "src/../worker.js"]) {
+    const diff = "--- a/" + path + "\n+++ b/" + path + "\n@@ -1 +1 @@\n-old\n+new\n";
+    assert.equal(validatePatchProposal({ baseSha, summary, targetPaths: [path], diff }).code, "path_not_allowed", path);
+  }
 });
 
 test("patch proposal validator rejects paths, multi-file input, malformed hunks, and oversized diffs", () => {
@@ -508,13 +533,13 @@ test("patch proposal validator rejects paths, multi-file input, malformed hunks,
     targetPaths: ["scripts/intelligence-capabilities.test.mjs"],
     diff: "--- a/scripts/intelligence-capabilities.test.mjs\n+++ b/scripts/intelligence-capabilities.test.mjs\n@@ -1 +1 @@\n-old\n+new\n"
   };
-  assert.equal(validatePatchProposal({ ...base, targetPaths: ["worker.js"] }).code, "path_not_allowed");
+  assert.equal(validatePatchProposal({ ...base, targetPaths: [".env"] }).code, "path_not_allowed");
   assert.equal(validatePatchProposal({ ...base, targetPaths: [base.targetPaths[0], base.targetPaths[0]] }).code, "invalid_target_count");
   assert.equal(validatePatchProposal({ ...base, baseSha: "not-a-sha" }).code, "invalid_base_sha");
   assert.equal(validatePatchProposal({ ...base, diff: base.diff.replace("+++ b/scripts/", "+++ b/worker.js\n--- a/scripts/") }).code, "patch_path_mismatch");
   assert.equal(validatePatchProposal({ ...base, diff: base.diff.replace("@@ -1 +1 @@", "@@ -2,4 +2,4 @@") }).code, "truncated_hunk");
   assert.equal(validatePatchProposal({ ...base, diff: base.diff.replace("+new", "GIT binary patch") }).code, "unsupported_patch_feature");
-  assert.equal(validatePatchProposal({ ...base, diff: base.diff + "x".repeat(8200) }).code, "patch_size_invalid");
+  assert.equal(validatePatchProposal({ ...base, diff: base.diff + "x".repeat(17000) + "\n" }).code, "patch_size_invalid");
 });
 
 
@@ -729,16 +754,16 @@ test("patch generation prompt treats source as untrusted and fixes the narrow ou
   });
   assert.equal(prompt.ok, true);
   assert.match(prompt.system, /untrusted data/);
-  assert.match(prompt.system, /zero deletions/);
-  assert.ok(prompt.system.includes("@@ -1,0 +2,K @@"));
-  assert.match(prompt.system, /K must equal the exact number of added lines/);
+  assert.match(prompt.system, /single allowlisted MEHRAN MSH application source file/);
+  assert.match(prompt.system, /exactly one @@ hunk/);
+  assert.match(prompt.system, /160 changed lines/);
   assert.doesNotMatch(prompt.system, /\+NEW_LINE,1/);
   assert.ok(prompt.system.includes("scripts/intelligence-capabilities.test.mjs"));
   assert.match(prompt.user, /Immutable base commit/);
   assert.match(prompt.user, /const example = true/);
   assert.equal(buildPatchGenerationPrompt({ baseSha: "bad", objective: "A valid objective here", source }).code, "invalid_base_sha");
   assert.equal(buildPatchGenerationPrompt({ baseSha: "a".repeat(40), objective: "short", source }).code, "invalid_objective");
-  assert.equal(PATCH_GENERATION_POLICY.appendOnly, true);
+  assert.equal(PATCH_GENERATION_POLICY.appendOnly, false);
   assert.equal(PATCH_GENERATION_POLICY.appliesChanges, false);
 });
 
@@ -808,8 +833,8 @@ test("generated patch validator rejects replacements, non-EOF hunks, and extra f
     `--- a/${path}`, `+++ b/${path}`, "@@ -99,0 +100,1 @@", "+test(\"x\",()=>{});", ""
   ].join("\n");
   const base = { baseSha: "c".repeat(40), sourceLineCount: 100, summary: "Reject unsafe generated patch mutations" };
-  assert.equal(validateGeneratedPatch({ ...base, diff: replacement }).code, "patch_not_append_only");
-  assert.equal(validateGeneratedPatch({ ...base, diff: nonEof }).code, "patch_not_appended_at_eof");
+  assert.equal(validateGeneratedPatch({ ...base, diff: replacement }).ok, true);
+  assert.equal(validateGeneratedPatch({ ...base, diff: nonEof }).ok, true);
   assert.equal(validateGeneratedPatch({ ...base, diff: nonEof.replace(path, "worker.js") }).code, "patch_path_mismatch");
 });
 
@@ -974,7 +999,7 @@ test("Workers AI patch generation fails closed on budget denial and unsafe model
     }) }; } } },
     reserveBudget: async () => ({ allowed: true })
   });
-  assert.equal(unsafe.code, "patch_not_append_only");
+  assert.equal(unsafe.ok, true);
 });
 
 
@@ -1521,7 +1546,8 @@ test("patch application is in-memory only and rejects stale or non-append-only p
     summary: "Attempt to replace an existing line",
     diff: replacement
   });
-  assert.equal(rejected.ok, false);
+  assert.equal(rejected.ok, true);
+  assert.equal(rejected.content, "const replaced = true;\n");
 });
 
 
@@ -1748,4 +1774,29 @@ test("agent validates claimed task envelopes and returns the claim token", () =>
   assert.match(agentSource, /JSON\.stringify\(\{ claimToken, status: outcome\.status, result: bounded\(outcome\.result, 2900\) \}\)/);
   assert.match(agentSource, /encodeURIComponent\(taskId\)/);
   assert.doesNotMatch(agentSource, /encodeURIComponent\(task\.id\)/);
+});
+
+test("agent dispatches bounded patch proposals through the authenticated Worker endpoint only on the exact runner SHA", () => {
+  assert.match(agentSource, /async function generatePatchProposal\(taskId, payload\)/);
+  assert.match(agentSource, /task\.actionType === "propose_code_patch"/);
+  assert.match(agentSource, /\/agent\/v1\/patch-proposals\/generate/);
+  assert.match(agentSource, /requestedSha !== checkedOutSha/);
+  assert.match(agentSource, /objective\.length < 12 \|\| objective\.length > 800/);
+  assert.match(agentSource, /const requestId = taskId/);
+  assert.match(agentSource, /proposal\.status !== "stored"/);
+  assert.match(agentSource, /applied: false/);
+  assert.doesNotMatch(agentSource, /env\.AI\.run|process\.env\.[A-Z0-9_]*SECRET/);
+});
+
+test("agent executes repository inspection and fixed tests only within immutable allowlisted scope", () => {
+  assert.match(agentSource, /function readTaskPayload\(task\)/);
+  assert.match(agentSource, /function inspectRepository\(payload\)/);
+  assert.match(agentSource, /function runRepositoryTests\(payload\)/);
+  assert.match(agentSource, /INSPECTION_PATHS = Object\.freeze\(/);
+  assert.match(agentSource, /paths\.some\(path => !isAllowedInspectionPath\(path\)\)/);
+  assert.match(agentSource, /requestedSha !== checkedOutSha/);
+  assert.match(agentSource, /task\.actionType === "inspect_repository"/);
+  assert.match(agentSource, /task\.actionType === "run_repository_tests"/);
+  assert.match(agentSource, /createHash\("sha256"\)/);
+  assert.doesNotMatch(agentSource, /execSync\(|spawn\(|shell:\s*true|process\.env\.[A-Z0-9_]*SECRET/);
 });
