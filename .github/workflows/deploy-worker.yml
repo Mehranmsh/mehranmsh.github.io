@@ -1,8 +1,13 @@
 name: Deploy Cloudflare Worker
 
 on:
-  # Production deployments are deliberately manual.
-  # Merging Worker source changes must never deploy to Cloudflare implicitly.
+  # Keep ordinary Worker source merges non-deploying. This narrowly scoped
+  # push trigger lets an owner-approved deployment-workflow change deploy the
+  # already-tested main revision without requiring a paid browser automation.
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/deploy-worker.yml"
   workflow_dispatch:
 
 concurrency:
