@@ -41,6 +41,7 @@ jobs:
         run: |
           node --input-type=module <<'NODE'
           import { execFileSync } from "node:child_process";
+          import { isAllowedPatchPath } from "./scripts/intelligence-patch-policy.mjs";
           import { buildIntelligenceInspectionExcerpt } from "./scripts/intelligence-inspection-excerpts.mjs";
 
           const base = process.env.MEHRAN_AGENT_URL;
@@ -432,7 +433,8 @@ jobs:
                 throw new Error("Patch proposal task payload or checkpoint is not valid JSON.");
               }
               const objective = typeof payload.objective === "string" ? payload.objective.trim() : "";
-              if (objective.length < 12 || objective.length > 800) {
+              const targetPath = typeof payload.targetPath === "string" ? payload.targetPath : "";
+              if (objective.length < 12 || objective.length > 800 || !isAllowedPatchPath(targetPath)) {
                 throw new Error("Patch proposal task requires one bounded objective.");
               }
               let baseSha = String(checkpoint.baseSha || "").toLowerCase();
@@ -457,9 +459,9 @@ jobs:
               }
               const proposal = await request("/agent/v1/patch-proposals/generate", {
                 method: "POST",
-                body: JSON.stringify({ baseSha, objective, requestId: task.id })
+                body: JSON.stringify({ baseSha, objective, targetPath, requestId: task.id })
               }, agentHeaders, 90000);
-              if (proposal.requestId !== task.id || proposal.status !== "stored" ||
+              if (proposal.requestId !== task.id || proposal.status !== "stored" || proposal.targetPath !== targetPath || proposal.validationMode !== "bounded_single_file_validate_only" ||
                   !/^[A-Za-z0-9_-]{43}$/.test(proposal.requestHash || "") ||
                   !/^[a-f0-9-]{36}$/.test(proposal.proposalId || "") ||
                   !/^[a-f0-9]{64}$/.test(proposal.artifactSha256 || "") ||
@@ -468,6 +470,7 @@ jobs:
               }
               return {
                 type: task.actionType,
+                applied: false,
                 generatedAt: new Date().toISOString(),
                 requestId: proposal.requestId,
                 requestHash: proposal.requestHash,
@@ -969,10 +972,10 @@ jobs:
                 const patchReport = JSON.parse(savedCheckpoint.result || "null");
                 const payload = typeof task.actionPayload === "string" ? JSON.parse(task.actionPayload || "{}") : (task.actionPayload || {});
                 const expectedDigest = createHash("sha256")
-                  .update(String(patchReport?.baseSha || "") + "\n" + String(payload?.objective || "").trim())
+                  .update(String(patchReport?.baseSha || "") + "\n" + String(payload?.objective || "").trim() + "\n" + String(payload?.targetPath || ""))
                   .digest("base64url");
                 checkpointMatchesCurrentSchema = checkpointMatchesCurrentSchema && patchReport?.type === "propose_code_patch" &&
-                  patchReport?.requestId === task.id &&
+                  patchReport?.requestId === task.id && patchReport?.targetPath === payload?.targetPath && patchReport?.applied === false &&
                   /^[a-f0-9]{40}$/.test(patchReport?.baseSha || "") &&
                   savedCheckpoint.baseSha === patchReport.baseSha &&
                   patchReport?.requestHash === expectedDigest;
