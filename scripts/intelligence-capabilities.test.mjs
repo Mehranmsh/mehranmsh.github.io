@@ -509,7 +509,19 @@ test("patch proposal validator accepts only a bounded single-file test diff and 
   assert.deepEqual(PATCH_PROPOSAL_POLICY.allowedPaths, [targetPath]);
 });
 
-test("bounded patch allowlist spans app modules while excluding secrets and privileged paths", () => {\n  assert.equal(validatePatchProposal({ baseSha: "a".repeat(40), summary: "A valid bounded application source proposal", targetPaths: ["social/index.js"], diff: "--- a/social/index.js\\n+++ b/social/index.js\\n@@ -1 +1 @@\\n-old\\n+new\\n" }).ok, true);\n  for (const path of [".env", "scripts/secrets.json", "wallet/private.js", ".github/workflows/release.yml", "src/../worker.js"]) {\n    assert.equal(validatePatchProposal({ baseSha: "a".repeat(40), summary: "A valid bounded application source proposal", targetPaths: [path], diff: "--- a/"+path+"\\n+++ b/"+path+"\\n@@ -1 +1 @@\\n-old\\n+new\\n" }).code, "path_not_allowed", path);\n  }\n});\n\ntest("patch proposal validator rejects paths, multi-file input, malformed hunks, and oversized diffs", () => {
+test("bounded patch allowlist spans app modules while excluding secrets and privileged paths", () => {
+  const summary = "A valid bounded application source proposal";
+  const baseSha = "a".repeat(40);
+  const validPath = "social/index.js";
+  const validDiff = "--- a/social/index.js\\n+++ b/social/index.js\\n@@ -1 +1 @@\\n-old\\n+new\\n";
+  assert.equal(validatePatchProposal({ baseSha, summary, targetPaths: [validPath], diff: validDiff }).ok, true);
+  for (const path of [".env", "scripts/secrets.json", "wallet/private.js", ".github/workflows/release.yml", "src/../worker.js"]) {
+    const diff = "--- a/" + path + "\\n+++ b/" + path + "\\n@@ -1 +1 @@\\n-old\\n+new\\n";
+    assert.equal(validatePatchProposal({ baseSha, summary, targetPaths: [path], diff }).code, "path_not_allowed", path);
+  }
+});
+
+test("patch proposal validator rejects paths, multi-file input, malformed hunks, and oversized diffs", () => {
   const base = {
     baseSha: "d".repeat(40),
     summary: "A sufficiently descriptive patch proposal",
