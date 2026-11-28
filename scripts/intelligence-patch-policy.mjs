@@ -1,14 +1,14 @@
 const MAX_PATCH_BYTES = 16384;
 const MAX_CHANGED_LINES = 160;
 const ALLOWED_ROOT_FILES = new Set(["worker.js","index.html","social.html","nexus.html","ai.html","services.html","music-studio.html"]);
-const ALLOWED_PREFIXES = Object.freeze(["scripts/","src/","social/","nexus/","ai/","music-studio/","studio/","assets/js/","assets/css/"]);
+const ALLOWED_PREFIXES = Object.freeze(["scripts/","src/","pages/","components/","modules/","social/","nexus/","ai/","music-studio/","studio/","assets/js/","assets/css/","public/js/","public/css/"]);
 const FORBIDDEN_PATH = /(?:^|\/)(?:\.env(?:\.|$)|secrets?(?:\.|\/|$)|credentials?(?:\.|\/|$)|wallet(?:\.|\/|$)|private(?:\.|\/|$)|node_modules|\.github\/workflows|migrations?\/)/i;
 function fail(code) { return { ok: false, code }; }
 export function isAllowedPatchPath(path) {
   if (typeof path !== "string" || !path || path.length > 240 || path.startsWith("/") ||
       path.includes("\\") || path.split("/").some(part => !part || part === "." || part === "..") ||
       FORBIDDEN_PATH.test(path) || !/\.(?:mjs|js|jsx|ts|tsx|html|css|json)$/i.test(path)) return false;
-  return ALLOWED_ROOT_FILES.has(path) || ALLOWED_PREFIXES.some(prefix => path.startsWith(prefix));
+  const rootAppSource = !path.includes("/") && /\\.(?:mjs|js|html|css)$/i.test(path);\n  return ALLOWED_ROOT_FILES.has(path) || rootAppSource || ALLOWED_PREFIXES.some(prefix => path.startsWith(prefix));
 }
 function count(value) {
   if (value === undefined) return 1;
