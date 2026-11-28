@@ -52,7 +52,7 @@ export function isAllowedInspectionPath(path) {
   if (typeof path !== "string" || !path || path.length > 240 || path.startsWith("/") ||
       !/^[A-Za-z0-9_./-]+$/.test(path) || path.includes("\\") ||
       path.split("/").some(part => !part || part === "." || part === "..") ||
-      /(?:^|\/)(?:\.env[^/]*|[^/]*(?:secret|credential|wallet|user[-_]?data|account[-_]?data)[^/]*|private(?:\.|\/|$)|node_modules|\.github|vendor|dist|build|coverage|\.git|\.next|\.cache)(?:\/|$)/i.test(path) ||
+      /(?:^|\/)(?:\.env[^/]*|[^/]*(?:secret|credential|wallet|private[-_]?key|private[-_]?data|user[-_]?data|account[-_]?data)[^/]*|private(?:\.|\/|$)|node_modules|\.github|vendor|dist|build|coverage|\.git|\.next|\.cache)(?:\/|$)/i.test(path) ||
       /\.(?:mjs|js|jsx|ts|tsx|html|css|json|py)$/i.test(path) === false) return false;
   return true;
 }
