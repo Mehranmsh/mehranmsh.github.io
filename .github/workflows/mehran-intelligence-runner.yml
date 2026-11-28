@@ -959,8 +959,13 @@ jobs:
             } catch (error) {
               status = "blocked";
               const isWorkersAIInferenceFailure = error?.safeDiagnostic?.stage === "workers_ai_inference";
-              retryable = !isWorkersAIInferenceFailure &&
-                shouldRetryIntelligenceRunnerTask(error, task.actionType);
+              retryable = !isWorkersAIInferenceFailure && (
+                Number(error?.status) === 503 ||
+                error?.name === "TimeoutError" || error?.name === "AbortError" ||
+                (task.actionType === "propose_code_patch" &&
+                  Number(error?.status) === 409 && /already in progress|concurrently reserved/i.test(String(error?.message || ""))) ||
+                shouldRetryIntelligenceRunnerTask(error, task.actionType)
+              );
               if (isWorkersAIInferenceFailure) {
                 console.log("Workers AI inference failure is recorded as non-retryable; preventing repeated provider calls.");
               }
