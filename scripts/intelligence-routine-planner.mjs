@@ -23,7 +23,7 @@ export function buildDeterministicRoutinePlan(mission) {
     add({
       taskId: "repository-inventory",
       title: "Inventory the complete safe application source tree",
-      description: "Enumerate tracked application source files across all modules, excluding secrets, private data, workflows, dependencies, vendor code, and generated output. Compute a deterministic digest without AI inference or repository writes.",
+      description: "Enumerate tracked application source files across all modules, excluding secrets, private data, workflows, dependencies, vendor code, and generated output. No AI inference or repository writes are used; compute a deterministic digest.",
       actionType: "inspect_repository",
       paths: ["@app-inventory"],
       dependsOn: []
