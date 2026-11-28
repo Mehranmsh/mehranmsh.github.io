@@ -114,7 +114,7 @@ for (const proposal of proposals) {
     if (artifact.success !== true || artifact.proposalId !== proposalId ||
         artifact.baseSha !== baseSha || artifact.targetPath !== targetPath ||
         artifact.artifactSha256 !== artifactSha256 || artifact.diffSha256 !== proposal.diffSha256 ||
-        typeof artifact.diff !== "string" || artifact.diff.length > 8192) {
+        typeof artifact.diff !== "string" || artifact.diff.length > 16384) {
       throw new Error("Verified artifact metadata does not match the queued proposal.");
     }
 
