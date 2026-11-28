@@ -27,20 +27,15 @@ export function resolvePrivateIntelligenceInspectionPaths(mission) {
   return Array.isArray(paths) ? [...paths] : [...DEFAULT_INSPECTION_PATHS];
 }
 
-const REQUIRED_FORBIDDEN = Object.freeze([
-  "direct_source_writes",
-  "production_patch_application",
-  "unisolated_branch_creation",
-  "non_draft_pull_request_creation",
-  "merge",
-  "deployment",
-  "secret_access",
-  "credential_or_token_output",
-  "wallet_data_access",
-  "wallet_operations",
-  "financial_operations",
-  "arbitrary_shell",
-  "changes_to_production_state"
+const READ_ONLY_FORBIDDEN = Object.freeze([
+  "source_changes","patch_application","branch_creation","pull_request_creation",
+  "merge","deployment","secret_access","arbitrary_shell","changes_to_production_state"
+]);
+const REPAIR_FORBIDDEN = Object.freeze([
+  "direct_source_writes","production_patch_application","unisolated_branch_creation",
+  "non_draft_pull_request_creation","merge","deployment","secret_access",
+  "credential_or_token_output","wallet_data_access","wallet_operations",
+  "financial_operations","arbitrary_shell","changes_to_production_state"
 ]);
 
 /**
@@ -88,8 +83,9 @@ export function validatePrivateIntelligenceMission(mission) {
       reasons.push("inspection_paths_invalid");
     }
   }
+  const requiredForbidden = mode === "bounded_app_repair" ? REPAIR_FORBIDDEN : READ_ONLY_FORBIDDEN;
   if (!Array.isArray(mission.scope?.forbidden) ||
-      !REQUIRED_FORBIDDEN.every(action => mission.scope.forbidden.includes(action))) {
+      !requiredForbidden.every(action => mission.scope.forbidden.includes(action))) {
     reasons.push("forbidden_actions_incomplete");
   }
   return reasons;
