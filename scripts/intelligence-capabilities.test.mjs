@@ -5,7 +5,7 @@ import { applyValidatedPatchInMemory, readBoundedResponse } from "./intelligence
 import { buildIntelligenceInspectionExcerpt, INTELLIGENCE_INSPECTION_EXCERPT_POLICY } from "./intelligence-inspection-excerpts.mjs";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { validatePatchProposal, PATCH_PROPOSAL_POLICY } from "./intelligence-patch-policy.mjs";
+import { validatePatchProposal, PATCH_PROPOSAL_POLICY, isAllowedPatchPath, isAllowedInspectionPath } from "./intelligence-patch-policy.mjs";
 import { createPatchArtifactRecord, verifyPatchArtifactRecord } from "./intelligence-patch-artifact.mjs";
 import { storePrivatePatchArtifact, verifyPrivatePatchArtifactAtPath, getVerifiedPrivatePatchArtifactAtPath, getPrivatePatchArtifactPath, PRIVATE_PATCH_ARTIFACT_STORE_POLICY } from "./intelligence-private-patch-store.mjs";
 import { buildPatchGenerationPrompt, validateGeneratedPatch, PATCH_GENERATION_POLICY } from "./intelligence-patch-generation.mjs";
