@@ -71,9 +71,18 @@ test("accepts an exact per-mission inspection path allowlist", () => {
   assert.deepEqual(resolvePrivateIntelligenceInspectionPaths(mission), mission.scope.inspect_paths);
 });
 
-test("accepts app-wide safe inspection paths and rejects private or unsafe paths", () => {\n  const appMission = validMission();\n  appMission.scope.inspect_paths = ["social/index.js", "login.html", "music-studio/index.mjs"];\n  assert.deepEqual(validatePrivateIntelligenceMission(appMission), []);\n  assert.deepEqual(resolvePrivateIntelligenceInspectionPaths(appMission), appMission.scope.inspect_paths);\n})\n\ntest("rejects private or unsafe inspection paths, duplicates, and empty lists", () => {
+test("accepts app-wide safe inspection paths", () => {
+  const appMission = validMission();
+  appMission.scope.inspect_paths = ["social/index.js", "login.html", "music-studio/index.mjs"];
+  assert.deepEqual(validatePrivateIntelligenceMission(appMission), []);
+  assert.deepEqual(resolvePrivateIntelligenceInspectionPaths(appMission), appMission.scope.inspect_paths);
+});
+
+test("rejects private or unsafe inspection paths, duplicates, and empty lists", () => {
   for (const inspect_paths of [
-    ["worker.js", "../secrets.txt"],\n    ["src/wallet-balance.js"],\n    ["src/user-data.json"],
+    ["worker.js", "../secrets.txt"],
+    ["src/wallet-balance.js"],
+    ["src/user-data.json"],
     ["worker.js", "worker.js"],
     []
   ]) {
