@@ -3,6 +3,7 @@ name: MEHRAN INTELLIGENCE private work-package runner
 # Manual push trigger for post-deploy verification.
 # Validation tick: exercise the append-only patch-header canonicalizer on the latest main commit.
 # Post-deploy verification: run the deterministic-only inspection path against the deployed Worker.
+# Continue bounded verification after dependency unlock; keep AI-capable patch work deferred.
 
 on:
   push:
