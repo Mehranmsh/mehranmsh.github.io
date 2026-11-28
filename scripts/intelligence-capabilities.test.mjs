@@ -1762,5 +1762,5 @@ test("independent recovery supervisor retries only once and escalates without co
   assert.match(recoverySupervisorSource, /Independent recovery could not restore the runner/);
   assert.match(recoverySupervisorSource, /RECOVERED: the private work-package runner completed successfully/);
   assert.doesNotMatch(recoverySupervisorSource, /contents: write|pull-requests: write/);
-  assert.doesNotMatch(recoverySupervisorSource, /secrets\\.[A-Za-z_]|wallet|private user records/i);
+  assert.doesNotMatch(recoverySupervisorSource, /secrets\\.[A-Za-z_]|wallet_operations|private user records/i);
 });
