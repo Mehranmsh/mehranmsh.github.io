@@ -3137,7 +3137,10 @@ test("Intelligence chat applies a bounded answer gate and self-review policy", (
   assert.match(workerSource, /normalizeIntelligenceAnswer/);
   assert.match(chat, /quality pass: identify the actual goal/);
   assert.match(chat, /checkedReply=normalizeIntelligenceAnswer\(reply\)/);
-  assert.match(chat, /checkedSynthesis=normalizeIntelligenceAnswer\(synthesizedText\)/);
+  const synthesisStart = chat.indexOf("let finalReply = summaries.join");
+  const synthesisEnd = chat.indexOf("const checkedFinalReply=normalizeIntelligenceAnswer(finalReply);", synthesisStart);
+  assert.ok(synthesisStart >= 0 && synthesisEnd > synthesisStart, "tool-assisted response must use the bounded deterministic synthesis path");
+  assert.equal(chat.slice(synthesisStart, synthesisEnd).includes("runIntelligenceAI(env"), false, "tool results must not trigger a redundant model request");
   assert.match(chat, /bounded_output_v1/);
 });
 
