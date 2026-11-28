@@ -7490,17 +7490,24 @@ async function ingestPrivateIntelligenceInbox(env) {
       const repositoryBaseSha = mission.scope.allowed_actions.includes("run_repository_tests")
         ? await resolvePrivateInboxRepositoryBaseSha()
         : "";
+      const repairMode = mission.scope.mode === "bounded_app_repair";
       const packageInput = {
         idempotencyKey: "private-inbox:" + mission.mission_id,
-        title: cleanText(mission.title, 150) || "Private Intelligence diagnostic",
+        title: cleanText(mission.title, 150) || (repairMode ? "Private Intelligence bounded repair" : "Private Intelligence diagnostic"),
         objective,
         priority: "high",
         scope: {
-          mode: "read_only",
+          mode: repairMode ? "proposal_only_repair" : "read_only",
           source: "private_owner_inbox",
           missionId: mission.mission_id,
-          allowedActions: ["inspect_repository","source_security_audit","repository_quality_check", ...(mission.scope.allowed_actions.includes("run_repository_tests") ? ["run_repository_tests"] : [])],
-          forbidden: ["source_changes","patch_application","branch_creation","pull_request_creation","merge","deployment","secret_access","credential_output","wallet_operations","financial_operations","arbitrary_shell","production_state_changes"],
+          allowedActions: [
+            "inspect_repository","source_security_audit","repository_quality_check",
+            ...(mission.scope.allowed_actions.includes("run_repository_tests") ? ["run_repository_tests"] : []),
+            ...(repairMode ? ["propose_code_patch"] : [])
+          ],
+          forbidden: repairMode
+            ? ["direct_source_writes","production_patch_application","unisolated_branch_creation","non_draft_pull_request_creation","merge","deployment","secret_access","credential_or_token_output","wallet_data_access","wallet_operations","financial_operations","arbitrary_shell","changes_to_production_state"]
+            : ["source_changes","patch_application","branch_creation","pull_request_creation","merge","deployment","secret_access","credential_output","wallet_operations","financial_operations","arbitrary_shell","production_state_changes"],
           deliverables: Array.isArray(mission.deliverables) ? mission.deliverables.slice(0, 6).map(item => cleanText(item, 300)) : [],
           evidence
         },
@@ -7534,6 +7541,16 @@ async function ingestPrivateIntelligenceInbox(env) {
             actionType: "run_repository_tests",
             dependsOn: [],
             baseSha: repositoryBaseSha
+          }] : []),
+          ...(repairMode ? [{
+            taskId: "propose-bounded-repair",
+            title: "Generate one bounded, review-only code repair proposal",
+            description: "Use the mission objective to propose a minimal change to the single explicitly allowlisted target file. Store a validated proposal only. Never write source files, create branches, merge, deploy, inspect secrets, or access wallet or user-private data.",
+            actionType: "propose_code_patch",
+            dependsOn: ["inspect-source"],
+            objective,
+            baseSha: repositoryBaseSha,
+            targetPath: mission.scope.patch_target_path
           }] : [])
         ]
       };
