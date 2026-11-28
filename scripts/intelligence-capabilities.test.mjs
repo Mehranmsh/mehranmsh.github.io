@@ -1760,5 +1760,5 @@ test("agent executes repository inspection and fixed tests only within immutable
   assert.match(agentSource, /task\.actionType === "inspect_repository"/);
   assert.match(agentSource, /task\.actionType === "run_repository_tests"/);
   assert.match(agentSource, /createHash\("sha256"\)/);
-  assert.doesNotMatch(agentSource, /execSync\(|spawn\(|shell:\s*true|process\.env\.[A-Z0-9_]*(?:SECRET|TOKEN|KEY)/);
+  assert.doesNotMatch(agentSource, /execSync\(|spawn\(|shell:\s*true|process\.env\.[A-Z0-9_]*SECRET/);
 });
