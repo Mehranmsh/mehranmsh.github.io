@@ -6282,12 +6282,34 @@ async function reserveIntelligenceMissionGeneratorSlot(env, cycleKey, packageId,
   // Owner-triggered manual bootstrap may proceed past packages already awaiting
   // attention; genuinely active or retrying work continues to block generation.
   const ignoreAttentionRequired = options?.ignoreAttentionRequiredBlockers === true ? 1 : 0;
+  const ignoreDeferredAiOnly = options?.ignoreAttentionRequiredBlockers === true ? 1 : 0;
   const result = await env.DB.prepare(`
     INSERT INTO intelligence_mission_generator_lock(id,cycle_key,package_id,status,expires_at,updated_at)
     SELECT 1, ?, ?, 'reserved', datetime('now','+2 minutes'), CURRENT_TIMESTAMP
     WHERE NOT EXISTS (
-      SELECT 1 FROM intelligence_work_packages
-      WHERE status IN ('queued','in_progress','waiting_retry') OR (status='attention_required' AND ? = 0)
+      SELECT 1 FROM intelligence_work_packages wp
+      WHERE (
+        wp.status IN ('queued','in_progress','waiting_retry')
+        AND NOT (
+          ? = 1
+          AND EXISTS (
+            SELECT 1 FROM intelligence_tasks held
+            WHERE held.work_package_id=wp.id AND held.status='queued'
+          )
+          AND NOT EXISTS (
+            SELECT 1 FROM intelligence_tasks runnable
+            WHERE runnable.work_package_id=wp.id
+              AND runnable.status IN ('queued','accepted','retry_wait','in_progress')
+              AND runnable.action_type NOT IN ('inspect_repository','propose_code_patch')
+          )
+          AND NOT EXISTS (
+            SELECT 1 FROM intelligence_tasks active
+            WHERE active.work_package_id=wp.id
+              AND active.status IN ('accepted','retry_wait','in_progress')
+          )
+        )
+      )
+      OR (wp.status='attention_required' AND ? = 0)
     )
     ON CONFLICT(id) DO UPDATE SET
       cycle_key=excluded.cycle_key,
@@ -6300,10 +6322,31 @@ async function reserveIntelligenceMissionGeneratorSlot(env, cycleKey, packageId,
         OR datetime(intelligence_mission_generator_lock.expires_at) <= datetime('now')
       )
       AND NOT EXISTS (
-        SELECT 1 FROM intelligence_work_packages
-        WHERE status IN ('queued','in_progress','waiting_retry') OR (status='attention_required' AND ? = 0)
+        SELECT 1 FROM intelligence_work_packages wp
+        WHERE (
+          wp.status IN ('queued','in_progress','waiting_retry')
+          AND NOT (
+            ? = 1
+            AND EXISTS (
+              SELECT 1 FROM intelligence_tasks held
+              WHERE held.work_package_id=wp.id AND held.status='queued'
+            )
+            AND NOT EXISTS (
+              SELECT 1 FROM intelligence_tasks runnable
+              WHERE runnable.work_package_id=wp.id
+                AND runnable.status IN ('queued','accepted','retry_wait','in_progress')
+                AND runnable.action_type NOT IN ('inspect_repository','propose_code_patch')
+            )
+            AND NOT EXISTS (
+              SELECT 1 FROM intelligence_tasks active
+              WHERE active.work_package_id=wp.id
+                AND active.status IN ('accepted','retry_wait','in_progress')
+            )
+          )
+        )
+        OR (wp.status='attention_required' AND ? = 0)
       )
-  `).bind(cycleKey, packageId, ignoreAttentionRequired, ignoreAttentionRequired).run();
+  `).bind(cycleKey, packageId, ignoreDeferredAiOnly, ignoreAttentionRequired, ignoreDeferredAiOnly, ignoreAttentionRequired).run();
   const changes = Number(result?.meta?.changes ?? result?.changes ?? 0);
   return changes === 1
     ? { reserved: true, packageId, cycleKey }
