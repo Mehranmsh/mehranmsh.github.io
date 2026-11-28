@@ -100,6 +100,7 @@ async function generatePatchProposal(taskId, payload) {
   });
   const safe = {
     type: "propose_code_patch",
+    applied: false,
     requestId: bounded(proposal.requestId, 160),
     requestHash: bounded(proposal.requestHash, 64),
     path: bounded(proposal.path, 240),
