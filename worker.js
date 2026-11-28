@@ -8693,9 +8693,9 @@ export default {
                 expectedPayload = JSON.parse(before.action_payload || "{}");
                 checkpoint = JSON.parse(before.checkpoint_json || "{}");
               } catch { return error("Stored patch-task payload or checkpoint is invalid.",422); }
-              const expectedHash = await sha256(parsedReport.baseSha + "\n" + String(expectedPayload.objective || "").trim());
+              const expectedHash = await sha256(parsedReport.baseSha + "\n" + String(expectedPayload.objective || "").trim() + "\n" + String(expectedPayload.targetPath || ""));
               if (!expectedPayload || typeof expectedPayload.objective !== "string" ||
-                  parsedReport.requestId !== id || checkpoint.baseSha !== parsedReport.baseSha ||
+                  parsedReport.requestId !== "intelligence-" + id || parsedReport.targetPath !== expectedPayload.targetPath || checkpoint.baseSha !== parsedReport.baseSha ||
                   parsedReport.requestHash !== expectedHash) {
                 return error("Patch proposal report does not match the immutable task objective, ID, and base commit.",422);
               }
