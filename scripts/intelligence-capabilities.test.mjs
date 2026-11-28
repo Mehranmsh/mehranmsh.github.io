@@ -155,7 +155,7 @@ test("all eight active capabilities are registered with their permission tiers",
     const input = id === "inspect_repository"
       ? { paths: ["worker.js"] }
       : isolated ? { baseSha: "a".repeat(40) }
-      : proposal ? { objective: "Add a regression test for a safe parser boundary" } : {};
+      : proposal ? { baseSha: "c".repeat(40), objective: "Add a regression test for a safe parser boundary" } : {};
     assert.equal(validateIntelligenceCapabilityRequest(id, input).ok, true);
   }
 });
@@ -170,6 +170,10 @@ test("fixed repository tests are active only through the isolated GitHub runner"
   assert.equal(validateIntelligenceCapabilityRequest("run_repository_tests", { baseSha: "b".repeat(40) }).ok, true);
   assert.equal(validateIntelligenceCapabilityRequest("run_repository_tests", { baseSha: "not-a-commit" }).ok, false);
   assert.equal(validateIntelligenceCapabilityRequest("run_repository_tests", { baseSha: "b".repeat(40), command: "echo unsafe" }).code, "unknown_input_field");
+  assert.equal(validateIntelligenceCapabilityRequest("propose_code_patch", { baseSha: "c".repeat(40), objective: "Add a regression test for a safe parser boundary" }).ok, true);
+  assert.equal(validateIntelligenceCapabilityRequest("propose_code_patch", { objective: "Add a regression test for a safe parser boundary" }).code, "missing_required_field");
+  assert.equal(validateIntelligenceCapabilityRequest("propose_code_patch", { baseSha: "invalid", objective: "Add a regression test for a safe parser boundary" }).code, "invalid_input_value");
+  assert.match(workerSource, /validPatchBaseSha/);
   assert.match(workerSource, /actionType === "run_repository_tests"/);
   assert.match(workerSource, /report\.mode !== "isolated_fixed_repository_test"/);
   assert.match(workerSource, /before\.action_payload/);
