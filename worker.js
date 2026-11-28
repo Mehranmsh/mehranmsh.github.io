@@ -6207,14 +6207,7 @@ async function ensureIntelligenceSchedulerRunsTable(env) {
 
 
 
-const INTELLIGENCE_INSPECT_ALLOWED_PATHS = Object.freeze([
-  "worker.js",
-  "scripts/intelligence-agent.mjs",
-  "scripts/intelligence-capabilities.mjs",
-  "scripts/intelligence-capabilities.test.mjs",
-  ".github/workflows/mehran-intelligence-runner.yml",
-  "docs/INTELLIGENCE_EXECUTION_PROTOCOL.md"
-]);
+const INTELLIGENCE_INSPECT_ALLOWED_PATHS = Object.freeze(["@app-inventory"]);
 
 export function validateIntelligenceWorkPackage(input) {
   const fail = message => ({ ok: false, error: message });
