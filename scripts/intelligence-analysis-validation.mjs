@@ -1,17 +1,22 @@
 // Safe, bounded diagnostics for semantic-analysis response validation.
 // Never return or log model-generated text, source excerpts, or evidence quotes.
 
-// Remove only findings whose evidence points outside the exact supplied source set.
-// Never rewrite/guess a model-generated path; all retained evidence still passes strict validation.
+// Drop an entire finding when any citation is unsupported by the exact immutable excerpts.
+// Never rewrite model-generated paths or quotes. The strict validator remains the final gate.
 export function discardFindingsWithUnknownEvidencePaths(analysis, files) {
   if (!analysis || typeof analysis !== "object" || Array.isArray(analysis) ||
       !Array.isArray(analysis.findings) || !Array.isArray(files)) return analysis;
-  const allowedPaths = new Set(files.map(file => file?.path).filter(path => typeof path === "string"));
+  const sourceByPath = new Map(files.filter(file => typeof file?.path === "string" && typeof file?.excerpt === "string")
+    .map(file => [file.path, file.excerpt]));
   const retained = analysis.findings.filter(item =>
     item && typeof item === "object" && !Array.isArray(item) &&
-    Array.isArray(item.evidence) &&
-    item.evidence.every(ev => ev && typeof ev === "object" && !Array.isArray(ev) &&
-      typeof ev.path === "string" && allowedPaths.has(ev.path))
+    Array.isArray(item.evidence) && item.evidence.length > 0 &&
+    item.evidence.every(ev => {
+      if (!ev || typeof ev !== "object" || Array.isArray(ev) ||
+          typeof ev.path !== "string" || typeof ev.quote !== "string" || ev.quote.length > 500) return false;
+      const source = sourceByPath.get(ev.path);
+      return typeof source === "string" && source.includes(ev.quote);
+    })
   );
   const discarded = retained.length !== analysis.findings.length;
   if (!discarded) return analysis;
@@ -20,7 +25,7 @@ export function discardFindingsWithUnknownEvidencePaths(analysis, files) {
     findings: retained,
     limitations: [
       ...(Array.isArray(analysis.limitations) ? analysis.limitations : []),
-      "One or more findings were omitted because their evidence referenced a path outside the exact supplied source set."
+      "One or more findings were omitted because at least one evidence citation did not exactly match the supplied source excerpts."
     ].slice(0, 5)
   };
 }
