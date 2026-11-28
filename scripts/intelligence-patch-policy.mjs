@@ -47,4 +47,14 @@ export function validatePatchProposal(input) {
   if(hunks!==1||adds+dels===0||adds+dels>MAX_CHANGED_LINES)return fail("change_limit_exceeded");
   return {ok:true,baseSha,targetPath,bytes:new TextEncoder().encode(diff).byteLength,additions:adds,deletions:dels,hunkCount:hunks,mode:"validate_only"};
 }
+
+export function isAllowedInspectionPath(path) {
+  if (typeof path !== "string" || !path || path.length > 240 || path.startsWith("/") ||
+      !/^[A-Za-z0-9_./-]+$/.test(path) || path.includes("\\") ||
+      path.split("/").some(part => !part || part === "." || part === "..") ||
+      /(?:^|\/)(?:\.env[^/]*|[^/]*(?:secret|credential|wallet|user[-_]?data|account[-_]?data)[^/]*|private(?:\.|\/|$)|node_modules)(?:\/|$)/i.test(path)) return false;
+  return isAllowedPatchPath(path) || path.startsWith(".github/workflows/") ||
+    (path.startsWith("docs/") && /\.(?:md|txt)$/i.test(path));
+}
+
 export const PATCH_PROPOSAL_POLICY=Object.freeze({maxPatchBytes:MAX_PATCH_BYTES,maxChangedLines:MAX_CHANGED_LINES,allowedPaths:Object.freeze([...ALLOWED_ROOT_FILES,...ALLOWED_PREFIXES]),allowedRootFiles:Object.freeze([...ALLOWED_ROOT_FILES]),allowedPrefixes:ALLOWED_PREFIXES,forbiddenPathPattern:FORBIDDEN_PATH.source,appliesChanges:false,createsBranches:false,createsPullRequests:false});
