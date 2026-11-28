@@ -170,9 +170,9 @@ test("fixed repository tests are active only through the isolated GitHub runner"
   assert.equal(validateIntelligenceCapabilityRequest("run_repository_tests", { baseSha: "b".repeat(40) }).ok, true);
   assert.equal(validateIntelligenceCapabilityRequest("run_repository_tests", { baseSha: "not-a-commit" }).ok, false);
   assert.equal(validateIntelligenceCapabilityRequest("run_repository_tests", { baseSha: "b".repeat(40), command: "echo unsafe" }).code, "unknown_input_field");
-  assert.equal(validateIntelligenceCapabilityRequest("propose_code_patch", { baseSha: "c".repeat(40), objective: "Add a regression test for a safe parser boundary" }).ok, true);
+  assert.equal(validateIntelligenceCapabilityRequest("propose_code_patch", { baseSha: "c".repeat(40), objective: "Add a regression test for a safe parser boundary", targetPath: "scripts/intelligence-capabilities.test.mjs" }).ok, true);
   assert.equal(validateIntelligenceCapabilityRequest("propose_code_patch", { objective: "Add a regression test for a safe parser boundary" }).code, "missing_required_field");
-  assert.equal(validateIntelligenceCapabilityRequest("propose_code_patch", { baseSha: "invalid", objective: "Add a regression test for a safe parser boundary" }).code, "invalid_input_value");
+  assert.equal(validateIntelligenceCapabilityRequest("propose_code_patch", { baseSha: "invalid", objective: "Add a regression test for a safe parser boundary", targetPath: "scripts/intelligence-capabilities.test.mjs" }).code, "invalid_input_value");
   assert.match(workerSource, /validPatchBaseSha/);
   assert.match(workerSource, /actionType === "run_repository_tests"/);
   assert.match(workerSource, /report\.mode !== "isolated_fixed_repository_test"/);
@@ -515,10 +515,10 @@ test("bounded patch allowlist spans app modules while excluding secrets and priv
   const summary = "A valid bounded application source proposal";
   const baseSha = "a".repeat(40);
   const validPath = "social/index.js";
-  const validDiff = "--- a/social/index.js\\n+++ b/social/index.js\\n@@ -1 +1 @@\\n-old\\n+new\\n";
+  const validDiff = "--- a/social/index.js\n+++ b/social/index.js\n@@ -1 +1 @@\n-old\n+new\n";
   assert.equal(validatePatchProposal({ baseSha, summary, targetPaths: [validPath], diff: validDiff }).ok, true);
   for (const path of [".env", "scripts/secrets.json", "wallet/private.js", ".github/workflows/release.yml", "src/../worker.js"]) {
-    const diff = "--- a/" + path + "\\n+++ b/" + path + "\\n@@ -1 +1 @@\\n-old\\n+new\\n";
+    const diff = "--- a/" + path + "\n+++ b/" + path + "\n@@ -1 +1 @@\n-old\n+new\n";
     assert.equal(validatePatchProposal({ baseSha, summary, targetPaths: [path], diff }).code, "path_not_allowed", path);
   }
 });
