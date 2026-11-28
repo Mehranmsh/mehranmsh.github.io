@@ -1467,17 +1467,19 @@ test("Intelligence Runner correlates API requests with bounded trace IDs and rec
 });
 
 
-test("Intelligence AI router fails over across free providers and blocks paid OpenRouter models", () => {
-  assert.match(workerSource, /INTELLIGENCE_AI_PROVIDER_ORDER = Object\.freeze\(\["cloudflare", "groq", "gemini", "openrouter"\]\)/);
-  assert.match(workerSource, /MEHRAN_AI_FREE_PROVIDERS/);
-  assert.match(workerSource, /\|\| "cloudflare,openrouter"/);
-  assert.match(workerSource, /allowedProviders\.includes\(item\)/);
-  assert.match(workerSource, /GROQ_API_KEY/);
-  assert.match(workerSource, /GEMINI_API_KEY/);
-  assert.match(workerSource, /OPENROUTER_API_KEY/);
-  assert.match(workerSource, /model !== "openrouter\/free" && !model\.endsWith\(":free"\)/);
-  assert.match(workerSource, /quota_or_rate_limit/);
-  assert.match(workerSource, /No configured free AI provider completed the request/);
+test("Intelligence AI router is hard-limited to the capped Cloudflare provider", () => {
+  const routerStart = workerSource.indexOf("const INTELLIGENCE_AI_PROVIDER_ORDER");
+  const routerEnd = workerSource.indexOf("const socialSchemaInit", routerStart);
+  const router = workerSource.slice(routerStart, routerEnd);
+  assert.ok(router.includes('Object.freeze(["cloudflare"])'));
+  assert.ok(router.includes("INTELLIGENCE_AI_PURPOSES"));
+  assert.ok(router.includes("options?.purpose"));
+  assert.equal(router.includes("MEHRAN_AI_FREE_PROVIDERS"), false);
+  assert.equal(router.includes("MEHRAN_AI_PROVIDER_ORDER"), false);
+  assert.ok(workerSource.includes('purpose: "mission_planning"'));
+  assert.ok(workerSource.includes('purpose: "patch_generation"'));
+  assert.ok(workerSource.includes('purpose:"repository_analysis"'));
+  assert.ok(workerSource.includes('purpose:"owner_chat"'));
   assert.match(workerSource, /runIntelligenceAI\(env/);
 });
 

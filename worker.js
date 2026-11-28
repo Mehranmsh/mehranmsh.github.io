@@ -368,7 +368,8 @@ async function releaseSocialWorkersAIBudget(env, reservation) {
 }
 
 
-const INTELLIGENCE_AI_PROVIDER_ORDER = Object.freeze(["cloudflare", "groq", "gemini", "openrouter"]);
+const INTELLIGENCE_AI_PROVIDER_ORDER = Object.freeze(["cloudflare"]);
+const INTELLIGENCE_AI_PURPOSES = Object.freeze(["mission_planning", "patch_generation", "repository_analysis", "owner_chat"]);
 const DEFAULT_INTELLIGENCE_MODEL = "@cf/meta/llama-3.1-8b-instruct-fast";
 function intelligenceProviderError(provider, status, message) {
   const error = new Error(String(message || "Provider request failed").slice(0, 180));
@@ -381,16 +382,13 @@ async function runIntelligenceAI(env, options) {
   if (!messages.length || messages.some(item => !item || !["system","user","assistant"].includes(item.role) || typeof item.content !== "string")) {
     throw new Error("Invalid Intelligence model request.");
   }
+  if (!INTELLIGENCE_AI_PURPOSES.includes(options?.purpose)) {
+    throw new Error("Intelligence AI request purpose is missing or not allowlisted.");
+  }
   const attempts = [];
-  // Fail closed: only explicitly approved free-tier providers may receive requests.
-  // OpenRouter :free is the sole default; all other providers require owner allowlisting.
-  const freeProviderAllowlist = cleanText(env.MEHRAN_AI_FREE_PROVIDERS, 120) || "cloudflare,openrouter";
-  const allowedProviders = freeProviderAllowlist.split(",").map(item => item.trim().toLowerCase())
-    .filter((item, index, all) => INTELLIGENCE_AI_PROVIDER_ORDER.includes(item) && all.indexOf(item) === index);
-  const configuredOrder = cleanText(env.MEHRAN_AI_PROVIDER_ORDER, 120)
-    .split(",").map(item => item.trim().toLowerCase()).filter((item, index, all) =>
-      allowedProviders.includes(item) && all.indexOf(item) === index);
-  const order = [...configuredOrder, ...allowedProviders.filter(item => !configuredOrder.includes(item))];
+  // Hard zero-cost policy: Intelligence may use only the capped Cloudflare Workers AI allowance.
+  // External providers are deliberately excluded, even if environment variables attempt to enable them.
+  const order = [...INTELLIGENCE_AI_PROVIDER_ORDER];
   for (const provider of order) {
     try {
       if (provider === "cloudflare") {
@@ -6588,7 +6586,7 @@ async function planIntelligenceMission(env, input) {
   try {
     const routed = await runIntelligenceAI(env, {
       messages: [{ role: "system", content: system }, { role: "user", content: userPrompt }],
-      jsonMode: true, temperature: 0, maxTokens: 1000, cloudflareReservation: 25
+      purpose: "mission_planning", jsonMode: true, temperature: 0, maxTokens: 1000, cloudflareReservation: 25
     });
     modelResult = routed.result;
     selectedProvider = routed.provider;
@@ -8012,6 +8010,7 @@ export default {
               try {
                 const routed = await runIntelligenceAI(env, {
                   messages,
+                  purpose: "patch_generation",
                   jsonMode: true,
                   temperature,
                   maxTokens,
@@ -8278,7 +8277,7 @@ export default {
                 {role:"system",content:system},
                 {role:"user",content:JSON.stringify({repository:"Mehranmsh/mehranmsh.github.io",commitSha:body.commitSha,files})}
               ],
-              jsonMode:true,temperature:0,maxTokens:1500,cloudflareReservation:500
+              purpose:"repository_analysis",jsonMode:true,temperature:0,maxTokens:1500,cloudflareReservation:500
             });
             result = routed.result;
             console.log("INTELLIGENCE_CODE_ANALYSIS_PROVIDER",JSON.stringify({traceId,provider:routed.provider,model:routed.model,priorAttempts:routed.attempts.length}));
@@ -10481,7 +10480,7 @@ export default {
         };
         try {
           const routed = await runIntelligenceAI(env,{
-            messages,tools,toolChoice:"auto",model:"@cf/meta/llama-3.3-70b-instruct-fp8-fast",maxTokens:900,temperature:0.2,cloudflareReservation:300
+            purpose:"owner_chat",messages,tools,toolChoice:"auto",model:"@cf/meta/llama-3.3-70b-instruct-fp8-fast",maxTokens:900,temperature:0.2,cloudflareReservation:300
           });
           const result = routed.result;
           const toolCalls = Array.isArray(result?.tool_calls) ? result.tool_calls.slice(0,2) : [];

@@ -4030,11 +4030,19 @@ test("private package report failures expose only bounded stage codes", () => {
 });
 
 
-test("Intelligence OpenRouter default uses dynamic free-only routing and rejects paid model overrides", () => {
-  assert.match(workerSource, /cleanText\(env\.MEHRAN_OPENROUTER_MODEL, 160\) \|\| "openrouter\/free"/);
-  assert.match(workerSource, /model !== "openrouter\/free" && !model\.endsWith\(":free"\)/);
-  assert.match(workerSource, /non_free_model_blocked/);
-  assert.match(workerSource, /MEHRAN_AI_FREE_PROVIDERS/);
+test("Intelligence AI routing is hard-limited to the capped Cloudflare allowance", () => {
+  const routerStart = workerSource.indexOf("const INTELLIGENCE_AI_PROVIDER_ORDER");
+  const routerEnd = workerSource.indexOf("const socialSchemaInit", routerStart);
+  const router = workerSource.slice(routerStart, routerEnd);
+  assert.ok(router.includes('Object.freeze(["cloudflare"])'));
+  assert.ok(router.includes("INTELLIGENCE_AI_PURPOSES"));
+  assert.ok(router.includes("options?.purpose"));
+  assert.equal(router.includes("MEHRAN_AI_FREE_PROVIDERS"), false);
+  assert.equal(router.includes("MEHRAN_AI_PROVIDER_ORDER"), false);
+  assert.ok(workerSource.includes('purpose: "mission_planning"'));
+  assert.ok(workerSource.includes('purpose: "patch_generation"'));
+  assert.ok(workerSource.includes('purpose:"repository_analysis"'));
+  assert.ok(workerSource.includes('purpose:"owner_chat"'));
 });
 
 
