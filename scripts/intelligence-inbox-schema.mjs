@@ -7,20 +7,9 @@ const REQUIRED_ACTIONS = Object.freeze([
 ]);
 const REPAIR_ACTIONS = Object.freeze(["run_repository_tests","propose_code_patch"]);
 
-export const PRIVATE_INTELLIGENCE_INSPECTION_PATHS = Object.freeze([
-  "worker.js",
-  "scripts/intelligence-agent.mjs",
-  "scripts/intelligence-capabilities.mjs",
-  "scripts/intelligence-capabilities.test.mjs",
-  ".github/workflows/mehran-intelligence-runner.yml",
-  "docs/INTELLIGENCE_EXECUTION_PROTOCOL.md"
-]);
+export const PRIVATE_INTELLIGENCE_INSPECTION_PATHS = Object.freeze(["@app-inventory"]);
 
-const DEFAULT_INSPECTION_PATHS = Object.freeze([
-  "scripts/intelligence-agent.mjs",
-  "scripts/intelligence-capabilities.mjs",
-  "docs/INTELLIGENCE_EXECUTION_PROTOCOL.md"
-]);
+const DEFAULT_INSPECTION_PATHS = Object.freeze(["@app-inventory"]);
 
 export function resolvePrivateIntelligenceInspectionPaths(mission) {
   const paths = mission?.scope?.inspect_paths;
