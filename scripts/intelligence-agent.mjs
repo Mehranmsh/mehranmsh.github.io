@@ -1,4 +1,4 @@
-import { execFile, execFileSync } from "node:child_process";
+import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { readFileSync } from "node:fs";
 import { createHash } from "node:crypto";
