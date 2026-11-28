@@ -1811,3 +1811,23 @@ test("private inbox bridge runner allowlists only the exact mission contract fil
   assert.ok(runnerSource.includes("scripts/intelligence-inbox-schema.test.mjs"));
   assert.ok(runnerSource.includes("scripts/intelligence-patch-policy.mjs"));
 });
+
+
+test("private inbox inspection checkpoints retain the exact mission contract allowlist", () => {
+  const checkpointStart = runnerSource.indexOf('if (savedCheckpoint.phase === "result_ready" && task.actionType === "inspect_repository")');
+  const checkpointEnd = runnerSource.indexOf('if (savedCheckpoint.phase === "result_ready" && task.actionType === "source_security_audit")', checkpointStart);
+  assert.ok(checkpointStart >= 0 && checkpointEnd > checkpointStart, "inspection checkpoint validation must exist");
+  const checkpointSource = runnerSource.slice(checkpointStart, checkpointEnd);
+  for (const path of [
+    "scripts/intelligence-inbox-schema.mjs",
+    "scripts/intelligence-inbox-schema.test.mjs",
+    "scripts/intelligence-patch-policy.mjs"
+  ]) {
+    assert.ok(checkpointSource.includes('"'+path+'"'), `checkpoint allowlist must retain ${path}`);
+  }
+});
+
+test("isolated test report schema matches the two suites executed by the runner", () => {
+  assert.ok(runnerSource.includes('testSuite: "scripts/intelligence-capabilities.test.mjs + scripts/intelligence-inbox-schema.test.mjs"'));
+  assert.ok(workerSource.includes('report.testSuite !== "scripts/intelligence-capabilities.test.mjs + scripts/intelligence-inbox-schema.test.mjs"'));
+});
