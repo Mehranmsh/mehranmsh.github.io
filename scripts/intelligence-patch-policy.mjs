@@ -43,6 +43,6 @@ export function validatePatchProposal(input) {
     }
   }
   if(hunks!==1||adds+dels===0||adds+dels>MAX_CHANGED_LINES)return fail("change_limit_exceeded");
-  return {ok:true,baseSha,targetPath,bytes:new TextEncoder().encode(diff).byteLength,additions:adds,deletions:dels,hunkCount:hunks,mode:"bounded_single_file_diff"};
+  return {ok:true,baseSha,targetPath,bytes:new TextEncoder().encode(diff).byteLength,additions:adds,deletions:dels,hunkCount:hunks,mode:"validate_only"};
 }
-export const PATCH_PROPOSAL_POLICY=Object.freeze({maxPatchBytes:MAX_PATCH_BYTES,maxChangedLines:MAX_CHANGED_LINES,allowedRootFiles:Object.freeze([...ALLOWED_ROOT_FILES]),allowedPrefixes:ALLOWED_PREFIXES,forbiddenPathPattern:FORBIDDEN_PATH.source,appliesChanges:false,createsBranches:false,createsPullRequests:false});
+export const PATCH_PROPOSAL_POLICY=Object.freeze({maxPatchBytes:MAX_PATCH_BYTES,maxChangedLines:MAX_CHANGED_LINES,allowedPaths:Object.freeze(["scripts/intelligence-capabilities.test.mjs"]),allowedRootFiles:Object.freeze([...ALLOWED_ROOT_FILES]),allowedPrefixes:ALLOWED_PREFIXES,forbiddenPathPattern:FORBIDDEN_PATH.source,appliesChanges:false,createsBranches:false,createsPullRequests:false});
