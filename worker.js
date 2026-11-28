@@ -8683,7 +8683,7 @@ export default {
           // Default to deterministic work only. AI-capable inspect/proposal tasks require an explicit owner opt-in.
           const deterministicOnly = url.searchParams.get("mode") === "deterministic";
           const claimableActionTypes = deterministicOnly
-            ? "'repository_quality_check','service_health_report','source_security_audit','run_repository_tests'"
+            ? "'repository_quality_check','service_health_report','source_security_audit','inspect_repository','run_repository_tests'"
             : "'repository_quality_check','service_health_report','source_security_audit','inspect_repository','run_repository_tests','propose_code_patch'";
           // Recover only claims made by this agent API; never reset manually managed in-progress tasks.
           await env.DB.prepare(
