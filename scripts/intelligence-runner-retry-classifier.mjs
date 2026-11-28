@@ -15,11 +15,10 @@ export function shouldRetryIntelligenceRunnerTask(error, actionType = "") {
   }
 
   const name = typeof error.name === "string" ? error.name : "";
-  if (name === "TimeoutError" || name === "AbortError" || name === "TypeError") {
-    return true;
-  }
-
   const message = typeof error.message === "string" ? error.message : String(error.message ?? "");
+  if (name === "TimeoutError" || name === "AbortError") return true;
+  if (name === "TypeError" && TRANSIENT_MESSAGE.test(message)) return true;
+
   if (actionType === "propose_code_patch" && status === 409 &&
       /already in progress|concurrently reserved/i.test(message)) {
     return true;
