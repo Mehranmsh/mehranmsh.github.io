@@ -4195,7 +4195,7 @@ test("scheduled package finalization requires verified objective evidence", () =
   const finalizer = workerSource.slice(start, end);
   assert.match(finalizer, /verifyIntelligenceObjective\(packageScope\.acceptanceCriteria, tasks\)/);
   assert.match(finalizer, /objectiveComplete \? "completed"/);
-  assert.match(finalizer, /allCompleted \? "attention_required"/);
+  assert.match(finalizer, /allRequiredCompleted \? "attention_required"/);
   assert.match(finalizer, /objectiveVerification:/);
 });
 
