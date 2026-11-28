@@ -50,6 +50,7 @@ jobs:
           import { tmpdir } from "node:os";
           import { join } from "node:path";
           import { createHash } from "node:crypto";
+          import { shouldRetryIntelligenceRunnerTask } from "./scripts/intelligence-runner-retry-classifier.mjs";
           import { verifyIntelligenceResultCheckpoint } from "./scripts/intelligence-checkpoint.mjs";
           import { isAllowedPatchPath } from "./scripts/intelligence-patch-policy.mjs";
           import { readBoundedResponse } from "./scripts/intelligence-bounded-response.mjs";
@@ -958,12 +959,8 @@ jobs:
             } catch (error) {
               status = "blocked";
               const isWorkersAIInferenceFailure = error?.safeDiagnostic?.stage === "workers_ai_inference";
-              retryable = !isWorkersAIInferenceFailure && (
-                Number(error?.status) === 503 ||
-                error?.name === "TimeoutError" || error?.name === "AbortError" ||
-                (task.actionType === "propose_code_patch" &&
-                  Number(error?.status) === 409 && /already in progress|concurrently reserved/i.test(String(error?.message || "")))
-              );
+              retryable = !isWorkersAIInferenceFailure &&
+                shouldRetryIntelligenceRunnerTask(error, task.actionType);
               if (isWorkersAIInferenceFailure) {
                 console.log("Workers AI inference failure is recorded as non-retryable; preventing repeated provider calls.");
               }
