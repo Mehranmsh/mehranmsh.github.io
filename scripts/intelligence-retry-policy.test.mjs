@@ -34,6 +34,16 @@ test("GitHub API 403 retry stops at the configured attempt limit", () => {
   assert.equal(result.errorCode, "retry_limit_reached");
 });
 
+test("GitHub API 403 without rate-limit evidence is treated as permanent", () => {
+  const result = planIntelligenceRetry({
+    attempts: 1,
+    maxAttempts: 3,
+    error: "GitHub repository metadata returned HTTP 403"
+  });
+  assert.equal(result.retryable, false);
+  assert.equal(result.errorCode, "execution_blocked");
+});
+
 test("permanent errors are blocked without retry", () => {
   const result = planIntelligenceRetry({ attempts: 0, error: "invalid task payload" });
   assert.equal(result.retryable, false);
