@@ -6769,6 +6769,18 @@ export function verifyIntelligenceReport(actionType, report) {
       totalBytes += file.bytes;
       return true;
     });
+    const inventorySummary = report.inventorySummary && typeof report.inventorySummary === "object" ? report.inventorySummary : {};
+    const inventoryCounts = inventorySummary.moduleCounts && typeof inventorySummary.moduleCounts === "object" && !Array.isArray(inventorySummary.moduleCounts)
+      ? Object.values(inventorySummary.moduleCounts) : [];
+    const validInventorySummary = report.inventory !== true || (
+      integer(inventorySummary.filesInspected) && inventorySummary.filesInspected >= files.length && inventorySummary.filesInspected <= 5000 &&
+      integer(inventorySummary.totalBytes) && inventorySummary.totalBytes >= totalBytes && inventorySummary.totalBytes <= 32 * 1024 * 1024 &&
+      integer(inventorySummary.moduleGroupCount) && inventorySummary.moduleGroupCount >= 1 && inventorySummary.moduleGroupCount <= 500 &&
+      typeof inventorySummary.inventorySha256 === "string" && /^[a-f0-9]{64}$/.test(inventorySummary.inventorySha256) &&
+      inventoryCounts.length >= 1 && inventoryCounts.length <= 24 &&
+      inventoryCounts.every(count => integer(count) && count > 0) &&
+      inventoryCounts.reduce((sum, count) => sum + count, 0) <= inventorySummary.filesInspected
+    );
     const analysis = report.analysis && typeof report.analysis === "object" ? report.analysis : {};
     const validAnalysis = typeof analysis.summary === "string" && analysis.summary.length <= 1600 &&
       Array.isArray(analysis.findings) && analysis.findings.length <= 8 &&
@@ -6785,7 +6797,7 @@ export function verifyIntelligenceReport(actionType, report) {
     if (report.mode !== "bounded_read_only_repository_inspection" ||
         report.repository !== "Mehranmsh/mehranmsh.github.io" ||
         typeof report.commitSha !== "string" || !/^[a-f0-9]{40}$/i.test(report.commitSha) ||
-        !validFiles || totalBytes > 750000 ||
+        !validFiles || totalBytes > 750000 || !validInventorySummary ||
         !report.summary || report.summary.filesInspected !== files.length || report.summary.totalBytes !== totalBytes ||
         !validAnalysis) {
       return { passed: false, checks: [...checks, "inspect_repository_schema"] };
