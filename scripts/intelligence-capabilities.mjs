@@ -123,12 +123,13 @@ export const INTELLIGENCE_CAPABILITIES = Object.freeze({
     executors: ["github_actions_runner"],
     requiresApproval: false,
     autonomous: true,
-    description: "Generate and store one bounded append-only regression-test proposal in private storage; never apply it or create a branch or pull request.",
+    description: "Generate and store one bounded proposal for one allowlisted MEHRAN MSH application source file; changes remain isolated, tested, and draft-PR-only.",
     inputSchema: {
-      required: ["baseSha", "objective"],
+      required: ["baseSha", "objective", "targetPath"],
       properties: {
         baseSha: { type: "string", minLength: 40, maxLength: 40, pattern: "^[a-f0-9]{40}$" },
-        objective: { type: "string", minLength: 12, maxLength: 800 }
+        objective: { type: "string", minLength: 12, maxLength: 800 },
+        targetPath: { type: "string", minLength: 1, maxLength: 240 }
       }
     }
   }),
