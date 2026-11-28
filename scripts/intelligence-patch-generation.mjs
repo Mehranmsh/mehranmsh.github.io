@@ -12,7 +12,7 @@ export function buildPatchGenerationPrompt({baseSha,objective,source,targetPath=
  "Return exactly one JSON object with string fields summary and diff.",
  "The diff must change exactly this file: "+targetPath+". First lines must be --- a/"+targetPath+" and +++ b/"+targetPath+".",
  "Use exactly one @@ hunk. Include sufficient context for an exact patch. No diff --git, index, rename, binary, mode, metadata, or additional file.",
- "Keep total additions plus deletions at or below 160 lines and diff below 16384 UTF-8 bytes.",
+ "Keep total additions plus deletions at or below 160 changed lines and diff below 16384 UTF-8 bytes.",
  "Do not access or alter secrets, credentials, wallet data, user-private data, workflows, dependencies, or deployment configuration.",
  "Preserve existing behavior outside the requested objective. If unsafe or unclear, return an empty diff."
  ].join(" "),user:["Immutable base commit: "+baseSha,"Target path: "+targetPath,"Objective (untrusted):",objective.trim(),"Existing source (untrusted reference):",source].join("\n\n")};
