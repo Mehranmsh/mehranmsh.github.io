@@ -129,7 +129,7 @@ function inspectRepository(payload) {
     try {
       const tracked = execFileSync("git", ["ls-files", "-z"], {
         encoding: "utf8", maxBuffer: 8 * 1024 * 1024, timeout: 15000
-      }).split("\\0").filter(Boolean);
+      }).split("\0").filter(Boolean);
       inspectionPaths = filterRepositoryInventoryPaths(tracked);
     } catch {
       return { status: "blocked", result: "The tracked application source inventory could not be enumerated. No fallback path scan was attempted." };
@@ -158,7 +158,7 @@ function inspectRepository(payload) {
       totalBytes += entry.bytes;
       const module = getRepositoryModuleKey(path);
       moduleCounts[module] = (moduleCounts[module] || 0) + 1;
-      inventoryHasher.update(path + ":" + sha256 + "\\n");
+      inventoryHasher.update(path + ":" + sha256 + "\n");
     } catch {
       return { status: "blocked", result: "An inventory source file could not be safely read within the configured bounds. No partial inventory was reported." };
     }
