@@ -1,7 +1,7 @@
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, readFileSync, writeFileSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, writeFileSync, rmSync, lstatSync, realpathSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, sep } from "node:path";
 import { applyValidatedPatchInMemory } from "./intelligence-patch-apply.mjs";
 import { isAllowedPatchPath } from "./intelligence-patch-policy.mjs";
 import { readBoundedResponse } from "./intelligence-bounded-response.mjs";
@@ -122,7 +122,13 @@ for (const proposal of proposals) {
     const workspace = join(tempRoot, "repo");
     try {
       run("git", ["worktree", "add", "--detach", workspace, baseSha]);
-      const source = readFileSync(join(workspace, targetPath), "utf8");
+      const workspaceRealPath = realpathSync(workspace);
+      const targetFilePath = realpathSync(join(workspace, targetPath));
+      const targetStat = lstatSync(join(workspace, targetPath));
+      if (!targetFilePath.startsWith(workspaceRealPath + sep) || !targetStat.isFile() || targetStat.isSymbolicLink()) {
+        throw new Error("Target path must resolve to a regular file inside the isolated worktree.");
+      }
+      const source = readFileSync(targetFilePath, "utf8");
       const applied = applyValidatedPatchInMemory({
         baseSha, expectedBaseSha: baseSha, source, targetPath,
         summary: String(artifact.summary || ""), diff: artifact.diff
@@ -130,7 +136,7 @@ for (const proposal of proposals) {
       if (!applied.ok || typeof applied.content !== "string") {
         throw new Error("Patch application rejected by the bounded single-file policy: " + String(applied.code || "unknown"));
       }
-      writeFileSync(join(workspace, targetPath), applied.content, { encoding: "utf8", flag: "w" });
+      writeFileSync(targetFilePath, applied.content, { encoding: "utf8", flag: "w" });
 
       const image = "node:22-alpine@sha256:1314fb30ec37592d5845e5a160d522c0e680972aa534549940b8d73bde88481a";
       const dockerArgs = [
