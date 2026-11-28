@@ -107,6 +107,34 @@ test("deterministic task claims include inspection and fixed tests but exclude A
   assert.match(claim, /: "\x27repository_quality_check\x27,\x27service_health_report\x27,\x27source_security_audit\x27,\x27inspect_repository\x27,\x27run_repository_tests\x27,\x27propose_code_patch\x27"/);
 });
 
+test("optional AI tasks are deferred without blocking required deterministic work or claiming success", () => {
+  const quiescentStart = workerSource.indexOf("function isIntelligenceReportQuiescent");
+  const quiescentEnd = workerSource.indexOf("export default", quiescentStart);
+  const quiescent = workerSource.slice(quiescentStart, quiescentEnd);
+  assert.match(quiescent, /"optionalQueued"/);
+  assert.match(quiescent, /counts\.queued <= counts\.blockedDependencies \+ counts\.optionalQueued/);
+
+  const snapshotStart = workerSource.indexOf("async function refreshIntelligenceWorkPackageSnapshot");
+  const snapshotEnd = workerSource.indexOf("async function ensureIntelligenceSchedulerRunsTable", snapshotStart);
+  const snapshot = workerSource.slice(snapshotStart, snapshotEnd);
+  assert.match(snapshot, /scope\.optionalActions/);
+  assert.match(snapshot, /optionalActions\.includes\(task\.action_type\)/);
+  assert.match(snapshot, /counts\.completed \+ counts\.optionalQueued === counts\.total/);
+  assert.match(snapshot, /counts\.queued - counts\.optionalQueued > counts\.blockedDependencies/);
+  assert.match(snapshot, /allRequiredCompleted && counts\.optionalQueued === 0 && objectiveVerification\.verified/);
+  assert.match(snapshot, /deferredOptionalActions/);
+
+  const planner = workerSource.slice(workerSource.indexOf("scope.acceptanceCriteria = objectiveCriteria.criteria"));
+  assert.match(planner, /scope\.optionalActions = normalizedTasks\.some\(task => task\.actionType === "propose_code_patch"\)/);
+  assert.match(workerSource, /scope\.optionalActions must be a unique subset of explicitly authorized actions/);
+
+  const packageRouteStart = workerSource.indexOf('if (packageMatch && method === "GET")');
+  const packageRouteEnd = workerSource.indexOf('if (path === "/agent/v1/tasks/next"', packageRouteStart);
+  const packageRoute = workerSource.slice(packageRouteStart, packageRouteEnd);
+  assert.match(packageRoute, /counts\.optionalQueued = rows\.filter/);
+  assert.match(packageRoute, /allRequiredCompleted && counts\.optionalQueued === 0 && objectiveVerification\.verified/);
+});
+
 test("repository inspection is fully deterministic and does not call the semantic AI endpoint", () => {
   const inspectStart = runnerSource.indexOf('if (task.actionType === "inspect_repository")');
   const inspectEnd = runnerSource.indexOf('if (task.actionType === "source_security_audit")', inspectStart);
