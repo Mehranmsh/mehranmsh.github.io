@@ -4032,16 +4032,17 @@ test("private package report failures expose only bounded stage codes", () => {
 
 test("Intelligence AI routing is hard-limited to the capped Cloudflare allowance", () => {
   const routerStart = workerSource.indexOf("const INTELLIGENCE_AI_PROVIDER_ORDER");
-  const routerEnd = workerSource.indexOf("\\nconst socialSchemaInit", routerStart);
+  const routerEnd = workerSource.indexOf("const socialSchemaInit", routerStart);
   const router = workerSource.slice(routerStart, routerEnd);
-  assert.match(router, /Object\\.freeze\\(\\["cloudflare"\\]\\)/);
-  assert.match(router, /INTELLIGENCE_AI_PURPOSES/);
-  assert.match(router, /options\\?\\.purpose/);
-  assert.doesNotMatch(router, /MEHRAN_AI_FREE_PROVIDERS|MEHRAN_AI_PROVIDER_ORDER/);
-  assert.match(workerSource, /purpose: "mission_planning"/);
-  assert.match(workerSource, /purpose: "patch_generation"/);
-  assert.match(workerSource, /purpose:"repository_analysis"/);
-  assert.match(workerSource, /purpose:"owner_chat"/);
+  assert.ok(router.includes('Object.freeze(["cloudflare"])'));
+  assert.ok(router.includes("INTELLIGENCE_AI_PURPOSES"));
+  assert.ok(router.includes("options?.purpose"));
+  assert.equal(router.includes("MEHRAN_AI_FREE_PROVIDERS"), false);
+  assert.equal(router.includes("MEHRAN_AI_PROVIDER_ORDER"), false);
+  assert.ok(workerSource.includes('purpose: "mission_planning"'));
+  assert.ok(workerSource.includes('purpose: "patch_generation"'));
+  assert.ok(workerSource.includes('purpose:"repository_analysis"'));
+  assert.ok(workerSource.includes('purpose:"owner_chat"'));
 });
 
 
