@@ -1716,7 +1716,7 @@ test("capability schemas are deeply immutable, including nested allowlists and v
   assert.deepEqual(pathsRule.itemEnum, ["@app-inventory"]);
   assert.throws(() => pathsRule.itemEnum.push("secrets.env"), TypeError);
   assert.throws(() => { pathsRule.maxItems = 1000; }, TypeError);
-  assert.equal(validateIntelligenceCapabilityRequest("inspect_repository", { paths: ["worker.js"] }).ok, true);
+  assert.equal(validateIntelligenceCapabilityRequest("inspect_repository", { paths: ["@app-inventory"] }).ok, true);
   assert.equal(validateIntelligenceCapabilityRequest("inspect_repository", { paths: ["secrets.env"] }).code, "invalid_input_value");
 });
 
