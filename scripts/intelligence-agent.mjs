@@ -1,9 +1,10 @@
-import { execFile } from "node:child_process";
+import { execFile, execFileSync } from "node:child_process";
 import { promisify } from "node:util";
 import { readFileSync, lstatSync, realpathSync } from "node:fs";
 import { sep } from "node:path";
 import { createHash } from "node:crypto";
 import { isAllowedPatchPath, isAllowedInspectionPath } from "./intelligence-patch-policy.mjs";
+import { filterRepositoryInventoryPaths, getRepositoryModuleKey } from "./intelligence-repository-inventory.mjs";
 import { readBoundedResponse } from "./intelligence-bounded-response.mjs";
 
 const run = promisify(execFile);
@@ -58,6 +59,7 @@ async function runQualityChecks() {
   const steps = [
     ["Python and HTML/JavaScript quality checks", "python", ["scripts/quality-check.py"]],
     ["Worker API smoke tests", "node", ["--test", "scripts/worker-smoke.test.mjs"]],
+    ["Dynamic repository inventory tests", "node", ["--test", "scripts/intelligence-repository-inventory.test.mjs"]],
     ["Music Studio control-plane tests", "python", ["-m", "unittest", "discover", "-s", "engine", "-p", "test_*.py", "-v"]]
   ];
   const output = [];
@@ -122,30 +124,50 @@ async function generatePatchProposal(taskId, payload) {
   return { status: "completed", result: JSON.stringify(safe) };
 }
 function inspectRepository(payload) {
-  const paths = payload.paths;
-  if (!Array.isArray(paths) || paths.length < 1 || paths.length > 6 ||
-      new Set(paths).size !== paths.length ||
-      paths.some(path => !isAllowedInspectionPath(path))) {
+  const requestedPaths = payload.paths;
+  if (!Array.isArray(requestedPaths) || requestedPaths.length < 1 || requestedPaths.length > 6 ||
+      new Set(requestedPaths).size !== requestedPaths.length ||
+      requestedPaths.some(path => !isAllowedInspectionPath(path))) {
     return { status: "blocked", result: "Repository inspection paths must be unique allowlisted application source files. No file was read." };
   }
+  const inventoryMode = requestedPaths.length === 1 && requestedPaths[0] === "@app-inventory";
+  let paths = requestedPaths;
+  if (inventoryMode) {
+    try {
+      const tracked = execFileSync("git", ["ls-files", "-z"], {
+        encoding: "utf8", maxBuffer: 8 * 1024 * 1024, timeout: 15000
+      }).split("\\0").filter(Boolean);
+      paths = filterRepositoryInventoryPaths(tracked);
+    } catch {
+      return { status: "blocked", result: "The tracked application source inventory could not be enumerated. No fallback path scan was attempted." };
+    }
+  }
+  if (!paths.length || paths.length > 5000) {
+    return { status: "blocked", result: "The application source inventory is empty or exceeds the 5,000-file safety bound." };
+  }
   const files = [];
+  let totalBytes = 0;
+  const moduleCounts = {};
+  const inventoryHasher = createHash("sha256");
   for (const path of paths) {
     try {
       const workspaceRoot = realpathSync(".");
       const targetPath = realpathSync(path);
       const targetStat = lstatSync(path);
-      if (!targetPath.startsWith(workspaceRoot + sep) || !targetStat.isFile() || targetStat.isSymbolicLink()) {
-        throw new Error("Inspection target must be a regular file inside the repository checkout.");
+      if (!targetPath.startsWith(workspaceRoot + sep) || !targetStat.isFile() || targetStat.isSymbolicLink() ||
+          targetStat.size > 1024 * 1024 || totalBytes + targetStat.size > 32 * 1024 * 1024) {
+        throw new Error("Inspection target exceeded the regular-file or byte bound.");
       }
       const source = readFileSync(targetPath, "utf8");
-      files.push({
-        path,
-        bytes: Buffer.byteLength(source, "utf8"),
-        lines: source.split("\n").length - (source.endsWith("\n") ? 1 : 0),
-        sha256: createHash("sha256").update(source, "utf8").digest("hex")
-      });
+      const sha256 = createHash("sha256").update(source, "utf8").digest("hex");
+      const entry = { path, bytes: Buffer.byteLength(source, "utf8"), sha256 };
+      files.push(entry);
+      totalBytes += entry.bytes;
+      const module = getRepositoryModuleKey(path);
+      moduleCounts[module] = (moduleCounts[module] || 0) + 1;
+      inventoryHasher.update(path + ":" + sha256 + "\\n");
     } catch {
-      return { status: "blocked", result: "A requested allowlisted source file could not be read. No additional paths were inspected." };
+      return { status: "blocked", result: "An inventory source file could not be safely read within the configured bounds. No partial inventory was reported." };
     }
   }
   return {
@@ -153,8 +175,14 @@ function inspectRepository(payload) {
     result: JSON.stringify({
       repository: REPOSITORY,
       commitSha: String(process.env.GITHUB_SHA || "").toLowerCase(),
-      summary: { filesInspected: files.length, totalBytes: files.reduce((sum, file) => sum + file.bytes, 0) },
-      files
+      inventory: inventoryMode,
+      summary: {
+        filesInspected: files.length,
+        totalBytes,
+        moduleCounts,
+        inventorySha256: inventoryHasher.digest("hex")
+      },
+      samplePaths: files.slice(0, 24).map(file => file.path)
     })
   };
 }
