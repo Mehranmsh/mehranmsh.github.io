@@ -74,7 +74,6 @@ async function runQualityChecks() {
 
 async function runRepositoryTests(payload) {
   const requestedSha = typeof payload.baseSha === "string" ? payload.baseSha.toLowerCase() : "";
-  const targetPath = typeof payload.targetPath === "string" ? payload.targetPath : "";
   const checkedOutSha = String(process.env.GITHUB_SHA || "").toLowerCase();
   if (!/^[a-f0-9]{40}$/.test(requestedSha) || !/^[a-f0-9]{40}$/.test(checkedOutSha) ||
       requestedSha !== checkedOutSha) {
@@ -85,6 +84,7 @@ async function runRepositoryTests(payload) {
 
 async function generatePatchProposal(taskId, payload) {
   const objective = typeof payload.objective === "string" ? payload.objective.trim() : "";
+  const targetPath = typeof payload.targetPath === "string" ? payload.targetPath : "";
   const requestedSha = typeof payload.baseSha === "string" ? payload.baseSha.toLowerCase() : "";
   const checkedOutSha = String(process.env.GITHUB_SHA || "").toLowerCase();
   if (objective.length < 12 || objective.length > 800 || !/^(?:worker\\.js|index\\.html|social\\.html|nexus\\.html|ai\\.html|services\\.html|music-studio\\.html|(?:scripts|src|social|nexus|ai|music-studio|studio|assets\\/(?:js|css))\\/[A-Za-z0-9_./-]+\\.(?:mjs|js|jsx|ts|tsx|html|css|json))$/.test(targetPath) || targetPath.split("/").some(part => part === ".." || part === "." || part === "") || /(?:^|\\/)(?:\\.env|secrets?|credentials?|wallet|private|node_modules)(?:\\.|\\/|$)/i.test(targetPath) ||
@@ -105,10 +105,10 @@ async function generatePatchProposal(taskId, payload) {
     validationMode: bounded(proposal.validationMode, 80)
   };
   if (proposal.success !== true || proposal.status !== "stored" ||
-      !safe.proposalId || safe.targetPath !== "scripts/intelligence-capabilities.test.mjs") {
+      !safe.proposalId || safe.targetPath !== targetPath) {
     return { status: "blocked", result: "Patch generation did not produce a verified stored proposal: " + JSON.stringify(safe) };
   }
-  return { status: "completed", result: "Verified append-only regression-test proposal stored. No source code was applied and no branch or pull request was created by this action. " + JSON.stringify(safe) };
+  return { status: "completed", result: "Verified bounded single-file application proposal stored privately. No source code was applied by this action. " + JSON.stringify(safe) };
 }
 function inspectRepository(payload) {
   const paths = payload.paths;
