@@ -138,11 +138,16 @@ function inspectRepository(payload) {
   if (!inspectionPaths.length || inspectionPaths.length > 5000) {
     return { status: "blocked", result: "The application source inventory is empty or exceeds the 5,000-file safety bound." };
   }
+  const commitSha = String(process.env.GITHUB_SHA || "").toLowerCase();
+  if (!/^[a-f0-9]{40}$/.test(commitSha)) {
+    return { status: "blocked", result: "The immutable runner commit identity is unavailable. No inventory was reported." };
+  }
   const files = [];
+  let sampleBytes = 0;
   let totalBytes = 0;
   const moduleCounts = {};
   const inventoryHasher = createHash("sha256");
-  for (const path of inspectionPaths) {
+  for (const [index, path] of inspectionPaths.entries()) {
     try {
       const workspaceRoot = realpathSync(".");
       const targetPath = realpathSync(path);
@@ -152,30 +157,53 @@ function inspectRepository(payload) {
         throw new Error("Inspection target exceeded the regular-file or byte bound.");
       }
       const source = readFileSync(targetPath, "utf8");
+      const bytes = Buffer.byteLength(source, "utf8");
       const sha256 = createHash("sha256").update(source, "utf8").digest("hex");
-      const entry = { path, bytes: Buffer.byteLength(source, "utf8"), sha256 };
-      files.push(entry);
-      totalBytes += entry.bytes;
+      totalBytes += bytes;
       const module = getRepositoryModuleKey(path);
       moduleCounts[module] = (moduleCounts[module] || 0) + 1;
       inventoryHasher.update(path + ":" + sha256 + "\n");
+      if (files.length < 6) {
+        const blobSha = execFileSync("git", ["rev-parse", commitSha + ":" + path], {
+          encoding: "utf8", timeout: 10000
+        }).trim().toLowerCase();
+        if (!/^[a-f0-9]{40}$/.test(blobSha)) throw new Error("A source blob identity was not verified.");
+        files.push({
+          path,
+          blobSha,
+          bytes,
+          lineCount: source.split("\n").length - (source.endsWith("\n") ? 1 : 0),
+          symbols: []
+        });
+        sampleBytes += bytes;
+      }
     } catch {
       return { status: "blocked", result: "An inventory source file could not be safely read within the configured bounds. No partial inventory was reported." };
     }
   }
+  const sortedModules = Object.entries(moduleCounts).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+  const compactModuleCounts = Object.fromEntries(sortedModules.slice(0, 24));
   return {
     status: "completed",
     result: JSON.stringify({
+      mode: "bounded_read_only_repository_inspection",
       repository: REPOSITORY,
-      commitSha: String(process.env.GITHUB_SHA || "").toLowerCase(),
+      commitSha,
+      files,
+      summary: { filesInspected: files.length, totalBytes: sampleBytes },
       inventory: inventoryMode,
-      summary: {
-        filesInspected: files.length,
+      inventorySummary: {
+        filesInspected: inspectionPaths.length,
         totalBytes,
-        moduleCounts,
+        moduleCounts: compactModuleCounts,
+        moduleGroupCount: sortedModules.length,
         inventorySha256: inventoryHasher.digest("hex")
       },
-      samplePaths: files.slice(0, 24).map(file => file.path)
+      analysis: {
+        summary: "A deterministic inventory of the tracked safe application source tree was completed.",
+        findings: [],
+        limitations: ["This task records source inventory only; semantic code review is a separate, quota-controlled mission."]
+      }
     })
   };
 }
