@@ -50,6 +50,7 @@ test("accepts a bounded repair mission with proposal and isolated test actions",
   const mission = validMission();
   mission.scope.mode = "bounded_app_repair";
   mission.scope.allowed_actions.push("propose_code_patch");
+  mission.scope.patch_target_path = "worker.js";
   mission.scope.forbidden = ["direct_source_writes","production_patch_application","unisolated_branch_creation","non_draft_pull_request_creation","merge","deployment","secret_access","credential_or_token_output","wallet_data_access","wallet_operations","financial_operations","arbitrary_shell","changes_to_production_state"];
   assert.deepEqual(validatePrivateIntelligenceMission(mission), []);
 });
@@ -58,7 +59,7 @@ test("rejects incomplete repair actions and repair actions in a read-only missio
   const missingProposal = validMission();
   missingProposal.scope.mode = "bounded_app_repair";
   missingProposal.scope.forbidden = ["direct_source_writes","production_patch_application","unisolated_branch_creation","non_draft_pull_request_creation","merge","deployment","secret_access","credential_or_token_output","wallet_data_access","wallet_operations","financial_operations","arbitrary_shell","changes_to_production_state"];
-  assert.deepEqual(validatePrivateIntelligenceMission(missingProposal), ["repair_actions_incomplete"]);
+  assert.deepEqual(validatePrivateIntelligenceMission(missingProposal), ["repair_actions_incomplete", "repair_target_path_invalid"]);
   const readOnly = validMission();
   readOnly.scope.allowed_actions.push("propose_code_patch");
   assert.deepEqual(validatePrivateIntelligenceMission(readOnly), ["repair_action_in_read_only_scope"]);
@@ -105,4 +106,28 @@ test("rejects private or unsafe inspection paths, duplicates, and empty lists", 
 
 test("uses a small safe default inspection scope when no paths are supplied", () => {
   assert.deepEqual(resolvePrivateIntelligenceInspectionPaths(validMission()), ["@app-inventory"]);
+});
+
+test("requires one explicit allowlisted patch target for bounded repair missions", () => {
+  const missingTarget = validMission();
+  missingTarget.scope.mode = "bounded_app_repair";
+  missingTarget.scope.allowed_actions.push("propose_code_patch");
+  missingTarget.scope.forbidden = ["direct_source_writes","production_patch_application","unisolated_branch_creation","non_draft_pull_request_creation","merge","deployment","secret_access","credential_or_token_output","wallet_data_access","wallet_operations","financial_operations","arbitrary_shell","changes_to_production_state"];
+  assert.deepEqual(validatePrivateIntelligenceMission(missingTarget), ["repair_target_path_invalid"]);
+
+  const validRepair = structuredClone(missingTarget);
+  validRepair.scope.patch_target_path = "worker.js";
+  assert.deepEqual(validatePrivateIntelligenceMission(validRepair), []);
+
+  for (const path of ["../worker.js", ".env", "src/wallet-balance.js", ".github/workflows/deploy.yml"]) {
+    const invalidRepair = structuredClone(validRepair);
+    invalidRepair.scope.patch_target_path = path;
+    assert.deepEqual(validatePrivateIntelligenceMission(invalidRepair), ["repair_target_path_invalid"]);
+  }
+});
+
+test("rejects repair targets on read-only missions", () => {
+  const mission = validMission();
+  mission.scope.patch_target_path = "worker.js";
+  assert.deepEqual(validatePrivateIntelligenceMission(mission), ["repair_target_path_in_read_only_scope"]);
 });

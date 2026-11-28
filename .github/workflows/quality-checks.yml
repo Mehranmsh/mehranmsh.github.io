@@ -76,6 +76,8 @@ jobs:
 
       - name: Run Intelligence capability policy tests
         run: node --check scripts/intelligence-capabilities.mjs && node --test scripts/intelligence-capabilities.test.mjs
+      - name: Run private Intelligence inbox contract tests
+        run: node --check scripts/intelligence-inbox-schema.mjs && node --test scripts/intelligence-inbox-schema.test.mjs
 
       - name: Run Intelligence bounded result serialization tests
         run: node --test scripts/intelligence-result-serializer.test.mjs
