@@ -6252,8 +6252,10 @@ export function validateIntelligenceWorkPackage(input) {
     const validTestBaseSha = actionType !== "run_repository_tests" || (typeof baseSha === "string" && /^[a-f0-9]{40}$/.test(baseSha));
     const patchObjective = actionType === "propose_code_patch" ? item?.objective : undefined;
     const validPatchObjective = actionType !== "propose_code_patch" || (typeof patchObjective === "string" && patchObjective.trim().length >= 12 && patchObjective.length <= 800);
+    const patchBaseSha = actionType === "propose_code_patch" ? item?.baseSha : undefined;
+    const validPatchBaseSha = actionType !== "propose_code_patch" || (typeof patchBaseSha === "string" && /^[a-f0-9]{40}$/.test(patchBaseSha));
     if (!taskId || !/^[A-Za-z0-9._:-]{1,80}$/.test(taskId) || known.has(taskId) || !taskTitle ||
-        !globalAllowedActions.includes(actionType) || (scopedActionsDeclared && !scopedActions.includes(actionType)) || !validDependencies || !validInspectPaths || !validTestBaseSha || !validPatchObjective || (actionType !== "inspect_repository" && Object.hasOwn(item || {}, "paths")) || (actionType !== "run_repository_tests" && Object.hasOwn(item || {}, "baseSha")) || (actionType !== "propose_code_patch" && Object.hasOwn(item || {}, "objective")) || dependencies.length > 10) {
+        !globalAllowedActions.includes(actionType) || (scopedActionsDeclared && !scopedActions.includes(actionType)) || !validDependencies || !validInspectPaths || !validTestBaseSha || !validPatchObjective || !validPatchBaseSha || (actionType !== "inspect_repository" && Object.hasOwn(item || {}, "paths")) || (actionType !== "run_repository_tests" && actionType !== "propose_code_patch" && Object.hasOwn(item || {}, "baseSha")) || (actionType !== "propose_code_patch" && Object.hasOwn(item || {}, "objective")) || dependencies.length > 10) {
       return fail("Invalid task definition or action outside the bounded capability allowlist.");
     }
     if (new Set(dependencies).size !== dependencies.length ||
@@ -6261,7 +6263,7 @@ export function validateIntelligenceWorkPackage(input) {
       return fail("Dependencies must be unique and reference earlier tasks in this package; cycles and forward references are rejected.");
     }
     known.add(taskId);
-    normalized.push({ taskId, title: taskTitle, description, actionType, dependencies, ...(paths ? { paths } : {}), ...(baseSha ? { baseSha } : {}), ...(patchObjective ? { objective: patchObjective.trim() } : {}) });
+    normalized.push({ taskId, title: taskTitle, description, actionType, dependencies, ...(paths ? { paths } : {}), ...(baseSha ? { baseSha } : {}), ...(patchBaseSha ? { baseSha: patchBaseSha } : {}), ...(patchObjective ? { objective: patchObjective.trim() } : {}) });
   }
   return { ok: true, idempotencyKey, title, objective, priority, scope, scopeJson, tasks: normalized };
 }
