@@ -93,7 +93,7 @@ async function generatePatchProposal(taskId, payload) {
       !/^[a-f0-9]{40}$/.test(checkedOutSha) || requestedSha !== checkedOutSha) {
     return { status: "blocked", result: "Patch generation requires a bounded objective and an exact immutable baseSha matching this runner checkout. No AI request was made." };
   }
-  const requestId = "intelligence-" + taskId;
+  const requestId = taskId;
   const proposal = await request("/agent/v1/patch-proposals/generate", {
     method: "POST",
     body: JSON.stringify({ baseSha: requestedSha, objective, targetPath, requestId })
