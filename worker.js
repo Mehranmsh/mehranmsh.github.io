@@ -7919,7 +7919,7 @@ export default {
           }
           await ensureIntelligencePatchProposalTable(env);
           await ensureIntelligencePatchGenerationRequestsTable(env);
-          const requestHash = await sha256(body.baseSha + "\n" + body.objective.trim());
+          const requestHash = await sha256(body.baseSha + "\n" + body.objective.trim() + "\n" + body.targetPath);
           const readRequest = () => env.DB.prepare(
             "SELECT request_id,request_hash,base_sha,status,proposal_id,target_path,summary,artifact_path,artifact_sha256,diff_sha256,validation_mode,failure_code,created_at,updated_at FROM intelligence_patch_generation_requests WHERE request_id=?"
           ).bind(body.requestId).first();
