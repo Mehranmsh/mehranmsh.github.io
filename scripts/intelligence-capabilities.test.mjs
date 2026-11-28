@@ -1793,7 +1793,7 @@ test("agent executes repository inspection and fixed tests only within immutable
   assert.match(agentSource, /function inspectRepository\(payload\)/);
   assert.match(agentSource, /function runRepositoryTests\(payload\)/);
   assert.match(agentSource, /INSPECTION_PATHS = Object\.freeze\(/);
-  assert.match(agentSource, /paths\.some\(path => typeof path !== "string" \|\| !INSPECTION_PATHS\.includes\(path\)\)/);
+  assert.match(agentSource, /paths\.some\(path => !isAllowedPatchPath\(path\)\)/);
   assert.match(agentSource, /requestedSha !== checkedOutSha/);
   assert.match(agentSource, /task\.actionType === "inspect_repository"/);
   assert.match(agentSource, /task\.actionType === "run_repository_tests"/);
