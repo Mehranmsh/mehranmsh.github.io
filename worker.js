@@ -2,6 +2,7 @@ import { buildDeterministicRoutinePlan } from "./scripts/intelligence-routine-pl
 import { INTELLIGENCE_ACTION_TYPES, PREAPPROVED_INTELLIGENCE_ACTION_TYPES } from "./scripts/intelligence-capabilities.mjs";
 import { storePrivatePatchArtifact, verifyPrivatePatchArtifactAtPath, getPrivatePatchArtifactPath, getVerifiedPrivatePatchArtifactAtPath } from "./scripts/intelligence-private-patch-store.mjs";
 import { extractPatchModelText, generatePatchArtifact } from "./scripts/intelligence-patch-generation-service.mjs";
+import { isAllowedPatchPath } from "./scripts/intelligence-patch-policy.mjs";
 import { validatePrivateIntelligenceMission, resolvePrivateIntelligenceInspectionPaths } from "./scripts/intelligence-inbox-schema.mjs";
 import { selectMemoryContext } from "./scripts/intelligence-memory-ranking.mjs";
 // Shared owner-scoped feedback analysis; Worker persists proposals but never applies them.
@@ -6251,11 +6252,13 @@ export function validateIntelligenceWorkPackage(input) {
     const baseSha = actionType === "run_repository_tests" ? item?.baseSha : undefined;
     const validTestBaseSha = actionType !== "run_repository_tests" || (typeof baseSha === "string" && /^[a-f0-9]{40}$/.test(baseSha));
     const patchObjective = actionType === "propose_code_patch" ? item?.objective : undefined;
+    const patchTargetPath = actionType === "propose_code_patch" ? item?.targetPath : undefined;
+    const validPatchTargetPath = actionType !== "propose_code_patch" || isAllowedPatchPath(patchTargetPath);
     const validPatchObjective = actionType !== "propose_code_patch" || (typeof patchObjective === "string" && patchObjective.trim().length >= 12 && patchObjective.length <= 800);
     const patchBaseSha = actionType === "propose_code_patch" ? item?.baseSha : undefined;
     const validPatchBaseSha = actionType !== "propose_code_patch" || (typeof patchBaseSha === "string" && /^[a-f0-9]{40}$/.test(patchBaseSha));
     if (!taskId || !/^[A-Za-z0-9._:-]{1,80}$/.test(taskId) || known.has(taskId) || !taskTitle ||
-        !globalAllowedActions.includes(actionType) || (scopedActionsDeclared && !scopedActions.includes(actionType)) || !validDependencies || !validInspectPaths || !validTestBaseSha || !validPatchObjective || !validPatchBaseSha || (actionType !== "inspect_repository" && Object.hasOwn(item || {}, "paths")) || (actionType !== "run_repository_tests" && actionType !== "propose_code_patch" && Object.hasOwn(item || {}, "baseSha")) || (actionType !== "propose_code_patch" && Object.hasOwn(item || {}, "objective")) || dependencies.length > 10) {
+        !globalAllowedActions.includes(actionType) || (scopedActionsDeclared && !scopedActions.includes(actionType)) || !validDependencies || !validInspectPaths || !validTestBaseSha || !validPatchObjective || !validPatchBaseSha || !validPatchTargetPath || (actionType !== "inspect_repository" && Object.hasOwn(item || {}, "paths")) || (actionType !== "run_repository_tests" && actionType !== "propose_code_patch" && Object.hasOwn(item || {}, "baseSha")) || (actionType !== "propose_code_patch" && (Object.hasOwn(item || {}, "objective") || Object.hasOwn(item || {}, "targetPath"))) || dependencies.length > 10) {
       return fail("Invalid task definition or action outside the bounded capability allowlist.");
     }
     if (new Set(dependencies).size !== dependencies.length ||
@@ -6263,7 +6266,7 @@ export function validateIntelligenceWorkPackage(input) {
       return fail("Dependencies must be unique and reference earlier tasks in this package; cycles and forward references are rejected.");
     }
     known.add(taskId);
-    normalized.push({ taskId, title: taskTitle, description, actionType, dependencies, ...(paths ? { paths } : {}), ...(baseSha ? { baseSha } : {}), ...(patchBaseSha ? { baseSha: patchBaseSha } : {}), ...(patchObjective ? { objective: patchObjective.trim() } : {}) });
+    normalized.push({ taskId, title: taskTitle, description, actionType, dependencies, ...(paths ? { paths } : {}), ...(baseSha ? { baseSha } : {}), ...(patchBaseSha ? { baseSha: patchBaseSha } : {}), ...(patchObjective ? { objective: patchObjective.trim() } : {}), ...(patchTargetPath ? { targetPath: patchTargetPath } : {}) });
   }
   return { ok: true, idempotencyKey, title, objective, priority, scope, scopeJson, tasks: normalized };
 }
@@ -6563,7 +6566,7 @@ async function planIntelligenceMission(env, input) {
     "Convert the owner's mission into a small, evidence-oriented work package.",
     "You are a planner, not an executor. Never claim an action has already happened.",
     "Only create tasks using exactly these action types: service_health_report, repository_quality_check, source_security_audit, inspect_repository, propose_code_patch.",
-    "propose_code_patch is proposal-only: it may generate and privately store one additions-only regression-test proposal for scripts/intelligence-capabilities.test.mjs; it cannot apply patches, write source files, create branches or pull requests, merge, or deploy. Every such task must include the exact repositoryBaseSha supplied in the user prompt.",
+    "propose_code_patch generates one bounded proposal for one allowlisted application source file; it remains isolated until tests pass and a draft PR is created. Every such task must include exact repositoryBaseSha, objective, and targetPath.",
     "Never request secrets, credentials, wallet keys, or personal data.",
     "Never execute or request direct source writes, patch application, branch or pull-request creation, deployment, account changes, financial actions, or external user actions.",
     "Use dependencies only on earlier task IDs. Return valid JSON only, without markdown fences."
@@ -7907,10 +7910,10 @@ export default {
         }
         if (path === "/agent/v1/patch-proposals/generate" && method === "POST") {
           const body = await readBody(request);
-          if (!body || Object.keys(body).sort().join(",") !== "baseSha,objective,requestId" ||
+          if (!body || Object.keys(body).sort().join(",") !== "baseSha,objective,requestId,targetPath" ||
               typeof body.baseSha !== "string" || !/^[a-f0-9]{40}$/.test(body.baseSha) ||
               typeof body.objective !== "string" || body.objective.trim().length < 12 ||
-              body.objective.length > 800 || typeof body.requestId !== "string" ||
+              body.objective.length > 800 || !isAllowedPatchPath(body.targetPath) || typeof body.requestId !== "string" ||
               !/^[A-Za-z0-9._:-]{8,160}$/.test(body.requestId)) {
             return error("A current base SHA, bounded objective, and stable request ID are required.",400);
           }
@@ -7979,6 +7982,7 @@ export default {
             env,
             baseSha:body.baseSha,
             objective:body.objective.trim(),
+            targetPath:body.targetPath,
             // Retain the reservation hook for deterministic Worker test hooks and legacy callers.
             // Production inference uses runIntelligenceAI, which owns its own reservation lifecycle.
             reserveBudget:credits => reserveSocialWorkersAIBudget(env,credits,"intelligence"),
