@@ -8378,7 +8378,7 @@ export default {
             const validDependencies = !Object.hasOwn(item || {}, "dependsOn") || Array.isArray(item.dependsOn);
             const dependencies = Array.isArray(item?.dependsOn) ? item.dependsOn : [];
             const paths = actionType === "inspect_repository" ? item?.paths : undefined;
-            const validInspectPaths = actionType !== "inspect_repository" || (Array.isArray(paths) && paths.length >= 1 && paths.length <= 6 && new Set(paths).size === paths.length && paths.every(path => isAllowedPatchPath(path)));
+            const validInspectPaths = actionType !== "inspect_repository" || (Array.isArray(paths) && paths.length >= 1 && paths.length <= 6 && new Set(paths).size === paths.length && paths.every(path => isAllowedInspectionPath(path)));
             const baseSha = ["run_repository_tests","propose_code_patch"].includes(actionType) ? item?.baseSha : undefined;
             const validTestBaseSha = !["run_repository_tests","propose_code_patch"].includes(actionType) || (typeof baseSha === "string" && /^[a-f0-9]{40}$/.test(baseSha));
             const patchObjective = actionType === "propose_code_patch" ? item?.objective : undefined;
