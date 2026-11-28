@@ -6826,8 +6826,8 @@ export function verifyIntelligenceReport(actionType, report) {
         !proposalPathMatchesId || typeof report.artifactSha256 !== "string" || !/^[a-f0-9]{64}$/.test(report.artifactSha256) ||
         typeof report.diffSha256 !== "string" || !/^[a-f0-9]{64}$/.test(report.diffSha256) ||
         typeof report.baseSha !== "string" || !/^[a-f0-9]{40}$/.test(report.baseSha) ||
-        report.targetPath !== "scripts/intelligence-capabilities.test.mjs" ||
-        report.validationMode !== "append_only_validate_only" || report.status !== "stored" ||
+        !isAllowedPatchPath(report.targetPath) ||
+        report.validationMode !== "bounded_single_file_validate_only" || report.status !== "stored" ||
         typeof report.summary !== "string" || report.summary.trim().length < 12 || report.summary.length > 500 ||
         !isoDate(report.generatedAt)) {
       return { passed: false, checks: [...checks, "patch_proposal_schema"] };
@@ -8190,8 +8190,8 @@ export default {
               stored.summary !== artifact.summary) {
             return error("Private artifact does not match the durable proposal record.",409);
           }
-          if (artifact.targetPath !== "scripts/intelligence-capabilities.test.mjs" ||
-              typeof artifact.diff !== "string" || artifact.diff.length > 8192) {
+          if (!isAllowedPatchPath(artifact.targetPath) ||
+              typeof artifact.diff !== "string" || artifact.diff.length > 16384) {
             return error("Verified proposal exceeds the active patch policy.",409);
           }
           return json({
