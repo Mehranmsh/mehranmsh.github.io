@@ -122,10 +122,10 @@ async function generatePatchProposal(taskId, payload) {
 }
 function inspectRepository(payload) {
   const paths = payload.paths;
-  if (!Array.isArray(paths) || paths.length < 1 || paths.length > INSPECTION_PATHS.length ||
+  if (!Array.isArray(paths) || paths.length < 1 || paths.length > 6 ||
       new Set(paths).size !== paths.length ||
-      paths.some(path => typeof path !== "string" || !INSPECTION_PATHS.includes(path))) {
-    return { status: "blocked", result: "Repository inspection paths must be a unique subset of the fixed allowlist. No file was read." };
+      paths.some(path => !isAllowedPatchPath(path))) {
+    return { status: "blocked", result: "Repository inspection paths must be unique allowlisted application source files. No file was read." };
   }
   const files = [];
   for (const path of paths) {
