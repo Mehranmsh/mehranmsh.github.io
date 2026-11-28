@@ -12,14 +12,7 @@ const WORKER = "https://mehran-msh-auth.mehran79mehran.workers.dev";
 const APP = "https://mehranmsh.github.io";
 const token = process.env.MEHRAN_AGENT_TOKEN;
 const REPOSITORY = "Mehranmsh/mehranmsh.github.io";
-const INSPECTION_PATHS = Object.freeze([
-  "worker.js",
-  "scripts/intelligence-agent.mjs",
-  "scripts/intelligence-capabilities.mjs",
-  "scripts/intelligence-capabilities.test.mjs",
-  ".github/workflows/mehran-intelligence-runner.yml",
-  "docs/INTELLIGENCE_EXECUTION_PROTOCOL.md"
-]);
+const INSPECTION_PATHS = Object.freeze(["@app-inventory"]);
 
 function bounded(value, max = 2500) {
   return String(value ?? "").replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, "").slice(0, max);
@@ -124,32 +117,32 @@ async function generatePatchProposal(taskId, payload) {
   return { status: "completed", result: JSON.stringify(safe) };
 }
 function inspectRepository(payload) {
-  const requestedPaths = payload.paths;
-  if (!Array.isArray(requestedPaths) || requestedPaths.length < 1 || requestedPaths.length > 6 ||
-      new Set(requestedPaths).size !== requestedPaths.length ||
-      requestedPaths.some(path => !isAllowedInspectionPath(path))) {
+  const paths = payload.paths;
+  if (!Array.isArray(paths) || paths.length < 1 || paths.length > 6 ||
+      new Set(paths).size !== paths.length ||
+      paths.some(path => !isAllowedInspectionPath(path))) {
     return { status: "blocked", result: "Repository inspection paths must be unique allowlisted application source files. No file was read." };
   }
-  const inventoryMode = requestedPaths.length === 1 && requestedPaths[0] === "@app-inventory";
-  let paths = requestedPaths;
+  const inventoryMode = paths.length === 1 && INSPECTION_PATHS.includes(paths[0]);
+  let inspectionPaths = paths;
   if (inventoryMode) {
     try {
       const tracked = execFileSync("git", ["ls-files", "-z"], {
         encoding: "utf8", maxBuffer: 8 * 1024 * 1024, timeout: 15000
       }).split("\\0").filter(Boolean);
-      paths = filterRepositoryInventoryPaths(tracked);
+      inspectionPaths = filterRepositoryInventoryPaths(tracked);
     } catch {
       return { status: "blocked", result: "The tracked application source inventory could not be enumerated. No fallback path scan was attempted." };
     }
   }
-  if (!paths.length || paths.length > 5000) {
+  if (!inspectionPaths.length || inspectionPaths.length > 5000) {
     return { status: "blocked", result: "The application source inventory is empty or exceeds the 5,000-file safety bound." };
   }
   const files = [];
   let totalBytes = 0;
   const moduleCounts = {};
   const inventoryHasher = createHash("sha256");
-  for (const path of paths) {
+  for (const path of inspectionPaths) {
     try {
       const workspaceRoot = realpathSync(".");
       const targetPath = realpathSync(path);
