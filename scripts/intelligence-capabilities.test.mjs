@@ -153,7 +153,7 @@ test("all eight active capabilities are registered with their permission tiers",
     assert.equal(item.requiresApproval, false);
     assert.ok(Object.isFrozen(item.executors));
     const input = id === "inspect_repository"
-      ? { paths: ["worker.js"] }
+      ? { paths: ["@app-inventory"] }
       : isolated ? { baseSha: "a".repeat(40) }
       : proposal ? { baseSha: "c".repeat(40), objective: "Add a regression test for a safe parser boundary", targetPath: "scripts/intelligence-capabilities.test.mjs" } : {};
     assert.equal(validateIntelligenceCapabilityRequest(id, input).ok, true);
@@ -397,7 +397,7 @@ test("repository inspection is active, pre-authorized, exact-path allowlisted, a
   assert.equal(capability.autonomous, true);
   assert.deepEqual(capability.executors, ["github_actions_runner"]);
   assert.equal(validateIntelligenceCapabilityRequest("inspect_repository", {
-    paths: ["worker.js", "docs/INTELLIGENCE_EXECUTION_PROTOCOL.md"]
+    paths: ["@app-inventory"]
   }).ok, true);
   assert.equal(validateIntelligenceCapabilityRequest("inspect_repository", { paths: ["../../secrets"] }).ok, false);
   assert.equal(validateIntelligenceCapabilityRequest("inspect_repository", { paths: [] }).ok, false);
@@ -1690,9 +1690,9 @@ test("runner disables automatic self-improvement planning and proposal PR creati
 
 test("repository architecture inventory is deterministically routed before bounded semantic review", () => {
   assert.ok(routinePlannerSource.includes('actionType: "inspect_repository"'));
-  assert.ok(routinePlannerSource.includes("No AI inference or repository writes are used"));
-  assert.ok(routinePlannerSource.includes('"worker.js"'));
-  assert.ok(routinePlannerSource.includes('"scripts/intelligence-agent.mjs"'));
+  assert.ok(routinePlannerSource.includes("No AI inference or repository writes are used."));
+  assert.ok(routinePlannerSource.includes('paths: ["@app-inventory"]'));
+  assert.ok(routinePlannerSource.includes("complete safe application source tree"));
   assert.ok(workerSource.includes("const deterministicPlan = buildDeterministicRoutinePlan(mission)"));
   assert.ok(workerSource.includes("aiInferenceUsed: false"));
   assert.ok(runnerSource.includes('request("/agent/v1/repository/analyze"'));
@@ -1713,14 +1713,7 @@ test("capability schemas are deeply immutable, including nested allowlists and v
 
   const capability = getIntelligenceCapability("inspect_repository");
   const pathsRule = capability.inputSchema.properties.paths;
-  assert.deepEqual(pathsRule.itemEnum, [
-    "worker.js",
-    "scripts/intelligence-agent.mjs",
-    "scripts/intelligence-capabilities.mjs",
-    "scripts/intelligence-capabilities.test.mjs",
-    ".github/workflows/mehran-intelligence-runner.yml",
-    "docs/INTELLIGENCE_EXECUTION_PROTOCOL.md"
-  ]);
+  assert.deepEqual(pathsRule.itemEnum, ["@app-inventory"]);
   assert.throws(() => pathsRule.itemEnum.push("secrets.env"), TypeError);
   assert.throws(() => { pathsRule.maxItems = 1000; }, TypeError);
   assert.equal(validateIntelligenceCapabilityRequest("inspect_repository", { paths: ["worker.js"] }).ok, true);
