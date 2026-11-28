@@ -8680,7 +8680,8 @@ export default {
           return json({success:true,workPackage:{...pkg,status,counts,report,objectiveVerification},tasks:rows.map(row=>({...row,requiresApproval:!!Number(row.requires_approval)})),events:eventRows,reportStorage});
         }
         if (path === "/agent/v1/tasks/next" && method === "GET") {
-          // Default to deterministic work only. AI-capable inspect/proposal tasks require an explicit owner opt-in.
+          // The runner opts into deterministic mode explicitly. Repository inspection is deterministic;
+          // only bounded patch generation remains AI-capable and is excluded from this claim path.
           const deterministicOnly = url.searchParams.get("mode") === "deterministic";
           const claimableActionTypes = deterministicOnly
             ? "'repository_quality_check','service_health_report','source_security_audit','inspect_repository','run_repository_tests'"
