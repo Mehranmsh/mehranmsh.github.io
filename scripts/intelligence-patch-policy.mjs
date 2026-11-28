@@ -52,9 +52,11 @@ export function isAllowedInspectionPath(path) {
   if (typeof path !== "string" || !path || path.length > 240 || path.startsWith("/") ||
       !/^[A-Za-z0-9_./-]+$/.test(path) || path.includes("\\") ||
       path.split("/").some(part => !part || part === "." || part === "..") ||
-      /\.(?:mjs|js|jsx|ts|tsx|html|css|json|py)$/i.test(path) === false &&
-      !(path.startsWith("docs/") && /\.(?:md|txt)$/i.test(path)) return false;
+      FORBIDDEN_PATH.test(path) ||
+      (/\\.(?:mjs|js|jsx|ts|tsx|html|css|json|py)$/i.test(path) === false &&
+       !(path.startsWith("docs/") && /\\.(?:md|txt)$/i.test(path)))) return false;
   return true;
+}
 }
 
 export const PATCH_PROPOSAL_POLICY=Object.freeze({maxPatchBytes:MAX_PATCH_BYTES,maxChangedLines:MAX_CHANGED_LINES,allowedPaths:Object.freeze([...ALLOWED_ROOT_FILES,...ALLOWED_PREFIXES]),allowedRootFiles:Object.freeze([...ALLOWED_ROOT_FILES]),allowedPrefixes:ALLOWED_PREFIXES,forbiddenPathPattern:FORBIDDEN_PATH.source,appliesChanges:false,createsBranches:false,createsPullRequests:false});
