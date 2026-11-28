@@ -1749,3 +1749,16 @@ test("agent validates claimed task envelopes and returns the claim token", () =>
   assert.match(agentSource, /encodeURIComponent\(taskId\)/);
   assert.doesNotMatch(agentSource, /encodeURIComponent\(task\.id\)/);
 });
+
+test("agent executes repository inspection and fixed tests only within immutable allowlisted scope", () => {
+  assert.match(agentSource, /function readTaskPayload\(task\)/);
+  assert.match(agentSource, /function inspectRepository\(payload\)/);
+  assert.match(agentSource, /function runRepositoryTests\(payload\)/);
+  assert.match(agentSource, /INSPECTION_PATHS = Object\.freeze\(/);
+  assert.match(agentSource, /paths\.some\(path => typeof path !== "string" \|\| !INSPECTION_PATHS\.includes\(path\)\)/);
+  assert.match(agentSource, /requestedSha !== checkedOutSha/);
+  assert.match(agentSource, /task\.actionType === "inspect_repository"/);
+  assert.match(agentSource, /task\.actionType === "run_repository_tests"/);
+  assert.match(agentSource, /createHash\("sha256"\)/);
+  assert.doesNotMatch(agentSource, /execSync\(|spawn\(|shell:\s*true|process\.env\.[A-Z0-9_]*(?:SECRET|TOKEN|KEY)/);
+});
