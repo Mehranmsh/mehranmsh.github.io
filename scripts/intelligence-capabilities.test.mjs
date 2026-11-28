@@ -1287,6 +1287,10 @@ test("Intelligence retains owner-scoped durable memory and recent conversation c
   assert.ok(workerSource.includes('FROM intelligence_memory_items WHERE owner_uid=? ORDER BY importance DESC,updated_at DESC LIMIT 100").bind(admin.uid).all()'));
   assert.ok(workerSource.includes('FROM intelligence_memory_items WHERE owner_uid=? ORDER BY importance DESC,updated_at DESC LIMIT 60").bind(admin.uid).all()'));
   assert.ok(workerSource.includes("ACTIVE MISSION STATE (authoritative live task records; resume existing work before proposing duplicates)"));
+  const toolSynthesisStart = workerSource.indexOf("let finalReply = summaries.join", chatHandlerStart);
+  const toolSynthesisEnd = workerSource.indexOf("const checkedFinalReply=normalizeIntelligenceAnswer(finalReply);", toolSynthesisStart);
+  assert.ok(toolSynthesisStart >= 0 && toolSynthesisEnd > toolSynthesisStart, "tool result synthesis boundary must exist");
+  assert.equal(workerSource.slice(toolSynthesisStart, toolSynthesisEnd).includes("runIntelligenceAI(env"), false);
   assert.ok(workerSource.includes('if (path === "/intelligence/chat/history" && method === "GET")'));
   assert.ok(workerSource.includes('WHERE owner_uid=? AND session_key=? ORDER BY created_at DESC,rowid DESC LIMIT 100'));
   assert.ok(workerSource.includes('return json({success:true,turns:'));
