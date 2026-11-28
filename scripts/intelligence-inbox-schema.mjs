@@ -5,6 +5,7 @@ const REQUIRED_ACTIONS = Object.freeze([
   "source_security_audit",
   "repository_quality_check"
 ]);
+const REPAIR_ACTIONS = Object.freeze(["run_repository_tests","propose_code_patch"]);
 
 export const PRIVATE_INTELLIGENCE_INSPECTION_PATHS = Object.freeze([
   "worker.js",
@@ -27,20 +28,26 @@ export function resolvePrivateIntelligenceInspectionPaths(mission) {
 }
 
 const REQUIRED_FORBIDDEN = Object.freeze([
-  "source_changes",
-  "patch_application",
-  "branch_creation",
-  "pull_request_creation",
+  "direct_source_writes",
+  "production_patch_application",
+  "unisolated_branch_creation",
+  "non_draft_pull_request_creation",
   "merge",
   "deployment",
   "secret_access",
+  "credential_or_token_output",
+  "wallet_data_access",
+  "wallet_operations",
+  "financial_operations",
   "arbitrary_shell",
   "changes_to_production_state"
 ]);
 
 /**
- * Validate the narrow private inbox contract. Returns stable, non-sensitive
- * reason codes so rejected missions are diagnosable without logging payloads.
+ * Validate the private inbox contract. Diagnostic missions stay read-only;
+ * bounded repair missions may generate one allowlisted proposal and use the
+ * isolated test-gated draft-PR runner. Production writes, merge, deploy,
+ * secrets, wallet data, and arbitrary shell remain prohibited.
  */
 export function validatePrivateIntelligenceMission(mission) {
   const reasons = [];
@@ -57,13 +64,21 @@ export function validatePrivateIntelligenceMission(mission) {
   if (typeof mission.objective !== "string" || mission.objective.trim().length < 40) {
     reasons.push("objective_invalid");
   }
+  const mode = mission.scope?.mode;
   if (!mission.scope || typeof mission.scope !== "object" ||
-      mission.scope.mode !== "read_only_diagnostic") {
+      !["read_only_diagnostic","bounded_app_repair"].includes(mode)) {
     reasons.push("scope_mode_mismatch");
   }
-  if (!Array.isArray(mission.scope?.allowed_actions) ||
-      !REQUIRED_ACTIONS.every(action => mission.scope.allowed_actions.includes(action))) {
+  const allowed = mission.scope?.allowed_actions;
+  if (!Array.isArray(allowed) || !REQUIRED_ACTIONS.every(action => allowed.includes(action))) {
     reasons.push("allowed_actions_incomplete");
+  }
+  if (mode === "bounded_app_repair" &&
+      (!REPAIR_ACTIONS.every(action => Array.isArray(allowed) && allowed.includes(action)))) {
+    reasons.push("repair_actions_incomplete");
+  }
+  if (mode === "read_only_diagnostic" && Array.isArray(allowed) && allowed.includes("propose_code_patch")) {
+    reasons.push("repair_action_in_read_only_scope");
   }
   if (mission.scope?.inspect_paths !== undefined) {
     const paths = mission.scope.inspect_paths;
