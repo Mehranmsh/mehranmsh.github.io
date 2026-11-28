@@ -4048,12 +4048,14 @@ test("deterministic routine planner returns only fixed read-only actions for exp
   assert.deepEqual(security.tasks.map(task => task.actionType), ["source_security_audit"]);
   const combined = buildDeterministicRoutinePlan("worker health, repository status, and security audit");
   assert.deepEqual(combined.tasks.map(task => task.actionType), [
-    "service_health_report", "repository_quality_check", "source_security_audit", "inspect_repository"
+    "service_health_report", "repository_quality_check", "source_security_audit"
   ]);
-  assert.deepEqual(combined.tasks.find(task => task.actionType === "inspect_repository").paths, ["@app-inventory"]);
+  const inventory = buildDeterministicRoutinePlan("inspect the repository architecture and list API routes");
+  assert.deepEqual(inventory.tasks.map(task => task.actionType), ["inspect_repository"]);
+  assert.deepEqual(inventory.tasks[0].paths, ["@app-inventory"]);
   assert.equal(buildDeterministicRoutinePlan("Please improve the whole project and make it smarter"), null);
   assert.equal(buildDeterministicRoutinePlan("check the project"), null);
-  for (const task of combined.tasks) {
+  for (const task of [...combined.tasks, ...inventory.tasks]) {
     assert.deepEqual(task.dependsOn, []);
     assert.equal(task.requiresApproval, undefined);
     assert.ok(["service_health_report", "repository_quality_check", "source_security_audit", "inspect_repository"].includes(task.actionType));
