@@ -8,7 +8,7 @@ import {
 } from "./intelligence-capabilities.mjs";
 import { createPatchArtifactRecord } from "./intelligence-patch-artifact.mjs";
 import { normalizeIntelligenceAcceptanceCriteria, verifyIntelligenceObjective } from "./intelligence-objective-verification.mjs";
-import { validateRepositoryAnalysis } from "./intelligence-analysis-validation.mjs";
+import { discardFindingsWithUnknownEvidencePaths, validateRepositoryAnalysis } from "./intelligence-analysis-validation.mjs";
 
 const workerSource = await readFile(new URL("../worker.js", import.meta.url), "utf8");
 const indexSource = await readFile(new URL("../index.html", import.meta.url), "utf8");
@@ -4228,4 +4228,43 @@ test("repository analysis validator rejects oversized model fields with a precis
     assert.equal(result.code, "field_limit_exceeded");
     assert.equal(result.field, field);
   }
+});
+
+
+test("repository analysis drops findings with evidence quotes that do not exactly match supplied excerpts", () => {
+  const files = [{ path: "worker.js", excerpt: "const SAFE = true;\\nreturn SAFE;" }];
+  const analysis = {
+    summary: "Bounded summary",
+    findings: [
+      { severity: "low", title: "Supported", rootCause: "Evidence matches.", recommendation: "Keep the guard.", evidence: [{ path: "worker.js", quote: "const SAFE = true;" }], regressionTests: ["Assert guard."] },
+      { severity: "high", title: "Unsupported", rootCause: "Quote is fabricated.", recommendation: "Do not accept.", evidence: [{ path: "worker.js", quote: "const UNSAFE = false;" }], regressionTests: ["Assert evidence."] }
+    ],
+    limitations: []
+  };
+  const sanitized = discardFindingsWithUnknownEvidencePaths(analysis, files);
+  assert.equal(sanitized.findings.length, 1);
+  assert.equal(sanitized.findings[0].title, "Supported");
+  assert.match(sanitized.limitations[0], /did not exactly match/);
+  assert.equal(validateRepositoryAnalysis(sanitized, files).valid, true);
+});
+
+test("repository analysis drops a whole finding when one of multiple evidence quotes is unsupported", () => {
+  const files = [
+    { path: "worker.js", excerpt: "const SAFE = true;" },
+    { path: "index.html", excerpt: "<main>Safe</main>" }
+  ];
+  const analysis = {
+    summary: "Bounded summary",
+    findings: [{
+      severity: "medium", title: "Mixed evidence", rootCause: "One quote is not exact.",
+      recommendation: "Omit this finding.", evidence: [
+        { path: "worker.js", quote: "const SAFE = true;" },
+        { path: "index.html", quote: "<main>Invented</main>" }
+      ], regressionTests: ["Check evidence."]
+    }],
+    limitations: []
+  };
+  const sanitized = discardFindingsWithUnknownEvidencePaths(analysis, files);
+  assert.equal(sanitized.findings.length, 0);
+  assert.equal(validateRepositoryAnalysis(sanitized, files).valid, true);
 });
