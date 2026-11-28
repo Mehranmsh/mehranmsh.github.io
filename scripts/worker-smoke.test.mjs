@@ -3207,6 +3207,22 @@ test("repository inspection result verifier requires immutable commit and bounde
     ]
   };
   assert.equal(verifyIntelligenceReport("inspect_repository", report).passed, true);
+  const inventoryReport = {
+    ...report,
+    inventory: true,
+    inventorySummary: {
+      filesInspected: 120,
+      totalBytes: 1200000,
+      moduleCounts: { root: 20, social: 30, nexus: 25, "music-studio": 45 },
+      moduleGroupCount: 4,
+      inventorySha256: "d".repeat(64)
+    }
+  };
+  assert.equal(verifyIntelligenceReport("inspect_repository", inventoryReport).passed, true);
+  assert.equal(verifyIntelligenceReport("inspect_repository", {
+    ...inventoryReport,
+    inventorySummary: { ...inventoryReport.inventorySummary, inventorySha256: "bad" }
+  }).passed, false);
   assert.equal(verifyIntelligenceReport("inspect_repository", {
     ...report, files: [{ ...report.files[0], path: "../../secrets" }, report.files[1]]
   }).passed, false);
