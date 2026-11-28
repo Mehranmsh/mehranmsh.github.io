@@ -9,7 +9,7 @@ export function applyValidatedPatchInMemory(input={}){
  const patch=diff.slice(0,-1).split("\n"), src=source.slice(0,-1).split("\n");
  const h=/^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@/.exec(patch[2]);
  if(!h)return {ok:false,code:"invalid_hunk_header"};
- let oldPos=Number(h[1])-1, newLines=[], cursor=3, consumed=0;
+ let oldPos=Number(h[1])-(Number(h[2]??1)===0?0:1), newLines=[], cursor=3, consumed=0;
  if(oldPos<0||oldPos>src.length)return {ok:false,code:"hunk_position_out_of_range"};
  newLines.push(...src.slice(0,oldPos));
  while(cursor<patch.length){
