@@ -32,6 +32,8 @@ export function validatePatchProposal(input) {
     if(!m)return fail("invalid_hunk_header"); hunks++;
     let old=count(m[2]),neu=count(m[4]); if(old===null||neu===null||(old===0&&neu===0))return fail("invalid_hunk_counts");
     oldCursor=Number(m[1]);newCursor=Number(m[3]);
+    const declaredOldCount=Number(m[2]??1), declaredNewCount=Number(m[4]??1);
+    if ((declaredOldCount>0 && oldCursor<1) || newCursor !== (declaredOldCount===0 ? oldCursor+1 : oldCursor)) return fail("hunk_position_mismatch");
     while(old>0||neu>0){
       if(i>=lines.length)return fail("truncated_hunk");
       const line=lines[i++];
@@ -45,4 +47,4 @@ export function validatePatchProposal(input) {
   if(hunks!==1||adds+dels===0||adds+dels>MAX_CHANGED_LINES)return fail("change_limit_exceeded");
   return {ok:true,baseSha,targetPath,bytes:new TextEncoder().encode(diff).byteLength,additions:adds,deletions:dels,hunkCount:hunks,mode:"validate_only"};
 }
-export const PATCH_PROPOSAL_POLICY=Object.freeze({maxPatchBytes:MAX_PATCH_BYTES,maxChangedLines:MAX_CHANGED_LINES,allowedPaths:Object.freeze(["scripts/intelligence-capabilities.test.mjs"]),allowedRootFiles:Object.freeze([...ALLOWED_ROOT_FILES]),allowedPrefixes:ALLOWED_PREFIXES,forbiddenPathPattern:FORBIDDEN_PATH.source,appliesChanges:false,createsBranches:false,createsPullRequests:false});
+export const PATCH_PROPOSAL_POLICY=Object.freeze({maxPatchBytes:MAX_PATCH_BYTES,maxChangedLines:MAX_CHANGED_LINES,allowedPaths:Object.freeze([...ALLOWED_ROOT_FILES,...ALLOWED_PREFIXES]),allowedRootFiles:Object.freeze([...ALLOWED_ROOT_FILES]),allowedPrefixes:ALLOWED_PREFIXES,forbiddenPathPattern:FORBIDDEN_PATH.source,appliesChanges:false,createsBranches:false,createsPullRequests:false});
