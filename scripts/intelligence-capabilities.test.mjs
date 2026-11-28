@@ -23,6 +23,7 @@ import {
 const workerSource = readFileSync(new URL("../worker.js", import.meta.url), "utf8");
 const indexSource = readFileSync(new URL("../index.html", import.meta.url), "utf8");
 const runnerSource = readFileSync(new URL("../.github/workflows/mehran-intelligence-runner.yml", import.meta.url), "utf8");
+const recoverySupervisorSource = readFileSync(new URL("../.github/workflows/intelligence-recovery-supervisor.yml", import.meta.url), "utf8");
 const proposalRunnerSource = readFileSync(new URL("./intelligence-proposal-pr-runner.mjs", import.meta.url), "utf8");
 const analysisValidationSource = readFileSync(new URL("./intelligence-analysis-validation.mjs", import.meta.url), "utf8");
 const agentSource = readFileSync(new URL("./intelligence-agent.mjs", import.meta.url), "utf8");
@@ -1748,4 +1749,18 @@ test("agent validates claimed task envelopes and returns the claim token", () =>
   assert.match(agentSource, /JSON\.stringify\(\{ claimToken, status: outcome\.status, result: bounded\(outcome\.result, 2900\) \}\)/);
   assert.match(agentSource, /encodeURIComponent\(taskId\)/);
   assert.doesNotMatch(agentSource, /encodeURIComponent\(task\.id\)/);
+});
+
+
+test("independent recovery supervisor retries only once and escalates without code or production writes", () => {
+  assert.match(recoverySupervisorSource, /workflow_run:/);
+  assert.match(recoverySupervisorSource, /MEHRAN INTELLIGENCE private work-package runner/);
+  assert.match(recoverySupervisorSource, /actions: write/);
+  assert.match(recoverySupervisorSource, /issues: write/);
+  assert.match(recoverySupervisorSource, /rerun-failed-jobs/);
+  assert.match(recoverySupervisorSource, /attempt < 2/);
+  assert.match(recoverySupervisorSource, /Independent recovery could not restore the runner/);
+  assert.match(recoverySupervisorSource, /RECOVERED: the private work-package runner completed successfully/);
+  assert.doesNotMatch(recoverySupervisorSource, /contents: write|pull-requests: write/);
+  assert.doesNotMatch(recoverySupervisorSource, /secrets\\.[A-Za-z_]|wallet|private user records/i);
 });
