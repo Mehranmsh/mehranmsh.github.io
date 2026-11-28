@@ -4,6 +4,7 @@ on:
   # Keep ordinary Worker source merges non-deploying. This narrowly scoped
   # push trigger lets an owner-approved deployment-workflow change deploy the
   # already-tested main revision without requiring a paid browser automation.
+  # Owner-approved deployment: publish the merged deterministic inspection fix.
   push:
     branches: [main]
     paths:
