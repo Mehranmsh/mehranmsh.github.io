@@ -1,4 +1,4 @@
-import { isAllowedInspectionPath } from "./intelligence-patch-policy.mjs";
+import { isAllowedInspectionPath, isAllowedPatchPath } from "./intelligence-patch-policy.mjs";
 
 const REQUIRED_ACTIONS = Object.freeze([
   "inspect_repository",
@@ -63,6 +63,13 @@ export function validatePrivateIntelligenceMission(mission) {
   }
   if (mode === "read_only_diagnostic" && Array.isArray(allowed) && allowed.includes("propose_code_patch")) {
     reasons.push("repair_action_in_read_only_scope");
+  }
+  if (mode === "bounded_app_repair") {
+    if (typeof mission.scope.patch_target_path !== "string" || !isAllowedPatchPath(mission.scope.patch_target_path)) {
+      reasons.push("repair_target_path_invalid");
+    }
+  } else if (mission.scope?.patch_target_path !== undefined) {
+    reasons.push("repair_target_path_in_read_only_scope");
   }
   if (mission.scope?.inspect_paths !== undefined) {
     const paths = mission.scope.inspect_paths;
