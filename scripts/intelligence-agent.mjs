@@ -74,6 +74,7 @@ async function runQualityChecks() {
 
 async function runRepositoryTests(payload) {
   const requestedSha = typeof payload.baseSha === "string" ? payload.baseSha.toLowerCase() : "";
+  const targetPath = typeof payload.targetPath === "string" ? payload.targetPath : "";
   const checkedOutSha = String(process.env.GITHUB_SHA || "").toLowerCase();
   if (!/^[a-f0-9]{40}$/.test(requestedSha) || !/^[a-f0-9]{40}$/.test(checkedOutSha) ||
       requestedSha !== checkedOutSha) {
@@ -86,7 +87,7 @@ async function generatePatchProposal(taskId, payload) {
   const objective = typeof payload.objective === "string" ? payload.objective.trim() : "";
   const requestedSha = typeof payload.baseSha === "string" ? payload.baseSha.toLowerCase() : "";
   const checkedOutSha = String(process.env.GITHUB_SHA || "").toLowerCase();
-  if (objective.length < 12 || objective.length > 800 ||
+  if (objective.length < 12 || objective.length > 800 || !/^(?:worker\\.js|index\\.html|social\\.html|nexus\\.html|ai\\.html|services\\.html|music-studio\\.html|(?:scripts|src|social|nexus|ai|music-studio|studio|assets\\/(?:js|css))\\/[A-Za-z0-9_./-]+\\.(?:mjs|js|jsx|ts|tsx|html|css|json))$/.test(targetPath) || targetPath.split("/").some(part => part === ".." || part === "." || part === "") || /(?:^|\\/)(?:\\.env|secrets?|credentials?|wallet|private|node_modules)(?:\\.|\\/|$)/i.test(targetPath) ||
       !/^[a-f0-9]{40}$/.test(requestedSha) ||
       !/^[a-f0-9]{40}$/.test(checkedOutSha) || requestedSha !== checkedOutSha) {
     return { status: "blocked", result: "Patch generation requires a bounded objective and an exact immutable baseSha matching this runner checkout. No AI request was made." };
@@ -94,7 +95,7 @@ async function generatePatchProposal(taskId, payload) {
   const requestId = "intelligence-" + taskId;
   const proposal = await request("/agent/v1/patch-proposals/generate", {
     method: "POST",
-    body: JSON.stringify({ baseSha: requestedSha, objective, requestId })
+    body: JSON.stringify({ baseSha: requestedSha, objective, targetPath, requestId })
   });
   const safe = {
     requestId: bounded(proposal.requestId, 160),
