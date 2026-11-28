@@ -1869,3 +1869,12 @@ test("isolated test report schema matches the two suites executed by the runner"
   assert.ok(runnerSource.includes('testSuite: "scripts/intelligence-capabilities.test.mjs + scripts/intelligence-inbox-schema.test.mjs"'));
   assert.ok(workerSource.includes('report.testSuite !== "scripts/intelligence-capabilities.test.mjs + scripts/intelligence-inbox-schema.test.mjs"'));
 });
+
+
+test("deferred optional AI retries do not block deterministic package finalization", () => {
+  assert.match(workerSource, /const optionalPendingTasks = tasks\.filter\(task => optionalActions\.includes\(task\.action_type\) && \["queued","accepted","retry_wait"\]\.includes\(task\.status\)\)/);
+  assert.match(workerSource, /counts\.retryWaiting -= optionalPendingTasks\.filter\(task => task\.status === "retry_wait"\)\.length/);
+  assert.match(workerSource, /const optionalQueued = counts\.optionalQueued === undefined \? 0 : counts\.optionalQueued/);
+  assert.match(workerSource, /optionalPendingTasks = rows\.filter/);
+  assert.match(workerSource, /: counts\.inProgress \? "in_progress"[\s\S]*?: counts\.retryWaiting && !hasRunnableQueued \? "waiting_retry"/);
+});
