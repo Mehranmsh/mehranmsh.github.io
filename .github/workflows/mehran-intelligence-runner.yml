@@ -101,6 +101,9 @@ jobs:
               ? {
                   stage: String(payload.diagnostic.stage || "").slice(0,60),
                   code: String(payload.diagnostic.code || "").slice(0,80),
+                  field: String(payload.diagnostic.field || "").slice(0,40),
+                  findingIndex: Number.isInteger(payload.diagnostic.findingIndex) ? payload.diagnostic.findingIndex : null,
+                  evidenceIndex: Number.isInteger(payload.diagnostic.evidenceIndex) ? payload.diagnostic.evidenceIndex : null,
                   httpStatus: response.status
                 }
               : { httpStatus: response.status };
