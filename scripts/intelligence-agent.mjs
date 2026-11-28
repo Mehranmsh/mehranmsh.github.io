@@ -2,6 +2,7 @@ import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { readFileSync } from "node:fs";
 import { createHash } from "node:crypto";
+import { isAllowedPatchPath } from "./intelligence-patch-policy.mjs";
 import { readBoundedResponse } from "./intelligence-bounded-response.mjs";
 
 const run = promisify(execFile);
