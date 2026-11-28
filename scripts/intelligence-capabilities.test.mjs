@@ -155,7 +155,7 @@ test("all eight active capabilities are registered with their permission tiers",
     const input = id === "inspect_repository"
       ? { paths: ["worker.js"] }
       : isolated ? { baseSha: "a".repeat(40) }
-      : proposal ? { baseSha: "c".repeat(40), objective: "Add a regression test for a safe parser boundary" } : {};
+      : proposal ? { baseSha: "c".repeat(40), objective: "Add a regression test for a safe parser boundary", targetPath: "scripts/intelligence-capabilities.test.mjs" } : {};
     assert.equal(validateIntelligenceCapabilityRequest(id, input).ok, true);
   }
 });
@@ -275,7 +275,7 @@ test("AI planner strips schema-optional fields that are invalid for another acti
   assert.match(workerSource, /const normalizedTasks = plan\.tasks\.map\(item =>/);
   assert.match(workerSource, /if \(normalized\.actionType !== "inspect_repository"\) delete normalized\.paths/);
   assert.match(workerSource, /if \(normalized\.actionType !== "run_repository_tests" && normalized\.actionType !== "propose_code_patch"\) delete normalized\.baseSha/);
-  assert.match(workerSource, /if \(normalized\.actionType !== "propose_code_patch"\) delete normalized\.objective/);
+  assert.match(workerSource, /if \(normalized\.actionType !== "propose_code_patch"\) \{ delete normalized\.objective; delete normalized\.targetPath; \}/);
   assert.match(workerSource, /const acceptedTaskIds = new Set\(\)/);
   assert.match(workerSource, /acceptedTaskIds\.has\(dep\)/);
   assert.match(workerSource, /seenDependencies\.has\(dep\)/);
@@ -312,7 +312,7 @@ test("unknown capabilities and malformed inputs fail closed", () => {
 });
 
 test("patch proposal capability is active only for bounded private proposal generation", () => {
-  const good = { objective: "Add a regression test for a safe parser boundary" };
+  const good = { objective: "Add a regression test for a safe parser boundary", baseSha: "c".repeat(40), targetPath: "scripts/intelligence-capabilities.test.mjs" };
   const capability = getIntelligenceCapability("propose_code_patch");
   assert.equal(capability.status, "active");
   assert.equal(capability.permissionTier, "proposal_only");
@@ -349,7 +349,9 @@ test("bounded patch proposals and verified draft PR creation are pre-authorized 
   assert.equal(proposal.status, "active");
   assert.equal(proposal.permissionTier, "proposal_only");
   assert.equal(validateIntelligenceCapabilityRequest("propose_code_patch", {
-    objective: "Add a regression test for a safe parser boundary"
+    objective: "Add a regression test for a safe parser boundary",
+    baseSha: "c".repeat(40),
+    targetPath: "scripts/intelligence-capabilities.test.mjs"
   }).ok, true);
   const pullRequest = getIntelligenceCapability("create_pull_request");
   assert.equal(pullRequest.status, "active");
@@ -534,7 +536,7 @@ test("patch proposal validator rejects paths, multi-file input, malformed hunks,
   assert.equal(validatePatchProposal({ ...base, diff: base.diff.replace("+++ b/scripts/", "+++ b/worker.js\n--- a/scripts/") }).code, "patch_path_mismatch");
   assert.equal(validatePatchProposal({ ...base, diff: base.diff.replace("@@ -1 +1 @@", "@@ -2,4 +2,4 @@") }).code, "truncated_hunk");
   assert.equal(validatePatchProposal({ ...base, diff: base.diff.replace("+new", "GIT binary patch") }).code, "unsupported_patch_feature");
-  assert.equal(validatePatchProposal({ ...base, diff: base.diff + "x".repeat(8200) }).code, "patch_size_invalid");
+  assert.equal(validatePatchProposal({ ...base, diff: base.diff + "x".repeat(17000) + "\n" }).code, "patch_size_invalid");
 });
 
 
@@ -750,7 +752,7 @@ test("patch generation prompt treats source as untrusted and fixes the narrow ou
   assert.equal(prompt.ok, true);
   assert.match(prompt.system, /untrusted data/);
   assert.match(prompt.system, /single allowlisted MEHRAN MSH application source file/);
-  assert.ok(prompt.system.includes("@@ -1,0 +2,K @@"));
+  assert.match(prompt.system, /exactly one @@ hunk/);
   assert.match(prompt.system, /K must equal the exact number of added lines/);
   assert.doesNotMatch(prompt.system, /\+NEW_LINE,1/);
   assert.ok(prompt.system.includes("scripts/intelligence-capabilities.test.mjs"));
