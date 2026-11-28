@@ -1,6 +1,7 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
-import { readFileSync } from "node:fs";
+import { readFileSync, lstatSync, realpathSync } from "node:fs";
+import { sep } from "node:path";
 import { createHash } from "node:crypto";
 import { isAllowedPatchPath, isAllowedInspectionPath } from "./intelligence-patch-policy.mjs";
 import { readBoundedResponse } from "./intelligence-bounded-response.mjs";
@@ -130,7 +131,13 @@ function inspectRepository(payload) {
   const files = [];
   for (const path of paths) {
     try {
-      const source = readFileSync(path, "utf8");
+      const workspaceRoot = realpathSync(".");
+      const targetPath = realpathSync(path);
+      const targetStat = lstatSync(path);
+      if (!targetPath.startsWith(workspaceRoot + sep) || !targetStat.isFile() || targetStat.isSymbolicLink()) {
+        throw new Error("Inspection target must be a regular file inside the repository checkout.");
+      }
+      const source = readFileSync(targetPath, "utf8");
       files.push({
         path,
         bytes: Buffer.byteLength(source, "utf8"),
