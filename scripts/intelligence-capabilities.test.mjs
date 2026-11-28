@@ -737,7 +737,7 @@ test("patch generation prompt treats source as untrusted and fixes the narrow ou
   });
   assert.equal(prompt.ok, true);
   assert.match(prompt.system, /untrusted data/);
-  assert.match(prompt.system, /one unified diff/);
+  assert.match(prompt.system, /single allowlisted MEHRAN MSH application source file/);
   assert.ok(prompt.system.includes("@@ -1,0 +2,K @@"));
   assert.match(prompt.system, /K must equal the exact number of added lines/);
   assert.doesNotMatch(prompt.system, /\+NEW_LINE,1/);
@@ -1530,7 +1530,7 @@ test("patch application is in-memory only and rejects stale or non-append-only p
     diff: replacement
   });
   assert.equal(rejected.ok, true);
-  assert.equal(rejected.content, "const replaced = true;\\n");
+  assert.equal(rejected.content, "const replaced = true;\n");
 });
 
 
