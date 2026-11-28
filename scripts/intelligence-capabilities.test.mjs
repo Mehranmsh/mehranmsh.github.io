@@ -518,7 +518,9 @@ test("bounded patch allowlist spans app modules while excluding secrets and priv
   const validPath = "social/index.js";
   const validDiff = "--- a/social/index.js\n+++ b/social/index.js\n@@ -1 +1 @@\n-old\n+new\n";
   assert.equal(validatePatchProposal({ baseSha, summary, targetPaths: [validPath], diff: validDiff }).ok, true);
-  for (const path of [".env", "scripts/secrets.json", "wallet/private.js", ".github/workflows/release.yml", "src/../worker.js"]) {
+  const rootDiff = "--- a/login.html\\n+++ b/login.html\\n@@ -1 +1 @@\\n-old\\n+new\\n";
+  assert.equal(validatePatchProposal({ baseSha, summary, targetPaths: ["login.html"], diff: rootDiff }).ok, true);
+  for (const path of [".env", "scripts/secrets.json", "wallet/private.js", ".github/workflows/release.yml", ".github/actions/check.js", "src/wallet-balance.js", "src/user-data.json", "src/../worker.js"]) {
     const diff = "--- a/" + path + "\n+++ b/" + path + "\n@@ -1 +1 @@\n-old\n+new\n";
     assert.equal(validatePatchProposal({ baseSha, summary, targetPaths: [path], diff }).code, "path_not_allowed", path);
   }
