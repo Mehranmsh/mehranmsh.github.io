@@ -57,6 +57,7 @@ test("D1 mission-generator reservation SQL and insert guard pass SQLite integrat
       "scheduled/default generation must remain blocked by attention-required packages");
     assert.equal(reserve("20261125T0700", "pkg-g", true), 1,
       "an explicit manual bootstrap may bypass only attention-required packages");
+    db.prepare("UPDATE intelligence_mission_generator_lock SET status='released' WHERE id=1").run();
     add("pkg-h", "key-h");
     db.prepare("INSERT INTO intelligence_tasks(id,work_package_id,status,action_type) VALUES('held-ai','pkg-h','queued','inspect_repository')").run();
     assert.equal(reserve("20261125T0715", "pkg-i", true), 1,
