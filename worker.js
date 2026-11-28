@@ -10544,7 +10544,7 @@ export default {
               finalReply = checkedFinalReply.text;
             }
             await appendIntelligenceChatTurn(env,admin.uid,sessionKey,"assistant",finalReply);
-            return json({success:true,reply:finalReply,usage:{aiRequests:toolCalls.length?2:1,toolCalls:toolCalls.length,provider:routed.provider,model:routed.model,reason:toolCalls.length?"two_stage_tool_reasoning":"provider_routed_inference",qualityGate:"bounded_output_v1"}});
+            return json({success:true,reply:finalReply,usage:{aiRequests:1,toolCalls:toolCalls.length,provider:routed.provider,model:routed.model,reason:toolCalls.length?"deterministic_tool_summaries":"provider_routed_inference",qualityGate:"bounded_output_v1"}});
           }
           const reply=result?.response||result?.result?.response||"";
           const checkedReply=normalizeIntelligenceAnswer(reply);
