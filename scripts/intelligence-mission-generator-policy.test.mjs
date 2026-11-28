@@ -104,9 +104,11 @@ test("D1 reservation is serialized, leased, and prevents competing package inser
   assert.ok(workerSource.includes("datetime(expires_at) > datetime('now')"));
   assert.ok(workerSource.includes("datetime('now','+2 minutes')"));
   assert.ok(workerSource.includes("INSERT INTO intelligence_mission_generator_lock(id,cycle_key,package_id,status,expires_at,updated_at)"));
-  assert.ok(workerSource.includes("WHERE status IN ('queued','in_progress','waiting_retry') OR (status='attention_required' AND ? = 0)"));
+  assert.ok(workerSource.includes("wp.status IN ('queued','in_progress','waiting_retry')"));
+  assert.ok(workerSource.includes("runnable.action_type NOT IN ('inspect_repository','propose_code_patch')"));
+  assert.ok(workerSource.includes("active.status IN ('accepted','retry_wait','in_progress')"));
   assert.ok(workerSource.includes("options?.ignoreAttentionRequiredBlockers === true"));
-  assert.ok(workerSource.includes(".bind(cycleKey, packageId, ignoreAttentionRequired, ignoreAttentionRequired).run()"));
+  assert.ok(workerSource.includes(".bind(cycleKey, packageId, ignoreDeferredAiOnly, ignoreAttentionRequired, ignoreDeferredAiOnly, ignoreAttentionRequired).run()"));
   assert.ok(workerSource.includes("active_work_or_generator_reservation_exists"));
   assert.ok(workerSource.includes("finally {\n    if (generatorSlotReserved)"));
   assert.ok(workerSource.includes("releaseIntelligenceMissionGeneratorSlot(env, packageId)"));
