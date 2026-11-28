@@ -2,7 +2,7 @@ const MAX_PATCH_BYTES = 16384;
 const MAX_CHANGED_LINES = 160;
 const ALLOWED_ROOT_FILES = new Set(["worker.js","index.html","social.html","nexus.html","ai.html","services.html","music-studio.html"]);
 const ALLOWED_PREFIXES = Object.freeze(["scripts/","src/","pages/","components/","modules/","social/","nexus/","ai/","music-studio/","studio/","assets/js/","assets/css/","public/js/","public/css/"]);
-const FORBIDDEN_PATH = /(?:^|\/)(?:\.env(?:\.|$)|secrets?(?:\.|\/|$)|credentials?(?:\.|\/|$)|wallet(?:\.|\/|$)|private(?:\.|\/|$)|node_modules|\.github(?:\/|$)|migrations?|deploy(?:ment)?|release|publish)(?:\.|\/|$)/i;
+const FORBIDDEN_PATH = /(?:^|\/)(?:\.env[^/]*|[^/]*(?:secret|credential|wallet|user[-_]?data|account[-_]?data)[^/]*|private(?:\.|\/|$)|node_modules|\.github(?:\/|$)|migrations?|[^/]*(?:deploy|release|publish)[^/]*)\/?/i;
 function fail(code) { return { ok: false, code }; }
 export function isAllowedPatchPath(path) {
   if (typeof path !== "string" || !path || path.length > 240 || path.startsWith("/") ||
