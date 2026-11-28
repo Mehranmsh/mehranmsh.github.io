@@ -231,9 +231,9 @@ test("Workers AI quota circuit fails open for invalid diagnostic timestamps", ()
   assert.equal(isWorkersAIDailyQuotaCircuitOpen("2026-11-25T00:01:00.000Z", Number.NaN), false);
 });
 
-test("private notification archive accepts the cancelled work-package count", () => {
-  assert.match(workerSource, /const counts = \{total:0,completed:0,blocked:0,failed:0,cancelled:0,awaitingApproval:0,inProgress:0,queued:0,retryWaiting:0,blockedDependencies:0\}/);
-  assert.match(workerSource, /const countKeys = \["total","completed","blocked","failed","cancelled","awaitingApproval","inProgress","queued","retryWaiting","blockedDependencies"\]/);
+test("private notification archive accepts cancelled and deferred optional-work counts", () => {
+  assert.match(workerSource, /const counts = \{total:0,completed:0,blocked:0,failed:0,cancelled:0,awaitingApproval:0,inProgress:0,queued:0,retryWaiting:0,blockedDependencies:0,optionalQueued:0\}/);
+  assert.match(workerSource, /\boptionalQueued\b/, "optional AI work must be represented explicitly in package reports");
 });
 
 test("health endpoint reports online and confirms the database binding", async () => {
@@ -1480,7 +1480,7 @@ test("MEHRAN Intelligence Agent API is enabled only behind its dedicated bearer 
   assert.match(route, /agent_claimed_at=CURRENT_TIMESTAMP/);
   assert.ok(route.includes('action_type IN (" + claimableActionTypes + ")'), "claim update must use the same action filter as candidate selection");
   assert.match(route, /const deterministicOnly = url\.searchParams\.get\("mode"\) === "deterministic"/);
-  assert.match(workerSource, /const claimableActionTypes = deterministicOnly[\s\S]*?'repository_quality_check','service_health_report','source_security_audit','run_repository_tests'/);
+  assert.match(workerSource, /const claimableActionTypes = deterministicOnly[\s\S]*?'repository_quality_check','service_health_report','source_security_audit','inspect_repository','run_repository_tests'/);
   assert.match(route, /agent_claimed_at IS NOT NULL AND datetime\(agent_claimed_at\) < datetime\('now','-15 minutes'\)/);
   assert.match(route, /agent_claimed_at IS NOT NULL AND datetime\(agent_claimed_at\)>=datetime\('now','-15 minutes'\)/);
   assert.doesNotMatch(route, /work_package_id IS NULL AND agent_claimed_at IS NOT NULL/,
@@ -4195,7 +4195,7 @@ test("scheduled package finalization requires verified objective evidence", () =
   const finalizer = workerSource.slice(start, end);
   assert.match(finalizer, /verifyIntelligenceObjective\(packageScope\.acceptanceCriteria, tasks\)/);
   assert.match(finalizer, /objectiveComplete \? "completed"/);
-  assert.match(finalizer, /allCompleted \? "attention_required"/);
+  assert.match(finalizer, /allRequiredCompleted \? "attention_required"/);
   assert.match(finalizer, /objectiveVerification:/);
 });
 

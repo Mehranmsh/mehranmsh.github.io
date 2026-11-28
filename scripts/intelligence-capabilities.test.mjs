@@ -98,7 +98,45 @@ test("semantic inspection falls back to a bounded prefix only when no path ancho
   assert.equal(buildIntelligenceInspectionExcerpt("unknown-path", ""), "");
 });
 
-test("repository inspection combines deterministic inventory with owner-authenticated semantic analysis", () => {
+test("deterministic task claims include inspection and fixed tests but exclude AI patch generation", () => {
+  const claimStart = workerSource.indexOf('if (path === "/agent/v1/tasks/next" && method === "GET")');
+  const claimEnd = workerSource.indexOf("const checkpointMatch", claimStart);
+  assert.ok(claimStart >= 0 && claimEnd > claimStart);
+  const claim = workerSource.slice(claimStart, claimEnd);
+  assert.ok(claim.includes(`? "'repository_quality_check','service_health_report','source_security_audit','inspect_repository','run_repository_tests'"`));
+  assert.ok(claim.includes(`: "'repository_quality_check','service_health_report','source_security_audit','inspect_repository','run_repository_tests','propose_code_patch'"`));
+});
+
+test("optional AI tasks are deferred without blocking required deterministic work or claiming success", () => {
+  const quiescentStart = workerSource.indexOf("function isIntelligenceReportQuiescent");
+  const quiescentEnd = workerSource.indexOf("export default", quiescentStart);
+  const quiescent = workerSource.slice(quiescentStart, quiescentEnd);
+  assert.match(quiescent, /\boptionalQueued\b/);
+  assert.match(quiescent, /counts\.queued <= counts\.blockedDependencies \+ optionalQueued/);
+
+  const snapshotStart = workerSource.indexOf("async function refreshIntelligenceWorkPackageSnapshot");
+  const snapshotEnd = workerSource.indexOf("async function ensureIntelligenceSchedulerRunsTable", snapshotStart);
+  const snapshot = workerSource.slice(snapshotStart, snapshotEnd);
+  assert.match(snapshot, /packageScope\.optionalActions/);
+  assert.match(snapshot, /optionalActions\.includes\(task\.action_type\)/);
+  assert.match(snapshot, /counts\.completed \+ counts\.optionalQueued === counts\.total/);
+  assert.match(snapshot, /counts\.queued - counts\.optionalQueued > counts\.blockedDependencies/);
+  assert.match(snapshot, /allRequiredCompleted && counts\.optionalQueued === 0 && objectiveVerification\.verified/);
+  assert.match(snapshot, /deferredOptionalActions/);
+
+  const planner = workerSource.slice(workerSource.indexOf("scope.acceptanceCriteria = objectiveCriteria.criteria"));
+  assert.match(planner, /scope\.optionalActions = normalizedTasks\.some\(task => task\.actionType === "propose_code_patch"\)/);
+  assert.match(workerSource, /scope\.optionalActions may contain only the explicitly authorized optional AI patch capability/);
+
+  const packageRouteStart = workerSource.indexOf('if (packageMatch && method === "GET")');
+  const packageRouteEnd = workerSource.indexOf('if (path === "/agent/v1/tasks/next"', packageRouteStart);
+  const packageRoute = workerSource.slice(packageRouteStart, packageRouteEnd);
+  assert.match(packageRoute, /const optionalPendingTasks = rows\.filter/);
+  assert.match(packageRoute, /counts\.optionalQueued = optionalPendingTasks\.filter/);
+  assert.match(packageRoute, /allRequiredCompleted && counts\.optionalQueued === 0 && objectiveVerification\.verified/);
+});
+
+test("repository inspection is fully deterministic and does not call the semantic AI endpoint", () => {
   const inspectStart = runnerSource.indexOf('if (task.actionType === "inspect_repository")');
   const inspectEnd = runnerSource.indexOf('if (task.actionType === "source_security_audit")', inspectStart);
   assert.ok(inspectStart >= 0 && inspectEnd > inspectStart);
@@ -107,14 +145,9 @@ test("repository inspection combines deterministic inventory with owner-authenti
   assert.ok(inspect.includes("blobSha: file.sha"));
   assert.ok(inspect.includes("lineCount:"));
   assert.ok(inspect.includes("symbols:"));
-  assert.ok(inspect.includes("analysisFiles.push({ path, sha: file.sha, excerpt })"));
-  assert.ok(inspect.includes("buildIntelligenceInspectionExcerpt(path, source, Math.min(2800, 16000 - totalAnalysisChars))"));
-  assert.ok(inspect.includes("16000 - totalAnalysisChars"));
-  assert.ok(runnerSource.includes("intelligence-inspection-excerpts.mjs"));
-  assert.ok(inspect.includes("orchestratorToken.length < 40"));
-  assert.ok(inspect.includes('request("/agent/v1/repository/analyze"'));
-  assert.ok(inspect.includes("commitSha: commit.sha, files: analysisFiles"));
-  assert.ok(inspect.includes("semantic.commitSha !== commit.sha"));
+  assert.ok(inspect.includes("Deterministic repository inventory completed"));
+  assert.ok(inspect.includes("No model inference or semantic review was used."));
+  assert.doesNotMatch(inspect, /orchestratorToken|repository\/analyze|ownerHeaders|request\(/);
   assert.match(workerSource, /inspect_repository_inventory_only/);
   assert.match(workerSource, /inspect_repository_schema/);
 });
@@ -1342,7 +1375,7 @@ test("package report snapshots wait until runnable sibling tasks are quiescent",
   const snapshot = workerSource.slice(start, end);
   assert.match(snapshot, /else if \(row\.status === "cancelled"\) counts\.cancelled \+= n/);
   assert.match(snapshot, /counts\.inProgress \? "in_progress"/);
-  assert.match(snapshot, /counts\.queued > counts\.blockedDependencies/);
+  assert.match(snapshot, /counts\.queued - counts\.optionalQueued > counts\.blockedDependencies/);
   assert.match(snapshot, /reportIsQuiescent = isIntelligenceReportQuiescent\(counts\)/);
   assert.match(snapshot, /includes\(status\) && reportIsQuiescent/);
 });
@@ -1431,10 +1464,9 @@ test("semantic repository analysis is owner-authenticated, bounded, and evidence
   const inspectEnd = runnerSource.indexOf('if (task.actionType === "source_security_audit")', inspectStart);
   assert.ok(inspectStart >= 0 && inspectEnd > inspectStart);
   const inspect = runnerSource.slice(inspectStart, inspectEnd);
-  assert.ok(inspect.includes("repository/analyze"));
-  assert.ok(inspect.includes("ownerHeaders"));
-  assert.ok(inspect.includes("semantic.commitSha !== commit.sha"));
-  assert.ok(inspect.includes("analysisFiles"));
+  assert.ok(inspect.includes("Deterministic repository inventory completed"));
+  assert.doesNotMatch(inspect, /repository\/analyze|ownerHeaders|semantic\.commitSha|analysisFiles|orchestratorToken/);
+  assert.doesNotMatch(runnerSource, /request\("\/agent\/v1\/repository\/analyze"/);
   assert.ok(workerSource.includes("Do not call a named constant a magic number"));
   assert.ok(workerSource.includes("Do not label a Firebase Web API key"));
   assert.ok(workerSource.includes("unsupportedMagicNumberFindings"));
@@ -1698,14 +1730,17 @@ test("runner disables automatic self-improvement planning and proposal PR creati
 
 
 
-test("repository architecture inventory is deterministically routed before bounded semantic review", () => {
+test("repository architecture inventory remains deterministic through runner execution with AI disabled", () => {
   assert.ok(routinePlannerSource.includes('actionType: "inspect_repository"'));
   assert.ok(routinePlannerSource.includes("No AI inference or repository writes are used."));
   assert.ok(routinePlannerSource.includes('paths: ["@app-inventory"]'));
   assert.ok(routinePlannerSource.includes("complete safe application source tree"));
   assert.ok(workerSource.includes("const deterministicPlan = buildDeterministicRoutinePlan(mission)"));
   assert.ok(workerSource.includes("aiInferenceUsed: false"));
-  assert.ok(runnerSource.includes('request("/agent/v1/repository/analyze"'));
+  assert.ok(runnerSource.includes("No model inference or semantic review was used."));
+  assert.doesNotMatch(runnerSource.slice(runnerSource.indexOf('if (task.actionType === "inspect_repository")'), runnerSource.indexOf('if (task.actionType === "source_security_audit")')), /repository\/analyze/);
+  assert.match(workerSource, /const deterministicOnly = url\.searchParams\.get\("mode"\) === "deterministic"/);
+  assert.match(workerSource, /'source_security_audit','inspect_repository','run_repository_tests'/);
 });
 
 
@@ -1834,4 +1869,14 @@ test("private inbox inspection checkpoints retain the exact mission contract all
 test("isolated test report schema matches the two suites executed by the runner", () => {
   assert.ok(runnerSource.includes('testSuite: "scripts/intelligence-capabilities.test.mjs + scripts/intelligence-inbox-schema.test.mjs"'));
   assert.ok(workerSource.includes('report.testSuite !== "scripts/intelligence-capabilities.test.mjs + scripts/intelligence-inbox-schema.test.mjs"'));
+});
+
+
+test("deferred optional AI retries do not block deterministic package finalization", () => {
+  assert.match(workerSource, /const optionalPendingTasks = tasks\.filter\(task => optionalActions\.includes\(task\.action_type\) && \["queued","accepted","retry_wait"\]\.includes\(task\.status\)\)/);
+  assert.match(workerSource, /counts\.retryWaiting -= optionalPendingTasks\.filter\(task => task\.status === "retry_wait"\)\.length/);
+  assert.match(workerSource, /const optionalQueued = counts\.optionalQueued === undefined \? 0 : counts\.optionalQueued/);
+  assert.match(workerSource, /optionalPendingTasks = rows\.filter/);
+  assert.match(workerSource, /: counts\.inProgress \? "in_progress"[\s\S]*?: counts\.retryWaiting && !hasRunnableQueued \? "waiting_retry"/);
+  assert.match(workerSource, /Required tasks cannot depend on deferred optional AI tasks/);
 });

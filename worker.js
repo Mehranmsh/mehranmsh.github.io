@@ -6123,7 +6123,7 @@ async function refreshIntelligenceWorkPackageSnapshot(env, packageId) {
   await blockIntelligenceTasksWithTerminalDependencies(env, packageId);
   if (!pkg) return null;
   const result = await env.DB.prepare("SELECT status,COUNT(*) AS total FROM intelligence_tasks WHERE work_package_id=? GROUP BY status").bind(packageId).all();
-  const counts = {total:0,completed:0,blocked:0,failed:0,cancelled:0,awaitingApproval:0,inProgress:0,queued:0,retryWaiting:0,blockedDependencies:0};
+  const counts = {total:0,completed:0,blocked:0,failed:0,cancelled:0,awaitingApproval:0,inProgress:0,queued:0,retryWaiting:0,blockedDependencies:0,optionalQueued:0};
   for (const row of result.results || []) {
     const n = Number(row.total || 0);
     counts.total += n;
@@ -6136,19 +6136,23 @@ async function refreshIntelligenceWorkPackageSnapshot(env, packageId) {
     else if (row.status === "retry_wait") counts.retryWaiting += n;
     else counts.queued += n;
   }
-  const taskResult = await env.DB.prepare("SELECT id,status,action_payload,result_text FROM intelligence_tasks WHERE work_package_id=? ORDER BY created_at ASC,id ASC").bind(packageId).all();
+  const taskResult = await env.DB.prepare("SELECT id,status,action_type,action_payload,result_text FROM intelligence_tasks WHERE work_package_id=? ORDER BY created_at ASC,id ASC").bind(packageId).all();
   const tasks = taskResult.results || [];
   const dependencyResult = await env.DB.prepare("SELECT COUNT(DISTINCT child.id) AS total FROM intelligence_task_dependencies d JOIN intelligence_tasks child ON child.id=d.task_id JOIN intelligence_tasks parent ON parent.id=d.depends_on_task_id WHERE child.work_package_id=? AND child.status IN ('queued','accepted','retry_wait') AND parent.status IN ('blocked','failed','cancelled')").bind(packageId).first();
   counts.blockedDependencies = Number(dependencyResult?.total || 0);
   let packageScope = {};
   try { packageScope = JSON.parse(pkg.scope_json || "{}"); } catch { packageScope = {}; }
+  const optionalActions = Array.isArray(packageScope.optionalActions) ? packageScope.optionalActions : [];
+  const optionalPendingTasks = tasks.filter(task => optionalActions.includes(task.action_type) && ["queued","accepted","retry_wait"].includes(task.status));
+  counts.optionalQueued = optionalPendingTasks.filter(task => ["queued","accepted"].includes(task.status)).length;
+  counts.retryWaiting -= optionalPendingTasks.filter(task => task.status === "retry_wait").length;
   const objectiveVerification = verifyIntelligenceObjective(packageScope.acceptanceCriteria, tasks);
-  const allCompleted = counts.total > 0 && counts.completed === counts.total;
-  const objectiveComplete = allCompleted && objectiveVerification.verified;
-  const hasRunnableQueued = counts.queued > counts.blockedDependencies;
-  // Task completion alone never proves the owner objective. Missing or mismatched evidence fails closed.
+  const allRequiredCompleted = counts.total > 0 && counts.completed + counts.optionalQueued === counts.total;
+  const objectiveComplete = allRequiredCompleted && counts.optionalQueued === 0 && objectiveVerification.verified;
+  const hasRunnableQueued = counts.queued - counts.optionalQueued > counts.blockedDependencies;
+  // Optional AI work may be deferred, but it never counts as completion or blocks required deterministic work.
   const status = objectiveComplete ? "completed"
-    : allCompleted ? "attention_required"
+    : allRequiredCompleted ? "attention_required"
     : counts.inProgress ? "in_progress"
     : counts.retryWaiting && !hasRunnableQueued ? "waiting_retry"
     : hasRunnableQueued ? "queued"
@@ -6157,6 +6161,7 @@ async function refreshIntelligenceWorkPackageSnapshot(env, packageId) {
   const reportIsQuiescent = isIntelligenceReportQuiescent(counts);
   const report = {
     status, counts,
+    deferredOptionalActions: optionalPendingTasks.length ? optionalActions.filter(action => optionalPendingTasks.some(task => task.action_type === action)) : [],
     objectiveVerification: {
       verified: objectiveVerification.verified,
       passed: objectiveVerification.passed,
@@ -6230,6 +6235,12 @@ export function validateIntelligenceWorkPackage(input) {
   if (!scopedActionsDeclared || !Array.isArray(scopedActions) || scopedActions.length < 1 || scopedActions.length > globalAllowedActions.length || new Set(scopedActions).size !== scopedActions.length || scopedActions.some(action => typeof action !== "string" || !globalAllowedActions.includes(action))) {
     return fail("Work package scope.allowedActions must explicitly authorize every task using a unique, non-empty bounded capability list.");
   }
+  const optionalActions = scope.optionalActions === undefined ? [] : scope.optionalActions;
+  if (!Array.isArray(optionalActions) || optionalActions.length > globalAllowedActions.length ||
+      new Set(optionalActions).size !== optionalActions.length ||
+      optionalActions.some(action => typeof action !== "string" || action !== "propose_code_patch" || !scopedActions.includes(action))) {
+    return fail("Work package scope.optionalActions may contain only the explicitly authorized optional AI patch capability.");
+  }
   const normalized = [];
   const known = new Set();
   for (let index = 0; index < tasks.length; index++) {
@@ -6257,6 +6268,10 @@ export function validateIntelligenceWorkPackage(input) {
     if (new Set(dependencies).size !== dependencies.length ||
         dependencies.some(dep => typeof dep !== "string" || !known.has(dep))) {
       return fail("Dependencies must be unique and reference earlier tasks in this package; cycles and forward references are rejected.");
+    }
+    if (!optionalActions.includes(actionType) &&
+        dependencies.some(dep => normalized.some(parent => parent.taskId === dep && optionalActions.includes(parent.actionType)))) {
+      return fail("Required tasks cannot depend on deferred optional AI tasks.");
     }
     known.add(taskId);
     normalized.push({ taskId, title: taskTitle, description, actionType, dependencies, ...(paths ? { paths } : {}), ...(baseSha ? { baseSha } : {}), ...(patchBaseSha ? { baseSha: patchBaseSha } : {}), ...(patchObjective ? { objective: patchObjective.trim() } : {}), ...(patchTargetPath ? { targetPath: patchTargetPath } : {}) });
@@ -6732,6 +6747,7 @@ async function planIntelligenceMission(env, input) {
     return fallback("ai_acceptance_criteria_invalid", objectiveCriteria.reason);
   }
   scope.acceptanceCriteria = objectiveCriteria.criteria;
+  scope.optionalActions = normalizedTasks.some(task => task.actionType === "propose_code_patch") ? ["propose_code_patch"] : [];
   const created = await createIntelligenceWorkPackage(env, {
     idempotencyKey,
     title: cleanText(plan.title, 160) || "MEHRAN INTELLIGENCE owner mission",
@@ -7709,12 +7725,14 @@ async function ingestGitHubIntelligenceInbox(env) {
 
 function isIntelligenceReportQuiescent(counts) {
   if (!counts || typeof counts !== "object" || Array.isArray(counts)) return false;
+  const optionalQueued = counts.optionalQueued === undefined ? 0 : counts.optionalQueued;
   const fields = ["inProgress", "retryWaiting", "awaitingApproval", "queued", "blockedDependencies"];
-  if (fields.some(key => !Number.isSafeInteger(counts[key]) || counts[key] < 0)) return false;
+  if (fields.some(key => !Number.isSafeInteger(counts[key]) || counts[key] < 0) ||
+      !Number.isSafeInteger(optionalQueued) || optionalQueued < 0) return false;
   return counts.inProgress === 0 &&
     counts.retryWaiting === 0 &&
     counts.awaitingApproval === 0 &&
-    counts.queued <= counts.blockedDependencies;
+    counts.queued <= counts.blockedDependencies + optionalQueued;
 }
 
 export default {
@@ -8621,7 +8639,7 @@ export default {
           const tasks = await env.DB.prepare("SELECT id,title,status,action_type,action_payload,requires_approval,result_text,attempts,max_attempts,next_attempt_at,checkpoint_json,last_error_code,updated_at FROM intelligence_tasks WHERE work_package_id=? ORDER BY created_at ASC").bind(packageId).all();
           const events = await env.DB.prepare("SELECT task_id,event_type,from_status,to_status,actor,details_json,created_at FROM intelligence_task_events WHERE work_package_id=? ORDER BY created_at ASC LIMIT 100").bind(packageId).all();
           const rows = tasks.results || [];
-          const counts = {total:rows.length,completed:0,blocked:0,failed:0,cancelled:0,awaitingApproval:0,inProgress:0,queued:0,retryWaiting:0};
+          const counts = {total:rows.length,completed:0,blocked:0,failed:0,cancelled:0,awaitingApproval:0,inProgress:0,queued:0,retryWaiting:0,blockedDependencies:0,optionalQueued:0};
           for (const task of rows) {
             if (task.status === "completed") counts.completed++;
             else if (task.status === "blocked") counts.blocked++;
@@ -8634,13 +8652,24 @@ export default {
           }
           const blockedDependencies = await env.DB.prepare("SELECT COUNT(DISTINCT child.id) AS total FROM intelligence_task_dependencies d JOIN intelligence_tasks child ON child.id=d.task_id JOIN intelligence_tasks parent ON parent.id=d.depends_on_task_id WHERE child.work_package_id=? AND child.status IN ('queued','accepted','retry_wait') AND parent.status IN ('blocked','failed','cancelled')").bind(packageId).first();
           counts.blockedDependencies = Number(blockedDependencies?.total || 0);
-          const reportIsQuiescent = isIntelligenceReportQuiescent(counts);
           let packageScope = {};
           try { packageScope = JSON.parse(pkg.scope_json || "{}"); } catch { packageScope = {}; }
+          const optionalActions = Array.isArray(packageScope.optionalActions) ? packageScope.optionalActions : [];
+          const optionalPendingTasks = rows.filter(task => optionalActions.includes(task.action_type) && ["queued","accepted","retry_wait"].includes(task.status));
+          counts.optionalQueued = optionalPendingTasks.filter(task => ["queued","accepted"].includes(task.status)).length;
+          counts.retryWaiting -= optionalPendingTasks.filter(task => task.status === "retry_wait").length;
+          const reportIsQuiescent = isIntelligenceReportQuiescent(counts);
           const objectiveVerification = verifyIntelligenceObjective(packageScope.acceptanceCriteria, rows);
-          const allTasksCompleted = counts.completed === counts.total;
-          const status = allTasksCompleted && objectiveVerification.verified ? "completed" : (counts.blocked || counts.failed || counts.cancelled || counts.awaitingApproval || counts.blockedDependencies || (allTasksCompleted && !objectiveVerification.verified)) ? "attention_required" : counts.inProgress ? "in_progress" : counts.retryWaiting && !counts.queued ? "waiting_retry" : "queued";
-          const report = {status,counts,objectiveVerification:{verified:objectiveVerification.verified,passed:objectiveVerification.passed,total:objectiveVerification.total,reason:objectiveVerification.reason,criteria:objectiveVerification.criteria},generatedAt:new Date().toISOString()};
+          const allRequiredCompleted = counts.completed + counts.optionalQueued === counts.total;
+          const hasRunnableQueued = counts.queued - counts.optionalQueued > counts.blockedDependencies;
+          const status = allRequiredCompleted && counts.optionalQueued === 0 && objectiveVerification.verified ? "completed"
+            : allRequiredCompleted ? "attention_required"
+            : counts.inProgress ? "in_progress"
+            : counts.retryWaiting && !hasRunnableQueued ? "waiting_retry"
+            : hasRunnableQueued ? "queued"
+            : (counts.blocked || counts.failed || counts.cancelled || counts.awaitingApproval || counts.blockedDependencies) ? "attention_required"
+            : "queued";
+          const report = {status,counts,deferredOptionalActions:optionalPendingTasks.length ? optionalActions.filter(action => optionalPendingTasks.some(task => task.action_type === action)) : [],objectiveVerification:{verified:objectiveVerification.verified,passed:objectiveVerification.passed,total:objectiveVerification.total,reason:objectiveVerification.reason,criteria:objectiveVerification.criteria},generatedAt:new Date().toISOString()};
           const eventRows = events.results || [];
           if (pkg.status !== status) {
             const eventId = crypto.randomUUID();
@@ -8680,10 +8709,11 @@ export default {
           return json({success:true,workPackage:{...pkg,status,counts,report,objectiveVerification},tasks:rows.map(row=>({...row,requiresApproval:!!Number(row.requires_approval)})),events:eventRows,reportStorage});
         }
         if (path === "/agent/v1/tasks/next" && method === "GET") {
-          // Default to deterministic work only. AI-capable inspect/proposal tasks require an explicit owner opt-in.
+          // The runner opts into deterministic mode explicitly. Repository inspection is deterministic;
+          // only bounded patch generation remains AI-capable and is excluded from this claim path.
           const deterministicOnly = url.searchParams.get("mode") === "deterministic";
           const claimableActionTypes = deterministicOnly
-            ? "'repository_quality_check','service_health_report','source_security_audit','run_repository_tests'"
+            ? "'repository_quality_check','service_health_report','source_security_audit','inspect_repository','run_repository_tests'"
             : "'repository_quality_check','service_health_report','source_security_audit','inspect_repository','run_repository_tests','propose_code_patch'";
           // Recover only claims made by this agent API; never reset manually managed in-progress tasks.
           await env.DB.prepare(
