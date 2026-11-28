@@ -6671,7 +6671,7 @@ async function planIntelligenceMission(env, input) {
   const normalizedTasks = plan.tasks.map(item => {
     const normalized = { ...item };
     if (normalized.actionType !== "inspect_repository") delete normalized.paths;
-    if (normalized.actionType !== "run_repository_tests") delete normalized.baseSha;
+    if (normalized.actionType !== "run_repository_tests" && normalized.actionType !== "propose_code_patch") delete normalized.baseSha;
     if (normalized.actionType !== "propose_code_patch") delete normalized.objective;
     // Enforce a valid acyclic dependency graph at the model trust boundary.
     // Keep only unique references to task IDs already accepted in this package.
