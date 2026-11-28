@@ -4195,7 +4195,7 @@ test("repository analysis prompt states every enforced response field limit", ()
     "evidence quote maximum 500 characters",
     "regressionTests array maximum 6",
     "each test maximum 300 characters",
-    "never exceed a field limit"
+    "Never exceed a field limit"
   ]) assert.ok(prompt.includes(rule), "analysis prompt must include: " + rule);
 });
 
