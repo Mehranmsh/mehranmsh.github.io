@@ -98,6 +98,15 @@ test("semantic inspection falls back to a bounded prefix only when no path ancho
   assert.equal(buildIntelligenceInspectionExcerpt("unknown-path", ""), "");
 });
 
+test("deterministic task claims include inspection and fixed tests but exclude AI patch generation", () => {
+  const claimStart = workerSource.indexOf('if (path === "/agent/v1/tasks/next" && method === "GET")');
+  const claimEnd = workerSource.indexOf('if (path === "/agent/v1/tasks/', claimStart + 20);
+  assert.ok(claimStart >= 0 && claimEnd > claimStart);
+  const claim = workerSource.slice(claimStart, claimEnd);
+  assert.match(claim, /deterministicOnly \?\s*"\x27repository_quality_check\x27,\x27service_health_report\x27,\x27source_security_audit\x27,\x27inspect_repository\x27,\x27run_repository_tests\x27"/);
+  assert.match(claim, /: "\x27repository_quality_check\x27,\x27service_health_report\x27,\x27source_security_audit\x27,\x27inspect_repository\x27,\x27run_repository_tests\x27,\x27propose_code_patch\x27"/);
+});
+
 test("repository inspection is fully deterministic and does not call the semantic AI endpoint", () => {
   const inspectStart = runnerSource.indexOf('if (task.actionType === "inspect_repository")');
   const inspectEnd = runnerSource.indexOf('if (task.actionType === "source_security_audit")', inspectStart);
