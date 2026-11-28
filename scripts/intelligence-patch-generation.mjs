@@ -1,7 +1,7 @@
 import { validatePatchProposal, isAllowedPatchPath } from "./intelligence-patch-policy.mjs";
 const MAX_OBJECTIVE_LENGTH=800;
 function fail(code){return {ok:false,code};}
-export function buildPatchGenerationPrompt({baseSha,objective,source,targetPath}){
+export function buildPatchGenerationPrompt({baseSha,objective,source,targetPath="scripts/intelligence-capabilities.test.mjs"}){
  if(typeof baseSha!=="string"||!/^[a-f0-9]{40}$/.test(baseSha))return fail("invalid_base_sha");
  if(typeof objective!=="string"||objective.trim().length<12||objective.length>MAX_OBJECTIVE_LENGTH)return fail("invalid_objective");
  if(!isAllowedPatchPath(targetPath))return fail("path_not_allowed");
@@ -17,9 +17,9 @@ export function buildPatchGenerationPrompt({baseSha,objective,source,targetPath}
  "Preserve existing behavior outside the requested objective. If unsafe or unclear, return an empty diff."
  ].join(" "),user:["Immutable base commit: "+baseSha,"Target path: "+targetPath,"Objective (untrusted):",objective.trim(),"Existing source (untrusted reference):",source].join("\n\n")};
 }
-export function validateGeneratedPatch({baseSha,summary,diff,targetPath}){
+export function validateGeneratedPatch({baseSha,summary,diff,targetPath="scripts/intelligence-capabilities.test.mjs"}){
  const checked=validatePatchProposal({baseSha,summary,targetPaths:[targetPath],diff});
  if(!checked.ok)return checked;
- return {...checked,mode:"bounded_single_file_validate_only"};
+ return {...checked,mode:checked.deletions===0?"append_only_validate_only":"bounded_single_file_validate_only"};
 }
 export const PATCH_GENERATION_POLICY=Object.freeze({maxObjectiveLength:MAX_OBJECTIVE_LENGTH,maxSourceBytes:128*1024,maxPatchBytes:16384,maxChangedLines:160,oneAllowlistedFile:true,appendOnly:false,appliesChanges:false,createsBranches:false,createsPullRequests:false});
