@@ -1782,7 +1782,7 @@ test("agent dispatches bounded patch proposals through the authenticated Worker 
   assert.match(agentSource, /\/agent\/v1\/patch-proposals\/generate/);
   assert.match(agentSource, /requestedSha !== checkedOutSha/);
   assert.match(agentSource, /objective\.length < 12 \|\| objective\.length > 800/);
-  assert.match(agentSource, /requestId = "intelligence-" \+ taskId/);
+  assert.match(agentSource, /const requestId = taskId/);
   assert.match(agentSource, /proposal\.status !== "stored"/);
   assert.match(agentSource, /applied: false/);
   assert.doesNotMatch(agentSource, /env\.AI\.run|process\.env\.[A-Z0-9_]*SECRET/);
