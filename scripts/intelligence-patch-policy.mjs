@@ -5,7 +5,7 @@ const ALLOWED_PREFIXES = Object.freeze(["scripts/","src/","pages/","components/"
 const FORBIDDEN_PATH = /(?:^|\/)(?:\.env[^/]*|[^/]*(?:secret|credential|wallet|user[-_]?data|account[-_]?data)[^/]*|private(?:\.|\/|$)|node_modules|\.github(?:\/|$)|migrations?|[^/]*(?:deploy|release|publish)[^/]*)\/?/i;
 function fail(code) { return { ok: false, code }; }
 export function isAllowedPatchPath(path) {
-  if (typeof path !== "string" || !path || path.length > 240 || path.startsWith("/") ||
+  if (typeof path !== "string" || !path || path.length > 240 || path.startsWith("/") || !/^[A-Za-z0-9_./-]+$/.test(path) ||
       path.includes("\\") || path.split("/").some(part => !part || part === "." || part === "..") ||
       FORBIDDEN_PATH.test(path) || !/\.(?:mjs|js|jsx|ts|tsx|html|css|json)$/i.test(path)) return false;
   const rootAppSource = !path.includes("/") && /\.(?:mjs|js|html|css)$/i.test(path);
