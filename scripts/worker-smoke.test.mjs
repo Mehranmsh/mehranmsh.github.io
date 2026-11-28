@@ -3207,6 +3207,22 @@ test("repository inspection result verifier requires immutable commit and bounde
     ]
   };
   assert.equal(verifyIntelligenceReport("inspect_repository", report).passed, true);
+  const inventoryReport = {
+    ...report,
+    inventory: true,
+    inventorySummary: {
+      filesInspected: 120,
+      totalBytes: 1200000,
+      moduleCounts: { root: 20, social: 30, nexus: 25, "music-studio": 45 },
+      moduleGroupCount: 4,
+      inventorySha256: "d".repeat(64)
+    }
+  };
+  assert.equal(verifyIntelligenceReport("inspect_repository", inventoryReport).passed, true);
+  assert.equal(verifyIntelligenceReport("inspect_repository", {
+    ...inventoryReport,
+    inventorySummary: { ...inventoryReport.inventorySummary, inventorySha256: "bad" }
+  }).passed, false);
   assert.equal(verifyIntelligenceReport("inspect_repository", {
     ...report, files: [{ ...report.files[0], path: "../../secrets" }, report.files[1]]
   }).passed, false);
@@ -4024,14 +4040,15 @@ test("deterministic routine planner returns only fixed read-only actions for exp
   assert.deepEqual(security.tasks.map(task => task.actionType), ["source_security_audit"]);
   const combined = buildDeterministicRoutinePlan("worker health, repository status, and security audit");
   assert.deepEqual(combined.tasks.map(task => task.actionType), [
-    "service_health_report", "repository_quality_check", "source_security_audit"
+    "service_health_report", "repository_quality_check", "source_security_audit", "inspect_repository"
   ]);
+  assert.deepEqual(combined.tasks.find(task => task.actionType === "inspect_repository").paths, ["@app-inventory"]);
   assert.equal(buildDeterministicRoutinePlan("Please improve the whole project and make it smarter"), null);
   assert.equal(buildDeterministicRoutinePlan("check the project"), null);
   for (const task of combined.tasks) {
     assert.deepEqual(task.dependsOn, []);
     assert.equal(task.requiresApproval, undefined);
-    assert.ok(["service_health_report", "repository_quality_check", "source_security_audit"].includes(task.actionType));
+    assert.ok(["service_health_report", "repository_quality_check", "source_security_audit", "inspect_repository"].includes(task.actionType));
   }
 });
 
@@ -4267,4 +4284,14 @@ test("repository analysis drops a whole finding when one of multiple evidence qu
   const sanitized = discardFindingsWithUnknownEvidencePaths(analysis, files);
   assert.equal(sanitized.findings.length, 0);
   assert.equal(validateRepositoryAnalysis(sanitized, files).valid, true);
+});
+
+test("bounded patch targets cover safe application modules but reject private and deployment paths", async () => {
+  const { isAllowedPatchPath } = await import("./intelligence-patch-policy.mjs");
+  for (const path of ["social/feed.js", "nexus/catalog.tsx", "music-studio/mixer.py", "engine/render.py", "src/core/auth.mjs"]) {
+    assert.equal(isAllowedPatchPath(path), true, path);
+  }
+  for (const path of [".github/workflows/runner.yml", "wallet/transfer.js", "private-key.js", "data/user-data.json", "dist/app.js", "scripts/deploy-worker.mjs"]) {
+    assert.equal(isAllowedPatchPath(path), false, path);
+  }
 });

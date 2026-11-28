@@ -18,21 +18,14 @@ export function buildDeterministicRoutinePlan(mission) {
     add({ taskId: "source-security", title: "Run deterministic source security checks", description: "Run existing bounded, pattern-based read-only checks. This is not a semantic AI code review.", actionType: "source_security_audit", dependsOn: [] });
   }
   // Bounded repository inventory is deterministic: it must never consume an AI quota.
-  if (/(inspect|inventory|list|map|architecture|api routes|endpoints|ساختار|معماری|فهرست|مسیرهای api|اندپوینت|بررسی فایل|نقشه مخزن)/i.test(text) &&
+  if (/(inspect|inventory|list|map|architecture|api routes|endpoints|repository quality|repository status|repo status|check repository|ساختار|معماری|فهرست|مسیرهای api|اندپوینت|بررسی فایل|نقشه مخزن|کیفیت مخزن|وضعیت مخزن|بررسی مخزن)/i.test(text) &&
       /(repository|repo|source|code|worker|intelligence|مخزن|سورس|کد|ورکر|اینتلیجنس)/i.test(text)) {
     add({
       taskId: "repository-inventory",
-      title: "Inspect the allowlisted repository architecture",
-      description: "Collect a deterministic, read-only inventory of fixed Intelligence source and execution files. No AI inference or repository writes are used.",
+      title: "Inventory the complete safe application source tree",
+      description: "Enumerate tracked application source files across all modules, excluding secrets, private data, workflows, dependencies, vendor code, and generated output. No AI inference or repository writes are used.",
       actionType: "inspect_repository",
-      paths: [
-        "worker.js",
-        "scripts/intelligence-agent.mjs",
-        "scripts/intelligence-capabilities.mjs",
-        "scripts/intelligence-capabilities.test.mjs",
-        ".github/workflows/mehran-intelligence-runner.yml",
-        "docs/INTELLIGENCE_EXECUTION_PROTOCOL.md"
-      ],
+      paths: ["@app-inventory"],
       dependsOn: []
     });
   }

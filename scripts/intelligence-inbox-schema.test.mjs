@@ -75,13 +75,9 @@ test("rejects malformed mission documents without throwing", () => {
   assert.deepEqual(validatePrivateIntelligenceMission([]), ["invalid_document"]);
 });
 
-test("accepts an exact per-mission inspection path allowlist", () => {
+test("accepts the dynamic app inventory capability in a private mission", () => {
   const mission = validMission();
-  mission.scope.inspect_paths = [
-    "scripts/intelligence-capabilities.mjs",
-    "scripts/intelligence-agent.mjs",
-    "docs/INTELLIGENCE_EXECUTION_PROTOCOL.md"
-  ];
+  mission.scope.inspect_paths = ["@app-inventory"];
   assert.deepEqual(validatePrivateIntelligenceMission(mission), []);
   assert.deepEqual(resolvePrivateIntelligenceInspectionPaths(mission), mission.scope.inspect_paths);
 });
@@ -108,9 +104,5 @@ test("rejects private or unsafe inspection paths, duplicates, and empty lists", 
 });
 
 test("uses a small safe default inspection scope when no paths are supplied", () => {
-  assert.deepEqual(resolvePrivateIntelligenceInspectionPaths(validMission()), [
-    "scripts/intelligence-agent.mjs",
-    "scripts/intelligence-capabilities.mjs",
-    "docs/INTELLIGENCE_EXECUTION_PROTOCOL.md"
-  ]);
+  assert.deepEqual(resolvePrivateIntelligenceInspectionPaths(validMission()), ["@app-inventory"]);
 });

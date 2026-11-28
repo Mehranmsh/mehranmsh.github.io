@@ -6207,14 +6207,7 @@ async function ensureIntelligenceSchedulerRunsTable(env) {
 
 
 
-const INTELLIGENCE_INSPECT_ALLOWED_PATHS = Object.freeze([
-  "worker.js",
-  "scripts/intelligence-agent.mjs",
-  "scripts/intelligence-capabilities.mjs",
-  "scripts/intelligence-capabilities.test.mjs",
-  ".github/workflows/mehran-intelligence-runner.yml",
-  "docs/INTELLIGENCE_EXECUTION_PROTOCOL.md"
-]);
+const INTELLIGENCE_INSPECT_ALLOWED_PATHS = Object.freeze(["@app-inventory"]);
 
 export function validateIntelligenceWorkPackage(input) {
   const fail = message => ({ ok: false, error: message });
@@ -6776,6 +6769,18 @@ export function verifyIntelligenceReport(actionType, report) {
       totalBytes += file.bytes;
       return true;
     });
+    const inventorySummary = report.inventorySummary && typeof report.inventorySummary === "object" ? report.inventorySummary : {};
+    const inventoryCounts = inventorySummary.moduleCounts && typeof inventorySummary.moduleCounts === "object" && !Array.isArray(inventorySummary.moduleCounts)
+      ? Object.values(inventorySummary.moduleCounts) : [];
+    const validInventorySummary = report.inventory !== true || (
+      integer(inventorySummary.filesInspected) && inventorySummary.filesInspected >= files.length && inventorySummary.filesInspected <= 5000 &&
+      integer(inventorySummary.totalBytes) && inventorySummary.totalBytes >= totalBytes && inventorySummary.totalBytes <= 32 * 1024 * 1024 &&
+      integer(inventorySummary.moduleGroupCount) && inventorySummary.moduleGroupCount >= 1 && inventorySummary.moduleGroupCount <= 500 &&
+      typeof inventorySummary.inventorySha256 === "string" && /^[a-f0-9]{64}$/.test(inventorySummary.inventorySha256) &&
+      inventoryCounts.length >= 1 && inventoryCounts.length <= 24 &&
+      inventoryCounts.every(count => integer(count) && count > 0) &&
+      inventoryCounts.reduce((sum, count) => sum + count, 0) <= inventorySummary.filesInspected
+    );
     const analysis = report.analysis && typeof report.analysis === "object" ? report.analysis : {};
     const validAnalysis = typeof analysis.summary === "string" && analysis.summary.length <= 1600 &&
       Array.isArray(analysis.findings) && analysis.findings.length <= 8 &&
@@ -6792,7 +6797,7 @@ export function verifyIntelligenceReport(actionType, report) {
     if (report.mode !== "bounded_read_only_repository_inspection" ||
         report.repository !== "Mehranmsh/mehranmsh.github.io" ||
         typeof report.commitSha !== "string" || !/^[a-f0-9]{40}$/i.test(report.commitSha) ||
-        !validFiles || totalBytes > 750000 ||
+        !validFiles || totalBytes > 750000 || !validInventorySummary ||
         !report.summary || report.summary.filesInspected !== files.length || report.summary.totalBytes !== totalBytes ||
         !validAnalysis) {
       return { passed: false, checks: [...checks, "inspect_repository_schema"] };
@@ -8385,7 +8390,7 @@ export default {
             const validDependencies = !Object.hasOwn(item || {}, "dependsOn") || Array.isArray(item.dependsOn);
             const dependencies = Array.isArray(item?.dependsOn) ? item.dependsOn : [];
             const paths = actionType === "inspect_repository" ? item?.paths : undefined;
-            const validInspectPaths = actionType !== "inspect_repository" || (Array.isArray(paths) && paths.length >= 1 && paths.length <= 6 && new Set(paths).size === paths.length && paths.every(path => isAllowedPatchPath(path)));
+            const validInspectPaths = actionType !== "inspect_repository" || (Array.isArray(paths) && paths.length >= 1 && paths.length <= 6 && new Set(paths).size === paths.length && paths.every(path => isAllowedInspectionPath(path)));
             const baseSha = ["run_repository_tests","propose_code_patch"].includes(actionType) ? item?.baseSha : undefined;
             const validTestBaseSha = !["run_repository_tests","propose_code_patch"].includes(actionType) || (typeof baseSha === "string" && /^[a-f0-9]{40}$/.test(baseSha));
             const patchObjective = actionType === "propose_code_patch" ? item?.objective : undefined;

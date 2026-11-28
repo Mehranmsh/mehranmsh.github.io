@@ -2,14 +2,13 @@ const MAX_PATCH_BYTES = 16384;
 const MAX_CHANGED_LINES = 160;
 const ALLOWED_ROOT_FILES = new Set(["worker.js","index.html","social.html","nexus.html","ai.html","services.html","music-studio.html"]);
 const ALLOWED_PREFIXES = Object.freeze(["scripts/","src/","pages/","components/","modules/","social/","nexus/","ai/","music-studio/","studio/","assets/js/","assets/css/","public/js/","public/css/"]);
-const FORBIDDEN_PATH = /(?:^|\/)(?:\.env[^/]*|[^/]*(?:secret|credential|wallet|user[-_]?data|account[-_]?data)[^/]*|private(?:\.|\/|$)|node_modules|\.github(?:\/|$)|migrations?|[^/]*(?:deploy|release|publish)[^/]*)\/?/i;
+const FORBIDDEN_PATH = /(?:^|\/)(?:\.env[^/]*|[^/]*(?:secret|credential|wallet|private[-_]?key|private[-_]?data|user[-_]?data|account[-_]?data)[^/]*|private(?:\.|\/|$)|node_modules|\.github(?:\/|$)|vendor|dist|build|coverage|\.git|\.next|\.cache|migrations?|[^/]*(?:deploy|release|publish)[^/]*)\/?/i;
 function fail(code) { return { ok: false, code }; }
 export function isAllowedPatchPath(path) {
   if (typeof path !== "string" || !path || path.length > 240 || path.startsWith("/") || !/^[A-Za-z0-9_./-]+$/.test(path) ||
       path.includes("\\") || path.split("/").some(part => !part || part === "." || part === "..") ||
-      FORBIDDEN_PATH.test(path) || !/\.(?:mjs|js|jsx|ts|tsx|html|css|json)$/i.test(path)) return false;
-  const rootAppSource = !path.includes("/") && /\.(?:mjs|js|html|css)$/i.test(path);
-  return ALLOWED_ROOT_FILES.has(path) || rootAppSource || ALLOWED_PREFIXES.some(prefix => path.startsWith(prefix));
+      FORBIDDEN_PATH.test(path) || !/\.(?:mjs|js|jsx|ts|tsx|html|css|json|py)$/i.test(path)) return false;
+  return /\.(?:mjs|js|jsx|ts|tsx|html|css|json|py)$/i.test(path);
 }
 function count(value) {
   if (value === undefined) return 1;
@@ -49,12 +48,14 @@ export function validatePatchProposal(input) {
 }
 
 export function isAllowedInspectionPath(path) {
+  if (path === "@app-inventory") return true;
   if (typeof path !== "string" || !path || path.length > 240 || path.startsWith("/") ||
       !/^[A-Za-z0-9_./-]+$/.test(path) || path.includes("\\") ||
       path.split("/").some(part => !part || part === "." || part === "..") ||
-      /(?:^|\/)(?:\.env[^/]*|[^/]*(?:secret|credential|wallet|user[-_]?data|account[-_]?data)[^/]*|private(?:\.|\/|$)|node_modules)(?:\/|$)/i.test(path)) return false;
-  return isAllowedPatchPath(path) || path.startsWith(".github/workflows/") ||
-    (path.startsWith("docs/") && /\.(?:md|txt)$/i.test(path));
+      FORBIDDEN_PATH.test(path) ||
+      (/\.(?:mjs|js|jsx|ts|tsx|html|css|json|py)$/i.test(path) === false &&
+       !(path.startsWith("docs/") && /\.(?:md|txt)$/i.test(path)))) return false;
+  return true;
 }
 
 export const PATCH_PROPOSAL_POLICY=Object.freeze({maxPatchBytes:MAX_PATCH_BYTES,maxChangedLines:MAX_CHANGED_LINES,allowedPaths:Object.freeze([...ALLOWED_ROOT_FILES,...ALLOWED_PREFIXES]),allowedRootFiles:Object.freeze([...ALLOWED_ROOT_FILES]),allowedPrefixes:ALLOWED_PREFIXES,forbiddenPathPattern:FORBIDDEN_PATH.source,appliesChanges:false,createsBranches:false,createsPullRequests:false});
