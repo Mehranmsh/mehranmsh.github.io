@@ -156,7 +156,7 @@ test("patch prompt binds a selected app source path to one bounded unified diff 
     targetPath: "src/app.js"
   });
   assert.equal(prompt.ok, true);
-  assert.match(prompt.system, /Target path: src\/app\.js/);
+  assert.match(prompt.user, /Target path: src\/app\.js/);
   assert.match(prompt.system, /exactly one @@ hunk/);
   assert.match(prompt.system, /160 changed lines/);
 });
