@@ -1020,7 +1020,7 @@ test("concurrent duplicate delivery cannot regenerate or reserve AI budget twice
   };
   try {
     const env = { DB: db, MEHRAN_AGENT_TOKEN: "s".repeat(48), MEHRAN_REPORTS_GITHUB_TOKEN: "r".repeat(48) };
-    const payload = { baseSha, objective, requestId };
+    const payload = { baseSha, objective, requestId, targetPath: "scripts/intelligence-capabilities.test.mjs" };
     const headers = { Authorization: "Bearer " + "s".repeat(48) };
     const firstPromise = request("/agent/v1/patch-proposals/generate", {
       method: "POST", headers, body: payload
@@ -1169,7 +1169,7 @@ test("prepared request recovers across storage response loss and partial D1 fina
   };
   try {
     const env = { DB: db, MEHRAN_AGENT_TOKEN: "s".repeat(48), MEHRAN_REPORTS_GITHUB_TOKEN: "r".repeat(48) };
-    const payload = { baseSha, objective, requestId };
+    const payload = { baseSha, objective, requestId, targetPath: "scripts/intelligence-capabilities.test.mjs" };
     const first = await request("/agent/v1/patch-proposals/generate", {
       method: "POST", headers: { Authorization: "Bearer " + "s".repeat(48) }, body: payload
     }, env);
