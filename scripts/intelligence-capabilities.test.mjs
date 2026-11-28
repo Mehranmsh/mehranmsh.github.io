@@ -262,6 +262,10 @@ test("AI mission planner uses JSON mode and extracts one complete balanced objec
   assert.match(planner, /jsonMode: true, temperature: 0, maxTokens: 1000/);
   assert.match(planner, /runIntelligenceAI\(env/);
   assert.match(planner, /extractIntelligenceJsonObject\(modelResponse\)/);
+  assert.match(planner, /repositoryBaseSha/);
+  assert.match(planner, /commits\/main/);
+  assert.match(planner, /baseSha copied exactly from the immutable repository SHA above/);
+  assert.match(workerSource, /actionType !== "run_repository_tests" && normalized\.actionType !== "propose_code_patch/);
   assert.match(workerSource.slice(start, plannerStart), /if \(depth === 0 && start >= 0\) return text\.slice\(start, index \+ 1\)/);
   assert.match(workerSource.slice(start, plannerStart), /if \(escaped\) escaped = false/);
   assert.match(workerSource.slice(start, plannerStart), /raw.length > 12000/);
@@ -270,7 +274,7 @@ test("AI mission planner uses JSON mode and extracts one complete balanced objec
 test("AI planner strips schema-optional fields that are invalid for another action", () => {
   assert.match(workerSource, /const normalizedTasks = plan\.tasks\.map\(item =>/);
   assert.match(workerSource, /if \(normalized\.actionType !== "inspect_repository"\) delete normalized\.paths/);
-  assert.match(workerSource, /if \(normalized\.actionType !== "run_repository_tests"\) delete normalized\.baseSha/);
+  assert.match(workerSource, /if \(normalized\.actionType !== "run_repository_tests" && normalized\.actionType !== "propose_code_patch"\) delete normalized\.baseSha/);
   assert.match(workerSource, /if \(normalized\.actionType !== "propose_code_patch"\) delete normalized\.objective/);
   assert.match(workerSource, /const acceptedTaskIds = new Set\(\)/);
   assert.match(workerSource, /acceptedTaskIds\.has\(dep\)/);
