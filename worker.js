@@ -6236,8 +6236,8 @@ export function validateIntelligenceWorkPackage(input) {
   const optionalActions = scope.optionalActions === undefined ? [] : scope.optionalActions;
   if (!Array.isArray(optionalActions) || optionalActions.length > globalAllowedActions.length ||
       new Set(optionalActions).size !== optionalActions.length ||
-      optionalActions.some(action => typeof action !== "string" || !scopedActions.includes(action))) {
-    return fail("Work package scope.optionalActions must be a unique subset of explicitly authorized actions.");
+      optionalActions.some(action => typeof action !== "string" || action !== "propose_code_patch" || !scopedActions.includes(action))) {
+    return fail("Work package scope.optionalActions may contain only the explicitly authorized optional AI patch capability.");
   }
   const normalized = [];
   const known = new Set();
