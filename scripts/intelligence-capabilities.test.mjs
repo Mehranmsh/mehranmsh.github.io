@@ -1426,10 +1426,9 @@ test("semantic repository analysis is owner-authenticated, bounded, and evidence
   const inspectEnd = runnerSource.indexOf('if (task.actionType === "source_security_audit")', inspectStart);
   assert.ok(inspectStart >= 0 && inspectEnd > inspectStart);
   const inspect = runnerSource.slice(inspectStart, inspectEnd);
-  assert.ok(inspect.includes("repository/analyze"));
-  assert.ok(inspect.includes("ownerHeaders"));
-  assert.ok(inspect.includes("semantic.commitSha !== commit.sha"));
-  assert.ok(inspect.includes("analysisFiles"));
+  assert.ok(inspect.includes("Deterministic repository inventory completed"));
+  assert.doesNotMatch(inspect, /repository\/analyze|ownerHeaders|semantic\.commitSha|analysisFiles|orchestratorToken/);
+  assert.doesNotMatch(runnerSource, /request\("\/agent\/v1\/repository\/analyze"/);
   assert.ok(workerSource.includes("Do not call a named constant a magic number"));
   assert.ok(workerSource.includes("Do not label a Firebase Web API key"));
   assert.ok(workerSource.includes("unsupportedMagicNumberFindings"));
