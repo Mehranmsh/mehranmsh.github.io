@@ -2,7 +2,7 @@ import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { readFileSync } from "node:fs";
 import { createHash } from "node:crypto";
-import { isAllowedPatchPath } from "./intelligence-patch-policy.mjs";
+import { isAllowedPatchPath, isAllowedInspectionPath } from "./intelligence-patch-policy.mjs";
 import { readBoundedResponse } from "./intelligence-bounded-response.mjs";
 
 const run = promisify(execFile);
@@ -124,7 +124,7 @@ function inspectRepository(payload) {
   const paths = payload.paths;
   if (!Array.isArray(paths) || paths.length < 1 || paths.length > 6 ||
       new Set(paths).size !== paths.length ||
-      paths.some(path => !isAllowedPatchPath(path))) {
+      paths.some(path => !isAllowedInspectionPath(path))) {
     return { status: "blocked", result: "Repository inspection paths must be unique allowlisted application source files. No file was read." };
   }
   const files = [];
