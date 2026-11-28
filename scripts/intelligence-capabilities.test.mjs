@@ -112,7 +112,7 @@ test("optional AI tasks are deferred without blocking required deterministic wor
   const quiescentEnd = workerSource.indexOf("export default", quiescentStart);
   const quiescent = workerSource.slice(quiescentStart, quiescentEnd);
   assert.match(quiescent, /\boptionalQueued\b/);
-  assert.match(quiescent, /counts\.queued <= counts\.blockedDependencies \+ counts\.optionalQueued/);
+  assert.match(quiescent, /counts\.queued <= counts\.blockedDependencies \+ optionalQueued/);
 
   const snapshotStart = workerSource.indexOf("async function refreshIntelligenceWorkPackageSnapshot");
   const snapshotEnd = workerSource.indexOf("async function ensureIntelligenceSchedulerRunsTable", snapshotStart);
