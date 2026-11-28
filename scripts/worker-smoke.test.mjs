@@ -131,7 +131,7 @@ const workerRest = workerSource.replace(capabilityImport, "")
   .replace(analysisValidationImport, "")
   .replace(objectiveVerificationImport, "");
 const objectiveVerificationUrl = moduleUrl(objectiveVerificationSource);
-const workerSourceForTest = knowledgeGraphSource + "\n" + memoryRankingSource + "\n" + feedbackReviewSource + "\n" + planHistorySource + "\n" + planLearningSource + "\n" + analysisValidationSource + "\n" + `import { normalizeIntelligenceAcceptanceCriteria, verifyIntelligenceObjective } from "${objectiveVerificationUrl}";\n` + routinePlannerSource + "\n" + retryPolicySource + `\nimport { storePrivatePatchArtifact, verifyPrivatePatchArtifactAtPath, getPrivatePatchArtifactPath, getVerifiedPrivatePatchArtifactAtPath } from "${patchStoreTestUrl}";
+const workerSourceForTest = knowledgeGraphSource + "\n" + memoryRankingSource + "\n" + feedbackReviewSource + "\n" + planHistorySource + "\n" + planLearningSource + "\n" + analysisValidationSource + "\n" + `import { normalizeIntelligenceAcceptanceCriteria, verifyIntelligenceObjective } from "${objectiveVerificationUrl}";\n` + routinePlannerSource + "\n" + retryPolicySource + `\nimport { isAllowedPatchPath } from "${policyUrl}";\nimport { storePrivatePatchArtifact, verifyPrivatePatchArtifactAtPath, getPrivatePatchArtifactPath, getVerifiedPrivatePatchArtifactAtPath } from "${patchStoreTestUrl}";
 import { generatePatchArtifact } from "${patchGenerationTestUrl}";
 import { validatePrivateIntelligenceMission } from "${inboxSchemaUrl}";
 const INTELLIGENCE_ACTION_TYPES = ${JSON.stringify(INTELLIGENCE_ACTION_TYPES)};
