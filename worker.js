@@ -9882,8 +9882,8 @@ export default {
         let actionPayload={};
         if(actionType==="propose_code_patch"){
           const supplied=body.actionPayload;
-          if(!supplied||typeof supplied!=="object"||Array.isArray(supplied)||Object.keys(supplied).join(",")!=="objective"||typeof supplied.objective!=="string"||supplied.objective.trim().length<12||supplied.objective.length>800)return error("A bounded patch proposal objective is required.");
-          actionPayload={objective:supplied.objective.trim()};
+          if(!supplied||typeof supplied!=="object"||Array.isArray(supplied)||Object.keys(supplied).sort().join(",")!=="baseSha,objective,targetPath"||typeof supplied.baseSha!=="string"||!/^[a-f0-9]{40}$/.test(supplied.baseSha)||typeof supplied.objective!=="string"||supplied.objective.trim().length<12||supplied.objective.length>800||!isAllowedPatchPath(supplied.targetPath))return error("A bounded objective, exact base SHA, and allowlisted target path are required.");
+          actionPayload={baseSha:supplied.baseSha,objective:supplied.objective.trim(),targetPath:supplied.targetPath};
         }else if(body.actionPayload!==undefined){
           return error("This task action does not accept a custom payload through the task hub.");
         }
