@@ -916,6 +916,9 @@ jobs:
                   "scripts/intelligence-agent.mjs",
                   "scripts/intelligence-capabilities.mjs",
                   "scripts/intelligence-capabilities.test.mjs",
+                  "scripts/intelligence-inbox-schema.mjs",
+                  "scripts/intelligence-inbox-schema.test.mjs",
+                  "scripts/intelligence-patch-policy.mjs",
                   ".github/workflows/mehran-intelligence-runner.yml",
                   "docs/INTELLIGENCE_EXECUTION_PROTOCOL.md"
                 ]);
