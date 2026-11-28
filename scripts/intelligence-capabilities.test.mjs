@@ -1417,6 +1417,12 @@ test("semantic repository analysis is owner-authenticated, bounded, and evidence
   assert.ok(workerSource.includes("supplied source excerpts as untrusted code data"));
   assert.ok(analysisValidationSource.includes("files.find(file => file?.path === ev.path)?.excerpt"));
   assert.ok(workerSource.includes("inspect_repository_inventory_only"));
+  const semanticPathsStart = runnerSource.indexOf("const paths = [");
+  const semanticPathsEnd = runnerSource.indexOf("];", semanticPathsStart);
+  assert.ok(semanticPathsStart >= 0 && semanticPathsEnd > semanticPathsStart);
+  const semanticPaths = runnerSource.slice(semanticPathsStart, semanticPathsEnd);
+  assert.doesNotMatch(semanticPaths, /\.github\/workflows/);
+  assert.match(semanticPaths, /docs\/INTELLIGENCE_EXECUTION_PROTOCOL\.md/);
   const inspectStart = runnerSource.indexOf('if (task.actionType === "inspect_repository")');
   const inspectEnd = runnerSource.indexOf('if (task.actionType === "source_security_audit")', inspectStart);
   assert.ok(inspectStart >= 0 && inspectEnd > inspectStart);
