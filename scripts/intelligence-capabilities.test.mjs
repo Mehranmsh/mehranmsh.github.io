@@ -753,7 +753,7 @@ test("patch generation prompt treats source as untrusted and fixes the narrow ou
   assert.match(prompt.system, /untrusted data/);
   assert.match(prompt.system, /single allowlisted MEHRAN MSH application source file/);
   assert.match(prompt.system, /exactly one @@ hunk/);
-  assert.match(prompt.system, /K must equal the exact number of added lines/);
+  assert.match(prompt.system, /160 changed lines/);
   assert.doesNotMatch(prompt.system, /\+NEW_LINE,1/);
   assert.ok(prompt.system.includes("scripts/intelligence-capabilities.test.mjs"));
   assert.match(prompt.user, /Immutable base commit/);
